@@ -9,18 +9,15 @@ import 'package:zuno/features/chat/data/unsent_events.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
-class _SendingDatabase extends StoredEventsFakeDatabaseApi
-    with SendCapableDatabase {}
-
 void main() {
-  late _SendingDatabase db;
+  late SendingFakeDatabaseApi db;
   late List<http.Request> requests;
   late Room room;
   final noon = DateTime(2026, 9, 20, 12);
   final later = noon.add(const Duration(minutes: 1));
 
   setUp(() {
-    db = _SendingDatabase();
+    db = SendingFakeDatabaseApi();
     requests = [];
     final client = buildTestClient(
       userId: '@me:x',
@@ -251,5 +248,30 @@ void main() {
 
       expect(requests, isEmpty);
     });
+  });
+
+  test('a photo whose upload finished resends its content as is, without '
+      'uploading again', () async {
+    final photo = buildTestEvent(
+      room,
+      eventId: 'txn-photo',
+      senderId: '@me:x',
+      status: EventStatus.error,
+      originServerTs: noon,
+      content: {
+        'msgtype': MessageTypes.Image,
+        'body': 'photo.jpg',
+        'filename': 'photo.jpg',
+        'url': 'mxc://example.org/photo',
+      },
+    );
+    photo.unsigned = {'transaction_id': 'txn-photo'};
+
+    await resendUnsent(photo);
+
+    final sent = requests.where((r) => r.url.path.contains('/send/')).single;
+    expect(sent.url.path, contains('/send/m.room.message/txn-photo'));
+    expect((jsonDecode(sent.body) as Map)['url'], 'mxc://example.org/photo');
+    expect(requests.where((r) => r.url.path.endsWith('/upload')), isEmpty);
   });
 }

@@ -20,6 +20,7 @@ import 'package:zuno/features/chat/presentation/media_viewer/media_viewer_page.d
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_chrome.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_photo.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_video.dart';
+import 'package:zuno/features/share/presentation/forward_picker_page.dart';
 
 import '../../../../helpers/fake_attachments.dart';
 import '../../../../helpers/fake_audio_session.dart';
@@ -742,6 +743,74 @@ void main() {
 
       expect(player.calls.last, 'pause');
       await tester.pump(ZunoDurations.page * 2);
+    });
+
+    testWidgets('a page opened over a playing video pauses it and keeps the '
+        'bars; coming back plays on', (tester) async {
+      final opened = video(r'$v', 1);
+      await openViewer(
+        tester,
+        pages: {
+          null: (events: [opened], nextBatch: null),
+        },
+        opened: opened,
+      );
+      await pumpUntil(
+        tester,
+        () => player.calls.contains('play'),
+        reason: 'the video to play',
+      );
+
+      await tester.tap(find.byTooltip('Forward'));
+      await tester.pump();
+      await tester.pump(ZunoDurations.page * 2);
+      expect(find.byType(ForwardPickerPage), findsOneWidget);
+      expect(player.calls.last, 'pause');
+
+      await tester.pump(const Duration(seconds: 4));
+      expect(systemUiModes(), isNot(contains('SystemUiMode.immersiveSticky')));
+
+      await tester.pageBack();
+      await tester.pump();
+      await tester.pump(ZunoDurations.page * 2);
+      expect(find.byType(ForwardPickerPage), findsNothing);
+      expect(player.calls.last, 'play');
+
+      Navigator.of(tester.element(find.byType(MediaViewerPage))).pop();
+      await tester.pump();
+      await tester.pump(ZunoDurations.page);
+    });
+
+    testWidgets('the React sheet over a playing video leaves it playing', (
+      tester,
+    ) async {
+      final opened = video(r'$v', 1);
+      await openViewer(
+        tester,
+        pages: {
+          null: (events: [opened], nextBatch: null),
+        },
+        opened: opened,
+      );
+      await pumpUntil(
+        tester,
+        () => player.calls.contains('play'),
+        reason: 'the video to play',
+      );
+
+      await tester.tap(find.byTooltip('React'));
+      await tester.pump();
+      await tester.pump(ZunoDurations.page * 2);
+
+      expect(find.text('👍'), findsOneWidget);
+      expect(player.calls.last, 'play');
+
+      Navigator.of(tester.element(find.text('👍'))).pop();
+      await tester.pump();
+      await tester.pump(ZunoDurations.page * 2);
+      Navigator.of(tester.element(find.byType(MediaViewerPage))).pop();
+      await tester.pump();
+      await tester.pump(ZunoDurations.page);
     });
 
     testWidgets('touching the video controls keeps them up', (tester) async {

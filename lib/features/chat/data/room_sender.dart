@@ -17,6 +17,7 @@ import '../../../core/matrix/currently_open_room_provider.dart';
 import '../../../core/matrix/image_send_preparation.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/media_processing_exception.dart';
+import '../../../core/matrix/room_media_feed.dart';
 import '../../../core/matrix/send_failure.dart';
 import '../../../core/matrix/send_progress.dart';
 import '../../../core/matrix/upload_foreground_service.dart';
@@ -27,6 +28,8 @@ import 'composed_image.dart';
 import 'composed_media.dart';
 import 'composed_video.dart';
 import 'discarded_sends.dart';
+import 'forward_uploads.dart';
+import 'forwarding.dart';
 import 'pending_attachment_send.dart';
 import 'unsent_events.dart';
 
@@ -94,6 +97,76 @@ class RoomSender extends ChangeNotifier {
     );
   }
 
+  Future<bool> forward(List<Event> items, {ForwardUploads? uploads}) async {
+    final shared = uploads ?? ForwardUploads();
+    Future<List<bool>> sendAll() => _sendAsGallery(
+      items,
+      (item, gallery) => _forwardItem(
+        item,
+        gallery: gallery,
+        uploads: shared,
+        announce: false,
+      ),
+    );
+    final delivered = items.any((item) => forwardNeedsUpload(item, room))
+        ? await _keepingUploadAlive(sendAll)
+        : await sendAll();
+    return delivered.every((sent) => sent);
+  }
+
+  Future<bool> _forwardItem(
+    Event item, {
+    required GalleryGroupRef? gallery,
+    required ForwardUploads uploads,
+    required bool announce,
+  }) async {
+    final txid = room.client.generateUniqueTransactionId();
+    final copy = forwardedContent(item, gallery: gallery);
+    Future<bool> send() async {
+      if (_isDiscarded(txid, gallery?.id)) return true;
+      return _sendThenDropIfDiscarded(
+        txid: txid,
+        galleryId: gallery?.id,
+        send: () => room.sendEvent(copy, type: item.type, txid: txid),
+      );
+    }
+
+    final delivered = await _guardedSend(
+      txid,
+      !forwardNeedsUpload(item, room)
+          ? send
+          : () => _withSendProgress(
+              PendingAttachmentSend(
+                eventId: txid,
+                kind: switch (roomMediaKindOf(item)) {
+                  RoomMediaKind.photo => SendMediaKind.photo,
+                  RoomMediaKind.video => SendMediaKind.video,
+                  RoomMediaKind.file || null => SendMediaKind.file,
+                },
+                width: item.infoMap.tryGet<int>('w'),
+                height: item.infoMap.tryGet<int>('h'),
+                compresses: false,
+              ),
+              (progress) async {
+                final plain = await uploads.plainMedia(
+                  item,
+                  onProgress: progress.upload,
+                );
+                copy
+                  ..remove('file')
+                  ..addAll(plain);
+                return send();
+              },
+            ),
+      onFailed: () => _recordFailed(
+        FailedMediaSend(gallery: gallery, forward: item),
+        announce: announce,
+      ),
+      announce: announce,
+    );
+    return delivered ?? false;
+  }
+
   Future<void> holdCopies(
     List<String> paths,
     Future<void> Function() body,
@@ -117,18 +190,11 @@ class RoomSender extends ChangeNotifier {
     }
   }
 
-  Future<void> sendComposed(List<ComposedMedia> composed) {
-    final groupId = composed.length > 1
-        ? room.client.generateUniqueTransactionId()
-        : null;
-    return _keepingUploadAlive(
-      () => _discarded.whileSending([groupId], () async {
-        for (final (i, media) in composed.indexed) {
-          if (_discarded.contains(room, [groupId])) break;
-          final gallery = groupId == null
-              ? null
-              : GalleryGroupRef(id: groupId, index: i, count: composed.length);
-          await switch (media) {
+  Future<void> sendComposed(List<ComposedMedia> composed) =>
+      _keepingUploadAlive(
+        () => _sendAsGallery(
+          composed,
+          (media, gallery) => switch (media) {
             ComposedImageResult(:final image) => _sendPhoto(
               image,
               gallery: gallery,
@@ -137,10 +203,36 @@ class RoomSender extends ChangeNotifier {
               video,
               gallery: gallery,
             ),
-          };
-        }
-      }),
-    );
+          },
+        ),
+      );
+
+  Future<List<T>> _sendAsGallery<I, T>(
+    List<I> items,
+    Future<T> Function(I item, GalleryGroupRef? gallery) send,
+  ) {
+    final groupId = items.length > 1
+        ? room.client.generateUniqueTransactionId()
+        : null;
+    return _discarded.whileSending([groupId], () async {
+      final results = <T>[];
+      for (final (index, item) in items.indexed) {
+        if (_discarded.contains(room, [groupId])) break;
+        results.add(
+          await send(
+            item,
+            groupId == null
+                ? null
+                : GalleryGroupRef(
+                    id: groupId,
+                    index: index,
+                    count: items.length,
+                  ),
+          ),
+        );
+      }
+      return results;
+    });
   }
 
   Future<void> sendFile(
@@ -199,6 +291,13 @@ class RoomSender extends ChangeNotifier {
           await _sendPhoto(photo, gallery: failed.gallery);
         case FailedMediaSend(video: final video?):
           await _sendVideo(video, gallery: failed.gallery);
+        case FailedMediaSend(forward: final item?):
+          await _forwardItem(
+            item,
+            gallery: failed.gallery,
+            uploads: ForwardUploads(),
+            announce: true,
+          );
       }
     });
   }
@@ -336,28 +435,30 @@ class RoomSender extends ChangeNotifier {
     );
   }
 
-  Future<void> _guardedSend(
+  Future<T?> _guardedSend<T>(
     String txid,
-    Future<void> Function() send, {
+    Future<T> Function() send, {
     required VoidCallback onFailed,
+    bool announce = true,
   }) async {
     try {
-      await send();
+      return await send();
     } on MediaProcessingException catch (e) {
-      _say(e.message);
+      if (announce) _say(e.message);
     } on FileTooBigMatrixException catch (e) {
       await discardSendPlaceholder(room, txid);
-      _say(tooLargeToSendMessage(_l10n, e));
+      if (announce) _say(tooLargeToSendMessage(_l10n, e));
     } catch (e, s) {
       reportCaught('send attachment', e, s);
       await discardSendPlaceholder(room, txid);
       onFailed();
     }
+    return null;
   }
 
-  Future<void> _withSendProgress(
+  Future<T> _withSendProgress<T>(
     PendingAttachmentSend pending,
-    Future<void> Function(_SendProgressSink progress) send,
+    Future<T> Function(_SendProgressSink progress) send,
   ) {
     return _keepingUploadAlive(() async {
       var current = pending;
@@ -377,7 +478,7 @@ class RoomSender extends ChangeNotifier {
 
       publish(pending);
       try {
-        await send(
+        return await send(
           _SendProgressSink(
             compression: (fraction) => advance(SendStage.compressing, fraction),
             upload: (fraction) => advance(SendStage.uploading, fraction),
@@ -392,11 +493,11 @@ class RoomSender extends ChangeNotifier {
     });
   }
 
-  Future<void> _keepingUploadAlive(Future<void> Function() body) async {
+  Future<T> _keepingUploadAlive<T>(Future<T> Function() body) async {
     final service = UploadForegroundService.instance;
     await service.acquire();
     try {
-      await body();
+      return await body();
     } finally {
       await service.release();
     }
@@ -427,7 +528,7 @@ class RoomSender extends ChangeNotifier {
     );
   }
 
-  Future<void> _sendThenDropIfDiscarded({
+  Future<bool> _sendThenDropIfDiscarded({
     required String txid,
     required String? galleryId,
     required Future<String?> Function() send,
@@ -438,12 +539,14 @@ class RoomSender extends ChangeNotifier {
       txid,
       galleryId,
     ], () => _sendUnlessDiscarded(txid, galleryId, () => scope.run(send)));
+    final bool delivered;
     try {
-      await Future.any([sending, scope.stopped]);
+      delivered = await Future.any([sending, scope.stopped.then((_) => true)]);
     } finally {
       _sends.remove(txid);
     }
     if (scope.isStopped) _keepRemoved(txid, until: sending);
+    return delivered;
   }
 
   void _keepRemoved(String txid, {required Future<void> until}) {
@@ -465,7 +568,7 @@ class RoomSender extends ChangeNotifier {
     until.whenComplete(shownAgain.cancel).ignore();
   }
 
-  Future<void> _sendUnlessDiscarded(
+  Future<bool> _sendUnlessDiscarded(
     String txid,
     String? galleryId,
     Future<String?> Function() send,
@@ -476,7 +579,7 @@ class RoomSender extends ChangeNotifier {
     } catch (_) {
       if (!_isDiscarded(txid, galleryId)) rethrow;
     }
-    if (!_isDiscarded(txid, galleryId)) return;
+    if (!_isDiscarded(txid, galleryId)) return eventId != null;
     try {
       if (eventId == null) {
         await discardSendPlaceholder(room, txid);
@@ -493,6 +596,7 @@ class RoomSender extends ChangeNotifier {
     } finally {
       await _discarded.remove(room, txid);
     }
+    return true;
   }
 
   Map<String, dynamic>? _attachmentExtraContent({
@@ -501,25 +605,20 @@ class RoomSender extends ChangeNotifier {
   }) {
     final content = <String, dynamic>{
       if (caption != null && caption.isNotEmpty) 'body': caption,
-      if (gallery != null)
-        ...galleryGroupContent(
-          id: gallery.id,
-          index: gallery.index,
-          count: gallery.count,
-        ),
+      ...?gallery?.content,
     };
     return content.isEmpty ? null : content;
   }
 
-  void _recordFailed(FailedMediaSend failed) {
+  void _recordFailed(FailedMediaSend failed, {bool announce = true}) {
     if (_discarded.contains(room, [failed.gallery?.id])) return;
     if (_disposed) {
-      _say(_l10n.chatNotSentTryAgain);
+      if (announce) _say(_l10n.chatNotSentTryAgain);
       return;
     }
     _failed.add(failed);
     _changed();
-    if (!_chatOpen()) _say(_l10n.chatNotSentTryAgain);
+    if (announce && !_chatOpen()) _say(_l10n.chatNotSentTryAgain);
   }
 
   Future<void> _releaseCopies(List<String> paths) async {

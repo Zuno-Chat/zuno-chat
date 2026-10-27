@@ -69,18 +69,21 @@ void main() {
   group('discardSendPlaceholder', () {
     late _PlaceholderDatabase db;
     late Room placeholderRoom;
+    late List<http.Request> requests;
 
     setUp(() {
       db = _PlaceholderDatabase();
+      requests = [];
       final client = buildTestClient(
         userId: '@me:example.org',
         database: db,
-        httpClient: FakeHttpClient(
-          (_) async => http.Response(
+        httpClient: FakeHttpClient((request) async {
+          requests.add(request);
+          return http.Response(
             jsonEncode({'errcode': 'M_NOT_FOUND', 'error': 'gone'}),
             404,
-          ),
-        ),
+          );
+        }),
       );
       client.baseUri = Uri.parse('https://example.org');
       client.bearerToken = 'token';
@@ -103,6 +106,13 @@ void main() {
       await discardSendPlaceholder(placeholderRoom, 'txid-1');
 
       expect(db.removed, ['txid-1']);
+    });
+
+    test('a send that never showed a placeholder asks nobody', () async {
+      await discardSendPlaceholder(placeholderRoom, 'txid-1');
+
+      expect(db.removed, isEmpty);
+      expect(requests, isEmpty);
     });
 
     test('does nothing when the lookup fails', () async {

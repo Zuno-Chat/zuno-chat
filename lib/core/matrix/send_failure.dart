@@ -10,7 +10,7 @@ bool isDiscardablePlaceholder(Event? event) =>
 Future<void> discardSendPlaceholder(Room room, String txid) async {
   final Event? event;
   try {
-    event = await room.getEventById(txid);
+    event = await room.client.database.getEventById(txid, room);
   } catch (e, s) {
     reportCaught('find a send placeholder', e, s);
     return;

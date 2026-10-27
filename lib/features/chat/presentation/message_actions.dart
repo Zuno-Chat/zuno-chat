@@ -11,13 +11,16 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/attachment_feedback.dart';
+import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/ui/sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
 import '../data/discarded_sends.dart';
+import '../data/forwarding.dart';
 import '../data/message_kinds.dart';
 import '../data/room_sender.dart';
 import '../data/unsent_events.dart';
+import 'forward_media.dart';
 import 'message_actions_sheet.dart';
 import 'message_contents/reactions_row.dart';
 import 'seen_by_tile.dart';
@@ -62,6 +65,11 @@ Future<void> showMessageActions(
           isNotSent(event) ||
           gallery != null ||
           (isOwn && isAttachment && event.status.isSending));
+  final shown = withEditApplied(event, displayEvent);
+  final media = gallery == null
+      ? [shown]
+      : [for (final item in gallery) withLatestEdit(item, timeline)];
+  final forwardable = media.where(canForward).toList();
   final l10n = context.l10n;
   final labels = DateLabels.of(context);
 
@@ -74,11 +82,12 @@ Future<void> showMessageActions(
     isTextMessage: isTextMessage,
     isAttachment: isAttachment,
     galleryCount: gallery?.length ?? 0,
+    forwardCount: forwardable.length,
     facts: [
       if (isAttachment)
         MessageFact(
           icon: Icons.info_outline,
-          child: Text(attachmentInfoText(l10n, displayEvent, attachmentKind)),
+          child: Text(attachmentInfoText(l10n, shown, attachmentKind)),
         ),
       MessageFact(
         icon: Icons.schedule_outlined,
@@ -110,18 +119,12 @@ Future<void> showMessageActions(
         gallery ?? [event],
         gallery: gallery != null,
       );
+    case MessageAction.forward:
+      await forwardMedia(context, ref, forwardable);
     case MessageAction.share:
-      await shareAttachmentsWithFeedback(
-        messenger,
-        l10n,
-        gallery ?? [displayEvent],
-      );
+      await shareAttachmentsWithFeedback(messenger, l10n, media);
     case MessageAction.save:
-      await saveAttachmentsWithFeedback(
-        messenger,
-        l10n,
-        gallery ?? [displayEvent],
-      );
+      await saveAttachmentsWithFeedback(messenger, l10n, media);
     case MessageAction.copy:
       await Clipboard.setData(
         ClipboardData(text: displayBody(event, timeline)),

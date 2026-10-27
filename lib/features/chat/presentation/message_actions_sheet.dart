@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/sheet.dart';
+import 'forward_icon.dart';
 
-enum MessageAction { reply, edit, delete, share, save, copy, report }
+enum MessageAction { reply, edit, delete, forward, share, save, copy, report }
 
 const _quickEmoji = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
@@ -16,6 +17,7 @@ Future<MessageAction?> showMessageActionsSheet(
   required bool isTextMessage,
   required bool isAttachment,
   required int galleryCount,
+  required int forwardCount,
   required List<Widget> facts,
   required void Function(String key) onReact,
   required VoidCallback onMoreReactions,
@@ -30,10 +32,13 @@ Future<MessageAction?> showMessageActionsSheet(
       final colors = theme.colorScheme;
       final l10n = context.l10n;
 
-      Widget action(MessageAction value, IconData icon, String label) {
+      Widget action(MessageAction value, Widget icon, String label) {
         final color = value == MessageAction.delete ? colors.error : null;
         return ListTile(
-          leading: Icon(icon, color: color),
+          leading: IconTheme.merge(
+            data: IconThemeData(color: color),
+            child: icon,
+          ),
           title: Text(
             label,
             style: color == null ? null : TextStyle(color: color),
@@ -65,35 +70,47 @@ Future<MessageAction?> showMessageActionsSheet(
               if (canRespond)
                 action(
                   MessageAction.reply,
-                  Icons.reply_outlined,
+                  const Icon(Icons.reply_outlined),
                   l10n.commonReply,
                 ),
               if (isTextMessage)
                 action(
                   MessageAction.copy,
-                  Icons.copy_outlined,
+                  const Icon(Icons.copy_outlined),
                   l10n.commonCopy,
                 ),
               if (canEdit)
-                action(MessageAction.edit, Icons.edit_outlined, l10n.chatEdit),
+                action(
+                  MessageAction.edit,
+                  const Icon(Icons.edit_outlined),
+                  l10n.chatEdit,
+                ),
+              if (forwardCount > 0)
+                action(
+                  MessageAction.forward,
+                  const ForwardIcon(),
+                  forwardCount > 1
+                      ? l10n.chatForwardAll(forwardCount)
+                      : l10n.chatForward,
+                ),
               if (isAttachment) ...[
                 action(
                   MessageAction.share,
-                  Icons.share_outlined,
+                  const Icon(Icons.share_outlined),
                   isGallery
                       ? l10n.chatShareAll(galleryCount)
                       : l10n.commonShare,
                 ),
                 action(
                   MessageAction.save,
-                  Icons.download_outlined,
+                  const Icon(Icons.download_outlined),
                   isGallery ? l10n.chatSaveAll(galleryCount) : l10n.commonSave,
                 ),
               ],
               if (canDelete)
                 action(
                   MessageAction.delete,
-                  Icons.delete_outline,
+                  const Icon(Icons.delete_outline),
                   isGallery
                       ? l10n.chatDeleteAllCount(galleryCount)
                       : l10n.commonDelete,
@@ -101,7 +118,7 @@ Future<MessageAction?> showMessageActionsSheet(
               if (!isOwn)
                 action(
                   MessageAction.report,
-                  Icons.flag_outlined,
+                  const Icon(Icons.flag_outlined),
                   l10n.commonReport,
                 ),
               if (facts.isNotEmpty) ...[

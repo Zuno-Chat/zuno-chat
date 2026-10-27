@@ -1,8 +1,8 @@
 # Chats & Messaging
 
 The chat room: its timeline, how each message is rendered, the composer,
-attachments, voice messages, galleries, the media viewer, avatars and
-inbound share from other apps. There is no message model or service
+attachments, voice messages, galleries, the media viewer, avatars,
+forwarding and inbound share from other apps. There is no message model or service
 layer: the chat reads and changes the SDK's `Room`, `Timeline` and
 `Event` objects directly.
 `RoomPage` keeps the timeline and wires the rest together; sending,
@@ -36,7 +36,8 @@ in `features/chat/presentation/`.
 | `core/matrix/media_gallery_group.dart` | Gallery grouping |
 | `core/matrix/sanitize_message_html.dart` | The sanitizer for formatted (HTML) messages |
 | `core/matrix/urls.dart`, `core/navigation/zuno_links.dart` | What counts as a link in a message, and the one link opener |
-| `core/share/inbound_share.dart`, `features/share/` | Inbound share: the `zuno/share` channel and the chat picker |
+| `features/chat/data/forwarding.dart`, `forward_uploads.dart`, `forward_media.dart` | Forwarding: what the copy carries, the one upload per forward, and the flow from picker to summary note |
+| `core/share/inbound_share.dart`, `features/share/` | Inbound share's `zuno/share` channel, and the chat list both pickers share |
 
 ## Timeline
 
@@ -102,6 +103,12 @@ own.
   surface.
 - **Call summaries** are ordinary `m.room.message` events with Zuno
   msgtypes, classified here like everything else. Their body stays English in the room, since other clients display it; Zuno renders them in the phone's language.
+- **A message reads as its latest edit wherever it is drawn or acted
+  on**, with its own ID, sender, time and send state, so the chat, the
+  long-press sheet and the viewer agree and an edited photo is never two
+  items. The original's gallery link and forwarded mark stay, because an
+  app that knows neither drops them from its edits; only the edit's own
+  send state and retry use the edit itself.
 - **Live location starts** are `m.room.message` events with a Zuno
   msgtype too. Their tile draws the live share while it runs and reads like
   a deleted message once it ended; they offer no copy, and deleting your
@@ -236,6 +243,9 @@ client can resolve.
   resends.
 - **Reactions resend as reactions**, because the SDK's own resend sends
   everything as a message.
+- **Anything whose upload already finished resends its content as is**,
+  because the SDK's own resend uploads attachments again from its file
+  store, which is off, and drops the row when it finds nothing there.
 
 | Delete on | Does |
 |---|---|
@@ -430,13 +440,14 @@ the chat too.
 Frosted controls float over the media, which stays centered on the whole
 screen: back, the sender with the send time and ⋯ at the top; the caption,
 the gallery position, a video timeline with mute, reaction chips and an
-action pill (React, Reply, Share, Save) at the bottom. They hide on their
-own while a video plays.
+action pill (React, Reply, Forward, Share, Save) at the bottom. They hide
+on their own while a video plays. The caption shows the item's latest
+edit.
 
 | Action | On a gallery item, acts on |
 |---|---|
 | React, reaction chips, ⋯ | The gallery message, the one the chat shows reactions under; ⋯ opens the gallery's sheet |
-| Reply, Share, Save | The item on screen, so a reply quotes that exact photo |
+| Reply, Forward, Share, Save | The item on screen, so a reply quotes that exact photo |
 
 - **⋯ opens the same sheet as long-pressing the message**, and React and
   Reply follow its rule: shown only where the user can post and the item
@@ -455,9 +466,60 @@ own while a video plays.
 | Swipe down | Closes; the chat shows through while dragging |
 | Double-tap or pinch a photo | Zooms |
 
+- **A video pauses while a full page covers the viewer or the app is in
+  the background, and plays on after**, so its sound never runs behind the
+  forward picker; a sheet over it leaves it playing.
 - **Opening flies the photo from its thumbnail, and closing flies it
   back.** Only the opened item flies back; one reached by swiping fades
   out. With reduced motion the viewer appears and leaves at once.
+
+## Forwarding
+
+Photos, videos and files (stickers count as photos) forward to up to 5
+chats with one Send; voice messages, text and locations do not. The
+long-press sheet offers Forward, or Forward all (N) on a gallery, counting
+only its sent, readable items; the viewer's Forward sends the item on
+screen. The user stays where they were and gets one note: sent to every
+chat, or which chat failed.
+
+```mermaid
+flowchart LR
+  A["Forward"] --> B["Picker: tick up to 5 chats"]
+  B --> C["Each chat's sender, all at once"]
+  C --> D{"Encrypted media into a chat<br>that does not encrypt here?"}
+  D -- "no" --> E["Reuse the file"]
+  D -- "yes" --> F["One plain upload per forward,<br>shared by those chats"]
+  E --> G["One summary note"]
+  F --> G
+```
+
+- **The picker is the inbound-share chat list with ticks**: the same
+  chats in the same order, the red open lock on unencrypted ones, and a
+  community's avatar in the corner of each of its chats. A sixth tick is
+  refused, and a ticked chat that stops being eligible drops out.
+- **From an encrypted chat, ticking an unencrypted one shows a note above
+  Send**, with no extra confirmation.
+- **The copy is the message as it reads now, with nothing pointing back**:
+  replies, threads, formatting, mentions and the original gallery link are
+  dropped, it carries an empty mention list so the caption pings nobody,
+  and it is marked `im.zuno.forwarded: true`. A forwarded gallery gets a
+  new gallery ID in each chat.
+- **An encrypted file's key never reaches a chat that will not encrypt
+  it.** Into a chat that encrypts on this device the file is reused, its
+  key travelling inside that chat's encryption; anywhere else the file and
+  its thumbnail are uploaded again unencrypted, each only if it was
+  encrypted. A thumbnail that cannot be fetched is left out.
+- **The re-upload runs once per forward**, shared by every chat that
+  needs it, so five unencrypted chats cost one download and one upload.
+  Those chats show a progress tile meanwhile, and the copy can be deleted
+  once it lands.
+- **Each chat's own sender sends its copy**, so deleting a copy still on
+  its way works as for any send. A copy the server refused shows as not
+  sent and resends as is; a failed re-upload waits as a retry tile in that
+  chat. The senders stay quiet; the summary note is the only note.
+- **Other apps show an ordinary media message.** Zuno draws a "Forwarded"
+  label above the media, with the reply arrow mirrored, which is also the
+  Forward icon everywhere.
 
 ## Inbound share
 
@@ -475,7 +537,8 @@ flowchart TD
   G -- "chat picked" --> H["RoomPage(pendingShare:)"]
 ```
 
-- **The picker** lists the chats the person can post in. Picking one
+- **The picker** lists the chats the person can post in, through the same
+  chat list as forwarding. Picking one
   opens `RoomPage(pendingShare:)`, which prefills the text, never sending
   it automatically, and then copies and sends the files. One share goes
   to one chat.

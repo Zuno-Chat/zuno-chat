@@ -16,6 +16,7 @@ import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_thumb.dart';
 
+import '../../../helpers/edited_media.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
 import 'room_page_harness.dart';
@@ -151,6 +152,68 @@ void main() {
     final reaction = requestsTo('/send/m.reaction/').single;
     final relates = (jsonDecode(reaction.body) as Map)['m.relates_to'] as Map;
     expect((relates['event_id'], relates['key']), (r'$g2', '👍'));
+  });
+
+  testWidgets('Forward on a gallery photo sends that photo alone and stays '
+      'in the viewer', (tester) async {
+    await openRoom(tester, gallery);
+    harness.addChat('!alice:example.org', 'Alice');
+    await openFirstGalleryPhoto(tester);
+
+    await tapAndSettle(tester, find.byTooltip('Forward'));
+    await harness.forwardToChats(tester, ['Alice']);
+
+    final copy = harness.sentTo('!alice:example.org').single;
+    expect(copy['url'], 'mxc://example.org/g0');
+    expect(copy.containsKey(galleryGroupKey), isFalse);
+    expect(find.byType(MediaViewerPage), findsOneWidget);
+    expect(find.text('Sent to 1 chat.'), findsOneWidget);
+  });
+
+  testWidgets('an edited photo opens once, as its latest edit', (tester) async {
+    await openRoom(tester, () => editedPhoto(harness.room));
+
+    await tapAndSettle(tester, find.byType(ImageMessage));
+
+    expect(shown(tester), r'$p1');
+    expect(
+      find.descendant(
+        of: find.byType(ViewerChrome),
+        matching: find.text('New caption'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .widget<PageView>(find.byType(PageView))
+          .childrenDelegate
+          .estimatedChildCount,
+      1,
+    );
+  });
+
+  testWidgets('Forward on a photo swiped to sends its latest edit', (
+    tester,
+  ) async {
+    await openRoom(
+      tester,
+      () => [photo(r'$p2', 5), ...editedPhoto(harness.room)],
+    );
+    harness.addChat('!alice:example.org', 'Alice');
+    await tapAndSettle(
+      tester,
+      find.byWidgetPredicate(
+        (w) => w is ImageMessage && w.event.eventId == r'$p2',
+      ),
+    );
+    await tester.fling(find.byType(PageView), const Offset(400, 0), 1000);
+    await harness.settle(tester);
+    expect(shown(tester), r'$p1');
+
+    await tapAndSettle(tester, find.byTooltip('Forward'));
+    await harness.forwardToChats(tester, ['Alice']);
+
+    expect(harness.sentTo('!alice:example.org').single['body'], 'New caption');
   });
 
   testWidgets('More on a gallery photo opens the gallery sheet', (

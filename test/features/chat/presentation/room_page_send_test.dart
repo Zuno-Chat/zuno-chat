@@ -10,6 +10,7 @@ import 'package:zuno/core/matrix/upload_http_client.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
+import '../../../helpers/fake_matrix.dart';
 import 'room_page_harness.dart';
 
 void main() {

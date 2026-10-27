@@ -61,17 +61,20 @@ String _handedOverName(Event event) {
   return extension == null ? name : safeAttachmentFileName('$name.$extension');
 }
 
-Future<Uint8List> _download(Event event) async =>
-    (await event.downloadAndDecryptAttachment()).bytes;
+Future<Uint8List> _download(Event event, {bool thumbnail = false}) async =>
+    (await event.downloadAndDecryptAttachment(getThumbnail: thumbnail)).bytes;
 
 Future<File> cachedAttachmentFile(Event event) => fetchCachedAttachmentFile(
   attachmentCacheKey(event, thumbnail: false),
   () => _download(event),
 );
 
-Future<Uint8List> _cachedAttachmentBytes(Event event) => fetchCachedAttachment(
-  attachmentCacheKey(event, thumbnail: false),
-  () => _download(event),
+Future<Uint8List> cachedAttachmentBytes(
+  Event event, {
+  bool thumbnail = false,
+}) => fetchCachedAttachment(
+  attachmentCacheKey(event, thumbnail: thumbnail),
+  () => _download(event, thumbnail: thumbnail),
 );
 
 Future<String> _handOver(Event event) async => (await fetchAttachmentHandover(
@@ -101,7 +104,7 @@ Future<bool> saveAttachment(Event event) async {
   switch (attachmentSaveTarget(event)) {
     case AttachmentSaveTarget.photos:
       await Gal.putImageBytes(
-        await _cachedAttachmentBytes(event),
+        await cachedAttachmentBytes(event),
         name: p.basenameWithoutExtension(attachmentFileName(event)),
       );
       return true;

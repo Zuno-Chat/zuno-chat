@@ -8,6 +8,7 @@ import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/reactions.dart';
 import 'package:zuno/core/ui/frosted_surface.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/chat/presentation/forward_icon.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/video_playback.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_chrome.dart';
 
@@ -35,6 +36,7 @@ void main() {
     bool visible = true,
     bool respond = true,
     bool more = true,
+    bool forward = true,
     VideoPlayback? playback,
     bool muted = false,
     List<ReactionSummary> reactions = const [],
@@ -61,6 +63,7 @@ void main() {
           onMore: more ? () => pressed.add('more') : null,
           onReact: respond ? () => pressed.add('react') : null,
           onReply: respond ? () => pressed.add('reply') : null,
+          onForward: forward ? () => pressed.add('forward') : null,
           reactions: reactions,
           onToggleReaction: respond
               ? (key) => pressed.add('toggle $key')
@@ -88,7 +91,15 @@ void main() {
   testWidgets('every action reaches its callback', (tester) async {
     await pumpChrome(tester, photo());
 
-    for (final tooltip in ['Back', 'More', 'React', 'Reply', 'Share', 'Save']) {
+    for (final tooltip in [
+      'Back',
+      'More',
+      'React',
+      'Reply',
+      'Forward',
+      'Share',
+      'Save',
+    ]) {
       await tester.tap(find.byTooltip(tooltip));
     }
 
@@ -97,13 +108,38 @@ void main() {
       'more',
       'react',
       'reply',
+      'forward',
       'share',
       'save',
     ]);
-    expect(pressed.where((p) => p == 'touch'), hasLength(6));
+    expect(pressed.where((p) => p == 'touch'), hasLength(7));
   });
 
-  testWidgets('without reply rights the pill keeps only Share and Save', (
+  testWidgets('Forward sits between Reply and Share', (tester) async {
+    await pumpChrome(tester, photo());
+
+    double x(String tooltip) => tester.getCenter(find.byTooltip(tooltip)).dx;
+    expect(x('Reply'), lessThan(x('Forward')));
+    expect(x('Forward'), lessThan(x('Share')));
+    expect(
+      find.descendant(
+        of: find.byTooltip('Forward'),
+        matching: find.byType(ForwardIcon),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('an item that cannot be forwarded has no Forward', (
+    tester,
+  ) async {
+    await pumpChrome(tester, photo(), forward: false);
+
+    expect(find.byTooltip('Forward'), findsNothing);
+    expect(find.byTooltip('Share'), findsOneWidget);
+  });
+
+  testWidgets('without reply rights the pill keeps Forward, Share and Save', (
     tester,
   ) async {
     await pumpChrome(tester, photo(), respond: false, more: false);
@@ -111,6 +147,7 @@ void main() {
     expect(find.byTooltip('React'), findsNothing);
     expect(find.byTooltip('Reply'), findsNothing);
     expect(find.byTooltip('More'), findsNothing);
+    expect(find.byTooltip('Forward'), findsOneWidget);
     expect(find.byTooltip('Share'), findsOneWidget);
     expect(find.byTooltip('Save'), findsOneWidget);
   });

@@ -12,6 +12,9 @@ class GalleryGroupRef {
     required this.index,
     required this.count,
   });
+
+  Map<String, dynamic> get content =>
+      galleryGroupContent(id: id, index: index, count: count);
 }
 
 Map<String, dynamic> galleryGroupContent({

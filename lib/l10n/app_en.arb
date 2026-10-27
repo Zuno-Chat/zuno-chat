@@ -685,6 +685,50 @@
     }
   },
   "chatFilesDidNotOpen": "Files did not open. Try again.",
+  "chatForward": "Forward",
+  "@chatForward": {
+    "description": "Action in the message actions and the media viewer: send this photo, video or file to other chats"
+  },
+  "chatForwardAll": "{count, plural, other{Forward all ({count})}}",
+  "@chatForwardAll": {
+    "description": "Action on a gallery: send all its photos and videos to other chats",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatForwardFailedMany": "{count, plural, other{Could not send to {count} chats.}}",
+  "@chatForwardFailedMany": {
+    "description": "Note after forwarding: it did not reach this many chats",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatForwardFailedOne": "Could not send to {chat}.",
+  "@chatForwardFailedOne": {
+    "description": "Note after forwarding: it did not reach this chat",
+    "placeholders": {
+      "chat": {
+        "type": "String"
+      }
+    }
+  },
+  "chatForwardSent": "{count, plural, =1{Sent to 1 chat.} other{Sent to {count} chats.}}",
+  "@chatForwardSent": {
+    "description": "Note after forwarding: it went out to this many chats",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "chatForwarded": "Forwarded",
+  "@chatForwarded": {
+    "description": "Small label above a photo, video or file that was forwarded from another chat"
+  },
   "chatGalleryNotSent": "{count, plural, one{Not sent. Tap to try again.} other{Not sent. Tap an item to try again.}}",
   "@chatGalleryNotSent": {
     "placeholders": {
@@ -5311,6 +5355,32 @@
   "settingsWhyRecoveryLocked": "The ability to decrypt your messages lives on your devices, not on the server. That is what keeps them private. It also means that if you lose every device you own, your old messages stay locked forever.",
   "settingsWhyRecoveryWay": "A recovery code is the way back. Twelve words, saved somewhere safe. Enter them on a new device and your messages come back.",
   "settingsWhyTitle": "How this works",
+  "shareForwardLimit": "{count, plural, other{You can forward to up to {count} chats.}}",
+  "@shareForwardLimit": {
+    "description": "Note when the user ticks more chats than forwarding allows",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shareForwardOneNotEncrypted": "This chat is not encrypted.",
+  "@shareForwardOneNotEncrypted": {
+    "description": "Note in the forward picker: the one ticked chat is not end-to-end encrypted"
+  },
+  "shareForwardSomeNotEncrypted": "{count, plural, =1{1 of these chats is not encrypted.} other{{count} of these chats are not encrypted.}}",
+  "@shareForwardSomeNotEncrypted": {
+    "description": "Note in the forward picker: this many of the ticked chats are not end-to-end encrypted",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shareForwardTitle": "Forward to",
+  "@shareForwardTitle": {
+    "description": "Title of the screen where the user picks chats to forward to"
+  },
   "shareNoChats": "No chats found",
   "shareOpenLater": "Open Zuno in the next few minutes to finish sharing.",
   "@shareOpenLater": {

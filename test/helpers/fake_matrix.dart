@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/matrix/optimistic_room_state.dart';
 
 class FakeDatabaseApi implements DatabaseApi {
   @override
@@ -104,6 +106,31 @@ mixin MediaCapableDatabase on FakeDatabaseApi {
   ) async {}
 }
 
+class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
+    with SendCapableDatabase, MediaCapableDatabase {
+  final deletedTimelines = <String>[];
+
+  @override
+  Future<void> removeEvent(String eventId, String roomId) async {}
+
+  @override
+  Future<void> storeFile(Uri mxcUri, Uint8List bytes, int time) async {}
+
+  @override
+  Future<bool> deleteFile(Uri mxcUri) async => true;
+
+  @override
+  Future<void> deleteTimelineForRoom(String roomId) async =>
+      deletedTimelines.add(roomId);
+
+  @override
+  Future<void> setRoomPrevBatch(
+    String? prevBatch,
+    String roomId,
+    Client client,
+  ) async {}
+}
+
 class UploadingFakeDatabaseApi extends MediaCapableFakeDatabaseApi {
   @override
   Future<({Map<String, Object?> content, DateTime savedAt})?>
@@ -122,23 +149,55 @@ Client buildTestClient({
   String? deviceId,
   http.Client? httpClient,
   DatabaseApi? database,
+  bool encrypting = false,
+  Duration sendTimelineEventTimeout = const Duration(minutes: 1),
 }) {
-  final db = database ?? FakeDatabaseApi();
-  final client = deviceId == null
-      ? Client('test', database: db, httpClient: httpClient)
-      : (_TestClient('test', database: db, httpClient: httpClient)
-          ..testDeviceId = deviceId);
+  final client = _TestClient(
+    'test',
+    database: database ?? FakeDatabaseApi(),
+    httpClient: httpClient,
+    encrypting: encrypting,
+    sendTimelineEventTimeout: sendTimelineEventTimeout,
+  )..testDeviceId = deviceId;
   if (userId != null) client.setUserId(userId);
   return client;
 }
 
-class _TestClient extends Client {
-  _TestClient(super.clientName, {required super.database, super.httpClient});
+Room namedRoom(
+  Client client,
+  String id,
+  String name, {
+  bool encrypted = false,
+  Membership membership = Membership.join,
+}) {
+  final room = Room(id: id, client: client, membership: membership)
+    ..partial = false;
+  applyOptimisticRoomState(room, EventTypes.RoomName, {'name': name});
+  if (encrypted) {
+    applyOptimisticRoomState(room, EventTypes.Encryption, {
+      'algorithm': AlgorithmTypes.megolmV1AesSha2,
+    });
+  }
+  return room;
+}
 
+class _TestClient extends Client {
+  _TestClient(
+    super.clientName, {
+    required super.database,
+    super.httpClient,
+    required this.encrypting,
+    required super.sendTimelineEventTimeout,
+  });
+
+  final bool encrypting;
   String? testDeviceId;
 
   @override
-  String? get deviceID => testDeviceId;
+  String? get deviceID => testDeviceId ?? super.deviceID;
+
+  @override
+  bool get encryptionEnabled => encrypting || super.encryptionEnabled;
 }
 
 class ExpiringTokenClient extends Client {

@@ -26,6 +26,26 @@ void main() {
       expect(file.progressLabel(englishLocalizations), 'Uploading…');
     });
 
+    test('a photo sent as is starts uploading and counts the upload alone, '
+        'through every change', () {
+      final pending = PendingAttachmentSend(
+        eventId: 't',
+        kind: SendMediaKind.photo,
+        compresses: false,
+      );
+
+      expect(pending.stage, SendStage.uploading);
+      expect(pending.progressLabel(englishLocalizations), 'Uploading photo…');
+      expect(pending.withStage(SendStage.uploading, 0.5).progress, 0.5);
+      expect(
+        pending
+            .withPreview(Uint8List.fromList([1]))
+            .withStage(SendStage.uploading, 0.25)
+            .progress,
+        0.25,
+      );
+    });
+
     test('a stage change keeps the preview and reports combined progress', () {
       final preview = Uint8List.fromList([1, 2, 3]);
       final pending = PendingAttachmentSend(

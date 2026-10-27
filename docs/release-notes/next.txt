@@ -10,8 +10,8 @@ New
 • Use Zuno in more languages.
 • See who is calling in a group.
 • Answer a call while on a call.
-• Review privacy settings in setup.
 • Photo previews while loading.
 • React and reply in the photo viewer.
+• Forward photos, videos and files.
 
-Fixed 163 bugs.
+Fixed 164 bugs.

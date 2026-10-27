@@ -5,7 +5,10 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/event_display.dart';
+import 'package:zuno/core/matrix/forwarded_message.dart';
+import 'package:zuno/core/matrix/media_gallery_group.dart';
 
+import '../../helpers/edited_media.dart';
 import '../../helpers/fake_matrix.dart';
 
 class _Case {
@@ -550,5 +553,59 @@ void main() {
     final summary = summarize(englishLocalizations, event);
     expect(summary.call?.status, CallSummaryStatus.missed);
     expect(summary.call?.kind, 'video');
+  });
+
+  group('withLatestEdit', () {
+    Future<(Event, Timeline)> edited({
+      Map<String, Object?> originalExtra = const {},
+    }) async {
+      final db = StoredEventsFakeDatabaseApi();
+      final edits = buildTestRoom(
+        buildTestClient(userId: '@me:x', database: db),
+      )..partial = false;
+      db.events = editedPhoto(edits, originalExtra: originalExtra);
+      final timeline = await edits.getTimeline();
+      addTearDown(timeline.cancelSubscriptions);
+      return (timeline.events.firstWhere((e) => e.eventId == r'$p1'), timeline);
+    }
+
+    test("keeps the message's id, sender and time with its latest edit's "
+        'content', () async {
+      final (photo, timeline) = await edited();
+
+      final latest = withLatestEdit(photo, timeline);
+
+      expect(latest.eventId, r'$p1');
+      expect(latest.senderId, photo.senderId);
+      expect(latest.originServerTs, photo.originServerTs);
+      expect(latest.body, 'New caption');
+      expect(latest.relationshipType, isNull);
+    });
+
+    test('an edit from an app that knows neither keeps the photo in its '
+        'gallery and marked Forwarded', () async {
+      final link = galleryGroupContent(id: 'g', index: 1, count: 2);
+      final (photo, timeline) = await edited(
+        originalExtra: {...link, forwardedKey: true},
+      );
+
+      final latest = withLatestEdit(photo, timeline);
+
+      expect(latest.body, 'New caption');
+      expect(latest.content[galleryGroupKey], link[galleryGroupKey]);
+      expect(isForwarded(latest), isTrue);
+    });
+
+    test('an unedited message comes back as is', () async {
+      final (photo, timeline) = await edited();
+      final plain = buildTestEvent(
+        photo.room,
+        eventId: r'$plain',
+        senderId: '@a:x',
+        content: {'msgtype': 'm.text', 'body': 'hi'},
+      );
+
+      expect(withLatestEdit(plain, timeline), same(plain));
+    });
   });
 }

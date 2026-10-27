@@ -5,7 +5,9 @@ import '../l10n/l10n.dart';
 import '../location/live_location_protocol.dart';
 import '../security/verification_signaling.dart';
 import 'attachment_message_type.dart';
+import 'forwarded_message.dart';
 import 'image_caption.dart';
+import 'media_gallery_group.dart';
 import 'reply_fallback.dart';
 import 'room_updates.dart';
 import 'state_event_description.dart';
@@ -121,18 +123,35 @@ MessageKind _contentKind(Event event) {
   return MessageKind.text;
 }
 
+const _originalSendKeys = [galleryGroupKey, forwardedKey];
+
+Event withLatestEdit(Event event, Timeline timeline) =>
+    withEditApplied(event, event.getDisplayEvent(timeline));
+
+Event withEditApplied(Event event, Event displayEvent) {
+  if (identical(displayEvent, event)) return event;
+  return _withContent(event, {
+    ...displayEvent.content,
+    for (final key in _originalSendKeys)
+      if (event.content.containsKey(key)) key: event.content[key],
+  });
+}
+
 Event? _applyEdit(Event event) {
   if (event.relationshipType != RelationshipTypes.edit) return null;
   final newContent = event.content.tryGetMap<String, Object?>('m.new_content');
   if (newContent == null) return null;
-  return Event(
-    status: event.status,
-    content: Map<String, dynamic>.from(newContent),
-    type: event.type,
-    eventId: event.eventId,
-    senderId: event.senderId,
-    originServerTs: event.originServerTs,
-    stateKey: event.stateKey,
-    room: event.room,
-  );
+  return _withContent(event, Map<String, dynamic>.from(newContent));
 }
+
+Event _withContent(Event event, Map<String, dynamic> content) => Event(
+  status: event.status,
+  content: content,
+  type: event.type,
+  eventId: event.eventId,
+  senderId: event.senderId,
+  originServerTs: event.originServerTs,
+  unsigned: event.unsigned,
+  stateKey: event.stateKey,
+  room: event.room,
+);

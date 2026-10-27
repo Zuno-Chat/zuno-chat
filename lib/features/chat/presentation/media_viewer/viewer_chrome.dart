@@ -12,6 +12,7 @@ import '../../../../core/matrix/reactions.dart';
 import '../../../../core/ui/frosted_surface.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_motion.dart';
+import '../forward_icon.dart';
 import 'video_playback.dart';
 
 const _maxGalleryDots = 10;
@@ -31,6 +32,7 @@ class ViewerChrome extends StatelessWidget {
   final VoidCallback? onMore;
   final VoidCallback? onReact;
   final VoidCallback? onReply;
+  final VoidCallback? onForward;
   final List<ReactionSummary> reactions;
   final ValueChanged<String>? onToggleReaction;
 
@@ -47,6 +49,7 @@ class ViewerChrome extends StatelessWidget {
     this.onMore,
     this.onReact,
     this.onReply,
+    this.onForward,
     this.reactions = const [],
     this.onToggleReaction,
     super.key,
@@ -115,6 +118,7 @@ class ViewerChrome extends StatelessWidget {
                               ?.key,
                           onReact: onReact,
                           onReply: onReply,
+                          onForward: onForward,
                           onShare: onShare,
                           onSave: onSave,
                         ),
@@ -467,6 +471,7 @@ class _ActionPill extends StatelessWidget {
   final String? myReaction;
   final VoidCallback? onReact;
   final VoidCallback? onReply;
+  final VoidCallback? onForward;
   final VoidCallback onShare;
   final VoidCallback onSave;
 
@@ -474,6 +479,7 @@ class _ActionPill extends StatelessWidget {
     required this.myReaction,
     required this.onReact,
     required this.onReply,
+    required this.onForward,
     required this.onShare,
     required this.onSave,
   });
@@ -483,6 +489,7 @@ class _ActionPill extends StatelessWidget {
     final l10n = context.l10n;
     final onReact = this.onReact;
     final onReply = this.onReply;
+    final onForward = this.onForward;
     Widget action(Widget icon, String tooltip, VoidCallback onPressed) =>
         SizedBox(
           width: 52,
@@ -511,6 +518,8 @@ class _ActionPill extends StatelessWidget {
                 l10n.commonReply,
                 onReply,
               ),
+            if (onForward != null)
+              action(const ForwardIcon(), l10n.chatForward, onForward),
             action(const Icon(Icons.share_outlined), l10n.commonShare, onShare),
             action(
               const Icon(Icons.download_outlined),

@@ -10,6 +10,7 @@ import 'package:matrix/matrix.dart';
 import '../../../../core/errors/best_effort.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/attachment_feedback.dart';
+import '../../../../core/matrix/event_display.dart';
 import '../../../../core/matrix/media_audio_session.dart';
 import '../../../../core/matrix/reactions.dart';
 import '../../../../core/matrix/room_media_feed.dart';
@@ -17,10 +18,13 @@ import '../../../../core/matrix/room_permission.dart';
 import '../../../../core/ui/close_own_route.dart';
 import '../../../../core/ui/sheet.dart';
 import '../../../../core/ui/system_bars.dart';
+import '../../../../core/ui/visible_in_front.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_motion.dart';
 import '../../../../core/ui/zuno_theme.dart';
+import '../../data/forwarding.dart';
 import '../../data/viewer_items.dart';
+import '../forward_media.dart';
 import '../message_actions.dart';
 import '../message_actions_sheet.dart';
 import 'media_hero.dart';
@@ -80,7 +84,8 @@ class MediaViewerPage extends ConsumerStatefulWidget {
   ConsumerState<MediaViewerPage> createState() => _MediaViewerPageState();
 }
 
-class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
+class _MediaViewerPageState extends ConsumerState<MediaViewerPage>
+    with VisibleInFront {
   late final ViewerItems _items;
   late final PageController _pages;
   late List<Event> _list;
@@ -100,6 +105,8 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
   bool _itemsChangedWhileScrolling = false;
   bool _loadingScheduled = false;
   bool _left = false;
+  bool _covered = false;
+  bool _playOnUncover = false;
   Timer? _autoHide;
 
   Event get _shown => _list[_index];
@@ -258,9 +265,25 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
     if (mounted) setState(() {});
   }
 
+  @override
+  void onVisibleInFrontChanged() {
+    final covered = !visibleInFront;
+    if (covered == _covered) return;
+    _covered = covered;
+    final playback = _playbacks[_shown.eventId];
+    if (covered) {
+      _playOnUncover = playback?.playing ?? false;
+      if (_playOnUncover) unawaited(playback!.pause());
+    } else if (_playOnUncover && !_left) {
+      _playOnUncover = false;
+      unawaited(playback?.start());
+    }
+    _restartAutoHide();
+  }
+
   void _scheduleAutoHide() {
     final playing = _playbacks[_shown.eventId]?.playing ?? false;
-    if (_left || !playing || !_chromeVisible) {
+    if (_left || _covered || !playing || !_chromeVisible) {
       _autoHide?.cancel();
       _autoHide = null;
       return;
@@ -497,8 +520,11 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
                         final canRespond =
                             timeline != null &&
                             canRespondTo(widget.chat.room, item);
+                        final shown = timeline == null
+                            ? item
+                            : withLatestEdit(item, timeline);
                         return ViewerChrome(
-                          event: item,
+                          event: shown,
                           visible: _chromeVisible && !_dragging,
                           playback: _playbacks[item.eventId],
                           muted: _muted,
@@ -507,12 +533,12 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
                           onShare: () => shareAttachmentsWithFeedback(
                             messenger,
                             l10n,
-                            [item],
+                            [shown],
                           ),
                           onSave: () => saveAttachmentsWithFeedback(
                             messenger,
                             l10n,
-                            [item],
+                            [shown],
                           ),
                           onToggleMute: _toggleMute,
                           onMore: timeline == null ? null : _more,
@@ -520,6 +546,11 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage> {
                           onReply: canRespond
                               ? () => widget.chat.startReply(item)
                               : null,
+                          onForward: timeline == null || !canForward(shown)
+                              ? null
+                              : () => unawaited(
+                                  forwardMedia(context, ref, [shown]),
+                                ),
                           reactions: timeline == null
                               ? const []
                               : reactionSummaries(

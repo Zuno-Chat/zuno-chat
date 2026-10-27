@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import 'attachment_actions.dart';
 import 'attachment_cache.dart';
 import 'blurhash_image.dart';
 
@@ -178,12 +179,7 @@ class _AttachmentImage extends ImageProvider<(Type, String)> {
 
   Future<Uint8List> _download() async {
     try {
-      return await fetchCachedAttachment(_cacheKey, () async {
-        final file = await event.downloadAndDecryptAttachment(
-          getThumbnail: thumbnail,
-        );
-        return file.bytes;
-      });
+      return await cachedAttachmentBytes(event, thumbnail: thumbnail);
     } catch (e) {
       throw _DownloadFailed(e);
     }

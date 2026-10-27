@@ -12,13 +12,16 @@ import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/location/live_location_viewing.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
+import 'package:zuno/core/matrix/forwarded_message.dart';
 import 'package:zuno/core/matrix/linkified_text.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/data/message_row_data.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
+import 'package:zuno/features/chat/presentation/forward_icon.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
@@ -75,6 +78,7 @@ void main() {
     Event event, {
     List<Event>? events,
     Event? older,
+    List<Event>? gallery,
     bool canRespond = true,
     List<Override> overrides = const [],
   }) async {
@@ -90,7 +94,7 @@ void main() {
       older: older,
       newer: null,
       isLastOwn: false,
-      gallery: null,
+      gallery: gallery,
       galleryFailureIndexes: const [],
       canRespond: canRespond,
       now: noon,
@@ -115,7 +119,7 @@ void main() {
                   return null;
                 }),
                 pendingSend: ValueNotifier<PendingAttachmentSend?>(null),
-                gallery: null,
+                gallery: gallery,
                 galleryFailures: const [],
                 onLongPress: () {},
                 onDoubleTap: record.canRespond ? () {} : null,
@@ -433,6 +437,60 @@ void main() {
       find.textContaining('The new boiler', findRichText: true),
       findsOneWidget,
     );
+  });
+
+  group('a forwarded copy', () {
+    Event media(
+      String id, {
+      String msgtype = 'm.image',
+      bool forwarded = true,
+      Map<String, Object?> extra = const {},
+    }) => buildTestEvent(
+      room,
+      eventId: id,
+      senderId: bob,
+      originServerTs: noon,
+      status: EventStatus.synced,
+      content: {
+        'msgtype': msgtype,
+        'body': '${id.substring(1)}.jpg',
+        'url': 'mxc://example.org/${id.substring(1)}',
+        'info': {'w': 400, 'h': 300, 'mimetype': 'image/jpeg', 'size': 3},
+        if (forwarded) forwardedKey: true,
+        ...extra,
+      },
+    );
+
+    testWidgets('a forwarded photo, file and gallery show Forwarded above '
+        'the media', (tester) async {
+      await pumpTile(tester, media(r'$p'));
+      expect(find.text('Forwarded'), findsOneWidget);
+      expect(find.byType(ForwardIcon), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('Forwarded')).dy,
+        lessThan(tester.getTopLeft(find.byType(ImageMessage)).dy),
+      );
+
+      await pumpTile(tester, media(r'$f', msgtype: 'm.file'));
+      expect(find.text('Forwarded'), findsOneWidget);
+
+      final gallery = [
+        for (final index in [0, 1])
+          media(
+            '\$g$index',
+            extra: galleryGroupContent(id: 'new', index: index, count: 2),
+          ),
+      ];
+      await pumpTile(tester, gallery.last, events: gallery, gallery: gallery);
+      expect(find.byType(GalleryMessage), findsOneWidget);
+      expect(find.text('Forwarded'), findsOneWidget);
+    });
+
+    testWidgets('an ordinary photo does not', (tester) async {
+      await pumpTile(tester, media(r'$p', forwarded: false));
+
+      expect(find.text('Forwarded'), findsNothing);
+    });
   });
 
   testWidgets('deleted and undecryptable messages cannot be held', (

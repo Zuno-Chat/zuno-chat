@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,37 +14,13 @@ import 'package:zuno/core/matrix/upload_http_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
+import 'package:zuno/features/share/presentation/forward_picker_page.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/room_opening_channels.dart';
 import '../../../helpers/route_launcher.dart';
-
-class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
-    with SendCapableDatabase, MediaCapableDatabase {
-  final deletedTimelines = <String>[];
-
-  @override
-  Future<void> removeEvent(String eventId, String roomId) async {}
-
-  @override
-  Future<void> storeFile(Uri mxcUri, Uint8List bytes, int time) async {}
-
-  @override
-  Future<bool> deleteFile(Uri mxcUri) async => true;
-
-  @override
-  Future<void> deleteTimelineForRoom(String roomId) async =>
-      deletedTimelines.add(roomId);
-
-  @override
-  Future<void> setRoomPrevBatch(
-    String? prevBatch,
-    String roomId,
-    Client client,
-  ) async {}
-}
 
 class _AbortHonoringClient extends http.BaseClient {
   _AbortHonoringClient(this._inner);
@@ -65,25 +40,6 @@ class _AbortHonoringClient extends http.BaseClient {
     }
     return response;
   }
-}
-
-class _HarnessClient extends Client {
-  _HarnessClient(
-    super.clientName, {
-    required super.database,
-    required super.httpClient,
-    required this.encrypting,
-    required bool sendsGiveUpAtOnce,
-  }) : super(
-         sendTimelineEventTimeout: sendsGiveUpAtOnce
-             ? Duration.zero
-             : const Duration(minutes: 1),
-       );
-
-  final bool encrypting;
-
-  @override
-  bool get encryptionEnabled => encrypting || super.encryptionEnabled;
 }
 
 class RoomPageHarness {
@@ -133,14 +89,15 @@ class RoomPageHarness {
         }),
       ),
     );
-    client = _HarnessClient(
-      'test',
+    client = buildTestClient(
+      userId: '@me:example.org',
       database: this.db,
       httpClient: httpClient,
       encrypting: encrypting,
-      sendsGiveUpAtOnce: sendsGiveUpAtOnce,
+      sendTimelineEventTimeout: sendsGiveUpAtOnce
+          ? Duration.zero
+          : const Duration(minutes: 1),
     );
-    client.setUserId('@me:example.org');
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     room = buildTestRoom(client)..partial = false;
@@ -186,6 +143,31 @@ class RoomPageHarness {
         status: EventStatus.synced,
         content: {'msgtype': 'm.text', 'body': body},
       );
+
+  void addChat(String id, String name) =>
+      client.rooms.add(namedRoom(client, id, name));
+
+  List<Map<String, Object?>> sentTo(String roomId) => [
+    for (final request in httpRequests)
+      if (request.url.pathSegments.contains(roomId) &&
+          request.url.path.contains('/send/m.room.message/'))
+        jsonDecode(request.body) as Map<String, Object?>,
+  ];
+
+  Future<void> forwardToChats(WidgetTester tester, List<String> chats) async {
+    for (final chat in chats) {
+      await tester.tap(
+        find.descendant(
+          of: find.byType(ForwardPickerPage),
+          matching: find.text(chat),
+        ),
+      );
+      await tester.pump();
+    }
+    await tester.tap(find.widgetWithText(FilledButton, 'Send'));
+    await settle(tester);
+    await drive(tester);
+  }
 
   Future<Widget> app({required Widget home}) async {
     final container = await containerWithPreferences(

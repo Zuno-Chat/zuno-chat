@@ -126,7 +126,24 @@ class AttachmentServer {
   );
 }
 
-AttachmentServer installAttachmentServer() {
+Map<String, Object?> encryptedFileContent({
+  String url = 'mxc://example.org/secret',
+  String key = 'original-key',
+}) => {
+  'url': url,
+  'key': {
+    'kty': 'oct',
+    'key_ops': ['encrypt', 'decrypt'],
+    'alg': 'A256CTR',
+    'k': key,
+    'ext': true,
+  },
+  'iv': 'iv',
+  'hashes': {'sha256': 'hash'},
+  'v': 'v2',
+};
+
+AttachmentServer installAttachmentServer({DatabaseApi? database}) {
   TestWidgetsFlutterBinding.ensureInitialized();
   final server = AttachmentServer._(
     Directory.systemTemp.createTempSync('zuno_attachments'),
@@ -147,7 +164,7 @@ AttachmentServer installAttachmentServer() {
 
   server.client = buildTestClient(
     userId: '@me:example.org',
-    database: MediaCapableFakeDatabaseApi(),
+    database: database ?? MediaCapableFakeDatabaseApi(),
     httpClient: FakeHttpClient((request) async {
       if (request.url.path.endsWith('/versions')) {
         return http.Response(

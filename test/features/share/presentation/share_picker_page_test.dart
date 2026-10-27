@@ -5,19 +5,9 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/optimistic_room_state.dart';
 import 'package:zuno/features/share/presentation/share_picker_page.dart';
+import 'package:zuno/features/share/presentation/share_target_list.dart';
 
 import '../../../helpers/fake_matrix.dart';
-
-Room _named(
-  Client client,
-  String id,
-  String name, {
-  Membership membership = Membership.join,
-}) {
-  final room = Room(id: id, client: client, membership: membership);
-  applyOptimisticRoomState(room, EventTypes.RoomName, {'name': name});
-  return room;
-}
 
 void main() {
   late Client client;
@@ -29,15 +19,20 @@ void main() {
   group('filterShareTargets', () {
     test('keeps joined rooms in the given order and drops the rest', () {
       final rooms = [
-        _named(client, '!b:example.org', 'Bob'),
-        _named(
+        namedRoom(client, '!b:example.org', 'Bob'),
+        namedRoom(
           client,
           '!i:example.org',
           'Invite',
           membership: Membership.invite,
         ),
-        _named(client, '!a:example.org', 'Alice'),
-        _named(client, '!l:example.org', 'Left', membership: Membership.leave),
+        namedRoom(client, '!a:example.org', 'Alice'),
+        namedRoom(
+          client,
+          '!l:example.org',
+          'Left',
+          membership: Membership.leave,
+        ),
       ];
       expect(
         filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
@@ -46,11 +41,11 @@ void main() {
     });
 
     test('drops communities, which hold no messages', () {
-      final community = _named(client, '!c:example.org', 'Climbing club');
+      final community = namedRoom(client, '!c:example.org', 'Climbing club');
       applyOptimisticRoomState(community, EventTypes.RoomCreate, {
         'type': 'm.space',
       });
-      final rooms = [community, _named(client, '!a:example.org', 'Alice')];
+      final rooms = [community, namedRoom(client, '!a:example.org', 'Alice')];
 
       expect(
         filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
@@ -59,12 +54,19 @@ void main() {
     });
 
     test('drops rooms the user cannot post in', () {
-      final announcements = _named(client, '!r:example.org', 'Announcements');
+      final announcements = namedRoom(
+        client,
+        '!r:example.org',
+        'Announcements',
+      );
       applyOptimisticRoomState(announcements, EventTypes.RoomPowerLevels, {
         'events_default': 50,
         'users': {'@admin:example.org': 100},
       });
-      final rooms = [announcements, _named(client, '!a:example.org', 'Alice')];
+      final rooms = [
+        announcements,
+        namedRoom(client, '!a:example.org', 'Alice'),
+      ];
 
       expect(
         filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
@@ -73,7 +75,7 @@ void main() {
     });
 
     test('drops a direct chat the other person left', () {
-      final left = _named(client, '!d:example.org', 'Bob');
+      final left = namedRoom(client, '!d:example.org', 'Bob');
       client.accountData['m.direct'] = BasicEvent(
         type: 'm.direct',
         content: {
@@ -86,7 +88,7 @@ void main() {
       left.summary
         ..mJoinedMemberCount = 1
         ..mInvitedMemberCount = 0;
-      final rooms = [left, _named(client, '!a:example.org', 'Alice')];
+      final rooms = [left, namedRoom(client, '!a:example.org', 'Alice')];
 
       expect(
         filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
@@ -96,8 +98,8 @@ void main() {
 
     test('matches the display name case-insensitively', () {
       final rooms = [
-        _named(client, '!a:example.org', 'Alice'),
-        _named(client, '!b:example.org', 'Bob'),
+        namedRoom(client, '!a:example.org', 'Alice'),
+        namedRoom(client, '!b:example.org', 'Bob'),
       ];
       expect(
         filterShareTargets(rooms, ' aLi ', englishLocalizations).single.id,
@@ -125,8 +127,8 @@ void main() {
     tester,
   ) async {
     client.rooms = [
-      _named(client, '!a:example.org', 'Alice'),
-      _named(client, '!b:example.org', 'Bob'),
+      namedRoom(client, '!a:example.org', 'Alice'),
+      namedRoom(client, '!b:example.org', 'Bob'),
     ];
     await pumpPicker(tester);
 
@@ -139,8 +141,8 @@ void main() {
 
   testWidgets('searching narrows the list', (tester) async {
     client.rooms = [
-      _named(client, '!a:example.org', 'Alice'),
-      _named(client, '!b:example.org', 'Bob'),
+      namedRoom(client, '!a:example.org', 'Alice'),
+      namedRoom(client, '!b:example.org', 'Bob'),
     ];
     await pumpPicker(tester);
 
@@ -152,7 +154,7 @@ void main() {
   });
 
   testWidgets('no matches shows a calm empty line', (tester) async {
-    client.rooms = [_named(client, '!a:example.org', 'Alice')];
+    client.rooms = [namedRoom(client, '!a:example.org', 'Alice')];
     await pumpPicker(tester);
 
     await tester.enterText(find.byType(TextField), 'nobody');

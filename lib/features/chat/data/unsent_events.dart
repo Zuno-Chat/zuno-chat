@@ -34,7 +34,9 @@ bool _isReplacedEdit(Event event, Timeline timeline) {
 }
 
 Future<String?> resendUnsent(Event event) async {
-  if (event.type == EventTypes.Message) return event.sendAgain();
+  if (event.type == EventTypes.Message && !event.hasAttachment) {
+    return event.sendAgain();
+  }
   if (!event.status.isError) return null;
   return event.room.sendEvent(
     event.content,

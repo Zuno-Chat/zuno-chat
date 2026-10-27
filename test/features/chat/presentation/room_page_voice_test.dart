@@ -11,6 +11,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_audio_session.dart';
+import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/opus_caf.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';

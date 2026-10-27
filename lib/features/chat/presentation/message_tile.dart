@@ -7,6 +7,8 @@ import '../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_viewing.dart';
 import '../../../core/location/location_message.dart';
+import '../../../core/matrix/event_display.dart';
+import '../../../core/matrix/forwarded_message.dart';
 import '../../../core/matrix/image_caption.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/state_event_description.dart';
@@ -22,6 +24,7 @@ import '../data/unsent_events.dart';
 import 'message_bubble.dart';
 import 'message_contents/call_summary_tile.dart';
 import 'message_contents/file_message.dart';
+import 'message_contents/forwarded_label.dart';
 import 'message_contents/media_message.dart';
 import 'message_contents/reactions_row.dart';
 import 'message_contents/reply_quote.dart';
@@ -121,7 +124,8 @@ class MessageTile extends StatelessWidget {
     final callSummary = unreadable ? null : CallSummary.fromEvent(displayEvent);
     final unsent = notSentBehind(event, timeline);
     final notSent = unsent != null;
-    final caption = isMedia && !isGallery ? imageCaption(displayEvent) : null;
+    final shown = withEditApplied(event, displayEvent);
+    final caption = isMedia && !isGallery ? imageCaption(shown) : null;
     final body = displayBody(event, timeline);
 
     final meta = MessageMeta(
@@ -176,10 +180,8 @@ class MessageTile extends StatelessWidget {
     } else if (isImage) {
       content = sending(
         (pending) => ImageMessage(
-          event: displayEvent,
-          pendingSend: pending?.eventId == displayEvent.eventId
-              ? pending
-              : null,
+          event: shown,
+          pendingSend: pending?.eventId == shown.eventId ? pending : null,
           mediaMeta: mediaMeta,
           showTimeOverlay: caption == null,
           onOpen: onOpenMedia,
@@ -188,19 +190,17 @@ class MessageTile extends StatelessWidget {
     } else if (isVideo) {
       content = sending(
         (pending) => VideoMessage(
-          event: displayEvent,
-          pendingSend: pending?.eventId == displayEvent.eventId
-              ? pending
-              : null,
+          event: shown,
+          pendingSend: pending?.eventId == shown.eventId ? pending : null,
           mediaMeta: mediaMeta,
           showTimeOverlay: caption == null,
           onOpen: onOpenMedia,
         ),
       );
     } else if (isVoice) {
-      content = VoiceMessage(event: displayEvent, own: own, meta: meta);
+      content = VoiceMessage(event: shown, own: own, meta: meta);
     } else if (isFile) {
-      content = FileMessage(event: displayEvent, own: own, meta: meta);
+      content = FileMessage(event: shown, own: own, meta: meta);
     } else if (isLocation) {
       content = LocationBubble(
         geo: locationOf(displayEvent),
@@ -281,6 +281,16 @@ class MessageTile extends StatelessWidget {
             : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (isForwarded(shown))
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: Padding(
+                padding: isMedia || isLocation || isLiveMap
+                    ? const EdgeInsets.fromLTRB(6, 3, 8, 5)
+                    : const EdgeInsets.only(bottom: 4),
+                child: ForwardedLabel(own: own),
+              ),
+            ),
           content,
           if (caption != null)
             Padding(

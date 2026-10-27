@@ -1,4 +1,5 @@
 import 'package:flutter/services.dart';
+import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/media_gallery_group.dart';
@@ -12,24 +13,41 @@ class PendingAttachmentSend {
   final int? width;
   final int? height;
   final SendMediaKind kind;
+  final bool compresses;
   final SendStage stage;
   final double? stageProgress;
 
   PendingAttachmentSend({
-    required this.eventId,
-    this.previewBytes,
-    this.width,
-    this.height,
-    required this.kind,
+    required String eventId,
+    Uint8List? previewBytes,
+    int? width,
+    int? height,
+    required SendMediaKind kind,
+    bool? compresses,
     SendStage? stage,
-    this.stageProgress,
-  }) : stage =
-           stage ??
-           (kind == SendMediaKind.file
-               ? SendStage.uploading
-               : SendStage.compressing);
+    double? stageProgress,
+  }) : this._(
+         eventId: eventId,
+         previewBytes: previewBytes,
+         width: width,
+         height: height,
+         kind: kind,
+         compresses: compresses ?? kind != SendMediaKind.file,
+         stage: stage,
+         stageProgress: stageProgress,
+       );
 
-  bool get compresses => kind != SendMediaKind.file;
+  PendingAttachmentSend._({
+    required this.eventId,
+    required this.previewBytes,
+    required this.width,
+    required this.height,
+    required this.kind,
+    required this.compresses,
+    required SendStage? stage,
+    required this.stageProgress,
+  }) : stage =
+           stage ?? (compresses ? SendStage.compressing : SendStage.uploading);
 
   double? get progress => combinedSendProgress(
     compresses: compresses,
@@ -47,6 +65,7 @@ class PendingAttachmentSend {
         width: width,
         height: height,
         kind: kind,
+        compresses: compresses,
         stage: stage,
         stageProgress: stageProgress,
       );
@@ -61,6 +80,7 @@ class PendingAttachmentSend {
     width: width ?? this.width,
     height: height ?? this.height,
     kind: kind,
+    compresses: compresses,
     stage: stage,
     stageProgress: stageProgress,
   );
@@ -70,8 +90,14 @@ class FailedMediaSend {
   final GalleryGroupRef? gallery;
   final ComposedImage? photo;
   final ComposedVideo? video;
+  final Event? forward;
 
-  const FailedMediaSend({required this.gallery, this.photo, this.video});
+  const FailedMediaSend({
+    required this.gallery,
+    this.photo,
+    this.video,
+    this.forward,
+  });
 
   int get index => gallery?.index ?? 0;
 

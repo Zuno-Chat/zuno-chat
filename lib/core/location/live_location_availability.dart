@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../matrix/room_encryption.dart';
 import '../matrix/room_permission.dart';
 import 'live_location_protocol.dart';
 
@@ -16,8 +17,7 @@ LiveLocationAvailability liveLocationAvailability(
 }) {
   if (room.membership != Membership.join ||
       room.isSpace ||
-      !room.encrypted ||
-      !room.client.encryptionEnabled) {
+      !sendsEncrypted(room)) {
     return LiveLocationAvailability.unavailable;
   }
   if (sharingHere) return LiveLocationAvailability.alreadySharing;
