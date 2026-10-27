@@ -495,7 +495,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       appBar: AppBar(
         actions: [
           PopupMenuButton<_Menu>(
-            tooltip: l10n.communitiesMore,
+            tooltip: l10n.commonMore,
             onSelected: _onMenu,
             itemBuilder: (context) => [
               if (_canEditSettings)

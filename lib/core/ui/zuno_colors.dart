@@ -12,6 +12,10 @@ const mediaScrimColor = Colors.black54;
 const onMediaColor = Colors.white;
 const onMediaVariantColor = Colors.white70;
 const onMediaFaintColor = Colors.white24;
+const frostedFillColor = Color(0x94262219);
+const frostedEdgeColor = Color(0x1FFFFFFF);
+const frostedHighlightColor = Color(0x80E8A33D);
+const frostedShadowColor = Color(0x47000000);
 
 const avatarTones = <Color>[
   Color(0xFFC98F8F),

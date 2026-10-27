@@ -9,7 +9,7 @@ import 'package:path/path.dart' as p;
 
 import 'package:zuno/core/matrix/attachment_actions.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
-import 'package:zuno/core/matrix/voice_audio_session.dart';
+import 'package:zuno/core/matrix/media_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
@@ -30,7 +30,7 @@ void main() {
   late List<String> log;
   late FakeAudioPlatform audio;
   late FakeAudioSessionPort port;
-  late VoiceAudioSession session;
+  late MediaAudioSession session;
   late bool onCall;
 
   setUp(() {
@@ -39,7 +39,7 @@ void main() {
     audio = installFakeAudioPlatform(log);
     onCall = false;
     port = FakeAudioSessionPort(log);
-    session = fakeVoiceAudioSession(port, callHoldsAudio: () => onCall);
+    session = fakeMediaAudioSession(port, callHoldsAudio: () => onCall);
   });
 
   Event voice({
@@ -69,7 +69,7 @@ void main() {
   Future<void> pumpVoice(WidgetTester tester, Event event) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [voiceAudioSessionProvider.overrideWithValue(session)],
+        overrides: [mediaAudioSessionProvider.overrideWithValue(session)],
         child: inZunoApp(
           SizedBox(
             width: 300,

@@ -41,6 +41,89 @@ class ZunoSlideTransitionsBuilder extends PageTransitionsBuilder {
   }
 }
 
+class MediaViewerRoute extends PageRoute<void> {
+  final WidgetBuilder builder;
+
+  MediaViewerRoute({required this.builder});
+
+  static final _fade = CurveTween(curve: Curves.easeOut);
+
+  @override
+  bool get opaque => true;
+
+  @override
+  Color? get barrierColor => null;
+
+  @override
+  String? get barrierLabel => null;
+
+  @override
+  bool get maintainState => true;
+
+  @override
+  Duration get transitionDuration => ZunoDurations.page;
+
+  void revealRouteBelow(bool reveal) {
+    if (overlayEntries.isEmpty || !(animation?.isCompleted ?? false)) return;
+    overlayEntries.first.opaque = !reveal;
+  }
+
+  @override
+  Widget buildPage(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+  ) => builder(context);
+
+  @override
+  Widget buildTransitions(
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    if (MediaQuery.disableAnimationsOf(context)) {
+      return HeroMode(enabled: false, child: child);
+    }
+    return FadeTransition(opacity: animation.drive(_fade), child: child);
+  }
+}
+
+class MediaHero extends StatelessWidget {
+  final Object? tag;
+  final bool keepsSourceVisible;
+  final Widget child;
+
+  const MediaHero({
+    required this.tag,
+    required this.child,
+    this.keepsSourceVisible = false,
+    super.key,
+  });
+
+  static Widget _sourceChild(
+    BuildContext flightContext,
+    Animation<double> animation,
+    HeroFlightDirection direction,
+    BuildContext fromContext,
+    BuildContext toContext,
+  ) => (fromContext.widget as Hero).child;
+
+  @override
+  Widget build(BuildContext context) {
+    final tag = this.tag;
+    if (tag == null) return child;
+    return Hero(
+      tag: tag,
+      flightShuttleBuilder: _sourceChild,
+      placeholderBuilder: keepsSourceVisible
+          ? (context, size, child) => child
+          : null,
+      child: child,
+    );
+  }
+}
+
 class ForwardExitPageRoute extends MaterialPageRoute<Never> {
   ForwardExitPageRoute({required super.builder, super.settings});
 

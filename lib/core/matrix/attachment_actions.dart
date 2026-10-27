@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show File;
 import 'dart:typed_data';
 
 import 'package:gal/gal.dart';
@@ -62,6 +63,11 @@ String _handedOverName(Event event) {
 
 Future<Uint8List> _download(Event event) async =>
     (await event.downloadAndDecryptAttachment()).bytes;
+
+Future<File> cachedAttachmentFile(Event event) => fetchCachedAttachmentFile(
+  attachmentCacheKey(event, thumbnail: false),
+  () => _download(event),
+);
 
 Future<Uint8List> _cachedAttachmentBytes(Event event) => fetchCachedAttachment(
   attachmentCacheKey(event, thumbnail: false),

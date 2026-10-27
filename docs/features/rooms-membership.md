@@ -59,8 +59,15 @@ and trust belongs to the one-to-one relationship.
 through server history, decrypting as it goes. New media from sync is
 prepended and a redaction removes its target. The feed is a keep-alive
 provider per room, so it lasts the session. Room info previews the latest
-thumbnails, and `room_media_page.dart` shows photos and videos by month, and
-files.
+thumbnails, `room_media_page.dart` shows photos and videos by month, and
+files, and the media viewer pages through it (`chats-messaging.md`).
+
+- **A failed or empty page stops automatic loading**, so a failing server
+  is not asked in a loop; only a user's ask (Try again, Load older, a swipe
+  at the viewer's oldest item) loads more.
+- **It also remembers redactions of items it never held**, so a viewer
+  opened on an item further back than the feed has loaded still drops it
+  when it is deleted.
 
 ## Decisions
 

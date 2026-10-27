@@ -8,12 +8,12 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/format/date_labels.dart';
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/attachment_action_buttons.dart';
 import '../../../core/matrix/attachment_actions.dart';
-import '../../../core/matrix/gallery_viewer_page.dart';
+import '../../../core/matrix/attachment_feedback.dart';
 import '../../../core/matrix/room_media_feed.dart';
 import '../../../core/ui/failure_notice.dart';
 import '../../chat/presentation/file_name_text.dart';
+import '../../chat/presentation/media_viewer/media_viewer_page.dart';
 import 'room_media_thumb.dart';
 
 enum RoomMediaTab { media, files }
@@ -21,20 +21,12 @@ enum RoomMediaTab { media, files }
 Future<void> loadRoomMedia(Future<void> Function() load) =>
     runBestEffort(load, label: 'loadRoomMedia');
 
-void openRoomMediaViewer(BuildContext context, List<Event> events, int index) {
-  Navigator.of(context).push(
-    MaterialPageRoute(
-      builder: (_) => GalleryViewerPage(events: events, initialIndex: index),
-    ),
-  );
-}
-
 class RoomMediaPage extends ConsumerStatefulWidget {
-  final Room room;
+  final ViewerChat viewerChat;
   final RoomMediaTab initialTab;
 
   const RoomMediaPage({
-    required this.room,
+    required this.viewerChat,
     this.initialTab = RoomMediaTab.media,
     super.key,
   });
@@ -44,7 +36,7 @@ class RoomMediaPage extends ConsumerStatefulWidget {
 }
 
 class _RoomMediaPageState extends ConsumerState<RoomMediaPage> {
-  late final RoomMediaFeed _feed = ref.read(roomMediaFeedProvider(widget.room));
+  late final RoomMediaFeed _feed = ref.read(roomMediaFeedProvider(widget.viewerChat.room));
 
   @override
   void initState() {
@@ -71,7 +63,7 @@ class _RoomMediaPageState extends ConsumerState<RoomMediaPage> {
           listenable: _feed,
           builder: (context, _) => TabBarView(
             children: [
-              _MediaGrid(feed: _feed),
+              _MediaGrid(feed: _feed, viewerChat: widget.viewerChat),
               _FileList(feed: _feed),
             ],
           ),
@@ -83,18 +75,17 @@ class _RoomMediaPageState extends ConsumerState<RoomMediaPage> {
 
 class _MonthGroup {
   final String label;
-  final int offset;
   final events = <Event>[];
 
-  _MonthGroup(this.label, this.offset);
+  _MonthGroup(this.label);
 }
 
 List<_MonthGroup> _byMonth(List<Event> events, DateLabels labels) {
   final groups = <_MonthGroup>[];
-  for (final (i, event) in events.indexed) {
+  for (final event in events) {
     final label = labels.month(event.originServerTs);
     if (groups.isEmpty || groups.last.label != label) {
-      groups.add(_MonthGroup(label, i));
+      groups.add(_MonthGroup(label));
     }
     groups.last.events.add(event);
   }
@@ -103,8 +94,9 @@ List<_MonthGroup> _byMonth(List<Event> events, DateLabels labels) {
 
 class _MediaGrid extends StatelessWidget {
   final RoomMediaFeed feed;
+  final ViewerChat viewerChat;
 
-  const _MediaGrid({required this.feed});
+  const _MediaGrid({required this.feed, required this.viewerChat});
 
   @override
   Widget build(BuildContext context) {
@@ -132,8 +124,11 @@ class _MediaGrid extends StatelessWidget {
               itemCount: month.events.length,
               itemBuilder: (context, i) => RoomMediaThumb(
                 event: month.events[i],
-                onTap: () =>
-                    openRoomMediaViewer(context, visuals, month.offset + i),
+                onTap: () => openMediaViewer(
+                  context,
+                  chat: viewerChat,
+                  opened: month.events[i],
+                ),
               ),
             ),
           ),

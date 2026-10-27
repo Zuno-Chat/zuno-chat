@@ -315,4 +315,37 @@ void main() {
       expect((content['events']! as Map)[EventTypes.SpaceChild], 0);
     });
   });
+
+  group('canRespondTo', () {
+    late Room room;
+
+    setUp(
+      () => room = buildTestRoom(buildTestClient(userId: '@me:example.org')),
+    );
+
+    Event message({EventStatus status = EventStatus.synced}) => buildTestEvent(
+      room,
+      eventId: r'$m',
+      senderId: '@a:example.org',
+      status: status,
+      content: {'msgtype': 'm.text', 'body': 'hi'},
+    );
+
+    test('allows a sent message in a room I can post in', () {
+      expect(canRespondTo(room, message()), isTrue);
+    });
+
+    test('refuses a message that is still sending', () {
+      expect(canRespondTo(room, message(status: EventStatus.sending)), isFalse);
+    });
+
+    test('refuses when I cannot post', () {
+      setPowerLevels(room, {
+        'events_default': 50,
+        'users': {'@creator:example.org': 100},
+      });
+
+      expect(canRespondTo(room, message()), isFalse);
+    });
+  });
 }

@@ -1,9 +1,10 @@
 # Chats & Messaging
 
 The chat room: its timeline, how each message is rendered, the composer,
-attachments, voice messages, galleries, avatars and inbound share from
-other apps. There is no message model or service layer: the chat reads
-and changes the SDK's `Room`, `Timeline` and `Event` objects directly.
+attachments, voice messages, galleries, the media viewer, avatars and
+inbound share from other apps. There is no message model or service
+layer: the chat reads and changes the SDK's `Room`, `Timeline` and
+`Event` objects directly.
 `RoomPage` keeps the timeline and wires the rest together; sending,
 recording, typing, the menus and the message actions each have one owner
 in their own file, and every widget lives in its own file.
@@ -23,12 +24,14 @@ in `features/chat/presentation/`.
 | `message_list_view.dart` | The reversed list, its row memo and the upload and failed-send tiles |
 | `message_tile.dart`, `message_bubble.dart`, `message_contents/` | One row, its bubble and each kind of content |
 | `message_composer.dart` | The message box, recording row and reply or edit bar |
+| `media_viewer/` | The full-screen viewer for the room's photos and videos |
 | `features/chat/data/` | Sending, typing and unsent-message rules, and shared types such as `MessageRowData` |
 | `core/matrix/event_display.dart` | What an event is, for every surface |
 | `core/matrix/room_updates.dart` | Which room updates show, how they group and their wording |
 | `core/matrix/image_send_preparation.dart`, `video_send_preparation.dart` | App-side media preparation before `sendFileEvent` |
 | `core/matrix/attachment_cache.dart` | The only attachment cache, and the owner of every decrypted copy on disk |
 | `core/matrix/attachment_actions.dart` | Share and save, over `core/share/outbound_share.dart` and `core/files/file_export.dart` |
+| `core/matrix/media_audio_session.dart` | The one owner of the audio session |
 | `core/matrix/mxc_avatar.dart` | Avatars |
 | `core/matrix/media_gallery_group.dart` | Gallery grouping |
 | `core/matrix/sanitize_message_html.dart` | The sanitizer for formatted (HTML) messages |
@@ -66,6 +69,9 @@ in `features/chat/presentation/`.
   or discards it on this device if it never sent. While the old one is
   still on its way the pick does nothing, since a send in flight cannot
   be stopped. Double-tapping a message toggles a heart by the same rule.
+  For a message outside the loaded timeline, which the media viewer
+  reaches, the old one is looked up on the server, since the SDK gathers
+  reactions only from the timeline it holds.
 - **Double-tap holds every single tap inside a bubble** until the
   double-tap window closes, since Flutter's gesture arena cannot settle a
   tap sooner; widget tests that tap inside a sent bubble pump past
@@ -168,14 +174,14 @@ one rule for what counts.
   anyone else changes nothing.
 - **Images decode at display size.** A bubble, gallery tile, reply quote
   or media grid cell decodes so the shorter side fills its box and the
-  longer side stays bounded, never enlarged; full-screen viewers decode
+  longer side stays bounded, never enlarged; the media viewer decodes
   full size for zoom.
 - **A blurhash stands in until the picture is on screen.** A received
   photo or video thumbnail shows the event's `xyz.amorgan.blurhash`, laid
   out at the media's own size, until its first frame paints, so there is
   no blank gap between download and decode. Thumbnails never spin (no
-  blurhash means their empty box); full-screen viewers add a spinner, and
-  a failed load says so with Try again.
+  blurhash means their empty box); the media viewer adds a spinner, and a
+  failed photo or video says so with Try again.
 - **One image provider downloads and decodes each attachment**
   (`CachedAttachmentImage`), keyed by event, so a decoded picture survives
   rebuilds and byte-cache churn. A failed download is tried again when the
@@ -207,13 +213,6 @@ one rule for what counts.
 - **A press that has to ask for the microphone only asks**, and the next
   press records, because the system prompt takes the touch away
   mid-gesture.
-- **One owner sets the audio session for voice messages and iOS
-  recording** (`voice_audio_session.dart`). A playing message pauses other
-  audio and hands it back when it stops, so music resumes. An interruption
-  or unplugged headphones pause it before the session goes back. During a
-  call it plays where the call plays and leaves the session alone. iOS
-  recording goes through it because the recorder never gives its session
-  back; Android's recorder holds its own focus (`recorderNeedsAudioSession`).
 
 ## Unsent messages
 
@@ -376,6 +375,23 @@ keep their retry tiles in the gallery. Share, save and delete on a
 gallery act on every item, and deleting a gallery whose batch still
 sends stops the batch (Unsent messages).
 
+### Audio session
+
+One owner sets the audio session for voice messages, video sound and iOS
+recording (`media_audio_session.dart`).
+
+- **Voice plays with a speech profile and video with a film profile.** A
+  video holds the session only while it plays with sound, and starting a
+  voice message pauses a video, and the other way round.
+- **Playing pauses other apps' audio and hands it back when it stops**, so
+  music resumes. An interruption or unplugged headphones pause playback
+  before the session goes back.
+- **During a call, playback goes where the call plays** and the session is
+  left alone.
+- **iOS recording goes through it** because the recorder never gives its
+  session back; Android's recorder holds its own focus
+  (`recorderNeedsAudioSession`).
+
 ### Avatars
 
 - **One request per person per size bucket.** With two buckets, one
@@ -389,6 +405,59 @@ sends stops the batch (Unsent messages).
   direct chat matches its partner everywhere, the call screen included.
 - **A failed load is evicted and its bytes deleted**, or one bad
   response would break a never-expiring entry for good.
+
+## Media viewer
+
+One viewer (`media_viewer/`) opens every photo and video, from a chat
+bubble, a gallery tile, Room info's preview or the Media page. It pages
+through the room's sent photos and videos, never files, in time order,
+starting at the tapped item. Every opener hands it the chat's room, live
+timeline and reply and edit starters, so Room info and the Media page reach
+the chat too.
+
+- **The room's media feed is the source** (`rooms-membership.md`). The
+  tapped item shows at once, alone until the feed has loaded back to its
+  send time; then its neighbors appear.
+- **Older items load near the oldest edge.** After a failed or empty page
+  only a swipe at that edge tries again (`rooms-membership.md`).
+- **The item on screen never jumps.** New media, older pages and deletions
+  apply only while the pager is idle. A deleted item on screen gives way to
+  a neighbor, and the viewer closes when nothing is left.
+- **A video reached by swiping loads only when played**, so swiping past
+  videos costs no data; one opened directly plays at once. Swiping away
+  pauses it, and mute holds for the whole visit.
+
+Frosted controls float over the media, which stays centered on the whole
+screen: back, the sender with the send time and ⋯ at the top; the caption,
+the gallery position, a video timeline with mute, reaction chips and an
+action pill (React, Reply, Share, Save) at the bottom. They hide on their
+own while a video plays.
+
+| Action | On a gallery item, acts on |
+|---|---|
+| React, reaction chips, ⋯ | The gallery message, the one the chat shows reactions under; ⋯ opens the gallery's sheet |
+| Reply, Share, Save | The item on screen, so a reply quotes that exact photo |
+
+- **⋯ opens the same sheet as long-pressing the message**, and React and
+  Reply follow its rule: shown only where the user can post and the item
+  is sent.
+- **Reply and Edit return to the chat**, closing every screen above it (the
+  viewer, the Media page, Room info), and start in the composer.
+- **Reaction chips** show every reaction with its count, the user's own
+  highlighted, and the React button shows the user's own. For an item
+  outside the chat's loaded timeline the viewer fetches reactions from the
+  server, every page, and again after the user reacts.
+
+| Gesture | Effect |
+|---|---|
+| Tap | Hides or shows the controls and the system bars |
+| Swipe sideways | The next or previous item; off while zoomed |
+| Swipe down | Closes; the chat shows through while dragging |
+| Double-tap or pinch a photo | Zooms |
+
+- **Opening flies the photo from its thumbnail, and closing flies it
+  back.** Only the opened item flies back; one reached by swiping fades
+  out. With reduced motion the viewer appears and leaves at once.
 
 ## Inbound share
 
@@ -440,6 +509,11 @@ flowchart TD
 - **Galleries are a content key on ordinary events**, so other clients
   see normal messages, and forward, redact and download work with no new
   code. One multi-item event and time-window grouping were rejected.
+- **One media viewer for every entry point**, not separate photo, gallery
+  and video viewers, so their controls and actions never drift apart.
+- **The media viewer shows no overall position** ("12 of 120"), because
+  the room's total is unknown until all history has loaded; a gallery item
+  shows its place in its gallery instead.
 - **Media never falls back to the original bytes.** A failed photo or
   video preparation refuses the send, because the untouched file leaks
   metadata. The SDK's resizer sends the original when it fails, which is
@@ -521,6 +595,12 @@ flowchart TD
 - **just_audio's `dispose` only finishes in widget tests when the fake
   clock is pumped**, so tests unmount a voice message with pumps, not real
   async.
+- **Video players are created to mix with others**, so Android's player
+  never takes audio focus itself; otherwise it and the session owner take
+  focus from each other and each pauses the other.
+- **A media hero's tag pairs the opening screen's route with the event**,
+  or the same photo in the chat and in Room info would fly between those
+  two screens on every push and pop.
 - **Share and Save hand over one folder per attachment**, because names
   repeat: every photo Zuno sends is `photo.jpg`.
 - **Cache expiry deletes are fire-and-forget**, because two readers can

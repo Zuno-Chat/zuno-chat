@@ -725,6 +725,18 @@
     "description": "Attachment menu item: share your location"
   },
   "chatLocationNotSent": "Location not sent. Try again.",
+  "chatMediaMute": "Mute",
+  "@chatMediaMute": {
+    "description": "Tooltip on the button that turns a video's sound off in the viewer"
+  },
+  "chatMediaPause": "Pause",
+  "@chatMediaPause": {
+    "description": "Tooltip on the pause button of a playing video in the viewer"
+  },
+  "chatMediaUnmute": "Unmute",
+  "@chatMediaUnmute": {
+    "description": "Tooltip on the button that turns a video's sound back on in the viewer"
+  },
   "chatMessageDeleted": "Message deleted",
   "@chatMessageDeleted": {
     "description": "Placeholder in the chat where a deleted message was"
@@ -771,6 +783,10 @@
         "format": "decimalPattern"
       }
     }
+  },
+  "chatReact": "React",
+  "@chatReact": {
+    "description": "Button in the photo and video viewer: react to the photo or video with an emoji"
   },
   "chatReactionNotSent": "Reaction not sent. Try again.",
   "chatRecordVideo": "Record video",
@@ -1019,6 +1035,10 @@
       "ios"
     ]
   },
+  "commonMore": "More",
+  "@commonMore": {
+    "description": "Tooltip on a menu button that opens more options or actions"
+  },
   "commonNotNow": "Not now",
   "@commonNotNow": {
     "description": "Button: skip for now"
@@ -1160,10 +1180,6 @@
   "communitiesLetInFailed": "Could not let them in.",
   "communitiesLetInInvites": "Letting someone in invites them to the room.",
   "communitiesLoadFailed": "Could not load more rooms.",
-  "communitiesMore": "More",
-  "@communitiesMore": {
-    "description": "Tooltip on the community screen menu button: more options"
-  },
   "communitiesMoreRooms": "More rooms",
   "@communitiesMoreRooms": {
     "description": "Section heading on a community: rooms you have not joined"

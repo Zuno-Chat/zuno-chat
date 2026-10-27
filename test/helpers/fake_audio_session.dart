@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/services.dart';
 
-import 'package:zuno/core/matrix/voice_audio_session.dart';
+import 'package:zuno/core/matrix/media_audio_session.dart';
 
 class FakeAudioSessionPort implements AudioSessionPort {
   FakeAudioSessionPort([List<String>? log]) : log = log ?? [];
@@ -35,14 +35,18 @@ class FakeAudioSessionPort implements AudioSessionPort {
   }
 
   String _nameOf(AudioSessionConfiguration configuration) =>
-      identical(configuration, voicePlaybackSession) ? 'playback' : 'recording';
+      identical(configuration, voicePlaybackSession)
+      ? 'playback'
+      : identical(configuration, videoPlaybackSession)
+      ? 'video'
+      : 'recording';
 }
 
-VoiceAudioSession fakeVoiceAudioSession(
+MediaAudioSession fakeMediaAudioSession(
   FakeAudioSessionPort port, {
   bool ownsRecordingSession = false,
   bool Function()? callHoldsAudio,
-}) => VoiceAudioSession(
+}) => MediaAudioSession(
   ownsRecordingSession: ownsRecordingSession,
   callHoldsAudio: callHoldsAudio ?? () => false,
   port: port,

@@ -73,16 +73,17 @@ Colors, type, shape and transitions are set here and nowhere else, and screens r
 
 | File | Holds |
 |---|---|
-| `zuno_theme.dart` | The light and dark themes: a seeded `ColorScheme` with the key roles pinned, Roboto at weights 400, 500 and 700 only (older Android has no 600 and snaps to bold), and the component themes. Also the black theme the full-screen photo and video viewers wear in either mode. |
-| `zuno_colors.dart` | The brand colors, the over-media colors and the `ZunoColors` extension for what Material has no slot for, such as the outgoing bubble. Anything drawn over a photo, video, camera or call takes the over-media colors (backdrop, scrim and what sits on them), never the theme's, because media is dark in both modes. |
-| `zuno_motion.dart` | `ZunoDurations`, the Android slide transition and `ForwardExitPageRoute`. |
+| `zuno_theme.dart` | The light and dark themes: a seeded `ColorScheme` with the key roles pinned, Roboto at weights 400, 500 and 700 only (older Android has no 600 and snaps to bold), and the component themes. Also the black theme the media viewer wears in either mode. |
+| `zuno_colors.dart` | The brand colors, the over-media colors and the `ZunoColors` extension for what Material has no slot for, such as the outgoing bubble. Anything drawn over a photo, video, camera or call takes the over-media colors (backdrop, scrim, frosted surfaces and what sits on them), never the theme's, because media is dark in both modes. |
+| `zuno_motion.dart` | `ZunoDurations`, the Android slide transition, `ForwardExitPageRoute`, and the media viewer's route and photo flight (`MediaViewerRoute`, `MediaHero`). |
 | `zuno_splash.dart` | `ZunoSplash`, matched to the OS launch screen (Decisions). |
 
 Motion:
 - **Android** slides every `MaterialPageRoute` through a builder registered in the theme: movement only, no fade, on one `fastOutSlowIn` curve.
 - **iOS** keeps the Cupertino transition, and with it the edge swipe back.
 - **`ForwardExitPageRoute`** (onboarding) can `popForward`, which exits toward the leading edge like a pager step. Any other pop is the normal reverse.
-- Reduced motion drops the slides, and right-to-left mirrors them.
+- **`MediaViewerRoute`** (the media viewer, `chats-messaging.md`) fades in while the photo flies from its thumbnail. It stays opaque except while dragged to close, so the screen below is not repainted with every frame of a playing video.
+- Reduced motion drops the slides, the viewer's fade and its flight, and right-to-left mirrors the slides.
 
 Shared pieces:
 
@@ -95,7 +96,8 @@ Shared pieces:
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
 | `AlertBanner` | Every in-screen warning banner: the security alerts and the delivery failure. An attention or notice tone, at most one action and an optional ✕. |
 | `FailureNotice` | A message that something did not load, with Try again when it can be retried; Retry is only for compact controls such as tiles and list rows. |
-| `ViewerScaffold` | The full-screen photo and video viewers: their black theme and app bar. |
+| `FrostedSurface` | Controls floating over media: a translucent dark fill over a blurred backdrop, so they read on a white photo and on black. |
+| `hideSystemBars`, `showSystemBars` | Hiding the status and navigation bars, and bringing them back edge to edge. |
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
 | `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
 
@@ -103,7 +105,7 @@ Shared pieces:
 
 | Rule | Why |
 |---|---|
-| No blur, shader masks or soft shadows | They stall mid-range GPUs. |
+| No blur, shader masks or soft shadows, except `FrostedSurface` | They stall mid-range GPUs. Controls over media must read on any photo, so frosted surfaces keep both and share one backdrop read per frame (`BackdropGroup`). |
 | No `Opacity` around list rows; dim with color instead | `Opacity` renders the row off-screen, then blends it. |
 | Animate position, never size or padding | Size and padding changes re-lay-out every frame. |
 | Fixed-height rows where the design allows | The list skips measuring while it scrolls. |
@@ -368,6 +370,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **A theme edit restyles screens its diff never touches**, through call sites that override only part of a themed component (a local `InputDecoration.border` loses to the themed state borders), so sweep them.
 - **A `ListView` with explicit `padding` stops handling the system insets**, so its last row sits under the navigation bar; `CardListView` handles them, and any other nested scrollable takes `padding: EdgeInsets.zero`.
 - **The push curve must start gently**, because a push spends its first frames building the new screen and whatever the curve covers then is never seen (`zuno_motion_test.dart` pins it).
+- **Bringing the system bars back names both bars before going edge to edge**, because the engine ignores edge-to-edge below Android 10 and the bars would stay hidden.
 
 **Client, SDK and Riverpod**
 - **`vod.init()` throws on a second call in the same isolate**, so always use `ensureVodozemacInitialized()`.

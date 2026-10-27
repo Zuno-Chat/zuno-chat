@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import 'event_display.dart';
+import 'redactions.dart';
 
 enum RoomMediaKind { photo, video, file }
 
@@ -37,6 +38,7 @@ class RoomMediaFeed extends ChangeNotifier {
 
   final _items = <Event>[];
   final _kinds = <String, RoomMediaKind>{};
+  final _redacted = <String>{};
   String? _cursor;
   bool _hasMore = true;
   bool _loading = false;
@@ -80,6 +82,19 @@ class RoomMediaFeed extends ChangeNotifier {
   bool get stalled => _stalled;
   bool get failed => _failed;
 
+  bool get canAutoLoad => _hasMore && !_loading && !_stalled;
+
+  bool wasRedacted(String eventId) => _redacted.contains(eventId);
+
+  Future<void> loadThrough(DateTime time) async {
+    while (canAutoLoad && !_holdsMediaFrom(time)) {
+      await loadMore();
+    }
+  }
+
+  bool _holdsMediaFrom(DateTime time) =>
+      _items.isNotEmpty && !_items.last.originServerTs.isAfter(time);
+
   Future<void> ensureLoaded() {
     if (_items.isNotEmpty || _loading || !_hasMore || _stalled) {
       return Future.value();
@@ -87,8 +102,10 @@ class RoomMediaFeed extends ChangeNotifier {
     return loadMore();
   }
 
-  Future<void> loadMore() =>
-      _inFlight ??= _load().whenComplete(() => _inFlight = null);
+  Future<void> loadMore() => _inFlight ??= _load().whenComplete(() {
+    _inFlight = null;
+    notifyListeners();
+  });
 
   Future<void> _load() async {
     if (!_hasMore) return;
@@ -114,7 +131,6 @@ class RoomMediaFeed extends ChangeNotifier {
       rethrow;
     } finally {
       _loading = false;
-      notifyListeners();
     }
   }
 
@@ -137,9 +153,12 @@ class RoomMediaFeed extends ChangeNotifier {
   void _onTimelineEvent(Event event) {
     if (event.room.id != room.id) return;
     if (event.type == EventTypes.Redaction) {
-      final target = event.redacts ?? event.content.tryGet<String>('redacts');
-      if (_kinds.remove(target) == null) return;
-      _items.removeWhere((e) => e.eventId == target);
+      final target = redactionTarget(event);
+      if (target == null) return;
+      _redacted.add(target);
+      if (_kinds.remove(target) != null) {
+        _items.removeWhere((e) => e.eventId == target);
+      }
       notifyListeners();
       return;
     }

@@ -6,7 +6,6 @@ import 'package:zuno/core/matrix/room_exit.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
 
-import '../../../helpers/route_launcher.dart';
 import 'room_page_harness.dart';
 
 void main() {
@@ -17,22 +16,8 @@ void main() {
     final harness = RoomPageHarness();
     harness.room.summary.mJoinedMemberCount = 2;
     harness.db.events = [harness.message(r'$m1')];
-    await tester.pumpWidget(
-      await harness.app(
-        home: routeLauncher(
-          (_) => RoomPage(room: harness.room),
-          label: 'open chat',
-        ),
-      ),
-    );
-    await tester.tap(find.text('open chat'));
-    await harness.settle(tester);
-
-    await tester.tap(find.byTooltip('Show menu'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 400));
-    await tester.tap(find.text('Room info'));
-    await harness.settle(tester);
+    await harness.pumpRoomPageOverLauncher(tester);
+    await harness.openRoomInfo(tester);
     expect(find.byType(RoomInfoPage), findsOneWidget);
     return harness;
   }

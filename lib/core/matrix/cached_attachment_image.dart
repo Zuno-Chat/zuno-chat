@@ -57,7 +57,7 @@ class _CachedAttachmentImageState extends State<CachedAttachmentImage> {
     if (blurhash == null) return widget.placeholder;
     return Image(
       image: blurhash,
-      fit: BoxFit.cover,
+      fit: widget.fit ?? BoxFit.cover,
       excludeFromSemantics: true,
     );
   }

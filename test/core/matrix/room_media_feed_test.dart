@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -194,6 +196,76 @@ void main() {
       },
     );
 
+    test('may load on its own until a load fails or finds nothing', () async {
+      final feed = feedOver(
+        {
+          null: (events: [image(r'$1', ts: 2)], nextBatch: 'b1'),
+          'b1': (events: [text(r'$t')], nextBatch: 'b2'),
+        },
+        pageSize: 1,
+        maxRequestsPerLoad: 1,
+      );
+      addTearDown(feed.dispose);
+      expect(feed.canAutoLoad, isTrue);
+
+      await feed.loadMore();
+      expect(feed.canAutoLoad, isTrue);
+
+      await feed.loadMore();
+      expect(feed.stalled, isTrue);
+      expect(feed.canAutoLoad, isFalse);
+    });
+
+    test(
+      'loadThrough pages back until it holds media from before a time',
+      () async {
+        final calls = <String?>[];
+        final feed = feedOver(
+          {
+            null: (events: [image(r'$9', ts: 9)], nextBatch: 'b1'),
+            'b1': (events: [image(r'$3', ts: 3)], nextBatch: 'b2'),
+            'b2': (events: [image(r'$1', ts: 1)], nextBatch: null),
+          },
+          pageSize: 1,
+          calls: calls,
+        );
+        addTearDown(feed.dispose);
+
+        await feed.loadThrough(DateTime.fromMillisecondsSinceEpoch(5));
+
+        expect(calls, [null, 'b1']);
+        expect(feed.items.map((e) => e.eventId), [r'$9', r'$3']);
+      },
+    );
+
+    test(
+      'a listener can start the next load as soon as one finishes',
+      () async {
+        final calls = <String?>[];
+        final feed = feedOver(
+          {
+            null: (events: [image(r'$1')], nextBatch: 'b1'),
+            'b1': (events: [image(r'$2')], nextBatch: null),
+          },
+          pageSize: 1,
+          calls: calls,
+        );
+        addTearDown(feed.dispose);
+        var asked = false;
+        feed.addListener(() {
+          if (feed.loading || !feed.hasMore || asked) return;
+          asked = true;
+          unawaited(feed.loadMore());
+        });
+
+        await feed.loadMore();
+        await pumpEventQueue();
+
+        expect(calls, [null, 'b1']);
+        expect(feed.items.length, 2);
+      },
+    );
+
     test('stops once a page is full and resumes from the cursor', () async {
       final calls = <String?>[];
       final feed = feedOver(
@@ -354,6 +426,27 @@ void main() {
       await pumpEventQueue();
 
       expect(feed.items, isEmpty);
+    });
+
+    test('remembers a deletion of media it never held, and says so', () async {
+      var notified = 0;
+      feed.addListener(() => notified++);
+
+      client.onTimelineEvent.add(
+        Event(
+          eventId: r'$r',
+          type: EventTypes.Redaction,
+          senderId: '@a:example.org',
+          originServerTs: clock.now(),
+          content: {'redacts': r'$elsewhere'},
+          room: room,
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(feed.wasRedacted(r'$elsewhere'), isTrue);
+      expect(feed.wasRedacted(r'$old'), isFalse);
+      expect(notified, 1);
     });
 
     test('ignores a duplicate of a loaded item', () async {

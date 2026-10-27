@@ -5,46 +5,6 @@ import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import 'attachment_actions.dart';
 
-class AttachmentActionButtons extends StatelessWidget {
-  final Event event;
-  final Color? color;
-
-  const AttachmentActionButtons({required this.event, this.color, super.key});
-
-  Future<void> _save(BuildContext context) => saveAttachmentsWithFeedback(
-    ScaffoldMessenger.of(context),
-    context.l10n,
-    [event],
-  );
-
-  Future<void> _share(BuildContext context) => shareAttachmentsWithFeedback(
-    ScaffoldMessenger.of(context),
-    context.l10n,
-    [event],
-  );
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.share_outlined),
-          color: color,
-          tooltip: context.l10n.commonShare,
-          onPressed: () => _share(context),
-        ),
-        IconButton(
-          icon: const Icon(Icons.download_outlined),
-          color: color,
-          tooltip: context.l10n.commonSave,
-          onPressed: () => _save(context),
-        ),
-      ],
-    );
-  }
-}
-
 Future<void> saveAttachmentsWithFeedback(
   ScaffoldMessengerState messenger,
   AppLocalizations l10n,

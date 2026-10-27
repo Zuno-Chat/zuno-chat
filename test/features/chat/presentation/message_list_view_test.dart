@@ -92,6 +92,7 @@ void main() {
                   onSwipeReply: (_) {},
                   onResend: (_) {},
                   onRetryFailedSend: onRetry ?? (_) {},
+                  onOpenMedia: (_) {},
                 );
               },
             ),

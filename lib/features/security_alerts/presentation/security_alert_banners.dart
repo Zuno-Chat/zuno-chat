@@ -102,10 +102,7 @@ class SecurityAlertBanners extends ConsumerWidget {
     final labels = DateLabels.of(context);
     final detail = [
       if (seenAt != null)
-        l10n.dateAtTime(
-          labels.day(seenAt, now: clock.now()),
-          labels.clock(seenAt),
-        ),
+        labels.dayAndTime(seenAt, now: clock.now()),
       ?first.ipAddress,
     ].join(' · ');
     return AlertBanner(

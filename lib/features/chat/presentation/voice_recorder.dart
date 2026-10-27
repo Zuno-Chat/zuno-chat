@@ -9,7 +9,7 @@ import 'package:record/record.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/files/unique_name.dart';
-import '../../../core/matrix/voice_audio_session.dart';
+import '../../../core/matrix/media_audio_session.dart';
 import '../../../core/matrix/voice_recording.dart';
 import 'message_contents/voice_message.dart';
 
@@ -32,7 +32,7 @@ class VoiceRecorder extends ChangeNotifier {
   });
 
   final VoiceRecordingSetup _setup;
-  final VoiceAudioSession _audio;
+  final MediaAudioSession _audio;
   final Future<void> Function(VoiceClip clip) _onRecorded;
   final void Function(VoiceRecordingProblem problem) _onProblem;
   final AudioRecorder Function() _createRecorder;

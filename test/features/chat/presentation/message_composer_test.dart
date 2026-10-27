@@ -16,7 +16,7 @@ class _ShownRecorder extends VoiceRecorder {
   _ShownRecorder({required this.recording, required this._elapsed})
     : super(
         setup: voiceRecordingSetup(androidCapabilities),
-        audio: fakeVoiceAudioSession(FakeAudioSessionPort()),
+        audio: fakeMediaAudioSession(FakeAudioSessionPort()),
         onRecorded: (_) async {},
         onProblem: (_) {},
       );

@@ -10,7 +10,7 @@ import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/abuse_report.dart';
-import '../../../core/matrix/attachment_action_buttons.dart';
+import '../../../core/matrix/attachment_feedback.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/ui/sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
@@ -67,7 +67,7 @@ Future<void> showMessageActions(
 
   final action = await showMessageActionsSheet(
     context,
-    canRespond: canPost && sent,
+    canRespond: canRespondTo(room, event),
     canEdit: canEdit,
     canDelete: canDelete,
     isOwn: isOwn,
@@ -92,7 +92,7 @@ Future<void> showMessageActions(
       if (isOwn) SeenByTile(room: room, event: event),
     ],
     onReact: (key) => reactToMessage(context, event, timeline, key),
-    onMoreReactions: () => _pickReaction(context, event, timeline),
+    onMoreReactions: () => pickReaction(context, event, timeline),
   );
   if (!context.mounted) return;
   final messenger = ScaffoldMessenger.of(context);
@@ -147,7 +147,7 @@ Future<void> reactToMessage(
   key,
 );
 
-Future<void> _pickReaction(
+Future<void> pickReaction(
   BuildContext context,
   Event event,
   Timeline timeline,

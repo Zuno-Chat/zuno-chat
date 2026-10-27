@@ -22,6 +22,20 @@ final voicePlaybackSession = AudioSessionConfiguration(
   androidWillPauseWhenDucked: true,
 );
 
+final videoPlaybackSession = AudioSessionConfiguration(
+  avAudioSessionCategory: AVAudioSessionCategory.playback,
+  avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
+  avAudioSessionMode: AVAudioSessionMode.moviePlayback,
+  avAudioSessionSetActiveOptions:
+      AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
+  androidAudioAttributes: const AndroidAudioAttributes(
+    contentType: AndroidAudioContentType.movie,
+    usage: AndroidAudioUsage.media,
+  ),
+  androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+  androidWillPauseWhenDucked: true,
+);
+
 final voiceRecordingSession = AudioSessionConfiguration(
   avAudioSessionCategory: AVAudioSessionCategory.playAndRecord,
   avAudioSessionCategoryOptions:
@@ -67,12 +81,16 @@ class _PluginAudioSessionPort implements AudioSessionPort {
   ).asyncExpand<void>((session) => session.becomingNoisyEventStream);
 }
 
-abstract interface class VoicePlayback {
+enum MediaSound { voice, video }
+
+abstract interface class MediaPlayback {
+  MediaSound get sound;
+
   Future<void> pause();
 }
 
-final voiceAudioSessionProvider = Provider<VoiceAudioSession>((ref) {
-  final session = VoiceAudioSession(
+final mediaAudioSessionProvider = Provider<MediaAudioSession>((ref) {
+  final session = MediaAudioSession(
     ownsRecordingSession: ref
         .watch(platformCapabilitiesProvider)
         .recorderNeedsAudioSession,
@@ -85,8 +103,8 @@ final voiceAudioSessionProvider = Provider<VoiceAudioSession>((ref) {
   return session;
 });
 
-class VoiceAudioSession {
-  VoiceAudioSession({
+class MediaAudioSession {
+  MediaAudioSession({
     required this.ownsRecordingSession,
     required this._callHoldsAudio,
     this._port = const _PluginAudioSessionPort(),
@@ -96,20 +114,23 @@ class VoiceAudioSession {
   final bool Function() _callHoldsAudio;
   final AudioSessionPort _port;
   final _turns = SerialLock();
-  final _playing = <VoicePlayback>{};
+  final _playing = <MediaPlayback>{};
   final _recording = <Object>{};
   List<StreamSubscription<void>>? _pauseRequests;
   AudioSessionConfiguration? _held;
 
-  Future<void> beginPlayback(VoicePlayback holder) {
+  Future<void> beginPlayback(MediaPlayback holder) {
     _pauseRequests ??= [
       _port.interruptions.listen((_) => _pausePlayback()),
       _port.unplugged.listen((_) => _pausePlayback()),
     ];
+    for (final playing in [..._playing]) {
+      if (playing.sound != holder.sound) unawaited(playing.pause());
+    }
     return _update(() => _playing.add(holder));
   }
 
-  Future<void> endPlayback(VoicePlayback holder) =>
+  Future<void> endPlayback(MediaPlayback holder) =>
       _update(() => _playing.remove(holder));
 
   Future<void> callEnded() => _update(() => true);
@@ -138,6 +159,8 @@ class VoiceAudioSession {
     if (!change()) return;
     final wanted = _recording.isNotEmpty
         ? voiceRecordingSession
+        : _playing.any((holder) => holder.sound == MediaSound.video)
+        ? videoPlaybackSession
         : _playing.isNotEmpty
         ? voicePlaybackSession
         : null;
@@ -156,7 +179,7 @@ class VoiceAudioSession {
       _held = wanted;
     } catch (e, s) {
       _held = null;
-      reportCaught('voice audio session', e, s);
+      reportCaught('media audio session', e, s);
     }
   });
 }

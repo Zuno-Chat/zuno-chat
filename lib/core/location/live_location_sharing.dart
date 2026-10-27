@@ -12,6 +12,7 @@ import '../matrix/connectivity_provider.dart';
 import '../matrix/ephemeral_to_device.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../matrix/olm_sender.dart';
+import '../matrix/redactions.dart';
 import '../notifications/settings/notification_preview.dart';
 import '../settings/app_preferences_provider.dart';
 import 'live_location_availability.dart';
@@ -716,9 +717,7 @@ class LiveLocationSharing {
       if (events.any(
         (event) =>
             event.type == EventTypes.Redaction &&
-            share.startEventIds.contains(
-              event.redacts ?? event.content['redacts'],
-            ),
+            share.startEventIds.contains(redactionTarget(event)),
       )) {
         unawaited(stop(share.roomId));
         continue;

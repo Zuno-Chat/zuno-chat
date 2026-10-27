@@ -61,9 +61,13 @@ class RecordedMethodCalls {
 RecordedMethodCalls recordMethodChannel(
   String name, {
   FutureOr<Object?> Function(MethodCall call)? reply,
+}) => recordChannel(MethodChannel(name), reply: reply);
+
+RecordedMethodCalls recordChannel(
+  MethodChannel channel, {
+  FutureOr<Object?> Function(MethodCall call)? reply,
 }) {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final channel = MethodChannel(name);
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   final recorded = RecordedMethodCalls();

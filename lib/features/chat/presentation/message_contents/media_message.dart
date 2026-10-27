@@ -4,13 +4,11 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/cover_image.dart';
-import '../../../../core/matrix/gallery_viewer_page.dart';
-import '../../../../core/matrix/image_viewer_page.dart';
 import '../../../../core/matrix/media_gallery_group.dart';
 import '../../../../core/matrix/media_size.dart';
-import '../../../../core/matrix/video_viewer_page.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../data/pending_attachment_send.dart';
+import '../media_viewer/media_hero.dart';
 import 'pending_attachment_tile.dart';
 
 const mediaInset = 4.0;
@@ -70,6 +68,7 @@ class GalleryMessage extends StatelessWidget {
   final void Function(FailedMediaSend) onRetry;
   final PendingAttachmentSend? pendingSend;
   final Widget mediaMeta;
+  final void Function(Event event) onOpen;
 
   const GalleryMessage({
     super.key,
@@ -78,6 +77,7 @@ class GalleryMessage extends StatelessWidget {
     required this.onRetry,
     required this.pendingSend,
     required this.mediaMeta,
+    required this.onOpen,
   });
 
   List<_GalleryEntry> get _entries {
@@ -105,15 +105,7 @@ class GalleryMessage extends StatelessWidget {
       onRetry: onRetry,
       onOpen: () {
         final event = entries[i].event;
-        if (event == null) return;
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) => GalleryViewerPage(
-              events: events,
-              initialIndex: events.indexOf(event),
-            ),
-          ),
-        );
+        if (event != null) onOpen(event);
       },
     );
 
@@ -216,10 +208,15 @@ class _GalleryThumbnail extends StatelessWidget {
         children: [
           pending?.previewBytes != null
               ? MediaImage.memory(pending!.previewBytes!, shownAt: shownAt)
-              : attachmentThumbnail(
-                  event,
-                  placeholder: Container(color: colors.surfaceContainerHighest),
-                  shownAt: shownAt,
+              : ThumbnailHero(
+                  event: event,
+                  child: attachmentThumbnail(
+                    event,
+                    placeholder: Container(
+                      color: colors.surfaceContainerHighest,
+                    ),
+                    shownAt: shownAt,
+                  ),
                 ),
           if (event.messageType == MessageTypes.Video && pending == null)
             const Center(
@@ -315,6 +312,7 @@ class ImageMessage extends StatelessWidget {
   final PendingAttachmentSend? pendingSend;
   final Widget mediaMeta;
   final bool showTimeOverlay;
+  final void Function(Event event) onOpen;
 
   const ImageMessage({
     super.key,
@@ -322,6 +320,7 @@ class ImageMessage extends StatelessWidget {
     this.pendingSend,
     required this.mediaMeta,
     required this.showTimeOverlay,
+    required this.onOpen,
   });
 
   @override
@@ -336,17 +335,18 @@ class ImageMessage extends StatelessWidget {
       pending: pending,
       onTap: pending != null
           ? null
-          : () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => ImageViewerPage(event: event)),
-            ),
+          : () => onOpen(event),
       media: Stack(
         children: [
           Positioned.fill(
             child: pending?.previewBytes != null
                 ? MediaImage.memory(pending!.previewBytes!)
-                : attachmentThumbnail(
-                    event,
-                    placeholder: const AspectRatioPlaceholder(),
+                : ThumbnailHero(
+                  event: event,
+                  child: attachmentThumbnail(
+                      event,
+                      placeholder: const AspectRatioPlaceholder(),
+                    ),
                   ),
           ),
           if (showTimeOverlay)
@@ -362,6 +362,7 @@ class VideoMessage extends StatelessWidget {
   final PendingAttachmentSend? pendingSend;
   final Widget mediaMeta;
   final bool showTimeOverlay;
+  final void Function(Event event) onOpen;
 
   const VideoMessage({
     super.key,
@@ -369,6 +370,7 @@ class VideoMessage extends StatelessWidget {
     this.pendingSend,
     required this.mediaMeta,
     required this.showTimeOverlay,
+    required this.onOpen,
   });
 
   @override
@@ -386,13 +388,17 @@ class VideoMessage extends StatelessWidget {
       pending: pending,
       onTap: pending != null
           ? null
-          : () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => VideoViewerPage(event: event)),
-            ),
+          : () => onOpen(event),
       media: Stack(
         alignment: Alignment.center,
         children: [
-          Positioned.fill(child: _videoBubbleMedia(event, pending)),
+          Positioned.fill(
+            child: ThumbnailHero(
+              event: event,
+              enabled: pending == null,
+              child: _videoBubbleMedia(event, pending),
+            ),
+          ),
           if (pending == null)
             Container(
               decoration: const BoxDecoration(

@@ -228,4 +228,34 @@ void main() {
       );
     }
   });
+
+  group('dayAndTime', () {
+    test('names today and the time', () {
+      final labels = DateLabels(
+        englishLocalizations,
+        locale: 'en_US',
+        use24Hour: true,
+      );
+      final now = DateTime(2026, 10, 27, 15);
+
+      expect(
+        labels.dayAndTime(DateTime(2026, 10, 27, 14, 32), now: now),
+        'Today at 14:32',
+      );
+    });
+
+    test('names an older day by its date', () {
+      final labels = DateLabels(
+        englishLocalizations,
+        locale: 'en_US',
+        use24Hour: true,
+      );
+      final now = DateTime(2026, 10, 27, 15);
+
+      expect(
+        labels.dayAndTime(DateTime(2026, 10, 20, 9, 5), now: now),
+        'October 20 at 09:05',
+      );
+    });
+  });
 }

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/attachment_action_buttons.dart';
+import 'package:zuno/core/matrix/attachment_feedback.dart';
 
 import '../../helpers/fake_attachments.dart';
 
@@ -16,25 +16,39 @@ void main() {
     device = installDeviceFakes();
   });
 
-  Future<void> pumpButtons(WidgetTester tester, Event event) =>
-      tester.pumpWidget(
-        MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(body: AttachmentActionButtons(event: event)),
-        ),
-      );
-
-  Future<void> press(WidgetTester tester, String tooltip) async {
-    final button = tester.widget<IconButton>(
-      find.ancestor(
-        of: find.byTooltip(tooltip),
-        matching: find.byType(IconButton),
+  Future<ScaffoldMessengerState> pumpMessenger(WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(),
       ),
     );
-    await tester.runAsync(() => button.onPressed!.call() as dynamic);
+    return tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger));
+  }
+
+  Future<void> settle(WidgetTester tester) async {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
+  }
+
+  Future<void> save(WidgetTester tester, List<Event> events) async {
+    final messenger = await pumpMessenger(tester);
+    await tester.runAsync(
+      () =>
+          saveAttachmentsWithFeedback(messenger, englishLocalizations, events),
+    );
+    await settle(tester);
+  }
+
+  Future<void> share(WidgetTester tester, Event event) async {
+    final messenger = await pumpMessenger(tester);
+    await tester.runAsync(
+      () => shareAttachmentsWithFeedback(messenger, englishLocalizations, [
+        event,
+      ]),
+    );
+    await settle(tester);
   }
 
   Event document() => server.attachment(
@@ -45,18 +59,14 @@ void main() {
   );
 
   testWidgets('Save says where the attachment went', (tester) async {
-    await pumpButtons(tester, server.attachment());
-
-    await press(tester, 'Save');
+    await save(tester, [server.attachment()]);
 
     expect(find.text('Saved to Photos'), findsOneWidget);
   });
 
   testWidgets('a save that fails says so', (tester) async {
     device.galleryRefuses = true;
-    await pumpButtons(tester, server.attachment());
-
-    await press(tester, 'Save');
+    await save(tester, [server.attachment()]);
 
     expect(find.text('Could not save. Try again.'), findsOneWidget);
   });
@@ -64,33 +74,15 @@ void main() {
   testWidgets('saving several says how many made it', (tester) async {
     final gone = server.attachment(eventId: r'$gone');
     server.goneFromServer(gone);
-    await tester.pumpWidget(
-      const MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(),
-      ),
-    );
-    final messenger = tester.state<ScaffoldMessengerState>(
-      find.byType(ScaffoldMessenger),
-    );
 
-    await tester.runAsync(
-      () => saveAttachmentsWithFeedback(messenger, englishLocalizations, [
-        server.attachment(eventId: r'$kept'),
-        gone,
-      ]),
-    );
-    await tester.pump();
+    await save(tester, [server.attachment(eventId: r'$kept'), gone]);
 
     expect(find.text('Saved 1 of 2'), findsOneWidget);
   });
 
   testWidgets('closing the save dialog shows nothing', (tester) async {
     device.exportAnswer = false;
-    await pumpButtons(tester, document());
-
-    await press(tester, 'Save');
+    await save(tester, [document()]);
 
     expect(find.byType(SnackBar), findsNothing);
   });
@@ -98,9 +90,7 @@ void main() {
   testWidgets('Share opens the share sheet and clears the preparing note', (
     tester,
   ) async {
-    await pumpButtons(tester, server.attachment());
-
-    await press(tester, 'Share');
+    await share(tester, server.attachment());
     await tester.pumpAndSettle();
 
     expect(device.shared, hasLength(1));
@@ -110,9 +100,7 @@ void main() {
   testWidgets('a share that fails says so', (tester) async {
     final event = server.attachment();
     server.goneFromServer(event);
-    await pumpButtons(tester, event);
-
-    await press(tester, 'Share');
+    await share(tester, event);
     await tester.pumpAndSettle();
 
     expect(device.shared, isEmpty);

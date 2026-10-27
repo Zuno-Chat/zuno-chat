@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/format/human_units.dart';
 import '../../../core/matrix/cover_image.dart';
 import '../../../core/ui/zuno_colors.dart';
+import '../../chat/presentation/media_viewer/media_hero.dart';
 
 class RoomMediaThumb extends StatelessWidget {
   final Event event;
@@ -24,12 +25,15 @@ class RoomMediaThumb extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             LayoutBuilder(
-              builder: (context, cell) => attachmentThumbnail(
-                event,
-                placeholder: ColoredBox(
-                  color: theme.colorScheme.surfaceContainerHighest,
+              builder: (context, cell) => ThumbnailHero(
+                event: event,
+                child: attachmentThumbnail(
+                  event,
+                  placeholder: ColoredBox(
+                    color: theme.colorScheme.surfaceContainerHighest,
+                  ),
+                  shownAt: cell.maxWidth,
                 ),
-                shownAt: cell.maxWidth,
               ),
             ),
             if (isVideo)

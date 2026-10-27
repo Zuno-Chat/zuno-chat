@@ -1,7 +1,7 @@
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/matrix/voice_audio_session.dart';
+import 'package:zuno/core/matrix/media_audio_session.dart';
 
 import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_audio_session.dart';
@@ -11,16 +11,18 @@ void main() {
   late bool onCall;
   late _FakePlayback message;
   late _FakePlayback other;
+  late _FakePlayback video;
 
   setUp(() {
     port = FakeAudioSessionPort();
     onCall = false;
     message = _FakePlayback();
     other = _FakePlayback();
+    video = _FakePlayback(MediaSound.video);
   });
 
-  VoiceAudioSession session({bool ownsRecordingSession = true}) =>
-      fakeVoiceAudioSession(
+  MediaAudioSession session({bool ownsRecordingSession = true}) =>
+      fakeMediaAudioSession(
         port,
         ownsRecordingSession: ownsRecordingSession,
         callHoldsAudio: () => onCall,
@@ -30,6 +32,39 @@ void main() {
     await session().beginPlayback(message);
 
     expect(port.log, ['configure playback', 'active']);
+  });
+
+  test('a video takes the session for film playback', () async {
+    await session().beginPlayback(video);
+
+    expect(port.log, ['configure video', 'active']);
+  });
+
+  test('video playback pauses other audio and plays as a film on the media '
+      'volume', () {
+    final playback = videoPlaybackSession;
+
+    expect(playback.avAudioSessionCategory, AVAudioSessionCategory.playback);
+    expect(playback.avAudioSessionMode, AVAudioSessionMode.moviePlayback);
+    expect(
+      playback.androidAudioAttributes?.contentType,
+      AndroidAudioContentType.movie,
+    );
+    expect(playback.androidAudioAttributes?.usage, AndroidAudioUsage.media);
+    expect(playback.androidAudioFocusGainType, AndroidAudioFocusGainType.gain);
+  });
+
+  test('starting a video pauses voice messages, and starting a voice message '
+      'pauses the video', () async {
+    final audio = session();
+    await audio.beginPlayback(message);
+
+    await audio.beginPlayback(video);
+    expect(message.pauses, 1);
+    expect(video.pauses, 0);
+
+    await audio.beginPlayback(other);
+    expect(video.pauses, 1);
   });
 
   test(
@@ -136,16 +171,19 @@ void main() {
     ]);
   });
 
-  test('a message still playing when the call ends takes the session then', () async {
-    onCall = true;
-    final audio = session();
-    await audio.beginPlayback(message);
-    onCall = false;
+  test(
+    'a message still playing when the call ends takes the session then',
+    () async {
+      onCall = true;
+      final audio = session();
+      await audio.beginPlayback(message);
+      onCall = false;
 
-    await audio.callEnded();
+      await audio.callEnded();
 
-    expect(port.log, ['configure playback', 'active']);
-  });
+      expect(port.log, ['configure playback', 'active']);
+    },
+  );
 
   test('a call ending with nothing playing leaves the session alone', () async {
     final audio = session();
@@ -199,16 +237,19 @@ void main() {
     expect(port.log, ['configure playback', 'active']);
   });
 
-  test('a message that stopped is not paused by a later interruption', () async {
-    final audio = session();
-    await audio.beginPlayback(message);
-    await audio.endPlayback(message);
+  test(
+    'a message that stopped is not paused by a later interruption',
+    () async {
+      final audio = session();
+      await audio.beginPlayback(message);
+      await audio.endPlayback(message);
 
-    port.interrupt();
-    await pumpEventQueue();
+      port.interrupt();
+      await pumpEventQueue();
 
-    expect(message.pauses, 0);
-  });
+      expect(message.pauses, 0);
+    },
+  );
 
   test('a session the platform refuses is reported, and is tried again next '
       'time', () async {
@@ -220,12 +261,16 @@ void main() {
     await audio.endPlayback(message);
     await audio.beginPlayback(message);
 
-    expect(reports, ['voice audio session']);
+    expect(reports, ['media audio session']);
     expect(port.log, ['configure playback', 'configure playback', 'active']);
   });
 }
 
-class _FakePlayback implements VoicePlayback {
+class _FakePlayback implements MediaPlayback {
+  _FakePlayback([this.sound = MediaSound.voice]);
+
+  @override
+  final MediaSound sound;
   int pauses = 0;
 
   @override

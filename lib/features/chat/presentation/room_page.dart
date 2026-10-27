@@ -16,13 +16,13 @@ import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/connectivity_provider.dart';
 import '../../../core/matrix/currently_open_room_provider.dart';
+import '../../../core/matrix/media_audio_session.dart';
 import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_state_rebuild.dart';
 import '../../../core/matrix/room_timeline_reload.dart';
 import '../../../core/matrix/sync_coordinator_provider.dart';
-import '../../../core/matrix/voice_audio_session.dart';
 import '../../../core/matrix/voice_recording.dart';
 import '../../../core/navigation/chat_route.dart';
 import '../../../core/notifications/messages/message_notifications.dart';
@@ -32,6 +32,7 @@ import '../../../core/security/recovery_code_leak.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/share/inbound_share.dart';
+import '../../../core/ui/close_own_route.dart';
 import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../calls/presentation/active_call_banner.dart';
@@ -40,6 +41,7 @@ import '../../communities/presentation/join_requests_view.dart';
 import '../../location/presentation/live_location_banner.dart';
 import '../../room_info/presentation/room_info_page.dart';
 import '../../security_alerts/presentation/security_alert_banners.dart';
+import '../data/chat_timeline.dart';
 import '../data/discarded_sends.dart';
 import '../data/message_kinds.dart';
 import '../data/room_sender.dart';
@@ -47,6 +49,7 @@ import '../data/sync_filter.dart';
 import '../data/typing_announcer.dart';
 import 'attachment_menu.dart';
 import 'chat_wallpaper.dart';
+import 'media_viewer/media_viewer_page.dart';
 import 'mention_suggestions.dart';
 import 'message_actions.dart';
 import 'message_composer.dart';
@@ -82,7 +85,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
   final _showScrollToBottom = ValueNotifier(false);
   late final TypingAnnouncer _typing;
   late final VoiceRecorder _recorder;
-  Timeline? _timeline;
+  final _timelineNotifier = ChatTimeline();
+  Timeline? get _timeline => _timelineNotifier.value;
+  set _timeline(Timeline? timeline) => _timelineNotifier.value = timeline;
   Timeline? _pendingTimeline;
   Event? _editingEvent;
   String _draftBeforeEdit = '';
@@ -117,7 +122,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     );
     _recorder = VoiceRecorder(
       setup: voiceRecordingSetup(ref.read(platformCapabilitiesProvider)),
-      audio: ref.read(voiceAudioSessionProvider),
+      audio: ref.read(mediaAudioSessionProvider),
       onRecorded: (clip) => _sender.sendVoice(
         clip.bytes,
         duration: clip.duration,
@@ -182,6 +187,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _scrollController.dispose();
     _showScrollToBottom.dispose();
     _replyTargets.dispose();
+    _timelineNotifier.dispose();
     _timeline?.cancelSubscriptions();
     _pendingTimeline?.cancelSubscriptions();
     _syncSub?.cancel();
@@ -202,6 +208,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       MaterialPageRoute(
         builder: (_) => RoomInfoPage(
           room: widget.room,
+          viewerChat: _viewerChat,
           onStartCall: (kind) {
             navigator.pop();
             unawaited(_startCall(kind));
@@ -254,6 +261,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final timeline = await widget.room.getTimeline(
       onUpdate: () {
         if (!mounted || _timeline == null) return;
+        _timelineNotifier.changed();
         setState(() {});
         _markLatestRead();
         WidgetsBinding.instance.addPostFrameCallback(
@@ -424,6 +432,23 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _draftBeforeEdit = '';
   }
 
+  late final _viewerChat = ViewerChat(
+    room: widget.room,
+    timeline: _timelineNotifier,
+    startReply: (event) => _returnFromViewer(_startReply, event),
+    startEdit: (event) => _returnFromViewer(_startEdit, event),
+  );
+
+  void _returnFromViewer(void Function(Event event) start, Event event) {
+    if (!mounted) return;
+    returnToOwnRoute(context);
+    start(event);
+  }
+
+  void _openMedia(Event event) => unawaited(
+    openMediaViewer(context, chat: _viewerChat, opened: event),
+  );
+
   void _startReply(Event event) {
     setState(() {
       _leaveEdit();
@@ -542,6 +567,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                                   onSwipeReply: _startReply,
                                   onResend: sender.resend,
                                   onRetryFailedSend: sender.retry,
+                                  onOpenMedia: _openMedia,
                                 ),
                               ),
                               Positioned(

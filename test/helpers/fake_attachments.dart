@@ -61,6 +61,7 @@ class AttachmentServer {
   final downloads = <Uri>[];
   Uint8List served = onePixelPng;
   final missing = <String>{};
+  FutureOr<http.Response?> Function(http.Request request)? respond;
   late final Client client;
   late final Room room;
   Completer<void>? _hold;
@@ -88,11 +89,14 @@ class AttachmentServer {
     String mimetype = 'image/png',
     String? thumbnailId,
     Map<String, Object?> info = const {},
+    Map<String, Object?> extra = const {},
+    DateTime? sentAt,
   }) => buildTestEvent(
     room,
     eventId: eventId,
     senderId: '@bob:example.org',
     status: EventStatus.synced,
+    originServerTs: sentAt,
     content: {
       'msgtype': msgtype,
       'body': body,
@@ -104,7 +108,21 @@ class AttachmentServer {
           'thumbnail_url': 'mxc://example.org/$thumbnailId',
         ...info,
       },
+      ...extra,
     },
+  );
+
+  Event video({
+    String eventId = r'$clip',
+    String? thumbnailId,
+    DateTime? sentAt,
+  }) => attachment(
+    eventId: eventId,
+    msgtype: MessageTypes.Video,
+    body: 'clip.mp4',
+    mimetype: 'video/mp4',
+    thumbnailId: thumbnailId,
+    sentAt: sentAt,
   );
 }
 
@@ -139,6 +157,8 @@ AttachmentServer installAttachmentServer() {
           200,
         );
       }
+      final custom = await server.respond?.call(request);
+      if (custom != null) return custom;
       server.downloads.add(request.url);
       await server._hold?.future;
       if (server.missing.any((id) => request.url.path.endsWith('/$id'))) {

@@ -32,6 +32,7 @@ class MessageListView extends StatefulWidget {
   final void Function(Event event) onSwipeReply;
   final void Function(Event event) onResend;
   final void Function(FailedMediaSend failed) onRetryFailedSend;
+  final void Function(Event event) onOpenMedia;
 
   const MessageListView({
     super.key,
@@ -48,6 +49,7 @@ class MessageListView extends StatefulWidget {
     required this.onSwipeReply,
     required this.onResend,
     required this.onRetryFailedSend,
+    required this.onOpenMedia,
   });
 
   @override
@@ -226,6 +228,7 @@ class _MessageListViewState extends State<MessageListView> {
                 : null,
             onResend: (event) => widget.onResend(event),
             onRetryFailedSend: (failed) => widget.onRetryFailedSend(failed),
+            onOpenMedia: widget.onOpenMedia,
           );
           final dayLabel = record.dayLabel;
           return Column(

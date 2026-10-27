@@ -8,11 +8,8 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
 import 'package:zuno/core/matrix/cached_attachment_image.dart';
 import 'package:zuno/core/matrix/cover_image.dart';
-import 'package:zuno/core/matrix/gallery_viewer_page.dart';
-import 'package:zuno/core/matrix/image_viewer_page.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
-import 'package:zuno/core/matrix/video_viewer_page.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/data/composed_image.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
@@ -24,25 +21,13 @@ import '../../../helpers/fake_matrix.dart';
 
 const _meta = Text('09:41');
 
-class _Pushes extends NavigatorObserver {
-  final routes = <Route<dynamic>>[];
-
-  @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    if (previousRoute != null) routes.add(route);
-  }
-
-  Widget page(BuildContext context) =>
-      (routes.single as MaterialPageRoute<dynamic>).builder(context);
-}
-
 void main() {
   late AttachmentServer server;
-  late _Pushes pushes;
+  late List<Event> opened;
 
   setUp(() {
     server = installAttachmentServer();
-    pushes = _Pushes();
+    opened = [];
   });
 
   Event media(
@@ -96,26 +81,18 @@ void main() {
     stageProgress: 0.5,
   );
 
-  Future<BuildContext> pumpIn(WidgetTester tester, Widget child) async {
-    late BuildContext context;
+  Future<void> pumpIn(WidgetTester tester, Widget child) async {
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
-        navigatorObservers: [pushes],
         home: Scaffold(
-          body: Builder(
-            builder: (c) {
-              context = c;
-              return Center(child: SizedBox(width: 240, child: child));
-            },
-          ),
+          body: Center(child: SizedBox(width: 240, child: child)),
         ),
       ),
     );
     await tester.pump();
-    return context;
   }
 
   double screenWidth(WidgetTester tester) =>
@@ -159,7 +136,12 @@ void main() {
 
       await pumpIn(
         tester,
-        ImageMessage(event: event, mediaMeta: _meta, showTimeOverlay: true),
+        ImageMessage(
+          event: event,
+          mediaMeta: _meta,
+          onOpen: opened.add,
+          showTimeOverlay: true,
+        ),
       );
 
       expect(find.byType(Image), findsOneWidget);
@@ -178,7 +160,12 @@ void main() {
 
       await pumpIn(
         tester,
-        ImageMessage(event: event, mediaMeta: _meta, showTimeOverlay: true),
+        ImageMessage(
+          event: event,
+          mediaMeta: _meta,
+          onOpen: opened.add,
+          showTimeOverlay: true,
+        ),
       );
 
       expectThumbnailsShownAt(tester, [
@@ -194,6 +181,7 @@ void main() {
         ImageMessage(
           event: media('photo'),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: false,
         ),
       );
@@ -209,6 +197,7 @@ void main() {
         ImageMessage(
           event: media('photo', info: const {}),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: true,
         ),
       );
@@ -237,16 +226,19 @@ void main() {
 
     testWidgets('tapping it opens the photo full screen', (tester) async {
       final event = media('photo');
-      final context = await pumpIn(
+      await pumpIn(
         tester,
-        ImageMessage(event: event, mediaMeta: _meta, showTimeOverlay: true),
+        ImageMessage(
+          event: event,
+          mediaMeta: _meta,
+          onOpen: opened.add,
+          showTimeOverlay: true,
+        ),
       );
 
       await tester.tap(find.byType(AspectRatio));
 
-      final page = pushes.page(context);
-      expect(page, isA<ImageViewerPage>());
-      expect((page as ImageViewerPage).event, same(event));
+      expect(opened, [same(event)]);
     });
 
     testWidgets('while sending it shows the local preview and progress, '
@@ -258,6 +250,7 @@ void main() {
           event: event,
           pendingSend: sending(event),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: true,
         ),
       );
@@ -267,7 +260,7 @@ void main() {
       expect(find.byType(Image), findsOneWidget);
       expect(shownAt(tester, find.byType(ImageMessage)), isNull);
       expect(find.byType(AttachmentProgressBar), findsOneWidget);
-      expect(pushes.routes, isEmpty);
+      expect(opened, isEmpty);
     });
   });
 
@@ -291,7 +284,12 @@ void main() {
 
       await pumpIn(
         tester,
-        VideoMessage(event: event, mediaMeta: _meta, showTimeOverlay: true),
+        VideoMessage(
+          event: event,
+          mediaMeta: _meta,
+          onOpen: opened.add,
+          showTimeOverlay: true,
+        ),
       );
 
       expect(find.byIcon(Icons.play_arrow), findsOneWidget);
@@ -307,6 +305,7 @@ void main() {
         VideoMessage(
           event: video(info: const {'w': 1920, 'h': 1080}),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: true,
         ),
       );
@@ -325,6 +324,7 @@ void main() {
         VideoMessage(
           event: video(info: const {'w': 1920, 'h': 1080}),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: true,
         ),
       );
@@ -337,7 +337,12 @@ void main() {
     ) async {
       await pumpIn(
         tester,
-        VideoMessage(event: video(), mediaMeta: _meta, showTimeOverlay: false),
+        VideoMessage(
+          event: video(),
+          mediaMeta: _meta,
+          onOpen: opened.add,
+          showTimeOverlay: false,
+        ),
       );
 
       expect(find.text('0:42'), findsNothing);
@@ -346,16 +351,19 @@ void main() {
 
     testWidgets('tapping it opens the video player', (tester) async {
       final event = video();
-      final context = await pumpIn(
+      await pumpIn(
         tester,
-        VideoMessage(event: event, mediaMeta: _meta, showTimeOverlay: true),
+        VideoMessage(
+          event: event,
+          mediaMeta: _meta,
+          onOpen: opened.add,
+          showTimeOverlay: true,
+        ),
       );
 
       await tester.tap(find.byType(AspectRatio));
 
-      final page = pushes.page(context);
-      expect(page, isA<VideoViewerPage>());
-      expect((page as VideoViewerPage).event, same(event));
+      expect(opened, [same(event)]);
     });
 
     testWidgets('while sending it shows the local preview, no play button, '
@@ -367,6 +375,7 @@ void main() {
           event: event,
           pendingSend: sending(event, width: 1080, height: 1920),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: true,
         ),
       );
@@ -380,7 +389,7 @@ void main() {
         tester.widget<AspectRatio>(find.byType(AspectRatio)).aspectRatio,
         9 / 16,
       );
-      expect(pushes.routes, isEmpty);
+      expect(opened, isEmpty);
     });
 
     testWidgets('while sending without a preview it holds the shape empty', (
@@ -398,6 +407,7 @@ void main() {
             height: 1080,
           ),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: true,
         ),
       );
@@ -415,6 +425,7 @@ void main() {
           event: event,
           pendingSend: sending(event, preview: false),
           mediaMeta: _meta,
+          onOpen: opened.add,
           showTimeOverlay: true,
         ),
       );
@@ -441,6 +452,7 @@ void main() {
       onRetry: retried.add,
       pendingSend: pending,
       mediaMeta: _meta,
+      onOpen: opened.add,
     );
 
     List<Event> items(int count) => [
@@ -502,17 +514,15 @@ void main() {
       expect(find.byType(Image), findsNWidgets(2));
     });
 
-    testWidgets('tapping an item opens the gallery at that item', (
+    testWidgets('tapping an item opens the viewer at that item', (
       tester,
     ) async {
       final events = items(3);
-      final context = await pumpIn(tester, gallery(events));
+      await pumpIn(tester, gallery(events));
 
       await tester.tap(find.byType(AspectRatio).at(1));
 
-      final page = pushes.page(context) as GalleryViewerPage;
-      expect(page.events, events);
-      expect(page.initialIndex, 1);
+      expect(opened, [same(events[1])]);
     });
 
     testWidgets('a failed item sits in its place and retries when tapped', (
@@ -535,7 +545,7 @@ void main() {
       await tester.tap(find.text('Retry'));
 
       expect(retried, [same(failure)]);
-      expect(pushes.routes, isEmpty);
+      expect(opened, isEmpty);
       expect(
         shownAt(tester, find.byType(GalleryFailedThumbnail)),
         screenWidth(tester) / 2,
@@ -574,7 +584,7 @@ void main() {
         find.byType(CircularProgressIndicator).first,
       );
       expect(spinner.value, 0.75);
-      expect(pushes.routes, isEmpty);
+      expect(opened, isEmpty);
     });
   });
 

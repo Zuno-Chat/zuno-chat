@@ -51,29 +51,15 @@ Future<MessageAction?> showMessageActionsSheet(
               if (canRespond)
                 Padding(
                   padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      for (final emoji in _quickEmoji)
-                        _ReactionButton(
-                          onTap: () {
-                            Navigator.of(context).pop();
-                            onReact(emoji);
-                          },
-                          child: Text(
-                            emoji,
-                            style: const TextStyle(fontSize: 22, height: 1.1),
-                          ),
-                        ),
-                      _ReactionButton(
-                        tooltip: l10n.chatMoreReactions,
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          onMoreReactions();
-                        },
-                        child: Icon(Icons.add, color: colors.onSurfaceVariant),
-                      ),
-                    ],
+                  child: QuickReactionRow(
+                    onReact: (emoji) {
+                      Navigator.of(context).pop();
+                      onReact(emoji);
+                    },
+                    onMore: () {
+                      Navigator.of(context).pop();
+                      onMoreReactions();
+                    },
                   ),
                 ),
               if (canRespond)
@@ -146,6 +132,40 @@ Future<MessageAction?> showMessageActionsSheet(
       );
     },
   );
+}
+
+class QuickReactionRow extends StatelessWidget {
+  final void Function(String emoji) onReact;
+  final VoidCallback onMore;
+
+  const QuickReactionRow({
+    required this.onReact,
+    required this.onMore,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        for (final emoji in _quickEmoji)
+          _ReactionButton(
+            onTap: () => onReact(emoji),
+            child: Text(
+              emoji,
+              style: const TextStyle(fontSize: 22, height: 1.1),
+            ),
+          ),
+        _ReactionButton(
+          tooltip: context.l10n.chatMoreReactions,
+          onTap: onMore,
+          child: Icon(Icons.add, color: colors.onSurfaceVariant),
+        ),
+      ],
+    );
+  }
 }
 
 class MessageFact extends StatelessWidget {

@@ -3,7 +3,13 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
+import 'package:zuno/core/matrix/media_audio_session.dart';
+import 'package:zuno/features/chat/presentation/media_viewer/video_playback.dart';
+
+import 'fake_audio_session.dart';
+import 'pump_until.dart';
 
 class FakeVideoPlayer extends VideoPlayerPlatform {
   Size size = const Size(1280, 720);
@@ -66,7 +72,12 @@ class FakeVideoPlayer extends VideoPlayerPlatform {
   Future<void> setLooping(int playerId, bool looping) async {}
 
   @override
-  Future<void> setVolume(int playerId, double volume) async {}
+  Future<void> setMixWithOthers(bool mixWithOthers) async =>
+      calls.add('mixWithOthers $mixWithOthers');
+
+  @override
+  Future<void> setVolume(int playerId, double volume) async =>
+      calls.add('volume $volume');
 
   @override
   Future<void> setPlaybackSpeed(int playerId, double speed) async {}
@@ -78,7 +89,8 @@ class FakeVideoPlayer extends VideoPlayerPlatform {
   Future<void> pause(int playerId) async => calls.add('pause');
 
   @override
-  Future<void> seekTo(int playerId, Duration position) async {}
+  Future<void> seekTo(int playerId, Duration position) async =>
+      calls.add('seek ${position.inMilliseconds}');
 
   @override
   Future<Duration> getPosition(int playerId) async => Duration.zero;
@@ -94,4 +106,24 @@ FakeVideoPlayer installFakeVideoPlayer() {
   VideoPlayerPlatform.instance = fake;
   addTearDown(() => VideoPlayerPlatform.instance = original);
   return fake;
+}
+
+Future<VideoPlayback> startedPlayback(
+  WidgetTester tester,
+  Event event, {
+  bool muted = false,
+  MediaAudioSession? audio,
+}) async {
+  final playback = VideoPlayback(
+    event,
+    muted: muted,
+    audio: audio ?? fakeMediaAudioSession(FakeAudioSessionPort()),
+  );
+  await playback.start();
+  await pumpUntil(
+    tester,
+    () => playback.controller != null,
+    reason: 'the video to load',
+  );
+  return playback;
 }

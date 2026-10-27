@@ -30,6 +30,7 @@ import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/sheet.dart';
 import '../../blocking/presentation/block_person.dart';
+import '../../chat/presentation/media_viewer/media_viewer_page.dart';
 import '../../chat/presentation/room_page.dart';
 import '../../communities/presentation/join_requests_view.dart';
 import '../../reports/presentation/report_sheet.dart';
@@ -52,11 +53,13 @@ enum RoomInfoResult { left }
 
 class RoomInfoPage extends ConsumerStatefulWidget {
   final Room room;
+  final ViewerChat viewerChat;
   final BlockPerson? blockPerson;
   final void Function(CallKind kind)? onStartCall;
 
   const RoomInfoPage({
     required this.room,
+    required this.viewerChat,
     this.blockPerson,
     this.onStartCall,
     super.key,
@@ -698,7 +701,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                     ),
                 ],
               ),
-            RoomMediaSection(room: room),
+            RoomMediaSection(viewerChat: widget.viewerChat),
             JoinRequestsSection(room: room),
             if (!room.isDirectChat)
               CardGroup(

@@ -6,7 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:zuno/core/matrix/voice_audio_session.dart';
+import 'package:zuno/core/matrix/media_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_audio_player.dart';
@@ -83,8 +83,8 @@ void main() {
     harness = RoomPageHarness(
       db: SendingFakeDatabaseApi(),
       overrides: [
-        voiceAudioSessionProvider.overrideWithValue(
-          fakeVoiceAudioSession(
+        mediaAudioSessionProvider.overrideWithValue(
+          fakeMediaAudioSession(
             FakeAudioSessionPort(recorderCalls),
             ownsRecordingSession: ambientCapabilities.recorderNeedsAudioSession,
           ),

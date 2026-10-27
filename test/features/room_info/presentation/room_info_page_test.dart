@@ -16,6 +16,7 @@ import 'package:zuno/core/matrix/room_media_feed.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
+import 'package:zuno/features/chat/presentation/media_viewer/media_viewer_page.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/room_info/presentation/member_tile.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
@@ -210,6 +211,12 @@ void main() {
     );
     final page = RoomInfoPage(
       room: room,
+      viewerChat: ViewerChat(
+        room: room,
+        timeline: ValueNotifier(null),
+        startReply: (_) {},
+        startEdit: (_) {},
+      ),
       blockPerson: blockPerson,
       onStartCall: onStartCall,
     );

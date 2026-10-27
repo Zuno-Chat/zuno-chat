@@ -13,8 +13,8 @@ import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/attachment_actions.dart';
 import '../../../../core/matrix/attachment_cache.dart';
+import '../../../../core/matrix/media_audio_session.dart';
 import '../../../../core/matrix/playable_media_file.dart';
-import '../../../../core/matrix/voice_audio_session.dart';
 import '../../../../core/matrix/voice_message.dart';
 import '../../../../core/matrix/voice_recording.dart';
 import '../../../../core/platform/platform_capabilities.dart';
@@ -45,13 +45,16 @@ List<int>? _drawnBars(Event event) {
 }
 
 class _VoiceMessageState extends ConsumerState<VoiceMessage>
-    implements VoicePlayback {
+    implements MediaPlayback {
+  @override
+  MediaSound get sound => MediaSound.voice;
+
   final _player = AudioPlayer(
     handleInterruptions: false,
     handleAudioSessionActivation: false,
   );
   final _subscriptions = <StreamSubscription<Object?>>[];
-  late final VoiceAudioSession _audio;
+  late final MediaAudioSession _audio;
   bool _playing = false;
   bool _inProgress = false;
   bool _loaded = false;
@@ -67,7 +70,7 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
   @override
   void initState() {
     super.initState();
-    _audio = ref.read(voiceAudioSessionProvider);
+    _audio = ref.read(mediaAudioSessionProvider);
     _duration = voiceMessageDuration(widget.event);
     _waveform = _drawnBars(widget.event);
     _subscriptions.addAll([
@@ -170,10 +173,7 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     if (downloads && mounted) setState(() => _loading = true);
     final File cached;
     try {
-      cached = await fetchCachedAttachmentFile(
-        _cacheKey,
-        () async => (await widget.event.downloadAndDecryptAttachment()).bytes,
-      );
+      cached = await cachedAttachmentFile(widget.event);
     } catch (e, s) {
       reportCaught('load voice message', e, s);
       _didNotLoad();

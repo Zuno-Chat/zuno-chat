@@ -205,3 +205,15 @@ Event buildTestEvent(
   if (status != null) event.status = status;
   return event;
 }
+
+Event buildTestRedaction(
+  Room room,
+  String target, {
+  String senderId = '@a:example.org',
+}) => buildTestEvent(
+  room,
+  eventId: '\$redacts-${target.substring(1)}',
+  senderId: senderId,
+  type: EventTypes.Redaction,
+  content: {'redacts': target},
+);

@@ -20,6 +20,7 @@ import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/room_opening_channels.dart';
+import '../../../helpers/route_launcher.dart';
 
 class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
     with SendCapableDatabase, MediaCapableDatabase {
@@ -126,7 +127,7 @@ class RoomPageHarness {
           }
           if (request.url.path.contains('/send/m.room.message/')) {
             sent.add(jsonDecode(request.body) as Map<String, Object?>);
-            return http.Response('{"event_id":"\$sent"}', 200);
+            return http.Response('{"event_id":"\$sent${sent.length}"}', 200);
           }
           return notAMemberAnswer(request) ?? http.Response('{}', 200);
         }),
@@ -227,6 +228,27 @@ class RoomPageHarness {
 
   Future<void> pumpRoomPage(WidgetTester tester) async {
     await tester.pumpWidget(await app(home: RoomPage(room: room)));
+    await settle(tester);
+  }
+
+  Future<void> pumpRoomPageOverLauncher(WidgetTester tester) async {
+    await tester.pumpWidget(
+      await app(
+        home: routeLauncher(
+          (_) => RoomPage(room: room),
+          label: 'open chat',
+        ),
+      ),
+    );
+    await tester.tap(find.text('open chat'));
+    await settle(tester);
+  }
+
+  Future<void> openRoomInfo(WidgetTester tester) async {
+    await tester.tap(find.byTooltip('Show menu'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Room info'));
     await settle(tester);
   }
 }

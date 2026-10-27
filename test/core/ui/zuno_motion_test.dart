@@ -289,4 +289,97 @@ void main() {
       expect(find.text('second'), findsNothing);
     });
   });
+
+  group('MediaViewerRoute', () {
+    MediaViewerRoute viewer() =>
+        MediaViewerRoute(builder: (_) => const Text('viewer'));
+
+    testWidgets('fades in over the screen below, then covers it', (
+      tester,
+    ) async {
+      await pumpApp(tester);
+      push(tester, viewer());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+
+      expect(find.text('first'), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: find.text('viewer'),
+          matching: find.byType(FadeTransition),
+        ),
+        findsWidgets,
+      );
+
+      await tester.pump(ZunoDurations.page);
+      expect(find.text('viewer'), findsOneWidget);
+      expect(find.text('first'), findsNothing);
+    });
+
+    testWidgets('shows the screen below again while asked to', (tester) async {
+      await pumpApp(tester);
+      final route = viewer();
+      push(tester, route);
+      await tester.pump();
+      await tester.pump(ZunoDurations.page * 2);
+      expect(find.text('first'), findsNothing);
+
+      route.revealRouteBelow(true);
+      await tester.pump();
+      expect(find.text('first'), findsOneWidget);
+
+      route.revealRouteBelow(false);
+      await tester.pump();
+      expect(find.text('first'), findsNothing);
+    });
+
+    testWidgets('with animations removed, it appears without a fade or a '
+        'flight', (tester) async {
+      await pumpApp(tester, disableAnimations: true);
+      push(tester, viewer());
+      await tester.pump();
+      await tester.pump(ZunoDurations.page * 2);
+
+      expect(
+        find.ancestor(
+          of: find.text('viewer'),
+          matching: find.byType(FadeTransition),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<HeroMode>(
+              find
+                  .ancestor(
+                    of: find.text('viewer'),
+                    matching: find.byType(HeroMode),
+                  )
+                  .first,
+            )
+            .enabled,
+        isFalse,
+      );
+    });
+  });
+
+  group('MediaHero', () {
+    testWidgets('without a tag it is just its child', (tester) async {
+      await tester.pumpWidget(const MediaHero(tag: null, child: SizedBox()));
+
+      expect(find.byType(Hero), findsNothing);
+    });
+
+    testWidgets('a kept-visible source still shows its child in flight', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MediaHero(tag: 't', keepsSourceVisible: true, child: SizedBox()),
+      );
+
+      final hero = tester.widget<Hero>(find.byType(Hero));
+      expect(hero.placeholderBuilder, isNotNull);
+      expect(hero.flightShuttleBuilder, isNotNull);
+    });
+  });
 }

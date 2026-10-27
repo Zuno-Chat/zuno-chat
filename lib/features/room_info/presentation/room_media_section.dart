@@ -7,22 +7,25 @@ import 'package:matrix/matrix.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_media_feed.dart';
 import '../../../core/ui/card_group.dart';
+import '../../chat/presentation/media_viewer/media_viewer_page.dart';
 import 'room_media_page.dart';
 import 'room_media_thumb.dart';
 
 const _previewCount = 6;
 
 class RoomMediaSection extends ConsumerStatefulWidget {
-  final Room room;
+  final ViewerChat viewerChat;
 
-  const RoomMediaSection({required this.room, super.key});
+  const RoomMediaSection({required this.viewerChat, super.key});
 
   @override
   ConsumerState<RoomMediaSection> createState() => _RoomMediaSectionState();
 }
 
 class _RoomMediaSectionState extends ConsumerState<RoomMediaSection> {
-  late final RoomMediaFeed _feed = ref.read(roomMediaFeedProvider(widget.room));
+  late final RoomMediaFeed _feed = ref.read(
+    roomMediaFeedProvider(widget.viewerChat.room),
+  );
 
   @override
   void initState() {
@@ -32,7 +35,9 @@ class _RoomMediaSectionState extends ConsumerState<RoomMediaSection> {
 
   void _openAll() {
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => RoomMediaPage(room: widget.room)),
+      MaterialPageRoute<void>(
+        builder: (_) => RoomMediaPage(viewerChat: widget.viewerChat),
+      ),
     );
   }
 
@@ -57,7 +62,11 @@ class _RoomMediaSectionState extends ConsumerState<RoomMediaSection> {
         if (visuals.isNotEmpty)
           _PreviewGrid(
             events: visuals.take(_previewCount).toList(),
-            onOpen: (i) => openRoomMediaViewer(context, visuals, i),
+            onOpen: (event) => openMediaViewer(
+              context,
+              chat: widget.viewerChat,
+              opened: event,
+            ),
           ),
         _CountTile(
           icon: Icons.perm_media_outlined,
@@ -83,7 +92,7 @@ class _RoomMediaSectionState extends ConsumerState<RoomMediaSection> {
 
 class _PreviewGrid extends StatelessWidget {
   final List<Event> events;
-  final void Function(int index) onOpen;
+  final void Function(Event event) onOpen;
 
   const _PreviewGrid({required this.events, required this.onOpen});
 
@@ -102,7 +111,7 @@ class _PreviewGrid extends StatelessWidget {
           mainAxisSpacing: 4,
         ),
         itemBuilder: (context, i) =>
-            RoomMediaThumb(event: events[i], onTap: () => onOpen(i)),
+            RoomMediaThumb(event: events[i], onTap: () => onOpen(events[i])),
       ),
     );
   }

@@ -122,6 +122,7 @@ void main() {
                 onSwipeReply: record.canRespond ? () {} : null,
                 onResend: resent.add,
                 onRetryFailedSend: (_) {},
+                onOpenMedia: (_) {},
               ),
             ),
           ),

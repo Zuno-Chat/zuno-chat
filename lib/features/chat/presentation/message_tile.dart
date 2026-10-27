@@ -47,6 +47,7 @@ class MessageTile extends StatelessWidget {
   final VoidCallback? onSwipeReply;
   final void Function(Event) onResend;
   final void Function(FailedMediaSend) onRetryFailedSend;
+  final void Function(Event event) onOpenMedia;
 
   const MessageTile({
     super.key,
@@ -63,6 +64,7 @@ class MessageTile extends StatelessWidget {
     required this.onSwipeReply,
     required this.onResend,
     required this.onRetryFailedSend,
+    required this.onOpenMedia,
   });
 
   @override
@@ -168,6 +170,7 @@ class MessageTile extends StatelessWidget {
           onRetry: onRetryFailedSend,
           pendingSend: pending,
           mediaMeta: mediaMeta,
+          onOpen: onOpenMedia,
         ),
       );
     } else if (isImage) {
@@ -179,6 +182,7 @@ class MessageTile extends StatelessWidget {
               : null,
           mediaMeta: mediaMeta,
           showTimeOverlay: caption == null,
+          onOpen: onOpenMedia,
         ),
       );
     } else if (isVideo) {
@@ -190,6 +194,7 @@ class MessageTile extends StatelessWidget {
               : null,
           mediaMeta: mediaMeta,
           showTimeOverlay: caption == null,
+          onOpen: onOpenMedia,
         ),
       );
     } else if (isVoice) {

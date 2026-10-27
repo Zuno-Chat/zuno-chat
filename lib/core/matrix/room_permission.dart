@@ -332,3 +332,6 @@ RoomPermissionsAccess roomPermissionsAccessFor(Room room) =>
 
 bool canPostInRoom(Room room) =>
     room.canSendDefaultMessages && !room.isAbandonedDMRoom;
+
+bool canRespondTo(Room room, Event event) =>
+    canPostInRoom(room) && event.status.isSent;

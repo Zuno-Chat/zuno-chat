@@ -23,6 +23,7 @@ void main() {
     bool thumbnail = false,
     Widget? progress,
     Widget Function(VoidCallback? retry)? failure,
+    BoxFit? fit,
   }) => tester.pumpWidget(
     MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -36,6 +37,7 @@ void main() {
             placeholder: const Text('loading'),
             progress: progress,
             failure: failure,
+            fit: fit,
           ),
         ),
       ),
@@ -153,6 +155,30 @@ void main() {
       expect(find.text('loading'), findsNothing);
 
       server.releaseDownloads();
+    });
+
+    testWidgets('it takes the fit the picture will have', (tester) async {
+      final event = server.attachment(
+        eventId: r'$contained',
+        info: photoWithBlurhash,
+      );
+      server.goneFromServer(event);
+
+      await pumpImage(tester, event, fit: BoxFit.contain);
+
+      expect(tester.widget<Image>(blurhashStandIn).fit, BoxFit.contain);
+    });
+
+    testWidgets('without a fit it covers its box', (tester) async {
+      final event = server.attachment(
+        eventId: r'$covered',
+        info: photoWithBlurhash,
+      );
+      server.goneFromServer(event);
+
+      await pumpImage(tester, event);
+
+      expect(tester.widget<Image>(blurhashStandIn).fit, BoxFit.cover);
     });
 
     testWidgets('it stays until the picture is on screen', (tester) async {

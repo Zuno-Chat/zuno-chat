@@ -87,6 +87,9 @@ class DateLabels {
 
   String dateTime(DateTime time) => l10n.dateAtTime(date(time), clock(time));
 
+  String dayAndTime(DateTime time, {required DateTime now}) =>
+      l10n.dateAtTime(day(time, now: now), clock(time));
+
   String age(DateTime at, DateTime now, {bool inSentence = false}) {
     final age = now.difference(at);
     if (age < const Duration(minutes: 1)) {

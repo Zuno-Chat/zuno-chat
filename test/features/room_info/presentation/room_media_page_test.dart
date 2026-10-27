@@ -1,17 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
-import 'package:zuno/core/matrix/gallery_viewer_page.dart';
 import 'package:zuno/core/matrix/room_media_feed.dart';
+import 'package:zuno/features/chat/presentation/media_viewer/media_viewer_page.dart';
+import 'package:zuno/features/chat/presentation/media_viewer/viewer_chrome.dart';
 import 'package:zuno/features/room_info/presentation/room_media_page.dart';
 import 'package:zuno/features/room_info/presentation/room_media_thumb.dart';
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/native_method_calls.dart';
 
 void main() {
   late Client client;
@@ -20,7 +23,15 @@ void main() {
   setUp(() {
     client = buildTestClient(userId: '@me:example.org');
     room = buildTestRoom(client);
+    recordChannel(SystemChannels.platform);
   });
+
+  ViewerChat viewerChat() => ViewerChat(
+    room: room,
+    timeline: ValueNotifier(null),
+    startReply: (_) {},
+    startEdit: (_) {},
+  );
 
   Event message(String id, DateTime ts, Map<String, Object?> content) =>
       buildTestEvent(
@@ -80,7 +91,7 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: RoomMediaPage(room: room, initialTab: initialTab),
+          home: RoomMediaPage(viewerChat: viewerChat(), initialTab: initialTab),
         ),
       ),
     );
@@ -119,7 +130,7 @@ void main() {
     expectThumbnailsShownAt(tester, [cell]);
   });
 
-  testWidgets('opens the swipe viewer at the tapped item', (tester) async {
+  testWidgets('opens the viewer at the tapped item', (tester) async {
     final feed = feedOf([
       image(r'$1', DateTime(2026, 9, 14)),
       image(r'$2', DateTime(2026, 9, 13)),
@@ -131,8 +142,11 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
 
-    expect(find.byType(GalleryViewerPage), findsOneWidget);
-    expect(find.text('2 of 3'), findsOneWidget);
+    expect(find.byType(MediaViewerPage), findsOneWidget);
+    expect(
+      tester.widget<ViewerChrome>(find.byType(ViewerChrome)).event.eventId,
+      r'$2',
+    );
   });
 
   testWidgets('lists files with size and date on the Files tab', (
@@ -242,7 +256,7 @@ void main() {
           child: MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: RoomMediaPage(room: room),
+            home: RoomMediaPage(viewerChat: viewerChat()),
           ),
         ),
       ),
