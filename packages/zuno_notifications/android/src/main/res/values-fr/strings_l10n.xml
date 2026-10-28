@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsGenericRingName">Appel Zuno</string>
     <string name="callsIncomingCall">Appel entrant</string>
+    <string name="callsIncomingVideo">Appel vidéo entrant</string>
+    <string name="callsIncomingVoice">Appel vocal entrant</string>
     <string name="commonYou">Vous</string>
     <string name="notificationsFallbackChatName">Conversation</string>
     <string name="notificationsMissedPushes">Certaines notifications n’ont pas pu être distribuées. Ouvrez Zuno pour voir les nouveaux messages.</string>

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
+import '../../calls/notifications/server_ring.dart';
 import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
 import '../delivery/notification_delivery_mode.dart';
@@ -45,6 +46,8 @@ class FcmPush {
 typedef FcmPushHandler = Future<void> Function(FcmPush push);
 
 typedef FcmTokenHandler = Future<void> Function(String token);
+
+typedef FcmRingHandler = Future<void> Function(ServerRing ring);
 
 class FcmBridge {
   FcmBridge({
@@ -111,6 +114,7 @@ class FcmBridge {
 
   void serve({
     required FcmPushHandler onPush,
+    FcmRingHandler? onRing,
     FcmTokenHandler? onToken,
     Future<bool> Function()? isQuiescent,
   }) {
@@ -124,6 +128,14 @@ class FcmBridge {
             return null;
           }
           await onPush(push);
+          return null;
+        case 'ring':
+          final ring = ServerRing.from(call.arguments);
+          if (ring == null) {
+            debugPrint('zuno/push: FCM ring that could not be read, ignored');
+            return null;
+          }
+          await onRing?.call(ring);
           return null;
         case 'token':
           final token = _tokenFrom(call.arguments);

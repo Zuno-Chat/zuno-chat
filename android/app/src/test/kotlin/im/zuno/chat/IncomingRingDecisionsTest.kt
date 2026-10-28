@@ -1,5 +1,8 @@
 package im.zuno.chat
 
+import android.app.NotificationManager
+import im.zuno.chat.zuno_notifications.FlutterStore
+import im.zuno.chat.zuno_notifications.IncomingCallSpec
 import im.zuno.chat.zuno_notifications.RememberedRing
 import im.zuno.chat.zuno_notifications.RingCancel
 import im.zuno.chat.zuno_notifications.RingDecisions
@@ -14,7 +17,19 @@ import org.junit.Test
 class IncomingRingDecisionsTest {
     private val now = 1_700_000_000_000L
 
+    private val appRing = mapOf<String, Any?>(
+        "channelId" to "calls_ringing",
+        "name" to "Ana",
+        "callerId" to "@ana:x",
+        "isVideo" to true,
+        "roomId" to "!r:x",
+        "callId" to "c1",
+    )
+
     private fun remembered(callId: String, ageMs: Long = 0) = RememberedRing(callId, now - ageMs)
+
+    private fun ringMsFrom(ringMs: Any?): Long =
+        IncomingCallSpec.from(appRing + ("ringMs" to ringMs))!!.ringMs
 
     @Test
     fun `a cancel for the ringing call forgets it and takes it down`() {
@@ -77,6 +92,24 @@ class IncomingRingDecisionsTest {
     }
 
     @Test
+    fun `a ring on screen counts as showing for as long as it rings`() {
+        assertEquals("c1", RingDecisions.showingRing(true, remembered("c1")))
+        assertEquals("c1", RingDecisions.showingRing(true, remembered("c1", ageMs = 59_999)))
+    }
+
+    @Test
+    fun `nothing counts as showing without its notification on screen or a record`() {
+        assertNull(RingDecisions.showingRing(false, remembered("c1")))
+        assertNull(RingDecisions.showingRing(true, null))
+    }
+
+    @Test
+    fun `a ring no longer on screen is remembered for 45 seconds only`() {
+        assertEquals("c1", RingDecisions.remembersRing(remembered("c1", ageMs = 45_000), now))
+        assertNull(RingDecisions.remembersRing(remembered("c1", ageMs = 45_001), now))
+    }
+
+    @Test
     fun `a cancel naming no call forgets and takes down whatever rings`() {
         assertEquals(
             RingCancel(forget = true, dismiss = true),
@@ -100,6 +133,59 @@ class IncomingRingDecisionsTest {
     }
 
     @Test
+    fun `a ring shows only where Android will show its notification`() {
+        assertTrue(RingDecisions.canRing(true, channelImportance = 5, groupBlocked = false))
+        assertTrue(RingDecisions.canRing(true, channelImportance = 2, groupBlocked = false))
+    }
+
+    @Test
+    fun `a ring stays silent with notifications off or its channel or group blocked or missing`() {
+        assertFalse(RingDecisions.canRing(false, channelImportance = 5, groupBlocked = false))
+        assertFalse(RingDecisions.canRing(true, channelImportance = null, groupBlocked = false))
+        assertFalse(RingDecisions.canRing(true, channelImportance = 0, groupBlocked = false))
+        assertFalse(RingDecisions.canRing(true, channelImportance = 5, groupBlocked = true))
+    }
+
+    @Test
+    fun `the app's ring reads its call and rings for the full ring time`() {
+        val spec = IncomingCallSpec.from(appRing)!!
+
+        assertEquals("calls_ringing", spec.channelId)
+        assertEquals("Ana", spec.name)
+        assertEquals("@ana:x", spec.callerId)
+        assertEquals("!r:x", spec.roomId)
+        assertEquals("c1", spec.callId)
+        assertTrue(spec.isVideo)
+        assertEquals(60_000L, spec.ringMs)
+    }
+
+    @Test
+    fun `the app's ring rings only as long as its push allows`() {
+        assertEquals(20_000L, ringMsFrom(20_000))
+        assertEquals(20_000L, ringMsFrom(20_000L))
+        assertEquals(20_000L, ringMsFrom(20_000.4))
+        assertEquals(60_000L, ringMsFrom(90_000L))
+        assertEquals(1L, ringMsFrom(0))
+        assertEquals(1L, ringMsFrom(-5_000))
+    }
+
+    @Test
+    fun `a ring time that is missing or not a number rings for the full ring time`() {
+        assertEquals(60_000L, IncomingCallSpec.from(appRing)!!.ringMs)
+        assertEquals(60_000L, ringMsFrom(null))
+        assertEquals(60_000L, ringMsFrom("20000"))
+        assertEquals(60_000L, ringMsFrom(Double.NaN))
+    }
+
+    @Test
+    fun `the app's ring without its channel, room or call shows nothing`() {
+        for (key in listOf("channelId", "roomId", "callId")) {
+            assertNull(key, IncomingCallSpec.from(appRing - key))
+            assertNull(key, IncomingCallSpec.from(appRing + (key to 7)))
+        }
+    }
+
+    @Test
     fun `a timeout or a dismissal stops only the ring it was armed for`() {
         assertTrue(RingDecisions.stops("c1", "c1"))
         assertFalse(RingDecisions.stops("c2", "c1"))
@@ -108,15 +194,8 @@ class IncomingRingDecisionsTest {
     }
 
     @Test
-    fun `rings with the tone and the buzz the settings ask for`() {
-        val plan = RingPlan.from(
-            mapOf(
-                "ringtone" to true,
-                "ringtoneAsset" to "assets/sounds/ringtone.wav",
-                "vibrate" to true,
-                "vibrationPattern" to listOf(0, 800, 500, 800, 2000),
-            ),
-        )
+    fun `rings with the app's tone and the call buzz the settings ask for`() {
+        val plan = RingPlan.from(mapOf("ringtone" to true, "vibrate" to true))
 
         assertEquals("assets/sounds/ringtone.wav", plan.ringtoneAsset)
         assertArrayEquals(longArrayOf(0, 800, 500, 800, 2000), plan.vibrationPattern)
@@ -127,88 +206,89 @@ class IncomingRingDecisionsTest {
         val plan = RingPlan.from(
             mapOf(
                 "ringtone" to true,
-                "ringtoneAsset" to "a.wav",
                 "vibrate" to true,
-                "vibrationPattern" to listOf(0, 800),
                 "waitingText" to "Answering ends your current call",
             ),
         )
 
         assertNull(plan.toneNow)
-        assertEquals("a.wav", plan.ringtoneAsset)
-        assertArrayEquals(longArrayOf(0, 800), plan.vibrationPattern)
+        assertEquals("assets/sounds/ringtone.wav", plan.ringtoneAsset)
         assertTrue(plan.waiting)
         assertEquals("Answering ends your current call", plan.waitingText)
     }
 
     @Test
     fun `a normal ring plays its ringtone at once`() {
-        val plan = RingPlan.from(
-            mapOf("ringtone" to true, "ringtoneAsset" to "a.wav"),
-        )
+        val plan = RingPlan.of(ringtone = true, vibrate = false)
 
-        assertEquals("a.wav", plan.toneNow)
+        assertEquals("assets/sounds/ringtone.wav", plan.toneNow)
         assertFalse(plan.waiting)
     }
 
     @Test
     fun `the Ringtone and Vibrate for calls settings each switch off their own half`() {
-        val noTone = RingPlan.from(
-            mapOf(
-                "ringtone" to false,
-                "ringtoneAsset" to "a.wav",
-                "vibrate" to true,
-                "vibrationPattern" to listOf(0, 800),
-            ),
-        )
-        val noBuzz = RingPlan.from(
-            mapOf(
-                "ringtone" to true,
-                "ringtoneAsset" to "a.wav",
-                "vibrate" to false,
-                "vibrationPattern" to listOf(0, 800),
-            ),
-        )
+        val noTone = RingPlan.of(ringtone = false, vibrate = true)
+        val noBuzz = RingPlan.of(ringtone = true, vibrate = false)
 
         assertNull(noTone.ringtoneAsset)
-        assertArrayEquals(longArrayOf(0, 800), noTone.vibrationPattern)
-        assertEquals("a.wav", noBuzz.ringtoneAsset)
+        assertArrayEquals(longArrayOf(0, 800, 500, 800, 2000), noTone.vibrationPattern)
+        assertEquals("assets/sounds/ringtone.wav", noBuzz.ringtoneAsset)
         assertNull(noBuzz.vibrationPattern)
+    }
+
+    @Test
+    fun `a silent ring channel rings without a tone, an alerting one with it`() {
+        assertFalse(RingDecisions.ringsAloud(NotificationManager.IMPORTANCE_MIN))
+        assertFalse(RingDecisions.ringsAloud(NotificationManager.IMPORTANCE_LOW))
+        assertTrue(RingDecisions.ringsAloud(NotificationManager.IMPORTANCE_DEFAULT))
+        assertTrue(RingDecisions.ringsAloud(NotificationManager.IMPORTANCE_HIGH))
+        assertFalse(RingDecisions.ringsAloud(null))
+    }
+
+    @Test
+    fun `a quiet ring drops its tones and keeps its buzz and its waiting line`() {
+        val quiet = RingPlan.of(
+            ringtone = true,
+            vibrate = true,
+            waitingText = "Answering ends your call",
+        ).quiet()
+
+        assertNull(quiet.ringtoneAsset)
+        assertNull(quiet.toneNow)
+        assertArrayEquals(longArrayOf(0, 800, 500, 800, 2000), quiet.vibrationPattern)
+        assertEquals("Answering ends your call", quiet.waitingText)
     }
 
     @Test
     fun `a ring that misses its settings stays silent rather than guessing`() {
         val bare = RingPlan.from(emptyMap())
-        val noAsset = RingPlan.from(mapOf("ringtone" to true, "ringtoneAsset" to " "))
 
         assertNull(bare.ringtoneAsset)
         assertNull(bare.vibrationPattern)
-        assertNull(noAsset.ringtoneAsset)
     }
 
     @Test
-    fun `a pattern the vibrator would reject buzzes nothing instead of failing the ring`() {
-        val rejected = listOf<Any?>(
-            emptyList<Int>(),
-            listOf(0, 0),
-            listOf(0, -5, 100),
-            listOf(0, "800"),
-            listOf(0, null),
-            "0,800",
-            null,
+    fun `every ring gets its own copy of the buzz`() {
+        val first = RingPlan.of(ringtone = false, vibrate = true)
+        first.vibrationPattern!![1] = 0
+
+        assertArrayEquals(
+            longArrayOf(0, 800, 500, 800, 2000),
+            RingPlan.of(ringtone = false, vibrate = true).vibrationPattern,
+        )
+    }
+
+    @Test
+    fun `a call resolved in the last five minutes counts, older ones and other keys do not`() {
+        val now = 1_700_000_000_000L
+        val stored = mapOf<String, Any?>(
+            "${FlutterStore.RESOLVED_CALL_PREFIX}c1" to now - 60_000L,
+            "${FlutterStore.RESOLVED_CALL_PREFIX}c2" to now - 301_000L,
+            "${FlutterStore.RESOLVED_CALL_PREFIX}c3" to "soon",
+            FlutterStore.RINGING_CALL to now,
         )
 
-        for (pattern in rejected) {
-            val plan = RingPlan.from(mapOf("vibrate" to true, "vibrationPattern" to pattern))
-            assertNull("$pattern", plan.vibrationPattern)
-        }
-    }
-
-    @Test
-    fun `takes a pattern of large numbers as the codec sends them`() {
-        val plan = RingPlan.from(mapOf("vibrate" to true, "vibrationPattern" to listOf(0L, 800L)))
-
-        assertArrayEquals(longArrayOf(0, 800), plan.vibrationPattern)
+        assertEquals(setOf("c1"), RingDecisions.resolvedCallIds(stored, now))
     }
 
     @Test

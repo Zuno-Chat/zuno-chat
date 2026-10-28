@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/voip/voip_channel.dart';
+import 'package:zuno/core/push/ring/ring_channel.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 import 'package:zuno/features/settings/presentation/voip_dev_export_card.dart';
 
@@ -26,10 +26,10 @@ void main() {
       'environment': 'development',
     };
     messenger.setMockMethodCallHandler(
-      voipChannel,
+      ringChannel,
       (call) async => call.method == 'devExport' ? export : null,
     );
-    addTearDown(() => messenger.setMockMethodCallHandler(voipChannel, null));
+    addTearDown(() => messenger.setMockMethodCallHandler(ringChannel, null));
   });
 
   Future<void> pumpCard(WidgetTester tester) async {
@@ -87,20 +87,6 @@ void main() {
 
     await pumpCard(tester);
 
-    expect(find.byType(ListTile), findsNothing);
-  });
-
-  testWidgets('without VoIP rings nothing is asked or shown', (tester) async {
-    ambientCapabilities = androidCapabilities;
-    var asked = false;
-    messenger.setMockMethodCallHandler(voipChannel, (_) async {
-      asked = true;
-      return export;
-    });
-
-    await pumpCard(tester);
-
-    expect(asked, isFalse);
     expect(find.byType(ListTile), findsNothing);
   });
 }

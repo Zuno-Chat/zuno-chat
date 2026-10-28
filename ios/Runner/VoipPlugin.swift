@@ -26,7 +26,7 @@ final class VoipPlugin: NSObject, @preconcurrency FlutterPlugin {
   }
 
   static func register(with registrar: FlutterPluginRegistrar) {
-    let channel = FlutterMethodChannel(name: "zuno/voip", binaryMessenger: registrar.messenger())
+    let channel = FlutterMethodChannel(name: "zuno/ring", binaryMessenger: registrar.messenger())
     registrar.addMethodCallDelegate(VoipPlugin(), channel: channel)
   }
 
@@ -40,7 +40,7 @@ final class VoipPlugin: NSObject, @preconcurrency FlutterPlugin {
         "environment": environment(),
         "kid": Int(current.kid),
         "key": current.key.base64EncodedString(),
-        "callkit": callKitAvailable(),
+        "rings": callKitAvailable(),
       ])
     case "rotateKey":
       guard let rotated = keys.rotate() else { return result(keychainError()) }

@@ -9,13 +9,13 @@ import 'package:zuno/core/push/delivery/delivery_failure.dart';
 import 'package:zuno/core/push/delivery/delivery_failure_provider.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
+import 'package:zuno/core/push/ring/ring_registration.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
-import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/app_lifecycle.dart';
+import '../../../helpers/fake_ring_registration.dart';
 import '../../../helpers/fake_unified_push.dart';
-import '../../../helpers/fake_voip_registration.dart';
 import '../../../helpers/fixed_notifications_allowed.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
@@ -25,7 +25,7 @@ Future<ProviderContainer> _container({
   String mode = 'backgroundService',
   String? autoSelected = 'backgroundService',
   PlatformCapabilities? capabilities,
-  VoipRegistration? voip,
+  RingRegistration? registration,
 }) => containerWithPreferences(
   {
     'settings.notification_delivery_mode': mode,
@@ -35,7 +35,8 @@ Future<ProviderContainer> _container({
     fixedNotificationsAllowed(allowed),
     if (capabilities != null)
       platformCapabilitiesProvider.overrideWithValue(capabilities),
-    if (voip != null) voipRegistrationProvider.overrideWithValue(voip),
+    if (registration != null)
+      ringRegistrationProvider.overrideWithValue(registration),
   ],
 );
 
@@ -61,23 +62,23 @@ void main() {
   });
 
   group('calls on iOS', () {
-    late FakeVoipRegistration voip;
+    late FakeRingRegistration registration;
 
-    setUp(() => voip = FakeVoipRegistration());
+    setUp(() => registration = FakeRingRegistration());
 
     Future<ProviderContainer> start({required bool? allowed}) => _container(
       allowed: allowed,
       mode: 'apns',
       autoSelected: null,
       capabilities: capabilitiesLike(iosCapabilities, voipRing: true),
-      voip: voip,
+      registration: registration,
     );
 
     test('a refused call registration shows the calls failure, even with '
         'notifications off', () async {
       final container = await start(allowed: false);
 
-      voip.stateValue.value = VoipRegistrationState.failed;
+      registration.stateValue.value = RingRegistrationState.failed;
 
       expect(container.read(deliveryFailureProvider), callsSetupFailed);
     });
@@ -85,7 +86,7 @@ void main() {
     test('a server that is not there yet stays quiet', () async {
       final container = await start(allowed: true);
 
-      voip.stateValue.value = VoipRegistrationState.unreachable;
+      registration.stateValue.value = RingRegistrationState.unreachable;
 
       expect(container.read(deliveryFailureProvider), isNull);
     });
@@ -97,7 +98,7 @@ void main() {
         addTearDown(() => apnsDeliveryProvider.status.value = ApnsStatus.idle);
         final container = await start(allowed: true);
 
-        voip.stateValue.value = VoipRegistrationState.failed;
+        registration.stateValue.value = RingRegistrationState.failed;
 
         expect(
           container.read(deliveryFailureProvider)?.action,
@@ -112,10 +113,10 @@ void main() {
         mode: 'fcm',
         autoSelected: null,
         capabilities: androidCapabilities,
-        voip: voip,
+        registration: registration,
       );
 
-      voip.stateValue.value = VoipRegistrationState.failed;
+      registration.stateValue.value = RingRegistrationState.failed;
 
       expect(container.read(deliveryFailureProvider), isNot(callsSetupFailed));
     });

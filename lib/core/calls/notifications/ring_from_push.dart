@@ -9,6 +9,7 @@ import '../matrixrtc/resolved_call_ids_store.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../platform/system_ring.dart';
 import 'ring_notification.dart';
+import 'ring_over_lines.dart';
 import 'ringing_call_store.dart';
 
 const _ringSummaryGrace = Duration(seconds: 3);
@@ -43,6 +44,7 @@ Future<bool> ringFromPush(
     if (kDebugMode) {
       debugPrint('zuno/push: $callId already resolved, not ringing');
     }
+    await presenter.cancelIncoming(roomId: call.room.id, callId: callId);
     return false;
   }
   final heldHere = await _whileRinging(
@@ -51,8 +53,12 @@ Future<bool> ringFromPush(
   );
   if (heldHere != null) return heldHere;
   final ringingNow = presenter.activeRing();
-  final busy = await _whileRinging((await ringingNow)?.callId, callId);
-  if (busy != null) return busy;
+  final ringingElsewhere = await _whileRinging(
+    (await ringingNow)?.callId,
+    callId,
+  );
+  if (ringingElsewhere ?? false) await takeDownLinesUnderRing(call);
+  if (ringingElsewhere != null) return ringingElsewhere;
   SystemRing.instance.set(roomId: call.room.id, callId: callId);
   var outcome = RingOutcome.unavailable;
   try {

@@ -2,16 +2,16 @@ import 'dart:async';
 
 import 'package:matrix/matrix.dart';
 
+import '../../calls/notifications/server_ring.dart';
 import '../../errors/caught_errors.dart';
-import '../../platform/platform_capabilities.dart';
 import '../apns/apns_delivery_provider.dart';
 import '../background_sync/background_sync_delivery_provider.dart';
 import '../fcm/fcm_delivery_provider.dart';
 import '../fcm/fcm_startup.dart';
 import '../handling/push_wake_lock.dart';
 import '../pushers/push_gateway.dart';
+import '../ring/ring_registration.dart';
 import '../unified_push/unified_push_delivery_provider.dart';
-import '../voip/voip_registration.dart';
 import 'notification_delivery_mode.dart';
 import 'notification_delivery_provider.dart';
 import 'pusher_failure.dart';
@@ -51,6 +51,7 @@ Uri? gatewayUrlFor(NotificationDeliveryMode mode, Client client) {
 void bindAppStateToPushDelivery({
   required String? Function() currentlyOpenRoomId,
   required bool Function() isAppSyncing,
+  required void Function(ServerRing ring) ringInApp,
 }) {
   for (final runner in [
     fcmDeliveryProvider.runner,
@@ -59,6 +60,7 @@ void bindAppStateToPushDelivery({
     runner
       ..currentlyOpenRoomId = currentlyOpenRoomId
       ..isAppSyncing = isAppSyncing
+      ..ringInApp = ringInApp
       ..nativeAppInFront = nativePushAppInFront;
   }
   unawaited(markFcmAppReady());
@@ -72,12 +74,10 @@ Future<void> stopAllNotificationDelivery(Client client) async {
       reportCaught('delivery stop ${mode.name}', e, s);
     }
   }
-  if (ambientCapabilities.voipRing) {
-    try {
-      await voipRegistration.stop(client);
-    } catch (e, s) {
-      reportCaught('voip registration stop', e, s);
-    }
+  try {
+    await ringRegistration.stop(client);
+  } catch (e, s) {
+    reportCaught('ring registration stop', e, s);
   }
 }
 

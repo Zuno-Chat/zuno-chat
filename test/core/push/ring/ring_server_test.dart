@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:zuno/core/push/voip/voip_server.dart';
+import 'package:zuno/core/push/ring/ring_server.dart';
 import 'package:zuno/core/push/zuno_push/zuno_push_api.dart';
 
 import '../../../helpers/fake_http.dart';
@@ -14,10 +14,10 @@ http.Response _module(Object? body, {int status = 200}) => http.Response(
   headers: {'x-zuno-push': '1', 'content-type': 'application/json'},
 );
 
-ZunoPushVoipServer _server(
+ZunoPushRingServer _server(
   Future<http.Response> Function(http.Request request) answer, {
   List<http.Request>? requests,
-}) => ZunoPushVoipServer.withApi(
+}) => ZunoPushRingServer.withApi(
   () => ZunoPushApi(
     homeserver: Uri.parse('https://matrix.example.org'),
     bearer: () async => 'Bearer syt_token',
@@ -28,7 +28,7 @@ ZunoPushVoipServer _server(
   ),
 );
 
-Future<VoipServerReply> _put(ZunoPushVoipServer server) => server.putVoip(
+Future<RingServerReply> _put(ZunoPushRingServer server) => server.putVoip(
   appId: 'im.zuno.chat.ios.voip',
   pushkey: 'AQID',
   kid: 16909060,
@@ -46,8 +46,8 @@ void main() {
 
     final reply = await _put(server);
 
-    expect(reply, isA<VoipServerAccepted>());
-    reply as VoipServerAccepted;
+    expect(reply, isA<RingServerAccepted>());
+    reply as RingServerAccepted;
     expect(reply.kid, 16909060);
     expect(reply.serverTs, 1790000000123);
     expect(requests.single.method, 'PUT');
@@ -72,8 +72,8 @@ void main() {
       final voip = await server.deleteVoip();
       final device = await server.deleteDevice();
 
-      expect((voip as VoipServerAccepted).kid, isNull);
-      expect((device as VoipServerAccepted).serverTs, 5);
+      expect((voip as RingServerAccepted).kid, isNull);
+      expect((device as RingServerAccepted).serverTs, 5);
       expect(requests.map((r) => '${r.method} ${r.url.pathSegments.last}'), [
         'DELETE voip',
         'DELETE device',
@@ -91,7 +91,7 @@ void main() {
         ),
       );
 
-      expect(await _put(server), isA<VoipServerUnreachable>());
+      expect(await _put(server), isA<RingServerUnreachable>());
     },
   );
 
@@ -106,8 +106,8 @@ void main() {
             _module({'errcode': 'M_UNKNOWN', 'error': 'boom'}, status: 500),
       );
 
-      expect(await _put(offline), isA<VoipServerUnreachable>());
-      expect(await _put(crashed), isA<VoipServerUnreachable>());
+      expect(await _put(offline), isA<RingServerUnreachable>());
+      expect(await _put(crashed), isA<RingServerUnreachable>());
     },
   );
 
@@ -121,16 +121,16 @@ void main() {
         }, status: 503),
       );
 
-      expect(await _put(server), isA<VoipServerUnreachable>());
+      expect(await _put(server), isA<RingServerUnreachable>());
       expect(
-        voipServerReply(
+        ringServerReply(
           const ZunoPushFailure<int>(
             ZunoPushFailureKind.disabled,
             status: 503,
             errcode: 'IM.ZUNO.STARTING',
           ),
         ),
-        isA<VoipServerUnreachable>(),
+        isA<RingServerUnreachable>(),
       );
     },
   );
@@ -147,7 +147,7 @@ void main() {
     final reply = await _put(server);
 
     expect(
-      (reply as VoipServerUnreachable).retryAfter,
+      (reply as RingServerUnreachable).retryAfter,
       const Duration(seconds: 4),
     );
   });
@@ -166,8 +166,8 @@ void main() {
       }, status: 503),
     );
 
-    final first = await _put(invalid) as VoipServerRefused;
-    final second = await _put(disabled) as VoipServerRefused;
+    final first = await _put(invalid) as RingServerRefused;
+    final second = await _put(disabled) as RingServerRefused;
 
     expect(
       (first.status, first.errcode, first.error),
@@ -184,14 +184,14 @@ void main() {
       (_) async => _module({'kid': 'one', 'server_ts': 1}),
     );
 
-    final reply = await _put(server) as VoipServerRefused;
+    final reply = await _put(server) as RingServerRefused;
 
     expect(reply.errcode, 'malformed');
   });
 
   test('a client without a homeserver is unreachable', () async {
-    final server = ZunoPushVoipServer(buildTestClient());
+    final server = ZunoPushRingServer(buildTestClient());
 
-    expect(await server.deleteDevice(), isA<VoipServerUnreachable>());
+    expect(await server.deleteDevice(), isA<RingServerUnreachable>());
   });
 }

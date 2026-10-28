@@ -175,11 +175,14 @@ class MessageNotifications {
     final previous = replacing ? lines[index] : null;
     final line = NotificationLine(
       eventId: eventId,
-      senderId: content.senderId ?? roomId,
+      senderId: content.senderId ?? previous?.senderId ?? roomId,
       senderName: content.senderName ?? title,
       senderAvatarUrl: senderAvatarUrl ?? previous?.senderAvatarUrl,
       text: content.text ?? content.body,
-      timestamp: content.timestamp ?? clock.now(),
+      timestamp:
+          (placeholder ? previous?.timestamp : null) ??
+          content.timestamp ??
+          clock.now(),
       placeholder: placeholder,
       imageUri: imageUri ?? previous?.imageUri,
       imageMimeType: imageMimeType ?? previous?.imageMimeType,
@@ -191,7 +194,7 @@ class MessageNotifications {
     }
     final placed = switch ((replacing, placeholder)) {
       (false, _) => _inTimeOrder(lines, line),
-      (true, true) => lines,
+      (true, true) => lines..[index] = line,
       (true, false) => _inTimeOrder(lines, line, replacing: index),
     };
     if (senderAvatar != null && senderAvatarUrl != null) {
@@ -292,15 +295,44 @@ class MessageNotifications {
     String roomId,
     String eventId, {
     required NotificationPreview preview,
+  }) => _retractPlaceholders(
+    roomId,
+    (line) => line.eventId == eventId,
+    preview: preview,
+  );
+
+  Future<void> retractPlaceholdersFrom(
+    String roomId,
+    String senderId, {
+    required NotificationPreview preview,
+  }) => _retractPlaceholders(
+    roomId,
+    (line) => line.senderId == senderId,
+    preview: preview,
+  );
+
+  Future<void> _retractPlaceholders(
+    String roomId,
+    bool Function(NotificationLine line) retracts, {
+    required NotificationPreview preview,
   }) => _rooms.run(roomId, () async {
     final thread = await _withStore(
       (prefs) => readNotificationThread(prefs, roomId),
     );
     if (thread == null) return;
     final kept = thread.lines
-        .where((l) => !(l.placeholder && l.eventId == eventId))
+        .where((line) => !(line.placeholder && retracts(line)))
         .toList();
     if (kept.length == thread.lines.length) return;
+    if (!await _isShowing(roomId)) return;
+    await _withStore((prefs) async {
+      for (final line in thread.lines) {
+        if (kept.contains(line)) continue;
+        if (line.eventId case final eventId?) {
+          await forgetPlaceholderShownOnDisk(prefs, eventId);
+        }
+      }
+    });
     if (kept.isEmpty) {
       await _cancelThread(roomId);
       return;
@@ -550,6 +582,12 @@ class MessageNotifications {
 
   Future<void> cancelMessageNotification(String thread) =>
       _rooms.run(thread, () => _cancelThread(thread));
+
+  Future<bool> _isShowing(String thread) async {
+    final active = await _notifications.activeNotifications();
+    final id = messageNotificationIdFor(thread);
+    return active.any((notification) => notification.id == id);
+  }
 
   Future<void> _cancelThread(String thread) async {
     await _plugin.cancel(id: messageNotificationIdFor(thread));

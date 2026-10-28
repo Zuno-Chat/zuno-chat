@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/push/voip/voip_channel.dart';
+import '../../../core/push/ring/ring_channel.dart';
 import '../../../core/security/sensitive_clipboard.dart';
 import '../../../core/ui/card_group.dart';
 
@@ -11,9 +11,9 @@ String voipDevExportJson(VoipDevExport export) =>
     jsonEncode({'token': export.token, 'kid': export.kid, 'key': export.key});
 
 class VoipDevExportCard extends StatefulWidget {
-  const VoipDevExportCard({super.key, this.channel = const VoipChannel()});
+  const VoipDevExportCard({super.key, this.channel = const RingChannel()});
 
-  final VoipChannel channel;
+  final RingChannel channel;
 
   @override
   State<VoipDevExportCard> createState() => _VoipDevExportCardState();

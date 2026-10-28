@@ -5,10 +5,10 @@ Cloudflare's SFU behind the `zuno_calls` Synapse module, which also caps how
 many people a call holds.
 There is no peer-to-peer mode, by design. Signaling is a custom layer
 loosely modeled on MatrixRTC (MSC3401), not a conformant implementation.
-Media is encrypted per frame with a random key for each call. Android rings
-with a native `CallStyle` notification and keeps the call in a foreground
-service. iOS rings through CallKit: from sync while Zuno runs, and from a
-server-sent VoIP push while it is closed.
+Media is encrypted per frame with a random key for each call. Both
+platforms ring a closed Zuno from a sealed server push and a running one
+from sync. Android rings with a native `CallStyle` notification and keeps
+the call in a foreground service; iOS rings through CallKit.
 
 ## Architecture
 
@@ -404,8 +404,8 @@ session to CallKit.
 
 **Rules for both platforms**
 
-`IncomingCallGate` alone decides whether an invite from sync rings,
-checking in order:
+`IncomingCallGate` alone decides whether an invite from sync, or a server
+ring that arrives with Zuno in front, rings, checking in order:
 
 | Invite | Outcome |
 |---|---|
@@ -454,9 +454,9 @@ understand.
   The ring screen checks on every waiting change and when it opens, the
   request is queued behind the ring's own post, and native upgrades only
   a ring it holds as waiting, so a late or repeated request is harmless.
-- **The push paths are unchanged**: a call keeps the app engine syncing,
-  so the gate rings a waiting call from sync while push engines and iOS
-  `RingDecision` still skip it.
+- **The push paths leave a waiting call to sync**: a call keeps the app
+  engine syncing, so the gate rings a waiting call from sync while push
+  engines, Android's instant ring and iOS `RingDecision` skip it.
 
 **Ring names.** One rule names a ring on every surface (the Android ring,
 CallKit and the ring screen): a one-to-one call by the caller, a group call
@@ -468,7 +468,7 @@ group alone.
 | Rule | Why |
 |---|---|
 | The ringing-call store is written before a ring is presented | Written after, a decline in the gap misses the cancel and the ring sounds on |
-| A ring is idempotent per call id across push and sync, and every cancel names its call | Push and sync often deliver the same invite, and one call's end must never take down another's ring |
+| A ring is idempotent per call id across the server push, the message push and sync, and every cancel names its call | They often deliver the same call, and one call's end must never take down another's ring |
 | A resolved call (summary, decline, answer elsewhere or unanswered ring) never rings again | A late push would otherwise ring a finished call |
 | A ring ends when another of my devices joins or declines | Nothing about an answer elsewhere pushes, so only sync tells, and sync keeps running during a ring (`app-foundation.md`) |
 | A ring ends when the call's other memberships, once seen, are all gone | A caller that crashes or loses its connection sends no end notice |
@@ -503,7 +503,8 @@ group alone.
   Zuno over the lock screen.
 - **The ring's sound and vibration are native and process-wide**
   (`IncomingRing`), because Dart audio dies with its engine and freezes
-  with the process. Several stops back each other up (cancel, the
+  with the process; native owns the tone and the vibration pattern, so a
+  ring needs no Dart to sound. Several stops back each other up (cancel, the
   notification's delete intent, Answer, Decline, an alarm and a timer),
   and every one names its call. Decline silences the ring natively before
   handing the tap to Dart, so a slow engine start never keeps it ringing.
@@ -518,6 +519,48 @@ group alone.
 - **Hang up from the ongoing notification or the PiP window** goes to the
   live engine, because teardown needs the live session. Only the ring's
   Decline can run headless.
+- **No ring at all with notifications off or the Calls channel or its
+  group blocked**, tone included, and a silent (Low or Min) Calls channel
+  rings without its tone. Native code tells Dart when it could not show a
+  ring, and Dart then treats the call as not ringing here.
+
+**Android server ring.** Why the server rings a closed Zuno:
+[push-and-ring.md](../decisions/push-and-ring.md). The `zuno_push` module
+sends a sealed ring push over FCM (`notifications.md`), and while Zuno is
+not in front, native code rings at once, before any Dart runs
+(`InstantRing`), so a ring never waits on a room key, a message push or a
+cold Flutter start.
+
+```mermaid
+sequenceDiagram
+  participant P as zuno_push module
+  participant R as PushNoticeReceiver (native)
+  participant F as FcmService (native)
+  participant D as Dart
+  P->>R: sealed ring push, via Sygnal and FCM
+  R->>R: open and judge, ring at once
+  R->>F: the verdict, by message id
+  F->>D: the opened ring
+  D->>D: adopt the ring, or take it back
+```
+
+- **The native ring mirrors iOS's `RingDecision`.** A stale, forged or
+  unknown-key push is dropped (an unknown key also re-registers), and a
+  ring is skipped for my own call, a call that rang here recently
+  (answered or declined included), a resolved call, a call arriving over
+  another ring that still shows, and any call while one is live.
+- **Each push is judged once**: the receiver hands its verdict to the FCM
+  service, which hands the opened ring to Dart. A ring lasts only as long
+  as its push's expiry allows, wherever it is presented.
+- **Dart adopts the ring** through the same `ringFromPush` as a message
+  push, or takes it back only when the call must not ring at all (signed
+  out, my own call, a room where I cannot join calls, a call already over),
+  never because I'm busy, so a waiting call keeps its ring. A room this
+  device does not know yet is named from the payload.
+- **With Zuno in front, a server ring goes through `IncomingCallGate`**
+  like an invite from sync, one ring per call whichever arrives first.
+- **The call's message push still rings too**, and is the only ring under
+  UnifiedPush and on Android 8.x, which lacks the platform cipher.
 
 **Live routes (Android).** A Decline, Reply or Mark as read tap runs in a
 separate engine, so it hands the work to the running app first
@@ -535,9 +578,9 @@ claims the routes.
   resolved and sends through whoever holds the client.
 
 **iOS ring.** Why the server rings a closed Zuno:
-[ios-push-and-ring.md](../decisions/ios-push-and-ring.md). Native code owns
+[push-and-ring.md](../decisions/push-and-ring.md). Native code owns
 CallKit and the audio session (`CallKitCenter.swift`, `CallAudio.swift`),
-driven by Dart over `zuno/calls`. The VoIP push transport and the sealed
+driven by Dart over `zuno/calls`. The ring push transport and the sealed
 blob are in `notifications.md`.
 
 ```mermaid

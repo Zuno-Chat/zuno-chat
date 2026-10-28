@@ -41,6 +41,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.StandardMethodCodec
 import java.io.File
 import java.lang.ref.WeakReference
 import java.util.UUID
@@ -601,6 +602,14 @@ class MainActivity : FlutterActivity() {
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, BackgroundRestrictions.CHANNEL)
             .setMethodCallHandler(BackgroundRestrictions.handler(this))
+
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        MethodChannel(
+            messenger,
+            RingRegistration.CHANNEL,
+            StandardMethodCodec.INSTANCE,
+            messenger.makeBackgroundTaskQueue(),
+        ).setMethodCallHandler(RingRegistration.handler(this))
 
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_DATA_CHANNEL)
             .setMethodCallHandler { call, result ->

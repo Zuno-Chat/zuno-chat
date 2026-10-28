@@ -14,12 +14,12 @@ import 'package:zuno/core/push/diagnostics/push_diagnostics_data.dart';
 import 'package:zuno/core/push/diagnostics/push_diagnostics_source.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
-import 'package:zuno/core/push/voip/voip_registration.dart';
-import 'package:zuno/core/push/voip/voip_server.dart';
+import 'package:zuno/core/push/ring/ring_registration.dart';
+import 'package:zuno/core/push/ring/ring_server.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/fake_voip_registration.dart';
+import '../../../helpers/fake_ring_registration.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 http.Response _module(Object? body, {int status = 200}) => http.Response(
@@ -51,7 +51,7 @@ void main() {
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
   const pushDiag = MethodChannel('zuno/push_diag');
-  const voip = MethodChannel('zuno/voip');
+  const nativeRing = MethodChannel('zuno/ring');
   final ios = capabilitiesLike(
     iosCapabilities,
     pushDiagnostics: true,
@@ -60,7 +60,7 @@ void main() {
   );
   final askedAt = DateTime.fromMillisecondsSinceEpoch(1790000000000);
   late Future<http.Response> Function(http.Request request) answer;
-  late FakeVoipRegistration registration;
+  late FakeRingRegistration registration;
 
   setUp(() {
     PackageInfo.setMockInitialValues(
@@ -81,22 +81,22 @@ void main() {
       },
     );
     messenger.setMockMethodCallHandler(
-      voip,
+      nativeRing,
       (call) async => {
         'token': 'AAEC',
         'environment': 'production',
         'kid': 7,
         'key': 'AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=',
-        'callkit': true,
+        'rings': true,
       },
     );
     answer = (request) async => http.Response('{}', 404);
-    registration = FakeVoipRegistration();
+    registration = FakeRingRegistration();
   });
 
   tearDown(() {
     messenger.setMockMethodCallHandler(pushDiag, null);
-    messenger.setMockMethodCallHandler(voip, null);
+    messenger.setMockMethodCallHandler(nativeRing, null);
   });
 
   LivePushDiagnosticsSource source() {
@@ -107,7 +107,7 @@ void main() {
     return LivePushDiagnosticsSource(
       client,
       httpClient: mock,
-      voip: registration,
+      registration: registration,
     );
   }
 
@@ -140,9 +140,9 @@ void main() {
     expect(inputs.health?.voipLastResult, 'sent');
     expect(inputs.snapshot.settings['authorization'], 'authorized');
     expect(inputs.snapshot.ledger, hasLength(1));
-    expect(inputs.voip?.kid, 7);
-    expect(inputs.voip?.hasToken, isTrue);
-    expect(inputs.voip?.callKit, isTrue);
+    expect(inputs.ringDevice?.kid, 7);
+    expect(inputs.ringDevice?.hasToken, isTrue);
+    expect(inputs.ringDevice?.canRing, isTrue);
     expect(inputs.pushers, isEmpty);
     expect(inputs.appVersion, '1.2.0 (build 2)');
     expect(inputs.now, askedAt);
@@ -232,9 +232,9 @@ void main() {
 
   test('the call registration hands over its last refusal, only where calls '
       'ring through it', () async {
-    final refusal = VoipRefusedByServer(
+    final refusal = RingRefusedByServer(
       at: askedAt,
-      reply: const VoipServerRefused(status: 400, errcode: 'M_INVALID_PARAM'),
+      reply: const RingServerRefused(status: 400, errcode: 'M_INVALID_PARAM'),
     );
     registration.refusalValue.value = refusal;
 
@@ -244,8 +244,8 @@ void main() {
       NotificationDeliveryMode.apns,
     );
 
-    expect(ring.voipRefusal, refusal);
-    expect(noRing.voipRefusal, isNull);
+    expect(ring.ringRefusal, refusal);
+    expect(noRing.ringRefusal, isNull);
   });
 
   test('Google services carries its status, Google Play services and the '

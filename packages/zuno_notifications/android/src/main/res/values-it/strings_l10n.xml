@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsGenericRingName">Chiamata Zuno</string>
     <string name="callsIncomingCall">Chiamata in arrivo</string>
+    <string name="callsIncomingVideo">Videochiamata in arrivo</string>
+    <string name="callsIncomingVoice">Chiamata vocale in arrivo</string>
     <string name="commonYou">Tu</string>
     <string name="notificationsFallbackChatName">Chat</string>
     <string name="notificationsMissedPushes">Alcune notifiche non sono state consegnate. Apri Zuno per vedere i nuovi messaggi.</string>

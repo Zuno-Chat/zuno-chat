@@ -24,6 +24,7 @@ import 'package:zuno/core/matrix/sync_coordinator.dart';
 import 'package:zuno/core/matrix/sync_request_canceller.dart';
 import 'package:zuno/core/matrix/zuno_client.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
+import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
@@ -33,13 +34,14 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_call_style_channel.dart';
+import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/hybrid_fake_async.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/notifying_client.dart';
 
-class _ScriptedClient extends ZunoClient {
+class _ScriptedClient extends ZunoClient with TestDecryption {
   _ScriptedClient() : super('test', database: StoredMembersFakeDatabaseApi());
 
   Event? resolved;
@@ -56,6 +58,8 @@ class _ScriptedClient extends ZunoClient {
   final stores = <bool>[];
   Future<void>? catchUpGate;
   void Function()? onCaughtUp;
+  @override
+  FakeRoomDecryption? decryption;
 
   @override
   bool get syncPending => syncing;
@@ -164,10 +168,16 @@ void main() {
   Future<IncomingPushOutcome> handle({
     NotifyMe notifyMe = NotifyMe.all,
     String eventId = r'$event',
+    void Function(Future<void> refinement)? onRefining,
+    void Function()? onRinging,
+    Future<void>? appWantsClient,
   }) => handleIncomingPushNotification(
     client,
     push(eventId: eventId),
     notifyMe: notifyMe,
+    onRefining: onRefining,
+    onRinging: onRinging,
+    appWantsClient: appWantsClient,
   );
 
   Iterable<String> callStyleMethods() => callStyle.calls.map((c) => c.method);
@@ -294,10 +304,15 @@ void main() {
   });
 
   group('calls', () {
-    test('rings for a fresh invite', () async {
+    test('rings for a fresh invite, and asks for the ring hold', () async {
       client.resolved = callInvite();
+      var rang = 0;
 
-      expect(await handle(), IncomingPushOutcome.callRinging);
+      expect(
+        await handle(onRinging: () => rang++),
+        IncomingPushOutcome.callRinging,
+      );
+      expect(rang, 1);
 
       final args = callStyle.lastShow.arguments as Map;
       expect(args['roomId'], '!room:example.org');
@@ -385,6 +400,35 @@ void main() {
           expect(await rememberedCallId(), ringingCallId);
         },
       );
+
+      test('a push for the call that is ringing takes down the caller\'s '
+          '"New message" lines in that chat', () async {
+        client
+          ..decryption = FakeRoomDecryption()
+          ..resolved = lockedTestEvent(
+            room,
+            eventId: r'$locked',
+            senderId: '@bob:example.org',
+          );
+        notifications.active = [];
+        expect(await handle(eventId: r'$locked'), IncomingPushOutcome.message);
+        notifications.active = [
+          ringNotificationOnScreen(),
+          {
+            'id': messageNotificationIdFor(room.id),
+            'channelId': 'group_messages',
+            'payload': '',
+          },
+        ];
+        client.resolved = callInvite(callId: ringingCallId);
+
+        expect(await handle(), IncomingPushOutcome.callRinging);
+
+        expect(
+          notifications.cancelled,
+          contains(messageNotificationIdFor(room.id)),
+        );
+      });
 
       test('rings once that call is over, though its notification is still '
           'up', () async {
@@ -715,13 +759,7 @@ void main() {
 
   group('an event that stays undecryptable', () {
     Event undecryptable({String senderId = '@bob:example.org'}) =>
-        buildTestEvent(
-          room,
-          eventId: r'$event',
-          senderId: senderId,
-          type: EventTypes.Encrypted,
-          content: {'algorithm': 'm.megolm.v1.aes-sha2', 'ciphertext': 'x'},
-        );
+        lockedTestEvent(room, eventId: r'$event', senderId: senderId);
 
     test('keeps a routable "New message" instead of going silent', () async {
       client.resolved = undecryptable();
@@ -746,6 +784,242 @@ void main() {
 
       expect(await handle(), IncomingPushOutcome.ignored);
       expect(notifications.shown, isEmpty);
+    });
+
+    test('names its sender on its line, so a ring from them can take it '
+        'down', () async {
+      client.resolved = undecryptable();
+
+      await handle();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        readNotificationThread(prefs, room.id)!.lines.single.senderId,
+        '@bob:example.org',
+      );
+    });
+  });
+
+  group('an event not decrypted yet, from the caller of a call ringing in '
+      'its room', () {
+    setUp(() async {
+      client.decryption = FakeRoomDecryption();
+      final prefs = await SharedPreferences.getInstance();
+      await saveRingingCall(prefs, (
+        roomId: room.id,
+        callId: 'call1',
+        callerId: '@bob:example.org',
+        isVideo: false,
+      ));
+      notifications.active = [ringNotificationOnScreen()];
+    });
+
+    test('is the invite the ring already shows, so it posts nothing', () async {
+      client.resolved = lockedTestEvent(
+        room,
+        eventId: r'$event',
+        senderId: '@bob:example.org',
+      );
+
+      expect(await handle(), IncomingPushOutcome.ignored);
+      expect(notifications.shown, isEmpty);
+    });
+
+    test('whose caller starts ringing while its line posts takes the line '
+        'back', () async {
+      notifications.active = [
+        {
+          'id': messageNotificationIdFor(room.id),
+          'channelId': 'group_messages',
+          'payload': '',
+        },
+      ];
+      client.resolved = lockedTestEvent(
+        room,
+        eventId: r'$event',
+        senderId: '@bob:example.org',
+      );
+      final ring = _RingStartsMidPost()
+        ..answers.addAll([
+          null,
+          (
+            roomId: room.id,
+            callId: 'call1',
+            callerId: '@bob:example.org',
+            isVideo: false,
+          ),
+        ]);
+
+      final outcome = await handleIncomingPushNotification(
+        client,
+        push(),
+        notifyMe: NotifyMe.all,
+        incomingCallPresenter: ring,
+      );
+
+      expect(outcome, IncomingPushOutcome.ignored);
+      expect(
+        notifications.cancelled,
+        contains(messageNotificationIdFor(room.id)),
+      );
+    });
+
+    test('from someone else still shows "New message"', () async {
+      client.resolved = lockedTestEvent(
+        room,
+        eventId: r'$event',
+        senderId: '@carol:example.org',
+      );
+
+      expect(await handle(), IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+    });
+  });
+
+  group('an event not decrypted yet, while a sync is in flight', () {
+    late FakeRoomDecryption decryption;
+    late Completer<void> sync;
+    late Completer<void> appWantsClient;
+    late List<Future<void>> refinements;
+    late int rang;
+
+    setUp(() {
+      decryption = client.decryption = FakeRoomDecryption();
+      client
+        ..resolved = lockedTestEvent(
+          room,
+          eventId: r'$event',
+          senderId: '@bob:example.org',
+        )
+        ..syncing = true;
+      sync = Completer<void>();
+      client.catchUpGate = sync.future;
+      appWantsClient = Completer<void>();
+      refinements = [];
+      rang = 0;
+      notifications.active = [
+        {
+          'id': messageNotificationIdFor(room.id),
+          'channelId': 'group_messages',
+          'payload': '',
+        },
+      ];
+    });
+
+    Future<IncomingPushOutcome> handleLocked() => handle(
+      onRefining: refinements.add,
+      onRinging: () => rang++,
+      appWantsClient: appWantsClient.future,
+    );
+
+    test('shows "New message" and is done without waiting for the '
+        'sync', () async {
+      expect(await handleLocked(), IncomingPushOutcome.message);
+
+      expect(notifications.single.lineTexts, ['New message']);
+      expect(refinements, hasLength(1));
+    });
+
+    test('turns "New message" into the message once the sync brings its '
+        'key', () async {
+      await handleLocked();
+      decryption.decrypted.add(message(body: 'hello'));
+
+      sync.complete();
+      await Future.wait(refinements);
+
+      expect(notifications.shown.last.lineTexts, ['hello']);
+      expect(notifications.shown.last.android['onlyAlertOnce'], isTrue);
+    });
+
+    test('rings and asks for the ring hold when the sync opens a call '
+        'invite', () async {
+      await handleLocked();
+      decryption.decrypted.add(callInvite());
+
+      sync.complete();
+      await Future.wait(refinements);
+
+      expect((callStyle.lastShow.arguments as Map)['callId'], 'call1');
+      expect(rang, 1);
+    });
+
+    test('keeps "New message" when the sync brings no key', () async {
+      await handleLocked();
+
+      sync.complete();
+      await Future.wait(refinements);
+
+      expect(notifications.single.lineTexts, ['New message']);
+      expect(rang, 0);
+    });
+
+    test('lets go at once when the app asks for the client', () async {
+      await handleLocked();
+
+      appWantsClient.complete();
+      await Future.wait(refinements);
+
+      expect(decryption.attempts, 0);
+    });
+
+    group('from the caller of the call ringing in its room', () {
+      setUp(() async {
+        await saveRingingCall(await SharedPreferences.getInstance(), (
+          roomId: room.id,
+          callId: 'call1',
+          callerId: '@bob:example.org',
+          isVideo: false,
+        ));
+        notifications.active = [
+          ...notifications.active,
+          ringNotificationOnScreen(),
+        ];
+      });
+
+      test('shows no "New message", but still shows the message the sync '
+          'opens', () async {
+        expect(await handleLocked(), IncomingPushOutcome.ignored);
+        expect(notifications.shown, isEmpty);
+
+        decryption.decrypted.add(message(body: 'pick up, it is urgent'));
+        sync.complete();
+        await Future.wait(refinements);
+
+        expect(notifications.shown.last.lineTexts, ['pick up, it is urgent']);
+      });
+    });
+
+    test('with no sync in flight, a client the push built syncs once in the '
+        'background for the key, and fills the line in', () async {
+      client.syncing = false;
+
+      expect(await handleLocked(), IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+      expect(client.catchUps, [lateKeySyncWait]);
+
+      decryption.decrypted.add(message(body: 'hello'));
+      sync.complete();
+      await Future.wait(refinements);
+
+      expect(notifications.shown.last.lineTexts, ['hello']);
+    });
+
+    test('with no sync in flight, the app\'s client leaves the key to the '
+        'app', () async {
+      client
+        ..syncing = false
+        ..syncCoordinator = SyncCoordinator(
+          client,
+          SyncRequestCanceller(http.Client()),
+        );
+      addTearDown(() {
+        client.syncCoordinator?.dispose();
+        client.syncCoordinator = null;
+      });
+
+      expect(await handleLocked(), IncomingPushOutcome.message);
+      expect(refinements, isEmpty);
     });
   });
 
@@ -780,12 +1054,6 @@ void main() {
       return handling;
     }
 
-    List<Map<String, Object?>> linesOf(ShownNotification n) =>
-        ((n.android['styleInformation'] as Map)['messages'] as List)
-            .cast<Map>()
-            .map((m) => m.cast<String, Object?>())
-            .toList();
-
     test('names a chat placeholder after the partner as stored, not their '
         'username', () async {
       final dm = buildTestRoom(client, id: '!dm:example.org')
@@ -819,6 +1087,38 @@ void main() {
       await outcome();
     });
 
+    test('a placeholder shown before the event resolved as locked learns '
+        'its sender, without alerting again', () async {
+      client.decryption = FakeRoomDecryption();
+      await handleSlowly();
+      expect(
+        readNotificationThread(
+          await SharedPreferences.getInstance(),
+          room.id,
+        )!.lines.single.senderId,
+        room.id,
+      );
+      notifications.active = [
+        {
+          'id': roomNotificationId,
+          'channelId': 'group_messages',
+          'payload': '',
+        },
+      ];
+
+      pending.complete(
+        lockedTestEvent(room, eventId: r'$event', senderId: '@bob:example.org'),
+      );
+      expect(await outcome(), IncomingPushOutcome.message);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        readNotificationThread(prefs, room.id)!.lines.single.senderId,
+        '@bob:example.org',
+      );
+      expect(notifications.shown.last.android['onlyAlertOnce'], isTrue);
+    });
+
     test(
       'posts a routable placeholder first, then upgrades it in place',
       () async {
@@ -827,7 +1127,7 @@ void main() {
         final placeholder = notifications.shown
             .where((n) => n.id == roomNotificationId)
             .single;
-        expect(linesOf(placeholder).single['text'], 'New message');
+        expect(placeholder.lines.single['text'], 'New message');
         expect(placeholder.payload, contains(room.id));
 
         notifications.active = [
@@ -844,7 +1144,7 @@ void main() {
           (n) => n.id == roomNotificationId,
         );
         expect(posts, hasLength(2));
-        expect(linesOf(posts.last).map((l) => l['text']), ['hello']);
+        expect(posts.last.lineTexts, ['hello']);
         expect(posts.last.android['onlyAlertOnce'], isTrue);
       },
     );
@@ -870,7 +1170,7 @@ void main() {
             .toList();
         expect(posts, hasLength(2));
         expect(posts.map((n) => n.android['onlyAlertOnce']), [isTrue, isTrue]);
-        expect(linesOf(posts.last).map((l) => l['text']), ['hello']);
+        expect(posts.last.lineTexts, ['hello']);
       },
     );
 
@@ -942,7 +1242,7 @@ void main() {
         (n) => n.id == roomNotificationId,
       );
       expect(posts, hasLength(1));
-      expect(linesOf(posts.single).single['text'], 'quick');
+      expect(posts.single.lines.single['text'], 'quick');
     });
   });
 
@@ -1559,6 +1859,14 @@ class _CountingAndroidPresenter extends AndroidIncomingCallPresenter {
   }
 }
 
+class _RingStartsMidPost extends NoopIncomingCallPresenter {
+  final answers = <RingingCallInfo?>[];
+
+  @override
+  Future<RingingCallInfo?> activeRing() async =>
+      answers.length > 1 ? answers.removeAt(0) : answers.firstOrNull;
+}
+
 class _GatedPresenter extends NoopIncomingCallPresenter {
   _GatedPresenter(this.gate);
 
@@ -1577,6 +1885,7 @@ class _GatedPresenter extends NoopIncomingCallPresenter {
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   }) async {
     await gate;
     log.add('show $callId');

@@ -15,6 +15,7 @@ import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/ring/ring_channel.dart';
 
 import 'helpers/inline_background_work.dart';
 import 'helpers/instant_file_system.dart';
@@ -57,6 +58,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       _deviceSafetyChannel,
       (_) async => null,
     );
+    messenger?.setMockMethodCallHandler(ringChannel, (_) async => null);
   });
 
   tearDown(_resetAmbientCapabilities);

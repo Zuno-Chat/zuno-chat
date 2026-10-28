@@ -1,14 +1,14 @@
 # Notifications
 
-Android receives message pushes over one of three transports: FCM (the default), UnifiedPush, or an always-on background sync. iOS receives them over APNs, and a notification service extension (NSE) fetches and decrypts each message before it shows. Android shows each room as a conversation. On both platforms, Reply and Mark as read run without opening Zuno.
+Android receives message pushes over one of three transports: FCM (the default), UnifiedPush, or an always-on background sync. iOS receives them over APNs, and a notification service extension (NSE) fetches and decrypts each message before it shows. No push waits for a message key. Android shows each room as a conversation. On both platforms, Reply and Mark as read run without opening Zuno.
 
-This doc also owns the iOS VoIP push transport, the `zuno_push` contract, the badge, notification settings and the push diagnostics hub. Related topics live elsewhere:
+This doc also owns the ring push transport (iOS VoIP, Android FCM), the `zuno_push` contract, the badge, notification settings and the push diagnostics hub. Related topics live elsewhere:
 
 - Ring presentation, declines and the extension's fallback ring: `calls.md`.
 - The client lease, `EngineHost`, the notify App Group, Keychain items and the `zuno/*` channel table: `app-foundation.md`.
 - What a notification says for each event: `chats-messaging.md` (`event_display.dart`).
 - Invitation announcements: `rooms-membership.md`. Join requests: `communities.md`. Which security alerts post a notification, and when: `security-verification.md`.
-- Why iOS works this way: `../decisions/ios-push-and-ring.md`.
+- Why calls ring from the server, and why iOS works this way: `../decisions/push-and-ring.md`.
 
 ## Architecture
 
@@ -18,11 +18,12 @@ This doc also owns the iOS VoIP push transport, the `zuno_push` contract, the ba
 flowchart LR
   pusher["Synapse pusher<br/>event_id_only"] --> sygnal["Sygnal"]
   pusher --> upgw["UnifiedPush gateway<br/>and distributor"] --> ups["ZunoPushService<br/>instant notice"]
-  sygnal -- FCM --> fcm["PushNoticeReceiver, FcmService<br/>instant notice"] --> router["FcmRouter"]
+  sygnal -- FCM --> fcm["PushNoticeReceiver, FcmService<br/>instant notice or instant ring"] --> router["FcmRouter"]
   router & ups --> runner["HeadlessPushRunner<br/>app engine or push engine"]
   sygnal -- APNs --> nse["Notification service extension"]
   nse -- "nse/fetch" --> module["zuno_push module"]
   module -- "VoIP push, via Sygnal" --> pushkit["PushKit and CallKit<br/>(calls.md)"]
+  module -- "ring push, via Sygnal and FCM" --> fcm
 ```
 
 Background sync has no push at all: a foreground service keeps `/sync` running.
@@ -46,18 +47,22 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 
 ### Push handling and posting (Dart)
 
-- **Every Android push goes through `HeadlessPushRunner.deliver`** into `handleIncomingPushNotification`, which resolves the event and dispatches in a fixed order: ring, room invitation, verification request, message.
+- **Every Android message push goes through `HeadlessPushRunner.deliver`** into `handleIncomingPushNotification`, which resolves the event and dispatches in a fixed order: ring, room invitation, verification request, message. A server ring push goes through `deliverRing`, which rings through the same `ringFromPush` (`calls.md`).
 - **The runner owns the client a push uses.** In the app engine it uses the app's live client. In a push engine it opens a burst client under a background lease (`app-foundation.md`) and keeps it open across a burst, so a burst costs one catch-up sync rather than one per push. That client opens without waiting for its chats to load from the store, so the token refresh and catch-up sync start at once, and the runner starts a push only once they have loaded; every other background client opens fully loaded, because it acts on a chat at once.
-- **The runner drops a push** while the app is resumed, syncing and really in front, and when the user is signed out or the lease is denied. A locked keyguard never counts as in front, so a hang-up push still stops a ring shown over the lock screen.
+- **The runner drops a push** while the app is resumed, syncing and really in front, and when the user is signed out or the lease is denied; a server ring in front goes to the app's own incoming-call flow instead. A locked keyguard never counts as in front, so a hang-up push still stops a ring shown over the lock screen.
 - **Post first, refine later.** When the fetch is slow, a "New message" placeholder posts for the room, and the real content replaces it silently. Avatars and photo thumbnails refine the posted line afterwards, so the FCM ack never waits for them.
-- **The fetch contract** (`getEventByPushNotification`). `null` means there is nothing to show, such as a message read on another device, and retracts any placeholder. Only a throw, meaning the fetch failed, keeps the placeholder.
+- **Zuno owns the push fetch** (`ZunoClient.getEventByPushNotification`): it decrypts once and never syncs or waits for a key, because the SDK's own fetch does both on an event it cannot decrypt, holding up every push queued behind it. It syncs for a room the client does not know yet only where the app's sync rules allow.
+- **The fetch contract.** `null` means there is nothing to show, such as a message read on another device, and retracts any placeholder. Only a throw, meaning the fetch failed, keeps the placeholder.
+- **A push that cannot decrypt shows "New message" and reports done.** A background retry then waits for one sync, decrypts once more and runs the same dispatch (line, retraction or ring). A client the push built starts that short sync itself, while the app's client only joins one already running, since the sync coordinator owns its syncs (`app-foundation.md`); a burst client's retry stops once the app asks for the client.
+- **A ring stands in for its caller's "New message" lines** on Android (CallKit's ring leaves them alone). It takes down the lines its caller's locked messages left in that chat, and both posters skip or take back such a line while that caller's ring shows, so either arrival order ends the same. A line taken down this way never holds back the real message once it decrypts, and a thread the user swiped away stays gone.
 - **Read elsewhere is Synapse's receipt rule, as on iOS.** The client catches up beside the fetch, and once that sync has reached the event, a room notification count of 0 means the message was read on another device, so it stays silent.
 - **One poster for both producers.** The push handler and the sync path (`MessageNotificationNotifier`) both call `postMessageNotification`, never `showMessage`, with text from `event_display.dart`. Invitations, verification requests and join requests post through it too. The notified-events store makes each event notify once, whichever path posts first.
 - **Names wait for the members that name the chat.** The SDK loads no members at startup, and a chat whose members are not loaded names itself from usernames, so every notification name is computed only after those members are loaded from local storage: Dart's lines and "New message" placeholders, the Android name cache the instant notice reads, and the iOS read model's title and partner. A one-to-one chat's partner is loaded even when the chat has its own name, because the partner names the sender and the ring.
 - **The sync path clears a room read elsewhere only after that room's posts in flight**, and registers each post before any wait, so a post still loading names never lands after the clean-up of the same sync.
 - **Mentions-only** posts other messages quietly, and not at all while Zuno is in front.
 - **The sync path ignores the initial sync**, so a cache clear cannot replay old messages as new.
-- **An event not yet decrypted posts a "New message" placeholder from sync.** The real line replaces it when the key arrives soon after, and a decrypted event that needs no notification withdraws it.
+- **An event not yet decrypted posts a "New message" placeholder from sync.** The real line replaces it when the key arrives soon after (the late-decryption stream, `app-foundation.md`), and a decrypted event that needs no notification withdraws it.
+- **The sync path also takes down a push's instant notice** for an event that needs no notification, but only for an event the server's push rules would push, since only those left one.
 - **An invitation to a room the user asked to join is never announced**, since it answers their own request, on every path: sync, Android push and the iOS extension, which reads those rooms from the read model.
 
 ### Preview levels
@@ -100,8 +105,8 @@ One level (`NotificationPreview`, default Name and message) applies on both plat
 
 FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart reaches it only through `FcmBridge` over `zuno/fcm`.
 
-1. `PushNoticeReceiver`, beside Firebase's own receiver, drops duplicates and posts the instant notice for an event push.
-2. `FcmService` handles a badge push natively: an `unread` count of 0 clears the chat notifications without booting an engine. It hands an event push to `FcmRouter` and waits for Dart's ack, so the process keeps service priority and Firebase's wake lock while Dart works.
+1. `PushNoticeReceiver`, beside Firebase's own receiver, drops duplicates and posts the instant notice for an event push. For a ring push, while Zuno is signed in and not in front, it opens the payload and rings at once (`calls.md`).
+2. `FcmService` handles a badge push natively: an `unread` count of 0 clears the chat notifications without booting an engine. It hands an event push, or a ring push's opened ring, to `FcmRouter` and waits for Dart's ack, so the process keeps service priority and Firebase's wake lock while Dart works. A ring push is judged once: the service takes the receiver's verdict rather than opening the payload again.
 3. `FcmRouter`, over the pure, JUnit-tested `FcmRouting`, picks the engine:
 
 | Situation | Result |
@@ -112,13 +117,14 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 | A push has gone stale | It is finished, never replayed, so no stale ring |
 | A headless engine is idle | It retires only once it answers that it is quiet, because an engine destroyed mid-write loses that write |
 
-- **One classifier for every Android push** (`PushKind`, in `zuno_notifications`): test, message or badge. FCM and UnifiedPush both switch on it, so a rule for one kind of push lives in one place.
+- **One classifier for every Android push** (`PushKind`, in `zuno_notifications`): test, message, badge or ring (a data push carrying only the sealed ring payload, which gets no instant notice). FCM and UnifiedPush both switch on it, so a rule for one kind of push lives in one place.
 - **The instant notice** is a "New message" line posted natively before any Dart runs, under the room's notification id and its cached name, or under "Zuno" with no conversation at preview Nothing. It posts only while the app is not in front, nothing shows for the room, and Notify me is not mentions-only. Dart later replaces it in place or retracts it.
 - **Tokens.** FCM auto-init stays off until `getToken`, so a device on another mode never talks to Firebase. The deprecated token APIs stay, because their replacement needs Firebase's newer installation-ID registration, judged too new for the push path.
+- **The ring registration follows FCM** (the `zuno_push` contract): every FCM token the app registers is registered for rings too, a resume re-registers when the module holds another token, and stopping FCM delivery removes the ring registration at once, so UnifiedPush and background sync get no server ring.
 
 ### Android: UnifiedPush, background sync and push engines
 
-- **`ZunoPushService` replaces the UnifiedPush plugin's service**, because the connector's bound-service delivery holds no wake lock. It builds on the connector's own `PushService` and hands each event to the plugin itself, because the plugin's service builds an engine as it starts, which would hold up the instant notice. It posts the instant notice and takes the push wake lock as the message arrives, before handing it on, and holds it until Dart has handled the push.
+- **`ZunoPushService` replaces the UnifiedPush plugin's service**, because the connector's bound-service delivery holds no wake lock. It builds on the connector's own `PushService` and hands each event to the plugin itself, because the plugin's service builds an engine as it starts, which would hold up the instant notice. It posts the instant notice and takes the push wake lock as the message arrives, before handing it on, and holds it until Dart has handled the push, its background retry and any ring it holds included.
 - **The service picks the delivery engine for every connector event, on the main thread**: the app engine, else a headless engine (`--unifiedpush-bg`) it boots or replaces. The connector calls in on a background thread, and engines start only on the main thread.
 - **A headless engine is replaced only when an app engine attached after it booted**, because that engine's plugin took the pushes; an engine that merely registers the plugin, such as the notification-action engine, leaves it in place.
 - **Push engines register an explicit plugin allowlist** (`PushEnginePlugins`), not the generated registrant, because some plugins carry process-wide state. flutter_webrtc, for one, repoints its process-wide singleton at the newest engine that registers it, which would send a live call's WebRTC events to a push engine.
@@ -186,13 +192,13 @@ Files are sealed under the notify Keychain item and named by HMAC tokens, and th
 
 ### `zuno_push` contract
 
-`zuno_push` is a Synapse module in its own repo, at `/_synapse/client/zuno/push/v1/`. This repo implements only the client side. iOS needs the module for rings and message content, while Android uses only `health` and `test`.
+`zuno_push` is a Synapse module in its own repo, at `/_synapse/client/zuno/push/v1/`. This repo implements only the client side. iOS needs the module for rings and message content. Android uses it for server rings, `health` and `test`, and without it still rings from the call's message push.
 
 | Endpoint | Caller, auth | Purpose |
 |---|---|---|
-| `PUT voip`, `DELETE voip` | App, Matrix bearer | Register or clear this device's PushKit token and payload key |
+| `PUT voip`, `DELETE voip` | App, Matrix bearer | Register or clear this device's ring registration: app id, push token and payload key |
 | `DELETE device` | App, bearer | At sign-out, forget everything held for this device |
-| `GET health` | App, bearer | Pusher, VoIP and credential health |
+| `GET health` | App, bearer | Pusher, ring and credential health |
 | `POST test` | App, bearer | A test alert through Synapse's own pusher |
 | `POST nse/credential` | App, bearer | Mint the extension's credential (30-day expiry) |
 | `POST nse/fetch` | Extension, `ZunoNotify` credential | The pushed event, `read` or `gone`, plus catch-up |
@@ -206,9 +212,17 @@ What the app relies on:
 - **Credential rotation.** Minting replaces the credential, and the previous one stays valid for 10 minutes, so an extension in the middle of a push never fails on a rotation.
 - **Failures.** Route, network, startup (`IM.ZUNO.STARTING`), 5xx and rate-limit failures back off quietly, while a refusal such as `IM.ZUNO.PUSH_DISABLED` surfaces to the user. Starting has its own code so a module still running its startup checks never reads as disabled. `DELETE voip` and `DELETE device` are never held back by startup, so sign-out always reaches the module.
 - **Server routing.** The homeserver's proxy must route `/_matrix/push/v1/notify` to Sygnal. Without that route Synapse answers with a 404, and every alert push is dropped while Delivery still looks healthy. The module posts rings to Sygnal directly, so rings and message pushes can fail independently, and `GET health` shows which.
-- **VoIP push transport.** The module watches `m.call.member` and sends one VoIP push per target device through Sygnal's VoIP apps (`im.zuno.chat.ios.voip`, `.ios.dev.voip`). The payload is one sealed, fixed-size blob (`VoipBlob`): ChaCha20-Poly1305 under the device's own key, with the key id and expiry as associated data.
-- **VoIP registration.** The app sends its PushKit token and payload key at sign-in, and again when either changes or the registration has aged. It never depends on notification permission. The key is new for each session and token, and the previous key still opens blobs for a grace period. Only a signed-out device turns its VoIP pushes off, so a locked Keychain or a missing read model never silences later calls. Start and registration do nothing while signed out, so one racing a sign-out never registers the device again.
-- **Shared vectors** in `test/fixtures/push/` (the VoIP blob, opaque ids, sealed files, the extension's decisions) run in both Dart and Swift tests, and the module must pass the same files.
+- **Ring push transport.** The module watches `m.call.member` and sends one ring push per target device through Sygnal, at least once, and the device drops repeats by call:
+
+  | Platform | Sygnal app | Push |
+  |---|---|---|
+  | iOS | The VoIP apps (`im.zuno.chat.ios.voip`, `.ios.dev.voip`) | A PushKit VoIP push |
+  | Android 9+ on FCM | The FCM app (`im.zuno.chat.android`) | A high-priority data push whose `default_payload` carries only the blob, as `z`, with no event id, room id or content |
+
+  The blob is one sealed, fixed-size format on both platforms: ChaCha20-Poly1305 under the device's own key, with the key id and expiry as associated data.
+- **Ring registration.** The app sends `PUT voip` with the ring app id (a VoIP app on iOS, the FCM app on Android), its push token (PushKit or FCM) and its payload key at sign-in, and again when any of them changes or the registration has aged; the module keeps one registration per device, replaced on each PUT. It never depends on notification permission. The key is new for each session and token, and the previous key still opens blobs for a grace period. Only a signed-out device turns its rings off, so a locked Keychain or a missing read model never silences later calls. Start and registration do nothing while signed out, so one racing a sign-out never registers the device again.
+- **The Android ring key** is random, wrapped by an Android Keystore key, since the Keystore cannot hold ChaCha keys. A key the Keystore cannot read fails that push and is never replaced there; the app replaces it when it next asks for its key and registers right after, because only a registration tells the module the new key.
+- **Shared vectors** in `test/fixtures/push/` (the ring blob, opaque ids, sealed files, the extension's decisions) run in Dart and Swift tests, the ring blob in Kotlin's too, and the module must pass the same files.
 
 ### Push diagnostics hub
 
@@ -217,7 +231,7 @@ Settings → Notifications → Diagnostics, on both platforms. `push_diagnostics
 Both platforms show the permission, this device's registration and the module's health. iOS adds the VoIP registration and recent rings, the extension's recent runs, and MetricKit exit and crash summaries.
 
 - **Every native read is best-effort.** A failed read shows as unknown, never as a denial.
-- **A missing or disabled module** is informational on Android, which does not need it, and a problem on iOS.
+- **A missing or disabled module** is informational on Android, which still rings from the call's message without it, and a problem on iOS.
 - **A refused VoIP registration** shows the module's answer under Calls until a registration goes through or the user signs out, since the home banner cannot say why calls will not ring.
 - **Send a test notification** goes through the module and Synapse's pusher, so it is unavailable without the module or under background sync. It shows even in front. On Android a test push never reaches Dart (`PushKind.TEST`), so Dart never fetches its fake event.
 - **Recent pushes** merges the FCM delivery log, the extension and app logs and the call ledger into one list, never with text or names. Android shows it only under FCM, the one mode where app code sees every push.
@@ -232,7 +246,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **FCM first, then UnifiedPush, then background sync.** Only a high-priority FCM message earns a temporary power allowlist, while the fallbacks depend on battery exemptions.
 - **An instant notice whenever the app is not in front.** A cold push takes seconds to reach the screen, while the notice lands at process start.
 - **No foreground service on the cold push path.** Its gain is unmeasured and Play's foreground-service policy would apply, so the cold path stays in the background CPU class.
-- **Every high-priority push ends in a notification**, because FCM deprioritizes an app whose high-priority messages repeatedly show nothing. Only a message already read elsewhere and a declined call summary stay silent.
+- **Every high-priority push ends in a notification**, because FCM deprioritizes an app whose high-priority messages repeatedly show nothing. Only a message already read elsewhere, a declined call summary and a ring push that must not ring stay silent, and the module keeps the last rare by never sending a ring it knows is stale.
 - **The app maintains server push rules** (`server_push_rules.dart`). Override rules stop `m.annotation` and `m.reference` relations from pushing, since those stay cleartext in encrypted events, so encrypted reactions, call declines and verification follow-ups never push. `.m.rule.message` gets a `sound` tweak, because Synapse otherwise sends an unencrypted event at normal priority, which Doze holds. The cost is that other clients on the account play a sound too. An event that must never notify gets a cleartext relation, not a new push rule.
 - **Notification actions stay in Dart.** On Android a native renderer would re-implement `MessagingStyle` and `RemoteInput`. On iOS a second engine would mean a second client, so native code only queues the action.
 - **No explicit group summary.** Native Mark as read cancels a chat notification before Dart runs and would leave a childless summary, which Android shows as an ordinary notification. Android bundles four or more chats by itself.
@@ -240,7 +254,7 @@ Both platforms show the permission, this device's registration and the module's 
 ## Gotchas
 
 - **The APNs pushkey is the token bytes in base64, never hex**, because Sygnal base64-decodes it and hex decodes to junk that APNs rejects, deleting the pusher with no symptom.
-- **`stopAllNotificationDelivery` is every sign-out's push teardown**, run while the token still works (`authentication.md`): it stops every mode and, on iOS, tells the module to forget the device and turns VoIP off. The read model and the notify and VoIP Keychain items go with the sign-out wipe (`app-foundation.md`), whose failure is retried at the next launch.
+- **`stopAllNotificationDelivery` is every sign-out's push teardown**, run while the token still works (`authentication.md`): it stops every mode, and wherever the ring registration ran, tells the module to forget the device and turns rings off. The read model and the notify and VoIP Keychain items go with the sign-out wipe (`app-foundation.md`), whose failure is retried at the next launch.
 - **The read model mints no keys while signed out until the publisher reopens it at its next start**, so a write racing sign-out never recreates the notify Keychain item.
 - **A notification-permission revoke kills the process**, so both push providers' `stop` fall back to the persisted registration, or the pusher would stay on the homeserver.
 - **A pusher delete is skipped once signed out, and an unknown or missing token counts as done**, because the homeserver drops a device's pushers with the device.
@@ -255,7 +269,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **FCM and UnifiedPush share one push wake lock with a hold per push**: each hold needs its own release, matched by its push, and a release that matches no hold never lets go, because a redelivered event or a release replayed to a new engine would otherwise cut the lock mid-push.
 - **A plugin a push engine calls must be in `PushEnginePlugins`**, or its `MissingPluginException` is silently swallowed.
 - **FLN stores the background action handler by function name and file** (`local_notifications.dart`), so renaming or moving it leaves Reply, Mark as read and Decline dead on every notification posted before the update, until the app or a push next starts.
-- **Sound settings, Notify me, the preview level and the room-name cache are raw SharedPreferences keys**, because headless engines have no provider scope and the instant notice reads them natively.
+- **Every Dart setting and record native Android code reads or writes is a raw SharedPreferences key**, because headless engines have no provider scope and the instant notice and instant ring read them before any Dart runs. Native code declares them all in one object (`FlutterStore`), and Dart and Kotlin tests both check it against one fixture (`test/fixtures/push/flutter_store_v1.json`), so a renamed key or changed record fails a test instead of going quietly unread.
 - **A long-lived push engine's SharedPreferences cache goes stale**, so each push re-reads Notify me and the preview level from storage, and all of its posts share that one read.
 - **Each maker's autostart package must be listed in the manifest's `<queries>`**, or Android 11+ hides it and the Autostart row never appears.
 - **Background sync must not be `dataSync` on Android 14+**, because Android 15 caps that type at 6 h a day and crashes the app past it.

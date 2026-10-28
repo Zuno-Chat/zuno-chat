@@ -1,13 +1,21 @@
+import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
+import 'fake_encryption.dart';
 import 'fake_matrix.dart';
 
-class PushTestClient extends Client {
-  PushTestClient({this.signedIn = true, this.disposing, super.httpClient})
-    : super('test', database: FakeDatabaseApi());
+class PushTestClient extends Client with TestDecryption {
+  PushTestClient({
+    this.signedIn = true,
+    this.disposing,
+    this.decryption,
+    super.httpClient,
+  }) : super('test', database: FakeDatabaseApi());
 
   bool signedIn;
   final Future<void>? disposing;
+  @override
+  final Encryption? decryption;
   Event? Function(PushNotification notification)? pushedEvent;
   final fetched = <String?>[];
   int disposeCalls = 0;

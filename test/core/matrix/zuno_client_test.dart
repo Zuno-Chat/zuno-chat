@@ -6,8 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
+import 'package:zuno/core/matrix/sync_coordinator.dart';
+import 'package:zuno/core/matrix/sync_request_canceller.dart';
+import 'package:zuno/core/matrix/undecryptable_event.dart';
 import 'package:zuno/core/matrix/zuno_client.dart';
 
+import '../../helpers/fake_encryption.dart';
 import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/platform_capabilities.dart';
@@ -118,6 +122,43 @@ final _failedWithDiskError = isA<Exception>().having(
   'cause',
   contains('disk I/O error'),
 );
+
+class _PushFetchDatabase extends StoredEventsFakeDatabaseApi {
+  @override
+  Future<Room?> getSingleRoom(
+    Client client,
+    String roomId, {
+    bool loadImportantStates = true,
+  }) async => null;
+}
+
+class _PushFetchClient extends ZunoClient with TestDecryption {
+  _PushFetchClient()
+    : super(
+        'test',
+        database: _PushFetchDatabase(),
+        httpClient: FakeHttpClient((_) async => http.Response('{}', 404)),
+      );
+
+  @override
+  final FakeRoomDecryption decryption = FakeRoomDecryption();
+
+  @override
+  String? get prevBatch => 's1';
+
+  @override
+  bool isLogged() => true;
+
+  final syncs = <Duration?>[];
+  MatrixEvent? onServer;
+
+  @override
+  Future<void> oneShotSync({Duration? timeout}) async => syncs.add(timeout);
+
+  @override
+  Future<MatrixEvent> getOneRoomEvent(String roomId, String eventId) async =>
+      onServer!;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -235,6 +276,99 @@ void main() {
     );
 
     expect(shared.clears, 1);
+  });
+
+  group('fetching the event a push names', () {
+    late _PushFetchClient client;
+    late Room room;
+    final push = PushNotification(
+      devices: const [],
+      eventId: r'$event',
+      roomId: '!room:example.org',
+    );
+
+    setUp(() {
+      client = _PushFetchClient()..setUserId('@me:example.org');
+      room = buildTestRoom(client, id: '!room:example.org');
+      client.onServer = MatrixEvent(
+        type: EventTypes.Encrypted,
+        content: {
+          'algorithm': AlgorithmTypes.megolmV1AesSha2,
+          'session_id': 'session',
+          'ciphertext': 'sealed',
+        },
+        senderId: '@bob:example.org',
+        eventId: r'$event',
+        roomId: room.id,
+        originServerTs: DateTime(2026, 10, 28),
+      );
+    });
+
+    test('hands back an event its key cannot open yet at once, with no sync '
+        'to wait for the key', () async {
+      client.rooms.add(room);
+      client.decryption.decrypted.add(
+        lockedTestEvent(room, eventId: r'$event', senderId: '@bob:example.org'),
+      );
+
+      final event = await client.getEventByPushNotification(
+        push,
+        storeInDatabase: false,
+      );
+
+      expect(isUndecryptableEvent(event!), isTrue);
+      expect(client.decryption.attempts, 1);
+      expect(client.syncs, isEmpty);
+    });
+
+    test('opens an event whose key is here', () async {
+      client.rooms.add(room);
+      client.decryption.decrypted.add(
+        buildTestEvent(
+          room,
+          eventId: r'$event',
+          senderId: '@bob:example.org',
+          content: {'msgtype': MessageTypes.Text, 'body': 'hello'},
+        ),
+      );
+
+      final event = await client.getEventByPushNotification(
+        push,
+        storeInDatabase: false,
+      );
+
+      expect(event!.body, 'hello');
+    });
+
+    test('as the app\'s client, learns a room it does not know only from a '
+        'sync already running', () async {
+      client.syncCoordinator = SyncCoordinator(
+        client,
+        SyncRequestCanceller(http.Client()),
+      );
+      addTearDown(() {
+        client.syncCoordinator?.dispose();
+        client.syncCoordinator = null;
+      });
+
+      final event = await client.getEventByPushNotification(
+        push,
+        storeInDatabase: false,
+      );
+
+      expect(event!.room.id, '!room:example.org');
+      expect(client.syncs, isEmpty);
+    });
+
+    test('syncs once to learn a room it does not know yet', () async {
+      final event = await client.getEventByPushNotification(
+        push,
+        storeInDatabase: false,
+      );
+
+      expect(event!.room.id, '!room:example.org');
+      expect(client.syncs, hasLength(1));
+    });
   });
 
   group('the lease', () {

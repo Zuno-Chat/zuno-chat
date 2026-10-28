@@ -59,7 +59,7 @@ void main() {
     expect(builds, 0);
     expect(setups, 1);
     expect(provider.runner.clientBuilder, isNotNull);
-    expect(provider.runner.onPushHandled, isNotNull);
+    expect(provider.runner.onRinging, isNotNull);
   });
 
   test('starts crash reporting without holding up the handler', () async {
@@ -81,7 +81,7 @@ void main() {
     );
 
     expect(starts, 1);
-    expect(provider.runner.onPushHandled, isNotNull);
+    expect(provider.runner.onRinging, isNotNull);
   });
 
   test('a crash reporting start that fails still leaves the handler '
@@ -97,7 +97,7 @@ void main() {
     );
 
     expect(provider.runner.clientBuilder, isNotNull);
-    expect(provider.runner.onPushHandled, isNotNull);
+    expect(provider.runner.onRinging, isNotNull);
   });
 
   test('a badge-only push opens no client', () async {

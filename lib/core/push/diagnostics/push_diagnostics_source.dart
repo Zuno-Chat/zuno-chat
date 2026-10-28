@@ -14,9 +14,9 @@ import '../delivery/notification_delivery_mode.dart';
 import '../fcm/fcm_bridge.dart';
 import '../fcm/fcm_delivery_provider.dart';
 import '../pushers/pusher_reconciliation.dart';
+import '../ring/ring_channel.dart';
+import '../ring/ring_registration.dart';
 import '../unified_push/unified_push_delivery_provider.dart';
-import '../voip/voip_channel.dart';
-import '../voip/voip_registration.dart';
 import '../zuno_push/zuno_push_api.dart' hide PusherHealth;
 import 'push_delivery_log.dart';
 import 'push_diagnostics.dart' show PushDiagnostics;
@@ -44,7 +44,7 @@ abstract interface class PushDiagnosticsSource {
 final pushDiagnosticsSourceProvider = Provider<PushDiagnosticsSource>(
   (ref) => LivePushDiagnosticsSource(
     ref.watch(matrixClientProvider),
-    voip: ref.watch(voipRegistrationProvider),
+    registration: ref.watch(ringRegistrationProvider),
   ),
 );
 
@@ -52,13 +52,13 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
   LivePushDiagnosticsSource(
     this.client, {
     http.Client? httpClient,
-    VoipRegistration? voip,
+    RingRegistration? registration,
   }) : _injectedHttpClient = httpClient,
-       _voip = voip ?? voipRegistration;
+       _registration = registration ?? ringRegistration;
 
   final Client client;
   final http.Client? _injectedHttpClient;
-  final VoipRegistration _voip;
+  final RingRegistration _registration;
 
   @override
   Future<PushDiagnosticsInputs> load(
@@ -67,7 +67,7 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
   ) async {
     final snapshot = await PushDiagnostics(capabilities: capabilities)
         .rawSnapshot();
-    final voip = await _voipStatus(capabilities);
+    final ringDevice = await _ringDeviceStatus(capabilities);
     final (health, reach) = await _health();
     final pushers = await fetchPushers(client);
     final info = await PackageInfo.fromPlatform();
@@ -79,7 +79,7 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
       now: clock.now(),
       appVersion: '${info.version} (build ${info.buildNumber})',
       snapshot: PushDiagnosticsSnapshot.fromChannel(snapshot),
-      voip: voip,
+      ringDevice: ringDevice,
       health: health,
       reach: reach,
       pushers: pushers,
@@ -101,7 +101,9 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
       droppedRegistrations: mode == NotificationDeliveryMode.apns
           ? apnsDeliveryProvider.dropped.value
           : null,
-      voipRefusal: capabilities.voipRing ? _voip.lastRefusal.value : null,
+      ringRefusal: capabilities.voipRing
+          ? _registration.lastRefusal.value
+          : null,
     );
   }
 
@@ -157,14 +159,14 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
     }
   }
 
-  Future<VoipDeviceStatus?> _voipStatus(
+  Future<RingDeviceStatus?> _ringDeviceStatus(
     PlatformCapabilities capabilities,
   ) async {
-    final status = await VoipChannel(capabilities: capabilities).status();
+    final status = await RingChannel(capabilities: capabilities).status();
     if (status == null) return null;
-    return VoipDeviceStatus(
+    return RingDeviceStatus(
       hasToken: status.token?.isNotEmpty ?? false,
-      callKit: status.callKit,
+      canRing: status.canRing,
       environment: status.environment,
       kid: status.kid,
     );

@@ -56,8 +56,9 @@ and trust belongs to the one-to-one relationship.
 
 `room_media_feed.dart` is a paged feed per room over the SDK's
 `Room.searchEvents`, which reads the local database first and then pages
-through server history, decrypting as it goes. New media from sync is
-prepended and a redaction removes its target. The feed is a keep-alive
+through server history, decrypting as it goes. New media from sync, and
+media whose key arrived late (`app-foundation.md`), is placed by date, and
+a redaction removes its target. The feed is a keep-alive
 provider per room, so it lasts the session. Room info previews the latest
 thumbnails, `room_media_page.dart` shows photos and videos by month, and
 files, and the media viewer pages through it (`chats-messaging.md`).

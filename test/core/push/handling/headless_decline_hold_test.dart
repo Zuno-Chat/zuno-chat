@@ -373,6 +373,7 @@ class _ScriptedPresenter extends NoopIncomingCallPresenter {
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   }) async {
     ringing = (
       roomId: roomId,

@@ -16,6 +16,7 @@ import '../handling/headless_push_runner.dart';
 import '../pushers/push_gateway.dart';
 import '../pushers/pusher_reconciliation.dart';
 import '../pushers/pusher_removal.dart';
+import '../ring/ring_registration.dart';
 import 'fcm_bridge.dart';
 import 'fcm_pusher.dart';
 import 'fcm_registration_store.dart';
@@ -75,6 +76,9 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
 
   @visibleForTesting
   Future<bool> Function() notificationsAllowed = mayRegisterForNotifications;
+
+  @visibleForTesting
+  RingRegistration rings = ringRegistration;
 
   StreamSubscription<String>? _tokenRefreshSub;
 
@@ -287,6 +291,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     _retry.reset();
     await _rememberRegistration(token);
     await _clearPendingToken();
+    unawaited(rings.followToken(client));
     if (replaced != null && replaced != token) {
       try {
         await removePusher(client, fcmPusherId(replaced));
@@ -392,6 +397,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       } catch (e, s) {
         reportCaught('fcm token delete', e, s);
       }
+      await rings.forget(client);
     }
     unawaited(_tokenRefreshSub?.cancel());
     _tokenRefreshSub = null;

@@ -139,6 +139,7 @@ dependencies {
     // connected device). Run with:
     //   cd android && ./gradlew :app:testDebugUnitTest
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20260814")
     // ShortcutInfoCompat/ShortcutManagerCompat/IconCompat, for the "Add to
     // home screen" pinned-shortcut MethodChannel in MainActivity. Likely
     // already present transitively via the Flutter embedding, but declared

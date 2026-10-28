@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsGenericRingName">Thirrje Zuno</string>
     <string name="callsIncomingCall">Thirrje hyrëse</string>
+    <string name="callsIncomingVideo">Thirrje hyrëse me video</string>
+    <string name="callsIncomingVoice">Thirrje hyrëse zanore</string>
     <string name="commonYou">Ti</string>
     <string name="notificationsFallbackChatName">Bisedë</string>
     <string name="notificationsMissedPushes">Disa njoftime nuk arritën. Hap Zuno për të parë mesazhet e reja.</string>

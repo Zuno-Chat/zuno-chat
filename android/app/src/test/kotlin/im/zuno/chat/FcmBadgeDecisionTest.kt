@@ -13,6 +13,13 @@ class FcmBadgeDecisionTest {
     }
 
     @Test
+    fun `a ring push is opened natively whether or not the app is in front`() {
+        val ringPush = mapOf("z" to "blob", "prio" to "high")
+        assertEquals(FcmPushHandling.RING, FcmBadgeDecision.handlingFor(ringPush, false))
+        assertEquals(FcmPushHandling.RING, FcmBadgeDecision.handlingFor(ringPush, true))
+    }
+
+    @Test
     fun `a badge push saying everything is read clears the chats natively`() {
         assertEquals(
             FcmPushHandling.CLEAR_MESSAGES,
@@ -69,11 +76,6 @@ class FcmBadgeDecisionTest {
 
         assertEquals(listOf(11, 12, 13, 4105), FcmBadgeDecision.messageNotificationIds(shown))
         assertEquals(emptyList<Int>(), FcmBadgeDecision.messageNotificationIds(emptyList()))
-    }
-
-    @Test
-    fun `the clear forgets the chat threads Dart keeps in its shared preferences`() {
-        assertEquals("flutter.notifications.threads", FcmBadgeDecision.THREADS_KEY)
     }
 
     @Test

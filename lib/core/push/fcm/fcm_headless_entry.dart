@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:matrix/matrix.dart' show Client;
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
 import '../../errors/crash_reporting.dart';
 import '../../matrix/client_lease.dart';
@@ -48,8 +47,7 @@ HeadlessPushRunner buildFcmBackgroundRunner({
   Future<void> Function(Client client) retryPendingToken = retryPendingFcmToken,
 }) {
   final runner = HeadlessPushRunner()..clientBuilder = clientBuilder;
-  runner.onRinging = () =>
-      runBestEffort(() => hold(runner), label: 'fcm ring hold');
+  holdRingsUntilDeclined(runner, hold: hold);
   runner.onClientOpened = (_) => unawaited(
     runner
         .withClient(retryPendingToken)
@@ -116,6 +114,10 @@ Future<void> runFcmHeadless({
         delivery.prepareClient();
       }
       return job(() => handleFcmPush(delivery, push));
+    },
+    onRing: (ring) {
+      delivery.prepareClient();
+      return job(() => delivery.deliverRing(ring));
     },
     onToken: (token) => job(() => refreshToken(delivery, token)),
     isQuiescent: () async => jobs == 0 && await delivery.settle() && jobs == 0,

@@ -17,10 +17,12 @@ class FakeDatabaseApi implements DatabaseApi {
 class StoredMembersFakeDatabaseApi extends FakeDatabaseApi {
   final Map<String, String> displayNames = {};
   final List<String> lookups = [];
+  Future<void>? heldLookups;
 
   @override
   Future<User?> getUser(String userId, Room room) async {
     lookups.add(userId);
+    await heldLookups;
     final name = displayNames[userId];
     if (name == null) return null;
     return User(userId, displayName: name, membership: 'join', room: room);

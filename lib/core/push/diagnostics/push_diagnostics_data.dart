@@ -151,16 +151,16 @@ class PushDiagnosticsSnapshot {
 }
 
 @immutable
-class VoipDeviceStatus {
-  const VoipDeviceStatus({
+class RingDeviceStatus {
+  const RingDeviceStatus({
     required this.hasToken,
-    required this.callKit,
+    required this.canRing,
     this.environment,
     this.kid,
   });
 
   final bool hasToken;
-  final bool callKit;
+  final bool canRing;
   final String? environment;
   final int? kid;
 }

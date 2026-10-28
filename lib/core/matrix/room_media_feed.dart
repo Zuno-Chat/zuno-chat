@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import 'event_display.dart';
+import 'late_decryptions.dart';
 import 'redactions.dart';
 
 enum RoomMediaKind { photo, video, file }
@@ -53,7 +54,8 @@ class RoomMediaFeed extends ChangeNotifier {
     this.pageSize = 40,
     this.maxRequestsPerLoad = 4,
   }) : _fetchPage = fetchPage ?? _searchHistory(room) {
-    _syncSub = room.client.onTimelineEvent.stream.listen(_onTimelineEvent);
+    _syncSub = LateDecryptions.of(room.client).timeline
+        .listen(_onTimelineEvent);
   }
 
   static RoomMediaBatchFetcher _searchHistory(Room room) => (cursor) async {
@@ -141,7 +143,10 @@ class RoomMediaFeed extends ChangeNotifier {
       if (kind == null || _kinds.containsKey(event.eventId)) continue;
       _kinds[event.eventId] = kind;
       if (atFront) {
-        _items.insert(added, event);
+        final at = _items.indexWhere(
+          (item) => !item.originServerTs.isAfter(event.originServerTs),
+        );
+        _items.insert(at < 0 ? _items.length : at, event);
       } else {
         _items.add(event);
       }

@@ -47,6 +47,7 @@ class _PendingRingPresenter extends NoopIncomingCallPresenter {
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   }) {
     shownCallIds.add(callId);
     shownWaiting.add(waiting);

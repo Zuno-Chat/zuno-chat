@@ -12,6 +12,12 @@ class PushKindTest {
     }
 
     @Test
+    fun `a push carrying a ring blob is a ring push, whatever ids it carries`() {
+        assertEquals(PushKind.RING, PushKind.of(null, null, ring = true))
+        assertEquals(PushKind.RING, PushKind.of("\$e", "!r:x", ring = true))
+    }
+
+    @Test
     fun `an event id and a room id make a message push`() {
         assertEquals(PushKind.MESSAGE, PushKind.of("\$e", "!r:x"))
     }

@@ -18,7 +18,6 @@ import 'system_ring.dart';
 const _callStyleChannel = MethodChannel('zuno/call_style');
 const _callsChannel = MethodChannel('zuno/calls');
 const _ringNotificationId = 4002;
-const _ringtoneAsset = 'assets/sounds/ringtone.wav';
 
 enum RingOutcome { shown, filtered, unavailable }
 
@@ -36,6 +35,7 @@ abstract interface class IncomingCallPresenter {
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   });
 
   Future<void> ringAloud(String callId);
@@ -73,7 +73,7 @@ abstract class RememberingIncomingCallPresenter
   @visibleForTesting
   static void forgetForTest() => _presented = null;
 
-  Future<void> presentIncoming({
+  Future<bool> presentIncoming({
     required String name,
     String? caller,
     required String callerId,
@@ -83,6 +83,7 @@ abstract class RememberingIncomingCallPresenter
     required bool isGroupCall,
     Uint8List? avatarBytes,
     required bool waiting,
+    Duration? ringFor,
   });
 
   Future<void> forgetAndDismiss(String? callId);
@@ -99,11 +100,16 @@ abstract class RememberingIncomingCallPresenter
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   }) => _turns.run(() async {
     LocalNotifications.instance.reclaimLiveRoutes();
     if (await _alreadyRinging(callId, ringingNow)) {
       debugPrint('zuno/calls: $callId already rings, not ringing it again');
       return RingOutcome.shown;
+    }
+    if (await _rangHere(callId)) {
+      debugPrint('zuno/calls: $callId already rang here, not ringing again');
+      return RingOutcome.filtered;
     }
     try {
       await saveRingingCall(await SharedPreferences.getInstance(), (
@@ -115,7 +121,7 @@ abstract class RememberingIncomingCallPresenter
     } catch (e, s) {
       reportCaught('remember the ringing call', e, s);
     }
-    await presentIncoming(
+    final shown = await presentIncoming(
       name: name,
       caller: caller,
       callerId: callerId,
@@ -125,7 +131,13 @@ abstract class RememberingIncomingCallPresenter
       isGroupCall: isGroupCall,
       avatarBytes: avatarBytes,
       waiting: waiting,
+      ringFor: ringFor,
     );
+    if (!shown) {
+      debugPrint('zuno/calls: $callId could not be shown, not ringing it');
+      await _forgetRecord();
+      return RingOutcome.unavailable;
+    }
     _presented = (callId: callId, at: clock.now());
     return RingOutcome.shown;
   });
@@ -148,6 +160,23 @@ abstract class RememberingIncomingCallPresenter
       return (await (ringingNow ?? activeRing()))?.callId == callId;
     } catch (e, s) {
       reportCaught('check the active ring', e, s);
+      return false;
+    }
+  }
+
+  Future<void> _forgetRecord() async {
+    try {
+      await clearRingingCall(await SharedPreferences.getInstance());
+    } catch (e, s) {
+      reportCaught('forget the ring that could not show', e, s);
+    }
+  }
+
+  Future<bool> _rangHere(String callId) async {
+    try {
+      return (await rememberedRing())?.callId == callId;
+    } catch (e, s) {
+      reportCaught('check the call rang here', e, s);
       return false;
     }
   }
@@ -176,10 +205,10 @@ abstract class RememberingIncomingCallPresenter
     }
   }
 
-  Future<RingingCallInfo?> rememberedRing() async {
+  Future<RingingCallInfo?> rememberedRing({bool onScreen = false}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.reload();
-    return readRingingCall(prefs);
+    return readRingingCall(prefs, onScreen: onScreen);
   }
 }
 
@@ -190,7 +219,7 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
       CallNotificationService.instance;
 
   @override
-  Future<void> presentIncoming({
+  Future<bool> presentIncoming({
     required String name,
     String? caller,
     required String callerId,
@@ -200,6 +229,7 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
     required bool isGroupCall,
     Uint8List? avatarBytes,
     required bool waiting,
+    Duration? ringFor,
   }) async {
     final sound = loadNotificationSoundSettings();
     final level = currentNotificationPreview();
@@ -214,7 +244,7 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
     final l10n = deviceLocalizations();
     final hidden = preview == NotificationPreview.nothing;
     final kind = isVideo ? l10n.callsIncomingVideo : l10n.callsIncomingVoice;
-    await _invoke('showIncomingCallStyle', {
+    final shown = await _invoke<bool>('showIncomingCallStyle', {
       'channelId': isGroupCall ? groupRingChannelId : ringChannelId,
       'name': preview.callName(name, l10n),
       'text': hidden ? kind : caller ?? kind,
@@ -224,12 +254,12 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
       'callId': callId,
       'avatarBytes': hidden ? null : avatarBytes,
       'ringtone': settings.ringtone,
-      'ringtoneAsset': _ringtoneAsset,
       'vibrate':
           settings.callVibration && ambientCapabilities.vibrationPatterns,
-      'vibrationPattern': callVibrationPattern,
       if (waiting) 'waitingText': l10n.callsRingWaitingHint,
+      'ringMs': ?ringFor?.inMilliseconds,
     });
+    return shown != false;
   }
 
   @override
@@ -259,7 +289,7 @@ class AndroidIncomingCallPresenter extends RememberingIncomingCallPresenter {
           ?.getActiveNotifications();
       final showing = active?.any((n) => n.id == _ringNotificationId) ?? false;
       if (!showing) return null;
-      return await rememberedRing();
+      return await rememberedRing(onScreen: true);
     } catch (e, s) {
       reportCaught('read the active ring notification', e, s);
       return null;
@@ -293,6 +323,7 @@ class NoopIncomingCallPresenter implements IncomingCallPresenter {
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   }) async => RingOutcome.unavailable;
 
   @override
@@ -324,6 +355,7 @@ class CallKitIncomingCallPresenter implements IncomingCallPresenter {
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   }) async {
     SystemRing.instance.set(roomId: roomId, callId: callId);
     final outcome = await _report({

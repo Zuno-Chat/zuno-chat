@@ -43,9 +43,9 @@ PushDiagnosticsInputs _inputs({
     extensionVersion: '1.2.0 (2)',
     extensionLog: const ['shown for @alice:zuno.im'],
   ),
-  voip: const VoipDeviceStatus(
+  ringDevice: const RingDeviceStatus(
     hasToken: true,
-    callKit: true,
+    canRing: true,
     environment: 'production',
     kid: 7,
   ),

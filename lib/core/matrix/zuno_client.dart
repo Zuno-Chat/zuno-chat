@@ -4,6 +4,15 @@ import 'client_lease.dart';
 import 'send_keep_awake.dart';
 import 'sync_coordinator.dart';
 
+const lateKeySyncWait = Duration(seconds: 6);
+
+Future<void>? syncForLateKey(Client client) {
+  final sync = client is ZunoClient
+      ? client.syncForPush(timeout: lateKeySyncWait)
+      : client.oneShotSync(timeout: lateKeySyncWait);
+  return sync?.then<void>((_) {}, onError: (_) {});
+}
+
 class ZunoClient extends Client {
   ZunoClient(
     super.clientName, {
@@ -87,6 +96,83 @@ class ZunoClient extends Client {
   ) {
     Future<String> send() => super.sendMessage(roomId, eventType, txnId, body);
     return keepAwake?.hold(send) ?? send();
+  }
+
+  @override
+  Future<Event?> getEventByPushNotification(
+    PushNotification notification, {
+    bool storeInDatabase = true,
+    Duration timeoutForServerRequests = const Duration(seconds: 8),
+    bool returnNullIfSeen = true,
+  }) async {
+    await ensureNotSoftLoggedOut();
+    final eventId = notification.eventId;
+    final roomId = notification.roomId;
+    if (eventId == null || roomId == null) return null;
+    var room =
+        getRoomById(roomId) ?? await database.getSingleRoom(this, roomId);
+    if (room == null) {
+      await syncForPush()
+          ?.timeout(timeoutForServerRequests)
+          .then<void>((_) {}, onError: (_) {});
+      room = getRoomById(roomId) ?? Room(id: roomId, client: this);
+    }
+    MatrixEvent? matrixEvent = await database.getEventById(eventId, room);
+    try {
+      matrixEvent ??= await getOneRoomEvent(
+        roomId,
+        eventId,
+      ).timeout(timeoutForServerRequests);
+    } on MatrixException catch (_) {
+      await ensureNotSoftLoggedOut();
+      matrixEvent ??= (await getNotifications()).notifications
+          .where((n) => n.roomId == roomId && n.event.eventId == eventId)
+          .firstOrNull
+          ?.event;
+    }
+    if (matrixEvent == null) {
+      throw Exception('Unable to find event for this push notification!');
+    }
+    if (returnNullIfSeen && await _readBefore(room, matrixEvent)) return null;
+    try {
+      await room
+          .requestUser(matrixEvent.senderId)
+          .timeout(timeoutForServerRequests);
+    } catch (e, s) {
+      Logs().w('Unable to request user for push helper', e, s);
+    }
+    var event = Event.fromMatrixEvent(
+      matrixEvent,
+      room,
+      status: EventStatus.sent,
+    );
+    final encryption = this.encryption;
+    if (event.type == EventTypes.Encrypted && encryption != null) {
+      event = await encryption.decryptRoomEvent(event);
+    }
+    if (storeInDatabase) {
+      await database.transaction(
+        () => database.storeEventUpdate(
+          roomId,
+          event,
+          EventUpdateType.timeline,
+          this,
+        ),
+      );
+    }
+    return event;
+  }
+
+  Future<void>? syncForPush({Duration? timeout}) =>
+      syncCoordinator != null && !syncPending
+      ? null
+      : oneShotSync(timeout: timeout);
+
+  Future<bool> _readBefore(Room room, MatrixEvent event) async {
+    if (room.fullyRead == event.eventId) return true;
+    final marker = await database.getEventById(room.fullyRead, room);
+    return marker != null &&
+        marker.originServerTs.isAfter(event.originServerTs);
   }
 
   @override

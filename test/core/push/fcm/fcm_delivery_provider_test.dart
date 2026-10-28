@@ -12,6 +12,7 @@ import 'package:zuno/core/push/fcm/fcm_pusher.dart';
 import 'package:zuno/core/push/fcm/fcm_registration_store.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_ring_registration.dart';
 import '../../../helpers/pusher_recording_client.dart';
 
 void main() {
@@ -34,6 +35,26 @@ void main() {
       })
       ..tokenReader = (() async => 'token-abc')
       ..tokenDeleter = (() async {});
+  });
+
+  group('the ring registration', () {
+    late FakeRingRegistration rings;
+
+    setUp(() => provider.rings = rings = FakeRingRegistration());
+
+    test('follows each token registered', () async {
+      await provider.start(client);
+
+      expect(rings.followed, [client]);
+    });
+
+    test('is forgotten when FCM delivery stops', () async {
+      await provider.start(client);
+
+      await provider.stop(client);
+
+      expect(rings.forgotten, [client]);
+    });
   });
 
   test('registers a pusher and reports ready', () async {

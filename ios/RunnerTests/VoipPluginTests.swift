@@ -38,7 +38,7 @@ final class VoipPluginTests: XCTestCase {
     XCTAssertEqual(status["environment"] as? String, "development")
     XCTAssertEqual(status["kid"] as? Int, 5)
     XCTAssertEqual((status["key"] as? String).flatMap { Data(base64Encoded: $0) }?.count, 32)
-    XCTAssertEqual(status["callkit"] as? Bool, true)
+    XCTAssertEqual(status["rings"] as? Bool, true)
   }
 
   func testWithoutATokenStatusSaysSoAndStillGivesTheKey() throws {

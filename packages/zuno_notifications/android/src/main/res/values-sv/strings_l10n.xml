@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsGenericRingName">Zuno-samtal</string>
     <string name="callsIncomingCall">Inkommande samtal</string>
+    <string name="callsIncomingVideo">Inkommande videosamtal</string>
+    <string name="callsIncomingVoice">Inkommande röstsamtal</string>
     <string name="commonYou">Du</string>
     <string name="notificationsFallbackChatName">Chatt</string>
     <string name="notificationsMissedPushes">Vissa notiser kunde inte levereras. Öppna Zuno för att se nya meddelanden.</string>

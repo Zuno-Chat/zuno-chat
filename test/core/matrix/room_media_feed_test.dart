@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/room_media_feed.dart';
 
+import '../../helpers/fake_encryption.dart';
 import '../../helpers/fake_matrix.dart';
 
 void main() {
@@ -447,6 +448,32 @@ void main() {
       expect(feed.wasRedacted(r'$elsewhere'), isTrue);
       expect(feed.wasRedacted(r'$old'), isFalse);
       expect(notified, 1);
+    });
+
+    test('a photo whose key arrives late joins in date order', () async {
+      final decryption = FakeRoomDecryption();
+      client = DecryptingTestClient(decryption)..setUserId('@me:example.org');
+      room = buildTestRoom(client);
+      final late = RoomMediaFeed(
+        room,
+        fetchPage: (_) async => (events: <Event>[], nextBatch: null),
+      );
+      addTearDown(late.dispose);
+      client.onTimelineEvent.add(
+        lockedTestEvent(
+          room,
+          eventId: r'$late',
+          senderId: '@a:example.org',
+          originServerTs: DateTime.fromMillisecondsSinceEpoch(1000),
+        ),
+      );
+      client.onTimelineEvent.add(image(r'$newer', ts: 2000));
+      await pumpEventQueue();
+
+      decryption.keyArrives(room, opens: image(r'$late', ts: 1000));
+      await pumpEventQueue();
+
+      expect(late.items.map((e) => e.eventId), [r'$newer', r'$late']);
     });
 
     test('ignores a duplicate of a loaded item', () async {

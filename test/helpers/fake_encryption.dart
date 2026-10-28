@@ -95,6 +95,11 @@ class FakeRoomDecryption extends Fake implements Encryption {
 
   int get attempts => storedAfterDecrypt.length;
 
+  void keyArrives(Room room, {Event? opens, String sessionId = 'session'}) {
+    if (opens != null) decrypted.add(opens);
+    room.onSessionKeyReceived.add(sessionId);
+  }
+
   @override
   Future<Event> decryptRoomEvent(
     Event event, {
@@ -106,7 +111,14 @@ class FakeRoomDecryption extends Fake implements Encryption {
   }
 }
 
-class DecryptingTestClient extends Client {
+mixin TestDecryption on Client {
+  Encryption? get decryption;
+
+  @override
+  Encryption? get encryption => decryption;
+}
+
+class DecryptingTestClient extends Client with TestDecryption {
   DecryptingTestClient(this.decryption)
     : super(
         'test',
@@ -114,8 +126,27 @@ class DecryptingTestClient extends Client {
         httpClient: FakeHttpClient((_) async => http.Response('{}', 200)),
       );
 
-  final FakeRoomDecryption decryption;
-
   @override
-  Encryption? get encryption => decryption;
+  final FakeRoomDecryption decryption;
 }
+
+Event lockedTestEvent(
+  Room room, {
+  required String eventId,
+  required String senderId,
+  String? sessionId = 'session',
+  DateTime? originServerTs,
+}) => buildTestEvent(
+  room,
+  eventId: eventId,
+  senderId: senderId,
+  type: EventTypes.Encrypted,
+  originServerTs: originServerTs,
+  content: {
+    'algorithm': AlgorithmTypes.megolmV1AesSha2,
+    'session_id': ?sessionId,
+    'ciphertext': 'sealed',
+    'msgtype': MessageTypes.BadEncrypted,
+    'can_request_session': true,
+  },
+);

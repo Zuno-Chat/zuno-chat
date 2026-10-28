@@ -17,12 +17,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 
 object PushNotice {
-    const val PREFERENCES = "FlutterSharedPreferences"
-    const val ROOM_CACHE_KEY = "flutter.notifications.rooms"
-    const val TONE_KEY = "flutter.settings.message_tone_enabled"
-    const val VIBRATION_KEY = "flutter.settings.message_vibration_enabled"
-    const val NOTIFY_ME_KEY = "flutter.settings.notify_me"
-    const val PREVIEW_KEY = "flutter.settings.notification_preview"
     const val BRAND_NAME = "Zuno"
     private const val TAG = "PushNotice"
     private const val SMALL_ICON = "ic_stat_zuno_mark"
@@ -57,13 +51,13 @@ object PushNotice {
                     manager.activeNotifications.any { it.id == notificationId }
             if (!PushNoticeDecision.shouldPost(roomId, eventId, appInFront, showing)) return false
             if (roomId == null || eventId == null || notificationId == null) return false
-            val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-            if (PushNoticeDecision.mutedByNotifyMe(prefs.getString(NOTIFY_ME_KEY, null))) {
+            val prefs = FlutterStore.preferences(context)
+            if (PushNoticeDecision.mutedByNotifyMe(prefs.getString(FlutterStore.NOTIFY_ME, null))) {
                 Log.d(TAG, "Notify me is mentions only, no instant notice")
                 return false
             }
             val cached = PushNoticeDecision.parseRoomCache(
-                prefs.getString(ROOM_CACHE_KEY, null),
+                prefs.getString(FlutterStore.ROOM_CACHE, null),
             )[roomId]
             val channel = PushNoticeDecision.channelFor(cached)
             if (manager.getNotificationChannel(channel) == null) {
@@ -72,7 +66,7 @@ object PushNotice {
             }
             val presentation = PushNoticeDecision.presentationFor(
                 cached,
-                prefs.getString(PREVIEW_KEY, null),
+                prefs.getString(FlutterStore.NOTIFICATION_PREVIEW, null),
             )
             val title = noticeText(context, presentation.copy.title)
             val text = noticeText(context, presentation.copy.text)
@@ -163,7 +157,7 @@ object PushNotice {
             val enabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
             if (!PushNoticeDecision.shouldPostMissed(enabled, channelExists)) return false
             val tap = AppLaunchIntent.pending(context, NotificationIds.TEST_NOTIFICATION_ID)
-            val alert = alertFor(context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE))
+            val alert = alertFor(FlutterStore.preferences(context))
             val notification = NotificationCompat.Builder(
                 context,
                 PushNoticeDecision.DIRECT_CHANNEL,
@@ -200,8 +194,8 @@ object PushNotice {
     }
 
     private fun alertFor(prefs: SharedPreferences): NoticeAlert = PushNoticeDecision.alertFor(
-        messageTone = prefs.getBoolean(TONE_KEY, true),
-        messageVibration = prefs.getBoolean(VIBRATION_KEY, true),
+        messageTone = prefs.getBoolean(FlutterStore.MESSAGE_TONE, true),
+        messageVibration = prefs.getBoolean(FlutterStore.MESSAGE_VIBRATION, true),
     )
 
     private fun smallIcon(context: Context): Int {

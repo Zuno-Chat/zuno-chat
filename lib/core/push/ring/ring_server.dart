@@ -2,25 +2,25 @@ import 'package:matrix/matrix.dart';
 
 import '../zuno_push/zuno_push_api.dart';
 
-sealed class VoipServerReply {
-  const VoipServerReply();
+sealed class RingServerReply {
+  const RingServerReply();
 }
 
-final class VoipServerAccepted extends VoipServerReply {
-  const VoipServerAccepted({required this.serverTs, this.kid});
+final class RingServerAccepted extends RingServerReply {
+  const RingServerAccepted({required this.serverTs, this.kid});
 
   final int serverTs;
   final int? kid;
 }
 
-final class VoipServerUnreachable extends VoipServerReply {
-  const VoipServerUnreachable({this.retryAfter});
+final class RingServerUnreachable extends RingServerReply {
+  const RingServerUnreachable({this.retryAfter});
 
   final Duration? retryAfter;
 }
 
-final class VoipServerRefused extends VoipServerReply {
-  const VoipServerRefused({
+final class RingServerRefused extends RingServerReply {
+  const RingServerRefused({
     required this.status,
     required this.errcode,
     this.error,
@@ -31,58 +31,58 @@ final class VoipServerRefused extends VoipServerReply {
   final String? error;
 }
 
-abstract interface class VoipServer {
-  Future<VoipServerReply> putVoip({
+abstract interface class RingServer {
+  Future<RingServerReply> putVoip({
     required String appId,
     required String pushkey,
     required int kid,
     required String key,
   });
 
-  Future<VoipServerReply> deleteVoip();
+  Future<RingServerReply> deleteVoip();
 
-  Future<VoipServerReply> deleteDevice();
+  Future<RingServerReply> deleteDevice();
 }
 
-VoipServerReply voipServerReply<T>(
+RingServerReply ringServerReply<T>(
   ZunoPushResult<T> result, {
   int? Function(T value)? kidOf,
 }) => switch (result) {
-  ZunoPushOk(:final value, :final serverTs) => VoipServerAccepted(
+  ZunoPushOk(:final value, :final serverTs) => RingServerAccepted(
     serverTs: serverTs,
     kid: kidOf?.call(value),
   ),
   ZunoPushFailure(kind: ZunoPushFailureKind.rateLimited, :final retryAfter) =>
-    VoipServerUnreachable(retryAfter: retryAfter),
+    RingServerUnreachable(retryAfter: retryAfter),
   ZunoPushFailure(
     kind: ZunoPushFailureKind.route ||
         ZunoPushFailureKind.network ||
         ZunoPushFailureKind.noSession ||
         ZunoPushFailureKind.unauthorized,
   ) =>
-    const VoipServerUnreachable(),
-  ZunoPushFailure(errcode: 'IM.ZUNO.STARTING') => const VoipServerUnreachable(),
+    const RingServerUnreachable(),
+  ZunoPushFailure(errcode: 'IM.ZUNO.STARTING') => const RingServerUnreachable(),
   ZunoPushFailure(kind: ZunoPushFailureKind.unexpected, :final status?)
       when status >= 500 =>
-    const VoipServerUnreachable(),
+    const RingServerUnreachable(),
   ZunoPushFailure(:final kind, :final status, :final errcode, :final error) =>
-    VoipServerRefused(
+    RingServerRefused(
       status: status ?? 0,
       errcode: errcode ?? kind.name,
       error: error,
     ),
 };
 
-class ZunoPushVoipServer implements VoipServer {
-  ZunoPushVoipServer(Client client)
+class ZunoPushRingServer implements RingServer {
+  ZunoPushRingServer(Client client)
     : this.withApi(() => ZunoPushApi.forClient(client));
 
-  ZunoPushVoipServer.withApi(this._open);
+  ZunoPushRingServer.withApi(this._open);
 
   final ZunoPushApi Function() _open;
 
   @override
-  Future<VoipServerReply> putVoip({
+  Future<RingServerReply> putVoip({
     required String appId,
     required String pushkey,
     required int kid,
@@ -93,12 +93,12 @@ class ZunoPushVoipServer implements VoipServer {
   );
 
   @override
-  Future<VoipServerReply> deleteVoip() => _call((api) => api.deleteVoip());
+  Future<RingServerReply> deleteVoip() => _call((api) => api.deleteVoip());
 
   @override
-  Future<VoipServerReply> deleteDevice() => _call((api) => api.deleteDevice());
+  Future<RingServerReply> deleteDevice() => _call((api) => api.deleteDevice());
 
-  Future<VoipServerReply> _call<T>(
+  Future<RingServerReply> _call<T>(
     Future<ZunoPushResult<T>> Function(ZunoPushApi api) send, {
     int? Function(T value)? kidOf,
   }) async {
@@ -106,10 +106,10 @@ class ZunoPushVoipServer implements VoipServer {
     try {
       api = _open();
     } on StateError {
-      return const VoipServerUnreachable();
+      return const RingServerUnreachable();
     }
     try {
-      return voipServerReply(await send(api), kidOf: kidOf);
+      return ringServerReply(await send(api), kidOf: kidOf);
     } finally {
       api.close();
     }

@@ -299,7 +299,8 @@
   "@callsGenericRingName": {
     "description": "Call screen and call notifications: caller or chat name when it is unknown or the notification content setting hides it",
     "x-native": [
-      "ios"
+      "ios",
+      "zuno_notifications"
     ]
   },
   "callsHangUp": "Hang up",
@@ -319,13 +320,15 @@
   "callsIncomingVideo": "Incoming video call",
   "@callsIncomingVideo": {
     "x-native": [
-      "ios"
+      "ios",
+      "zuno_notifications"
     ]
   },
   "callsIncomingVoice": "Incoming voice call",
   "@callsIncomingVoice": {
     "x-native": [
-      "ios"
+      "ios",
+      "zuno_notifications"
     ]
   },
   "callsMinimize": "Minimize call",

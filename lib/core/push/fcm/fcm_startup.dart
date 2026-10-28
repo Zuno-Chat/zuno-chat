@@ -8,7 +8,10 @@ import 'fcm_headless_entry.dart';
 Future<void> initializeFcmDelivery({FcmBridge? bridge}) async {
   final fcm = bridge ?? FcmBridge.instance;
   if (!fcm.offered) return;
-  fcm.serve(onPush: (push) => handleFcmPush(fcmDeliveryProvider.runner, push));
+  fcm.serve(
+    onPush: (push) => handleFcmPush(fcmDeliveryProvider.runner, push),
+    onRing: fcmDeliveryProvider.runner.deliverRing,
+  );
 }
 
 void attachFcmAppClient(Client client, {FcmBridge? bridge}) {

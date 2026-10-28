@@ -7,11 +7,13 @@ class IncomingCall {
   final String callId;
   final String callerId;
   final CallKind kind;
+  final Duration? ringFor;
 
   const IncomingCall({
     required this.room,
     required this.callId,
     required this.callerId,
     required this.kind,
+    this.ringFor,
   });
 }

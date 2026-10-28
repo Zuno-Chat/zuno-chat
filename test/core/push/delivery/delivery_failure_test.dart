@@ -4,8 +4,8 @@ import 'package:zuno/core/push/apns/apns_delivery_provider.dart';
 import 'package:zuno/core/push/delivery/delivery_failure.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
+import 'package:zuno/core/push/ring/ring_registration.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
-import 'package:zuno/core/push/voip/voip_registration.dart';
 
 DeliveryFailure? failureFor(
   NotificationDeliveryMode mode, {
@@ -643,10 +643,10 @@ void main() {
   });
 
   test('only a refused call registration is shown, with Retry', () {
-    for (final state in VoipRegistrationState.values) {
+    for (final state in RingRegistrationState.values) {
       expect(
         callsDeliveryFailure(state),
-        state == VoipRegistrationState.failed ? callsSetupFailed : isNull,
+        state == RingRegistrationState.failed ? callsSetupFailed : isNull,
         reason: state.name,
       );
     }

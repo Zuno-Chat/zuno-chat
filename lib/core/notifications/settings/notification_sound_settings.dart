@@ -57,8 +57,6 @@ NotificationSoundSettings readNotificationSoundSettings(
   );
 }
 
-const callVibrationPattern = <int>[0, 800, 500, 800, 2000];
-
 const messageVibrationPattern = <int>[0, 300, 150, 300];
 
 const minMessageToneInterval = Duration(seconds: 2);

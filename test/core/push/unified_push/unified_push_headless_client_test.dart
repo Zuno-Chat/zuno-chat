@@ -10,6 +10,7 @@ import 'package:zuno/core/push/handling/incoming_push_handler.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/headless_ring.dart';
 import '../../../helpers/push_test_client.dart';
 
 class _BrokenClient extends Client {
@@ -38,13 +39,11 @@ void main() {
 
   late UnifiedPushDeliveryProvider provider;
   late List<PushTestClient> built;
-  late List<IncomingPushOutcome> handled;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     provider = UnifiedPushDeliveryProvider();
     built = [];
-    handled = [];
   });
 
   Future<Client> buildClient() async {
@@ -53,10 +52,8 @@ void main() {
     return client;
   }
 
-  Future<void> registerHeadless() => provider.ensureHeadlessCallbacksRegistered(
-    clientBuilder: buildClient,
-    onPushHandled: (outcome) async => handled.add(outcome),
-  );
+  Future<void> registerHeadless() =>
+      provider.ensureHeadlessCallbacksRegistered(clientBuilder: buildClient);
 
   Future<void> deliver({String eventId = '\$abc'}) => provider
       .deliverPushForTest(PushMessage(_pushBytes(eventId: eventId), true));
@@ -115,13 +112,14 @@ void main() {
 
     group('in a headless engine', () {
       test('is let go only after a ring hold ends', () async {
+        installHeadlessRingChannels();
         final holdOver = Completer<void>();
         await provider.ensureHeadlessCallbacksRegistered(
-          clientBuilder: buildClient,
-          onPushHandled: (_) => holdOver.future,
+          clientBuilder: () async => ringingPushClient(),
         );
+        provider.runner.onRinging = () => holdOver.future;
 
-        final delivery = deliver();
+        final delivery = deliver(eventId: r'$invite');
         await pumpEventQueue();
         expect(calls, isEmpty);
 
@@ -139,7 +137,7 @@ void main() {
         );
 
         expect(built, isEmpty);
-        expect(handled, isEmpty);
+        expect(provider.lastPushOutcome, IncomingPushOutcome.ignored);
         expect(calls, ['release']);
       });
 
@@ -147,12 +145,11 @@ void main() {
           'swallowed', () async {
         await provider.ensureHeadlessCallbacksRegistered(
           clientBuilder: () async => throw StateError('database unavailable'),
-          onPushHandled: (outcome) async => handled.add(outcome),
         );
 
         await deliver();
 
-        expect(handled, isEmpty);
+        expect(provider.lastPushOutcome, IncomingPushOutcome.ignored);
         expect(calls, ['release']);
       });
 
@@ -161,14 +158,13 @@ void main() {
 
         await provider.deliverPushForTest(PushMessage(_badgeBytes(), true));
 
-        expect(handled, [IncomingPushOutcome.badge]);
+        expect(provider.lastPushOutcome, IncomingPushOutcome.badge);
         expect(calls, ['release']);
       });
 
       test('is let go once for a signed-out push', () async {
         await provider.ensureHeadlessCallbacksRegistered(
           clientBuilder: () async => PushTestClient(signedIn: false),
-          onPushHandled: (outcome) async => handled.add(outcome),
         );
 
         await deliver();

@@ -33,6 +33,12 @@ List<String> readNotifiedEventIds(SharedPreferences prefs) {
 bool wasEventNotified(SharedPreferences prefs, String eventId) =>
     readNotifiedEventIds(prefs).contains(eventId);
 
+Future<void> _forgetNotifiedOnDisk(SharedPreferences prefs, String id) async {
+  final ids = readNotifiedEventIds(prefs);
+  if (!ids.contains(id)) return;
+  await prefs.setStringList(_notifiedEventsKey, [...ids]..remove(id));
+}
+
 const _placeholderPrefix = 'placeholder:';
 
 Future<void> markPlaceholderShownOnDisk(
@@ -42,6 +48,11 @@ Future<void> markPlaceholderShownOnDisk(
 
 bool wasPlaceholderShown(SharedPreferences prefs, String eventId) =>
     wasEventNotified(prefs, '$_placeholderPrefix$eventId');
+
+Future<void> forgetPlaceholderShownOnDisk(
+  SharedPreferences prefs,
+  String eventId,
+) => _forgetNotifiedOnDisk(prefs, '$_placeholderPrefix$eventId');
 
 const _announcedInvitesKey = 'notifications.announced_invites';
 const inviteAnnouncementMemory = Duration(days: 7);

@@ -91,7 +91,7 @@ class ZunoPushService : PushService() {
 
             PushKind.MESSAGE -> PushNotice.post(applicationContext, roomId, eventId)
 
-            PushKind.BADGE -> Unit
+            PushKind.RING, PushKind.BADGE -> Unit
         }
         PushWakeLock.hold(applicationContext, eventId)
         deliver(

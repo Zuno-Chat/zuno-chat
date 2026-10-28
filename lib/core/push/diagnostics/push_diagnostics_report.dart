@@ -12,11 +12,11 @@ import '../fcm/fcm_bridge.dart' show FcmAvailability;
 import '../fcm/fcm_delivery_provider.dart' show FcmStatus;
 import '../fcm/fcm_status_display.dart' show fcmStatusLabel;
 import '../pushers/pusher_info.dart';
+import '../ring/ring_registration.dart';
 import '../unified_push/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
 import '../unified_push/unified_push_status_display.dart'
     show unifiedPushStatusLabel;
-import '../voip/voip_registration.dart';
 import 'push_delivery_log.dart';
 import 'push_diagnostics_data.dart';
 import 'ring_mismatch.dart';
@@ -67,7 +67,7 @@ class PushDiagnosticsInputs {
     required this.now,
     required this.appVersion,
     this.snapshot = PushDiagnosticsSnapshot.empty,
-    this.voip,
+    this.ringDevice,
     this.health,
     this.reach = ServerReach.unreachable,
     this.pushers,
@@ -79,14 +79,14 @@ class PushDiagnosticsInputs {
     this.playServices,
     this.deliveries,
     this.droppedRegistrations,
-    this.voipRefusal,
+    this.ringRefusal,
   });
 
   final PlatformCapabilities capabilities;
   final DateTime now;
   final String appVersion;
   final PushDiagnosticsSnapshot snapshot;
-  final VoipDeviceStatus? voip;
+  final RingDeviceStatus? ringDevice;
   final ServerHealth? health;
   final ServerReach reach;
   final List<PusherInfo>? pushers;
@@ -98,7 +98,7 @@ class PushDiagnosticsInputs {
   final FcmAvailability? playServices;
   final List<PushDeliveryRecord>? deliveries;
   final int? droppedRegistrations;
-  final VoipRefusal? voipRefusal;
+  final RingRefusal? ringRefusal;
 }
 
 List<DiagnosticSection> buildPushDiagnostics(
@@ -273,7 +273,8 @@ DiagnosticSection _permission(
 }
 
 DiagnosticSection _device(AppLocalizations l10n, PushDiagnosticsInputs inputs) {
-  final environment = inputs.voip?.environment ?? inputs.snapshot.environment;
+  final environment =
+      inputs.ringDevice?.environment ?? inputs.snapshot.environment;
   final expectedAppId = switch (environment) {
     'production' => apnsProductionAppId,
     'development' => apnsDevelopmentAppId,
@@ -665,13 +666,13 @@ DiagnosticRow _registration(
 
 DiagnosticSection _calls(DateLabels labels, PushDiagnosticsInputs inputs) {
   final l10n = labels.l10n;
-  final voip = inputs.voip;
+  final device = inputs.ringDevice;
   final health = inputs.health;
   final ledger = inputs.snapshot.ledger;
   final mismatches = ringMismatches(
     health: health,
-    deviceKid: voip?.kid,
-    deviceHasToken: voip?.hasToken ?? false,
+    deviceKid: device?.kid,
+    deviceHasToken: device?.hasToken ?? false,
     ledger: ledger,
   );
   bool found(RingMismatchKind kind) => mismatches.any((m) => m.kind == kind);
@@ -687,7 +688,7 @@ DiagnosticSection _calls(DateLabels labels, PushDiagnosticsInputs inputs) {
   final callKey = l10n.diagnosticsLabelCallKey;
   final lastActivityLabel = l10n.diagnosticsLabelLastCallActivity;
   return DiagnosticSection(l10n.diagnosticsSectionCalls, [
-    switch (voip?.callKit) {
+    switch (device?.canRing) {
       true => DiagnosticRow(
         callScreen,
         l10n.diagnosticsAvailable,
@@ -700,7 +701,7 @@ DiagnosticSection _calls(DateLabels labels, PushDiagnosticsInputs inputs) {
       ),
       null => _unknown(l10n, callScreen),
     },
-    switch (voip?.hasToken) {
+    switch (device?.hasToken) {
       true => DiagnosticRow(
         callPushKey,
         l10n.diagnosticsPresent,
@@ -719,7 +720,7 @@ DiagnosticSection _calls(DateLabels labels, PushDiagnosticsInputs inputs) {
         l10n.diagnosticsCouldNotCheck,
         DiagnosticStatus.warning,
       )
-    else if (voip == null)
+    else if (device == null)
       _unknown(l10n, callKey)
     else if (found(RingMismatchKind.notRegistered))
       DiagnosticRow(
@@ -755,16 +756,16 @@ DiagnosticSection _calls(DateLabels labels, PushDiagnosticsInputs inputs) {
         l10n.diagnosticsLastRingNotReceived,
         DiagnosticStatus.problem,
       ),
-    if (inputs.voipRefusal case final refusal?)
+    if (inputs.ringRefusal case final refusal?)
       _callSetup(labels, refusal, inputs.now),
   ]);
 }
 
-DiagnosticRow _callSetup(DateLabels labels, VoipRefusal refusal, DateTime now) {
+DiagnosticRow _callSetup(DateLabels labels, RingRefusal refusal, DateTime now) {
   final l10n = labels.l10n;
   final age = labels.age(refusal.at, now, inSentence: true);
   return DiagnosticRow(l10n.diagnosticsLabelCallSetup, switch (refusal) {
-    VoipRefusedByServer(:final reply) => [
+    RingRefusedByServer(:final reply) => [
       l10n.diagnosticsCallSetupRefusedByServer(
         age,
         reply.status,
@@ -772,7 +773,7 @@ DiagnosticRow _callSetup(DateLabels labels, VoipRefusal refusal, DateTime now) {
       ),
       ?reply.error,
     ].join('\n'),
-    VoipKeyNotKept() => l10n.diagnosticsCallSetupKeyNotKept(age),
+    RingKeyNotKept() => l10n.diagnosticsCallSetupKeyNotKept(age),
   }, DiagnosticStatus.problem);
 }
 

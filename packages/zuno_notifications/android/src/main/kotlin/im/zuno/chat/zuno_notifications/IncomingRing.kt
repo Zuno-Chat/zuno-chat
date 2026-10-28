@@ -2,6 +2,7 @@ package im.zuno.chat.zuno_notifications
 
 import android.app.AlarmManager
 import android.app.Notification
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -17,7 +18,6 @@ import androidx.core.app.NotificationManagerCompat
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileNotFoundException
-import org.json.JSONObject
 
 class AloudRing(val notification: Notification, val toneKey: String?)
 
@@ -28,8 +28,6 @@ object IncomingRing {
     const val ACTION_DECLINED = "im.zuno.chat.zuno_notifications.RING_DECLINED"
     const val EXTRA_CALL_ID = "callId"
     private const val TAG = "IncomingRing"
-    private const val PREFERENCES = "FlutterSharedPreferences"
-    private const val REMEMBERED_RING_KEY = "flutter.calls.ringing_notification"
     private const val RING_PREFERENCES = "zuno_ring"
     private const val TOKEN_KEY = "token"
     private const val BACKSTOP_WINDOW_MS = 5_000L
@@ -52,6 +50,7 @@ object IncomingRing {
         notification: Notification,
         toneKey: String?,
         vibrationPattern: LongArray?,
+        ringMs: Long,
         aloud: AloudRing? = null,
     ) {
         val app = context.applicationContext
@@ -62,7 +61,25 @@ object IncomingRing {
         player = toneKey?.let { startTone(app, it) }
         vibrator = vibrationPattern?.let { startVibration(app, it) }
         this.aloud = aloud
-        armTimeout(app, callId)
+        armTimeout(app, callId, ringMs)
+    }
+
+    fun remember(context: Context, call: InstantRingCall, nowMs: Long) {
+        FlutterStore.preferences(context)
+            .edit()
+            .putString(FlutterStore.RINGING_CALL, RememberedRing.record(call, nowMs))
+            .apply()
+    }
+
+    fun rememberedCallId(context: Context, nowMs: Long): String? =
+        RingDecisions.remembersRing(rememberedRing(context.applicationContext), nowMs)
+
+    fun showingCallId(context: Context): String? {
+        val app = context.applicationContext
+        val showing = app.getSystemService(NotificationManager::class.java)
+            ?.activeNotifications
+            ?.any { it.id == NOTIFICATION_ID } == true
+        return RingDecisions.showingRing(showing, rememberedRing(app))
     }
 
     @Synchronized
@@ -78,14 +95,15 @@ object IncomingRing {
     @Synchronized
     fun dismiss(context: Context, callId: String?): Boolean {
         val app = context.applicationContext
-        val prefs = app.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
         val decision = RingDecisions.cancel(
             callId,
             ringingCallId,
-            remembered(runCatching { prefs.getString(REMEMBERED_RING_KEY, null) }.getOrNull()),
+            rememberedRing(app),
             System.currentTimeMillis(),
         )
-        if (decision.forget) prefs.edit().remove(REMEMBERED_RING_KEY).apply()
+        if (decision.forget) {
+            FlutterStore.preferences(app).edit().remove(FlutterStore.RINGING_CALL).apply()
+        }
         if (decision.dismiss) {
             NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
             silence(app)
@@ -154,15 +172,11 @@ object IncomingRing {
     private fun ringPreferences(app: Context) =
         app.getSharedPreferences(RING_PREFERENCES, Context.MODE_PRIVATE)
 
-    private fun remembered(stored: String?): RememberedRing? {
-        if (stored == null) return null
-        return try {
-            val record = JSONObject(stored)
-            RememberedRing.of(record.opt("roomId"), record.opt("callId"), record.opt("postedAt"))
-        } catch (e: Exception) {
-            null
-        }
-    }
+    private fun rememberedRing(app: Context): RememberedRing? = RememberedRing.parse(
+        runCatching {
+            FlutterStore.preferences(app).getString(FlutterStore.RINGING_CALL, null)
+        }.getOrNull(),
+    )
 
     private fun startTone(app: Context, toneKey: String): MediaPlayer? {
         val tone = MediaPlayer()
@@ -225,14 +239,14 @@ object IncomingRing {
         null
     }
 
-    private fun armTimeout(app: Context, callId: String) {
+    private fun armTimeout(app: Context, callId: String, ringMs: Long) {
         val stop = Runnable { stopFor(app, callId, takeDownNotification = true) }
         timeout = stop
-        mainHandler.postDelayed(stop, RingDecisions.RING_TIMEOUT_MS)
+        mainHandler.postDelayed(stop, ringMs)
         try {
             app.getSystemService(AlarmManager::class.java)?.setWindow(
                 AlarmManager.ELAPSED_REALTIME_WAKEUP,
-                SystemClock.elapsedRealtime() + RingDecisions.RING_TIMEOUT_MS,
+                SystemClock.elapsedRealtime() + ringMs,
                 BACKSTOP_WINDOW_MS,
                 PendingIntent.getBroadcast(
                     app,

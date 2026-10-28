@@ -23,6 +23,17 @@ class ShownNotification {
 
   Map<String, Object?> android = const {};
 
+  List<Map<String, Object?>> get lines => [
+    for (final line
+        in ((android['styleInformation'] as Map)['messages'] as List)
+            .cast<Map>())
+      line.cast<String, Object?>(),
+  ];
+
+  List<String?> get lineTexts => [
+    for (final line in lines) line['text'] as String?,
+  ];
+
   @override
   String toString() =>
       'ShownNotification(id: $id, title: $title, body: $body, '
@@ -52,6 +63,7 @@ class RecordedNotifications {
   List<Map<String, Object?>> deviceChannels = const [];
   final List<String> deletedChannels = [];
   Object? showError;
+  Future<void>? heldShows;
   Map<String, Object?>? initializeArguments;
   Map<String, Object?> launchDetails = const {'notificationLaunchedApp': false};
 
@@ -109,6 +121,7 @@ RecordedNotifications installFakeLocalNotifications({
     recorded.methods.add(call.method);
     switch (call.method) {
       case 'show':
+        await recorded.heldShows;
         final error = recorded.showError;
         if (error != null) throw error;
         final args = (call.arguments as Map).cast<String, Object?>();

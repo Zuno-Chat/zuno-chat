@@ -28,7 +28,7 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/nse/read_model_publisher.dart';
-import 'package:zuno/core/push/voip/voip_registration.dart';
+import 'package:zuno/core/push/ring/ring_registration.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
@@ -608,10 +608,10 @@ void main() {
 
       expect(container.exists(ringCoordinatorProvider), isTrue);
       expect(container.exists(readModelPublisherProvider), isTrue);
-      expect(container.exists(voipLifecycleProvider), isTrue);
+      expect(container.exists(ringLifecycleProvider), isTrue);
     });
 
-    test('with VoIP rings off, starts none of them', () async {
+    test('on Android, starts only the server ring registration', () async {
       final container = ProviderContainer(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
@@ -625,6 +625,7 @@ void main() {
 
       expect(container.exists(ringCoordinatorProvider), isFalse);
       expect(container.exists(readModelPublisherProvider), isFalse);
+      expect(container.exists(ringLifecycleProvider), isTrue);
     });
   });
 }

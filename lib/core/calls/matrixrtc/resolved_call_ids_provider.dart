@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../matrix/late_decryptions.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../settings/app_preferences_provider.dart';
 import '../platform/incoming_call_presenter.dart';
@@ -18,7 +19,7 @@ class ResolvedCallIdsNotifier extends Notifier<Set<String>> {
   @override
   Set<String> build() {
     final client = ref.watch(matrixClientProvider);
-    final sub = client.onTimelineEvent.stream.listen(_handleEvent);
+    final sub = LateDecryptions.of(client).timeline.listen(_handleEvent);
     final mirror = ResolvedCallsMirror(
       contains: (callId) => state.contains(callId),
       add: _learn,

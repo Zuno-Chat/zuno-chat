@@ -99,11 +99,9 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<void> ensureHeadlessCallbacksRegistered({
     required Future<Client> Function() clientBuilder,
-    required Future<void> Function(IncomingPushOutcome outcome) onPushHandled,
     PushWakeLockRelease releaseAfterPush = releasePushWakeLock,
   }) async {
     _runner.clientBuilder = clientBuilder;
-    _runner.onPushHandled = onPushHandled;
     _releaseAfterPush = releaseAfterPush;
     await _initializePlugin();
   }
@@ -480,6 +478,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         return;
       }
       await _runner.deliver(notification);
+      await _runner.heldWorkDone;
     } finally {
       await _releaseAfterPush?.call(key: notification?.eventId);
     }

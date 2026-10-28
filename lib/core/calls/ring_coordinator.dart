@@ -11,7 +11,7 @@ import '../matrix/matrix_client_provider.dart';
 import '../navigation/global_navigator.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/nse/read_model_publisher.dart';
-import '../push/voip/voip_registration.dart';
+import '../push/ring/ring_registration.dart';
 import 'call_liveness.dart';
 import 'incoming_call_gate.dart';
 import 'matrixrtc/call_member_state.dart';
@@ -98,10 +98,10 @@ final ringCoordinatorProvider = NotifierProvider<RingCoordinator, void>(
 );
 
 final pushRingServicesProvider = Provider<void>((ref) {
+  ref.watch(ringLifecycleProvider);
   if (!ref.watch(platformCapabilitiesProvider).voipRing) return;
   ref.watch(ringCoordinatorProvider);
   ref.watch(readModelPublisherProvider);
-  ref.watch(voipLifecycleProvider);
 });
 
 class RingCoordinator extends Notifier<void> {

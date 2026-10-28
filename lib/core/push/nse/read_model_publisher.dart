@@ -13,7 +13,7 @@ import '../../matrix/matrix_client_provider.dart';
 import '../../matrix/room_title.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../settings/app_preferences_provider.dart';
-import '../voip/voip_registration.dart';
+import '../ring/ring_registration.dart';
 import 'nse_channel.dart';
 
 const readModelSessionKey = 'push.readmodel.session';
@@ -203,7 +203,7 @@ final readModelPublisherProvider = Provider<ReadModelPublisher?>((ref) {
   final capabilities = ref.watch(platformCapabilitiesProvider);
   if (!capabilities.voipRing) return null;
   final client = ref.watch(matrixClientProvider);
-  final registration = ref.watch(voipRegistrationProvider);
+  final registration = ref.watch(ringRegistrationProvider);
   final publisher = ReadModelPublisher()
     ..holdUntilExtras = capabilities.nseNotifications;
 

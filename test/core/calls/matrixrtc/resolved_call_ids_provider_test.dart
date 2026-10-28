@@ -17,6 +17,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -82,6 +83,33 @@ void main() {
       expect(container.read(resolvedCallIdsProvider), {'c1', 'c2'});
     },
   );
+
+  test('a summary that decrypts late still resolves its call', () async {
+    final decryption = FakeRoomDecryption();
+    client = DecryptingTestClient(decryption);
+    room = buildTestRoom(client);
+    final late = containerWith();
+    addTearDown(late.dispose);
+    late.read(resolvedCallIdsProvider);
+    client.onTimelineEvent.add(
+      lockedTestEvent(room, eventId: r'$summary-c1', senderId: '@a:x'),
+    );
+    await pumpEventQueue();
+    expect(late.read(resolvedCallIdsProvider), isEmpty);
+
+    decryption.keyArrives(
+      room,
+      opens: buildTestEvent(
+        room,
+        eventId: r'$summary-c1',
+        senderId: '@a:x',
+        content: {'msgtype': callSummaryMsgtype, 'call_id': 'c1'},
+      ),
+    );
+    await pumpEventQueue();
+
+    expect(late.read(resolvedCallIdsProvider), {'c1'});
+  });
 
   test('other event types are ignored', () async {
     client.onTimelineEvent.add(

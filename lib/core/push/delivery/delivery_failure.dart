@@ -1,9 +1,9 @@
 import '../../l10n/l10n.dart';
 import '../apns/apns_delivery_provider.dart';
 import '../fcm/fcm_delivery_provider.dart';
+import '../ring/ring_registration.dart';
 import '../unified_push/unified_push_delivery_provider.dart';
 import '../unified_push/unified_push_distributor_names.dart';
-import '../voip/voip_registration.dart';
 import 'notification_delivery_mode.dart';
 
 enum DeliveryFailureAction {
@@ -162,8 +162,8 @@ const callsSetupFailed = DeliveryFailure(
   action: DeliveryFailureAction.retryCalls,
 );
 
-DeliveryFailure? callsDeliveryFailure(VoipRegistrationState state) =>
-    state == VoipRegistrationState.failed ? callsSetupFailed : null;
+DeliveryFailure? callsDeliveryFailure(RingRegistrationState state) =>
+    state == RingRegistrationState.failed ? callsSetupFailed : null;
 
 const _notRegistered = DeliveryFailure(
   reason: DeliveryFailureReason.notRegistered,

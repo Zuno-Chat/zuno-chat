@@ -2,33 +2,42 @@ import 'package:flutter/services.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
+import '../fcm/fcm_pusher.dart';
 import '../keychain_unavailable.dart';
 
-const voipChannel = MethodChannel('zuno/voip');
+const ringChannel = MethodChannel('zuno/ring');
 
-typedef VoipStatus = ({
+const voipProductionAppId = 'im.zuno.chat.ios.voip';
+const voipDevelopmentAppId = 'im.zuno.chat.ios.dev.voip';
+
+String voipAppIdFor(String environment) =>
+    environment == 'development' ? voipDevelopmentAppId : voipProductionAppId;
+
+typedef RingStatus = ({
   String? token,
   String environment,
+  String appId,
   int kid,
   String key,
-  bool callKit,
+  bool canRing,
 });
 
 typedef VoipKey = ({int kid, String key});
 
 typedef VoipDevExport = ({String token, int kid, String key});
 
-enum VoipEvent { token, invalidated, keyMismatch }
+enum RingRegistrationEvent { token, invalidated, keyMismatch }
 
-class VoipChannel {
-  const VoipChannel({PlatformCapabilities? capabilities})
+class RingChannel {
+  const RingChannel({PlatformCapabilities? capabilities})
     : _injectedCapabilities = capabilities;
 
   final PlatformCapabilities? _injectedCapabilities;
 
-  bool get _enabled => (_injectedCapabilities ?? ambientCapabilities).voipRing;
+  PlatformCapabilities get _capabilities =>
+      _injectedCapabilities ?? ambientCapabilities;
 
-  Future<VoipStatus?> status() async {
+  Future<RingStatus?> status() async {
     final reply = await _invoke<Map<Object?, Object?>>('status');
     final kid = reply?['kid'];
     final key = reply?['key'];
@@ -38,9 +47,10 @@ class VoipChannel {
     return (
       token: token is String && token.isNotEmpty ? token : null,
       environment: environment,
+      appId: _capabilities.voipRing ? voipAppIdFor(environment) : fcmAppId,
       kid: kid,
       key: key,
-      callKit: reply?['callkit'] == true,
+      canRing: reply?['rings'] == true,
     );
   }
 
@@ -52,18 +62,20 @@ class VoipChannel {
     return (kid: kid, key: key);
   }
 
-  Future<void> ackKey(int kid) => _invoke<void>('ackKey', {'kid': kid});
+  Future<void> ackKey(int kid, {required int serverOffsetMs}) =>
+      _invoke<void>('ackKey', {'kid': kid, 'serverOffsetMs': serverOffsetMs});
 
-  Future<List<VoipEvent>> takeEvents() async {
+  Future<List<RingRegistrationEvent>> takeEvents() async {
     final reply = await _invoke<List<Object?>>('takeEvents');
     return [
       for (final event in reply ?? const <Object?>[])
-        if (event is Map) ?VoipEvent.values.asNameMap()[event['type']],
+        if (event is Map)
+          ?RingRegistrationEvent.values.asNameMap()[event['type']],
     ];
   }
 
-  Future<void> setSession({required bool signedIn}) =>
-      _invoke<void>('setSession', {'signedIn': signedIn});
+  Future<void> setSession({required bool signedIn, String? userId}) =>
+      _invoke<void>('setSession', {'signedIn': signedIn, 'userId': ?userId});
 
   Future<VoipDevExport?> devExport() async {
     final reply = await _invoke<Map<Object?, Object?>>('devExport');
@@ -80,13 +92,12 @@ class VoipChannel {
   }
 
   Future<T?> _invoke<T>(String method, [Object? arguments]) async {
-    if (!_enabled) return null;
     try {
-      return await voipChannel.invokeMethod<T>(method, arguments);
+      return await ringChannel.invokeMethod<T>(method, arguments);
     } on MissingPluginException {
       return null;
     } on PlatformException catch (e, s) {
-      if (!isKeychainUnavailable(e)) reportCaught('voip $method', e.code, s);
+      if (!isKeychainUnavailable(e)) reportCaught('ring $method', e.code, s);
       return null;
     }
   }

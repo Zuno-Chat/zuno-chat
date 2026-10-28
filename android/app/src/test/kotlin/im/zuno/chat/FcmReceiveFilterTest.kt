@@ -22,6 +22,18 @@ class FcmReceiveFilterTest {
     }
 
     @Test
+    fun `a ring push posts no notice but warms Flutter, in front or not`() {
+        assertEquals(
+            FcmReceivePlan.RingWarmUp,
+            filter.planFor(null, "0:1%ring", PushKind.RING, appInFront = false),
+        )
+        assertEquals(
+            FcmReceivePlan.RingWarmUp,
+            filter.planFor(null, "0:2%ring", PushKind.RING, appInFront = true),
+        )
+    }
+
+    @Test
     fun `a re-delivered message gets no notice, no lock and no record`() {
         assertNotNull(filter.planFor(null, "0:1%a", PushKind.MESSAGE, appInFront = false))
 

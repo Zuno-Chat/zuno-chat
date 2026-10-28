@@ -1,7 +1,8 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/push/voip/voip_channel.dart';
+import 'package:zuno/core/push/fcm/fcm_pusher.dart';
+import 'package:zuno/core/push/ring/ring_channel.dart';
 
 import '../../../helpers/platform_capabilities.dart';
 
@@ -29,7 +30,7 @@ void main() {
   });
 
   group('the VoIP channel', () {
-    setUp(() => answer(voipChannel));
+    setUp(() => answer(ringChannel));
 
     test('reads the token, environment, key and CallKit support', () async {
       replies['status'] = {
@@ -37,17 +38,18 @@ void main() {
         'environment': 'development',
         'kid': 16909060,
         'key': 'a2V5',
-        'callkit': true,
+        'rings': true,
       };
 
-      final status = await const VoipChannel().status();
+      final status = await const RingChannel().status();
 
       expect(status, (
         token: 'dG9rZW4=',
         environment: 'development',
+        appId: voipDevelopmentAppId,
         kid: 16909060,
         key: 'a2V5',
-        callKit: true,
+        canRing: true,
       ));
     });
 
@@ -57,19 +59,19 @@ void main() {
         'environment': 'production',
         'kid': 7,
         'key': 'a2V5',
-        'callkit': false,
+        'rings': false,
       };
 
-      final status = await const VoipChannel().status();
+      final status = await const RingChannel().status();
 
       expect(status?.token, isNull);
-      expect(status?.callKit, isFalse);
+      expect(status?.canRing, isFalse);
     });
 
     test('a status without its key is no status at all', () async {
       replies['status'] = {'environment': 'production', 'kid': 7};
 
-      expect(await const VoipChannel().status(), isNull);
+      expect(await const RingChannel().status(), isNull);
     });
 
     test(
@@ -77,20 +79,28 @@ void main() {
       () async {
         replies['rotateKey'] = {'kid': 9, 'key': 'bmV3'};
 
-        final rotated = await const VoipChannel().rotateKey();
-        await const VoipChannel().ackKey(9);
-        await const VoipChannel().setSession(signedIn: false);
+        final rotated = await const RingChannel().rotateKey();
+        await const RingChannel().ackKey(9, serverOffsetMs: -250);
+        await const RingChannel().setSession(signedIn: false);
+        await const RingChannel().setSession(
+          signedIn: true,
+          userId: '@me:zuno.im',
+        );
 
         expect(rotated, (kid: 9, key: 'bmV3'));
         expect(calls.map((c) => [c.method, c.arguments]), [
           ['rotateKey', null],
           [
             'ackKey',
-            {'kid': 9},
+            {'kid': 9, 'serverOffsetMs': -250},
           ],
           [
             'setSession',
             {'signedIn': false},
+          ],
+          [
+            'setSession',
+            {'signedIn': true, 'userId': '@me:zuno.im'},
           ],
         ]);
       },
@@ -105,10 +115,10 @@ void main() {
         {'type': 'invalidated'},
       ];
 
-      expect(await const VoipChannel().takeEvents(), [
-        VoipEvent.token,
-        VoipEvent.keyMismatch,
-        VoipEvent.invalidated,
+      expect(await const RingChannel().takeEvents(), [
+        RingRegistrationEvent.token,
+        RingRegistrationEvent.keyMismatch,
+        RingRegistrationEvent.invalidated,
       ]);
     });
 
@@ -120,7 +130,7 @@ void main() {
         'environment': 'development',
       };
 
-      expect(await const VoipChannel().devExport(), (
+      expect(await const RingChannel().devExport(), (
         token: 'abcd',
         kid: 3,
         key: 'a2V5',
@@ -135,34 +145,37 @@ void main() {
         'environment': 'production',
       };
 
-      expect(await const VoipChannel().devExport(), isNull);
+      expect(await const RingChannel().devExport(), isNull);
     });
 
     test('a refusal from native code reads as nothing', () async {
       replies['status'] = PlatformException(code: 'keychain');
 
-      expect(await const VoipChannel().status(), isNull);
+      expect(await const RingChannel().status(), isNull);
     });
 
-    test('with the flag off nothing reaches native code', () async {
-      ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: false);
-
-      expect(await const VoipChannel().status(), isNull);
-      expect(await const VoipChannel().takeEvents(), isEmpty);
-      await const VoipChannel().setSession(signedIn: true);
-      expect(calls, isEmpty);
-    });
-
-    test('on Android nothing reaches native code', () async {
+    test('on Android the ring registration reaches native code, under the FCM '
+        'app id', () async {
       ambientCapabilities = androidCapabilities;
+      replies['status'] = {
+        'token': 'ZmNt',
+        'environment': 'production',
+        'kid': 7,
+        'key': 'a2V5',
+        'rings': true,
+      };
 
-      expect(await const VoipChannel().devExport(), isNull);
-      expect(calls, isEmpty);
+      final status = await const RingChannel().status();
+
+      expect(status?.appId, fcmAppId);
+      expect(status?.token, 'ZmNt');
     });
   });
 
   test('without the plugin every call is a quiet no-op', () async {
-    expect(await const VoipChannel().status(), isNull);
-    expect(await const VoipChannel().takeEvents(), isEmpty);
+    messenger.setMockMethodCallHandler(ringChannel, null);
+
+    expect(await const RingChannel().status(), isNull);
+    expect(await const RingChannel().takeEvents(), isEmpty);
   });
 }

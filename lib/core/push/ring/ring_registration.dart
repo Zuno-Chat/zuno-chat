@@ -11,43 +11,36 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 import '../../matrix/matrix_client_provider.dart';
-import '../../platform/platform_capabilities.dart';
 import '../delivery/registration_retry.dart';
-import 'voip_channel.dart';
-import 'voip_server.dart';
+import 'ring_channel.dart';
+import 'ring_server.dart';
 
-const voipProductionAppId = 'im.zuno.chat.ios.voip';
-const voipDevelopmentAppId = 'im.zuno.chat.ios.dev.voip';
+const ringSessionKey = 'push.voip.session';
+const ringAckedKey = 'push.voip.acked';
 
-const voipSessionKey = 'push.voip.session';
-const voipAckedKey = 'push.voip.acked';
-
-const voipTokenWaits = [
+const ringTokenWaits = [
   Duration(seconds: 5),
   Duration(seconds: 30),
   Duration(minutes: 2),
 ];
 
-String voipAppIdFor(String environment) =>
-    environment == 'development' ? voipDevelopmentAppId : voipProductionAppId;
-
-sealed class VoipRefusal {
-  const VoipRefusal({required this.at});
+sealed class RingRefusal {
+  const RingRefusal({required this.at});
 
   final DateTime at;
 }
 
-final class VoipRefusedByServer extends VoipRefusal {
-  const VoipRefusedByServer({required super.at, required this.reply});
+final class RingRefusedByServer extends RingRefusal {
+  const RingRefusedByServer({required super.at, required this.reply});
 
-  final VoipServerRefused reply;
+  final RingServerRefused reply;
 }
 
-final class VoipKeyNotKept extends VoipRefusal {
-  const VoipKeyNotKept({required super.at});
+final class RingKeyNotKept extends RingRefusal {
+  const RingKeyNotKept({required super.at});
 }
 
-enum VoipRegistrationState {
+enum RingRegistrationState {
   idle,
   unavailable,
   waitingForToken,
@@ -57,20 +50,17 @@ enum VoipRegistrationState {
   failed,
 }
 
-class VoipRegistration {
-  VoipRegistration({
-    VoipChannel voip = const VoipChannel(),
-    VoipServer Function(Client client)? server,
-  }) : _channel = voip,
-       _server = server ?? ZunoPushVoipServer.new;
+class RingRegistration {
+  RingRegistration({RingServer Function(Client client)? server})
+    : _server = server ?? ZunoPushRingServer.new;
 
-  final VoipChannel _channel;
-  final VoipServer Function(Client client) _server;
+  final _channel = const RingChannel();
+  final RingServer Function(Client client) _server;
   final _lock = SerialLock();
   final _retry = RegistrationRetry();
   final _recheck = RegistrationRecheck();
-  final _state = ValueNotifier(VoipRegistrationState.idle);
-  final _lastRefusal = ValueNotifier<VoipRefusal?>(null);
+  final _state = ValueNotifier(RingRegistrationState.idle);
+  final _lastRefusal = ValueNotifier<RingRefusal?>(null);
   final _current = ValueNotifier(false);
   final _serverOffsetMs = ValueNotifier<int?>(null);
   Timer? _tokenWait;
@@ -78,34 +68,34 @@ class VoipRegistration {
 
   set retryDelay(Duration Function(int attempt) delay) => _retry.delay = delay;
 
-  ValueListenable<VoipRegistrationState> get state => _state;
+  ValueListenable<RingRegistrationState> get state => _state;
 
-  ValueListenable<VoipRefusal?> get lastRefusal => _lastRefusal;
+  ValueListenable<RingRefusal?> get lastRefusal => _lastRefusal;
 
   ValueListenable<bool> get current => _current;
 
   ValueListenable<int?> get serverOffsetMs => _serverOffsetMs;
 
   bool get _inactive =>
-      _state.value == VoipRegistrationState.idle ||
-      _state.value == VoipRegistrationState.unavailable;
+      _state.value == RingRegistrationState.idle ||
+      _state.value == RingRegistrationState.unavailable;
 
   Future<void> start(Client client) => _lock.run(() async {
     if (!client.isLogged()) return;
     final status = await _channel.status();
     final session = _sessionOf(client);
     if (status == null || session == null) return;
-    if (!status.callKit) {
-      _state.value = VoipRegistrationState.unavailable;
+    if (!status.canRing) {
+      _state.value = RingRegistrationState.unavailable;
       return;
     }
     final prefs = await SharedPreferences.getInstance();
-    if (prefs.getString(voipSessionKey) != session) {
+    if (prefs.getString(ringSessionKey) != session) {
       await _channel.rotateKey();
-      await prefs.setString(voipSessionKey, session);
-      await prefs.remove(voipAckedKey);
+      await prefs.setString(ringSessionKey, session);
+      await prefs.remove(ringAckedKey);
     }
-    await _channel.setSession(signedIn: true);
+    await _channel.setSession(signedIn: true, userId: client.userID);
     await _drainEvents(client);
     await _register(client);
   });
@@ -113,7 +103,16 @@ class VoipRegistration {
   Future<void> recheck(Client client) => _lock.run(() async {
     if (_inactive) return;
     final changed = await _drainEvents(client);
-    if (changed || _recheck.claimDue()) await _register(client);
+    if (changed ||
+        _recheck.claimDue() ||
+        (!_retry.scheduled && await _tokenUnregistered())) {
+      await _register(client);
+    }
+  });
+
+  Future<void> followToken(Client client) => _lock.run(() async {
+    if (_inactive || !await _tokenUnregistered()) return;
+    await _register(client);
   });
 
   Future<void> registerNow(Client client) => _lock.run(() async {
@@ -125,37 +124,44 @@ class VoipRegistration {
   Future<void> stop(Client client) => _lock.run(() async {
     _cancelTimers();
     final prefs = await SharedPreferences.getInstance();
-    final hadSession = prefs.getString(voipSessionKey) != null;
-    if (!hadSession && _state.value == VoipRegistrationState.idle) return;
+    final hadSession = prefs.getString(ringSessionKey) != null;
+    if (!hadSession && _state.value == RingRegistrationState.idle) return;
     if (client.isLogged()) {
       try {
         await _server(client).deleteDevice();
       } catch (e, s) {
-        reportCaught('voip device forget', e, s);
+        reportCaught('ring device forget', e, s);
       }
     }
     _current.value = false;
     _serverOffsetMs.value = null;
     _lastRefusal.value = null;
-    _state.value = VoipRegistrationState.idle;
+    _state.value = RingRegistrationState.idle;
     await _channel.setSession(signedIn: false);
-    await prefs.remove(voipSessionKey);
-    await prefs.remove(voipAckedKey);
+    await prefs.remove(ringSessionKey);
+    await prefs.remove(ringAckedKey);
+  });
+
+  Future<void> forget(Client client) => _lock.run(() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getString(ringAckedKey) == null) return;
+    await _forgetToken(client);
+    if (!_inactive) _state.value = RingRegistrationState.waitingForToken;
   });
 
   Future<bool> _drainEvents(Client client) async {
     var changed = false;
     for (final event in await _channel.takeEvents()) {
       switch (event) {
-        case VoipEvent.token:
+        case RingRegistrationEvent.token:
           final status = await _channel.status();
           if (status != null && !await _ackedFor(status)) {
             await _channel.rotateKey();
             changed = true;
           }
-        case VoipEvent.keyMismatch:
+        case RingRegistrationEvent.keyMismatch:
           changed = true;
-        case VoipEvent.invalidated:
+        case RingRegistrationEvent.invalidated:
           await _forgetToken(client);
       }
     }
@@ -165,61 +171,62 @@ class VoipRegistration {
   Future<void> _register(Client client) async {
     if (!client.isLogged()) return;
     final status = await _channel.status();
-    if (status == null) return;
+    if (status == null || !status.canRing) return;
     final token = status.token;
     if (token == null) {
-      _state.value = VoipRegistrationState.waitingForToken;
+      _state.value = RingRegistrationState.waitingForToken;
       _waitForToken(client);
       return;
     }
     _tokenWait?.cancel();
     _tokenWaits = 0;
-    _state.value = VoipRegistrationState.registering;
-    final appId = voipAppIdFor(status.environment);
-    final VoipServerReply reply;
+    _state.value = RingRegistrationState.registering;
+    final appId = status.appId;
+    final RingServerReply reply;
     try {
       reply = await _server(
         client,
       ).putVoip(appId: appId, pushkey: token, kid: status.kid, key: status.key);
     } catch (e, s) {
-      reportCaught('voip register', e, s);
+      reportCaught('ring register', e, s);
       _quietRetry(client, null);
       return;
     }
     switch (reply) {
-      case VoipServerAccepted(:final serverTs, :final kid)
+      case RingServerAccepted(:final serverTs, :final kid)
           when kid == null || kid == status.kid:
-        await _channel.ackKey(status.kid);
+        final offset = serverTs - clock.now().millisecondsSinceEpoch;
+        await _channel.ackKey(status.kid, serverOffsetMs: offset);
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString(voipAckedKey, _ackOf(appId, token, status.kid));
-        _serverOffsetMs.value = serverTs - clock.now().millisecondsSinceEpoch;
+        await prefs.setString(ringAckedKey, _ackOf(appId, token, status.kid));
+        _serverOffsetMs.value = offset;
         _current.value = true;
         _recheck.markChecked();
         _retry.reset();
         _lastRefusal.value = null;
-        _state.value = VoipRegistrationState.registered;
-      case VoipServerAccepted(:final kid):
-        debugPrint('zuno/voip: the server kept key $kid, not ${status.kid}');
-        _fail(client, VoipKeyNotKept(at: clock.now()));
-      case VoipServerUnreachable(:final retryAfter):
+        _state.value = RingRegistrationState.registered;
+      case RingServerAccepted(:final kid):
+        debugPrint('zuno/ring: the server kept key $kid, not ${status.kid}');
+        _fail(client, RingKeyNotKept(at: clock.now()));
+      case RingServerUnreachable(:final retryAfter):
         _quietRetry(client, retryAfter);
-      case final VoipServerRefused refused:
+      case final RingServerRefused refused:
         debugPrint(
-          'zuno/voip: the server refused this device '
+          'zuno/ring: the server refused this device '
           '(${refused.status} ${refused.errcode})',
         );
-        _fail(client, VoipRefusedByServer(at: clock.now(), reply: refused));
+        _fail(client, RingRefusedByServer(at: clock.now(), reply: refused));
     }
   }
 
   void _quietRetry(Client client, Duration? after) {
-    _state.value = VoipRegistrationState.unreachable;
+    _state.value = RingRegistrationState.unreachable;
     _scheduleRetry(client, after);
   }
 
-  void _fail(Client client, VoipRefusal refusal) {
+  void _fail(Client client, RingRefusal refusal) {
     _lastRefusal.value = refusal;
-    _state.value = VoipRegistrationState.failed;
+    _state.value = RingRegistrationState.failed;
     _scheduleRetry(client, null);
   }
 
@@ -237,8 +244,8 @@ class VoipRegistration {
   }
 
   void _waitForToken(Client client) {
-    if (_tokenWaits >= voipTokenWaits.length) return;
-    final delay = voipTokenWaits[_tokenWaits++];
+    if (_tokenWaits >= ringTokenWaits.length) return;
+    final delay = ringTokenWaits[_tokenWaits++];
     _tokenWait?.cancel();
     _tokenWait = Timer(delay, () => unawaited(registerNow(client)));
   }
@@ -247,19 +254,24 @@ class VoipRegistration {
     try {
       await _server(client).deleteVoip();
     } catch (e, s) {
-      reportCaught('voip token forget', e, s);
+      reportCaught('ring token forget', e, s);
     }
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(voipAckedKey);
+    await prefs.remove(ringAckedKey);
     _current.value = false;
   }
 
-  Future<bool> _ackedFor(VoipStatus status) async {
+  Future<bool> _tokenUnregistered() async {
+    final status = await _channel.status();
+    return status?.token != null && !await _ackedFor(status!);
+  }
+
+  Future<bool> _ackedFor(RingStatus status) async {
     final token = status.token;
     if (token == null) return false;
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(voipAckedKey) ==
-        _ackOf(voipAppIdFor(status.environment), token, status.kid);
+    return prefs.getString(ringAckedKey) ==
+        _ackOf(status.appId, token, status.kid);
   }
 
   String _ackOf(String appId, String token, int kid) => '$appId|$token|$kid';
@@ -279,16 +291,15 @@ class VoipRegistration {
   }
 }
 
-final voipRegistration = VoipRegistration();
+final ringRegistration = RingRegistration();
 
-final voipRegistrationProvider = Provider<VoipRegistration>(
-  (ref) => voipRegistration,
+final ringRegistrationProvider = Provider<RingRegistration>(
+  (ref) => ringRegistration,
 );
 
-final voipLifecycleProvider = Provider<void>((ref) {
-  if (!ref.watch(platformCapabilitiesProvider).voipRing) return;
+final ringLifecycleProvider = Provider<void>((ref) {
   final client = ref.watch(matrixClientProvider);
-  final registration = ref.watch(voipRegistrationProvider);
+  final registration = ref.watch(ringRegistrationProvider);
   ref.listen(isLoggedInProvider, (_, loggedIn) {
     if (loggedIn.value == true) unawaited(registration.start(client));
   }, fireImmediately: true);

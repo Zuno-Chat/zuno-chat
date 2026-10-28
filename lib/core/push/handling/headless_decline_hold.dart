@@ -6,6 +6,7 @@ import '../../async/live_isolate_route.dart';
 import '../../calls/matrixrtc/call_decline.dart';
 import '../../calls/matrixrtc/resolved_call_ids_store.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
+import '../../errors/best_effort.dart';
 import '../../matrix/client_lease.dart';
 import '../../notifications/local_notifications.dart';
 import '../../platform/platform_capabilities.dart';
@@ -14,6 +15,13 @@ import 'headless_push_runner.dart';
 const declineGrace = Duration(seconds: 5);
 const declinePollEvery = Duration(seconds: 3);
 const _longestRing = Duration(seconds: 45);
+
+void holdRingsUntilDeclined(
+  HeadlessPushRunner runner, {
+  Future<void> Function(HeadlessPushRunner runner) hold = awaitHeadlessDecline,
+}) =>
+    runner.onRinging = () =>
+        runBestEffort(() => hold(runner), label: 'push ring hold');
 
 Future<void> awaitHeadlessDecline(
   HeadlessPushRunner runner, {

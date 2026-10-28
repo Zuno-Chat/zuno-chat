@@ -11,6 +11,7 @@ import 'core/calls/models/call_kind.dart';
 import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_provider.dart';
+import 'core/calls/notifications/server_ring.dart';
 import 'core/calls/ring_coordinator.dart';
 import 'core/errors/caught_errors.dart';
 import 'core/errors/global_error_handler.dart';
@@ -193,6 +194,9 @@ class _AuthGateState extends ConsumerState<_AuthGate>
       currentlyOpenRoomId: () =>
           mounted ? ref.read(currentlyOpenRoomIdProvider) : null,
       isAppSyncing: _isAppSyncing,
+      ringInApp: (ring) {
+        if (mounted) ref.read(serverRingsProvider).add(ring);
+      },
     );
     _pendingRingShown = _showPendingRing();
     _shortcutSub = onOpenRoomShortcut.listen(_openRoomById);

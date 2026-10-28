@@ -14,4 +14,4 @@ New
 • React and reply in the photo viewer.
 • Forward photos, videos and files.
 
-Fixed 164 bugs.
+Fixed 168 bugs.

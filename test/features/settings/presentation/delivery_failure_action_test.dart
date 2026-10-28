@@ -12,15 +12,15 @@ import 'package:zuno/core/push/delivery/delivery_failure.dart';
 import 'package:zuno/core/push/delivery/delivery_failure_provider.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
+import 'package:zuno/core/push/ring/ring_registration.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
-import 'package:zuno/core/push/voip/voip_registration.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/delivery_failure_action.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_ring_registration.dart';
 import '../../../helpers/fake_unified_push.dart';
-import '../../../helpers/fake_voip_registration.dart';
 import '../../../helpers/fixed_delivery_mode.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -267,14 +267,14 @@ void main() {
     }
 
     testWidgets('on call setup registers for calls again', (tester) async {
-      final voip = FakeVoipRegistration();
+      final registration = FakeRingRegistration();
       final container = await act(
         tester,
         DeliveryFailureAction.retryCalls,
-        overrides: [voipRegistrationProvider.overrideWithValue(voip)],
+        overrides: [ringRegistrationProvider.overrideWithValue(registration)],
       );
 
-      expect(voip.registered, [container.read(matrixClientProvider)]);
+      expect(registration.registered, [container.read(matrixClientProvider)]);
     });
   });
 }

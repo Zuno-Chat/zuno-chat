@@ -9,6 +9,7 @@ import '../models/call_kind.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../ring_identity.dart';
 import 'call_notification_service.dart' show RingingCallInfo;
+import 'ring_over_lines.dart';
 
 Future<RingOutcome> postRingNotification(
   IncomingCall call, {
@@ -34,9 +35,13 @@ Future<RingOutcome> postRingNotification(
     avatarBytes: avatarBytes,
     ringingNow: ringingNow,
     waiting: waiting,
+    ringFor: call.ringFor,
   );
   if (outcome != RingOutcome.shown) return outcome;
-  if (!await isCallResolved(call.callId)) return outcome;
+  if (!await isCallResolved(call.callId)) {
+    await takeDownLinesUnderRing(call);
+    return outcome;
+  }
   debugPrint('zuno/calls: ${call.callId} ended while ringing, taking it back');
   await ring.cancelIncoming(roomId: call.room.id, callId: call.callId);
   return RingOutcome.filtered;

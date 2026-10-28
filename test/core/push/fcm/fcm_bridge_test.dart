@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:zuno/core/calls/notifications/server_ring.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 
 import '../../../helpers/native_method_calls.dart';
@@ -217,6 +218,39 @@ void main() {
         );
       },
     );
+
+    test('hands a ring native code opened to the ring handler', () async {
+      final rings = <ServerRing>[];
+      FcmBridge().serve(
+        onPush: (_) async {},
+        onRing: (ring) async => rings.add(ring),
+      );
+
+      await fromNative('ring', {
+        'room': '!r:x',
+        'call': 'c1',
+        'caller': '@a:x',
+        'cname': 'Alice',
+        'rname': '',
+        'kind': 'voice',
+        'appInFront': false,
+      });
+
+      expect(rings.single.callId, 'c1');
+      expect(rings.single.callerName, 'Alice');
+    });
+
+    test('a ring it cannot read is answered and ignored', () async {
+      final rings = <ServerRing>[];
+      FcmBridge().serve(
+        onPush: (_) async {},
+        onRing: (ring) async => rings.add(ring),
+      );
+
+      await fromNative('ring', {'room': '!r:x'});
+
+      expect(rings, isEmpty);
+    });
 
     test('a push without an id or data is answered and ignored', () async {
       final pushes = <FcmPush>[];

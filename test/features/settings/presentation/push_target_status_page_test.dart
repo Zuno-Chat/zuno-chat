@@ -18,6 +18,7 @@ import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart'
 import 'package:zuno/core/push/unified_push/unified_push_pusher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
+import 'package:zuno/features/settings/presentation/voip_dev_export_card.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
@@ -277,6 +278,13 @@ void main() {
 
         expect(tester.takeException(), isNull);
       });
+    });
+
+    testWidgets('has no VoIP test values where calls do not ring over '
+        'VoIP', (tester) async {
+      await pumpPage(tester, NotificationDeliveryMode.fcm);
+
+      expect(find.byType(VoipDevExportCard), findsNothing);
     });
 
     testWidgets('diagnostics and recent pushes live in the hub, not here', (

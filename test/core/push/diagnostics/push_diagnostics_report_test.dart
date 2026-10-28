@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
@@ -9,10 +8,10 @@ import 'package:zuno/core/push/diagnostics/push_diagnostics_report.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart' show FcmAvailability;
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart' show FcmStatus;
 import 'package:zuno/core/push/pushers/pusher_info.dart';
+import 'package:zuno/core/push/ring/ring_registration.dart';
+import 'package:zuno/core/push/ring/ring_server.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
-import 'package:zuno/core/push/voip/voip_registration.dart';
-import 'package:zuno/core/push/voip/voip_server.dart';
 
 import '../../../helpers/date_labels.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -49,9 +48,9 @@ void main() {
     PushDiagnosticsSnapshot snapshot = const PushDiagnosticsSnapshot(
       environment: 'production',
     ),
-    VoipDeviceStatus? voip = const VoipDeviceStatus(
+    RingDeviceStatus? ringDevice = const RingDeviceStatus(
       hasToken: true,
-      callKit: true,
+      canRing: true,
       environment: 'production',
       kid: 7,
     ),
@@ -66,13 +65,13 @@ void main() {
     FcmAvailability? playServices,
     List<PushDeliveryRecord>? deliveries,
     int? droppedRegistrations,
-    VoipRefusal? voipRefusal,
+    RingRefusal? ringRefusal,
   }) => PushDiagnosticsInputs(
     capabilities: capabilities ?? ios,
     now: now,
     appVersion: '1.2.0 (build 2)',
     snapshot: snapshot,
-    voip: voip,
+    ringDevice: ringDevice,
     health: health,
     reach: reach,
     pushers: pushersUnavailable ? null : pushers ?? [pusher()],
@@ -84,7 +83,7 @@ void main() {
     playServices: playServices,
     deliveries: deliveries,
     droppedRegistrations: droppedRegistrations,
-    voipRefusal: voipRefusal,
+    ringRefusal: ringRefusal,
   );
 
   DiagnosticSection section(PushDiagnosticsInputs from, String title) =>
@@ -315,7 +314,7 @@ void main() {
 
     test('a call push key that could not be read is unknown, not missing', () {
       const server = ServerHealth(voipRegistered: true, voipKid: 7);
-      final unread = section(inputs(voip: null, health: server), 'Calls');
+      final unread = section(inputs(ringDevice: null, health: server), 'Calls');
       expect(
         unread.row('Call push key'),
         const DiagnosticRow(
@@ -331,7 +330,7 @@ void main() {
 
       final none = section(
         inputs(
-          voip: const VoipDeviceStatus(hasToken: false, callKit: true),
+          ringDevice: const RingDeviceStatus(hasToken: false, canRing: true),
           health: server,
         ),
         'Calls',
@@ -366,14 +365,14 @@ void main() {
     test('a refused call setup shows the server answer, or the key it kept, '
         'and nothing once none is held', () {
       final at = now.subtract(const Duration(minutes: 2));
-      DiagnosticRow? setup(VoipRefusal? refusal) =>
-          section(inputs(voipRefusal: refusal), 'Calls').row('Call setup');
+      DiagnosticRow? setup(RingRefusal? refusal) =>
+          section(inputs(ringRefusal: refusal), 'Calls').row('Call setup');
 
       expect(
         setup(
-          VoipRefusedByServer(
+          RingRefusedByServer(
             at: at,
-            reply: const VoipServerRefused(
+            reply: const RingServerRefused(
               status: 400,
               errcode: 'M_INVALID_PARAM',
               error: 'unknown app_id',
@@ -388,9 +387,9 @@ void main() {
       );
       expect(
         setup(
-          VoipRefusedByServer(
+          RingRefusedByServer(
             at: at,
-            reply: const VoipServerRefused(
+            reply: const RingServerRefused(
               status: 503,
               errcode: 'IM.ZUNO.PUSH_DISABLED',
             ),
@@ -399,7 +398,7 @@ void main() {
         'Refused 2 min ago (503 IM.ZUNO.PUSH_DISABLED)',
       );
       expect(
-        setup(VoipKeyNotKept(at: at)),
+        setup(RingKeyNotKept(at: at)),
         const DiagnosticRow(
           'Call setup',
           'Refused 2 min ago (server kept another key)',

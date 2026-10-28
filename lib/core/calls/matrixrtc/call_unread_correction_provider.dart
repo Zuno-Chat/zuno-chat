@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../matrix/event_display.dart';
+import '../../matrix/late_decryptions.dart';
 import '../../matrix/matrix_client_provider.dart';
 import 'call_summary_message.dart';
 
@@ -18,7 +19,7 @@ class CallUnreadCorrectionNotifier extends Notifier<Map<String, int>> {
   @override
   Map<String, int> build() {
     final client = ref.watch(matrixClientProvider);
-    final events = client.onTimelineEvent.stream.listen(_handleEvent);
+    final events = LateDecryptions.of(client).timeline.listen(_handleEvent);
     final syncs = client.onSync.stream.listen((_) => _keepWithinCount(client));
     ref.onDispose(() {
       unawaited(events.cancel());

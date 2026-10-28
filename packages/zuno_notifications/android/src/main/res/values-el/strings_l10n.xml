@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="callsGenericRingName">Κλήση Zuno</string>
     <string name="callsIncomingCall">Εισερχόμενη κλήση</string>
+    <string name="callsIncomingVideo">Εισερχόμενη βιντεοκλήση</string>
+    <string name="callsIncomingVoice">Εισερχόμενη φωνητική κλήση</string>
     <string name="commonYou">Εσείς</string>
     <string name="notificationsFallbackChatName">Συνομιλία</string>
     <string name="notificationsMissedPushes">Ορισμένες ειδοποιήσεις δεν παραδόθηκαν. Ανοίξτε το Zuno για να δείτε τα νέα μηνύματα.</string>

@@ -143,14 +143,14 @@ void main() {
       content: {'algorithm': 'm.megolm.v1.aes-sha2', 'ciphertext': 'AAAA'},
     );
 
-    test('notifies "New message" in its room, as a line to replace once it '
-        'decrypts', () {
+    test('notifies "New message" in its room under its sender, as a line to '
+        'replace once it decrypts', () {
       final decision = decide(locked());
 
       expect(decision.placeholder, isTrue);
       expect(
         decision.content,
-        messageFloor(room.id, room: room, eventId: r'$enc'),
+        messageFloor(room.id, room: room, eventId: r'$enc', senderId: '@a:x'),
       );
     });
 

@@ -9,9 +9,9 @@ import '../../platform/platform_capabilities.dart';
 import '../../settings/app_preferences_provider.dart';
 import '../apns/apns_delivery_provider.dart';
 import '../fcm/fcm_delivery_provider.dart';
+import '../ring/ring_registration.dart';
 import '../unified_push/unified_push_delivery_provider.dart'
     show UnifiedPushStatus, unifiedPushDeliveryProvider;
-import '../voip/voip_registration.dart';
 import 'delivery_auto_fallback.dart';
 import 'delivery_failure.dart';
 import 'notification_delivery_mode.dart';
@@ -36,7 +36,7 @@ final unifiedPushDistributorInstalledProvider =
 
 DeliveryFailure? _callsFailure(Ref ref) {
   if (!ref.watch(platformCapabilitiesProvider).voipRing) return null;
-  final registration = ref.watch(voipRegistrationProvider);
+  final registration = ref.watch(ringRegistrationProvider);
   void rebuild() => ref.invalidateSelf();
   registration.state.addListener(rebuild);
   ref.onDispose(() => registration.state.removeListener(rebuild));

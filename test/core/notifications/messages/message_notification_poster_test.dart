@@ -43,12 +43,6 @@ void main() {
         isPhoto: photo,
       );
 
-  List<Map<String, Object?>> linesOf(ShownNotification n) =>
-      ((n.android['styleInformation'] as Map)['messages'] as List)
-          .cast<Map>()
-          .map((m) => m.cast<String, Object?>())
-          .toList();
-
   void showing() {
     notifications.active = [
       {'id': roomNotificationId, 'channelId': 'direct_messages', 'payload': ''},
@@ -392,14 +386,14 @@ void main() {
         );
         await firstPost();
         expect(roomPosts(), hasLength(1));
-        expect(linesOf(roomPosts().single).single['dataUri'], isNull);
+        expect(roomPosts().single.lines.single['dataUri'], isNull);
 
         showing();
         fetched.complete(thumb);
         await done;
 
         expect(roomPosts(), hasLength(2));
-        final line = linesOf(roomPosts().last).single;
+        final line = roomPosts().last.lines.single;
         expect(line['text'], 'a cat');
         expect(line['dataUri'], 'content://zuno/thumb');
         expect(line['dataMimeType'], 'image/jpeg');

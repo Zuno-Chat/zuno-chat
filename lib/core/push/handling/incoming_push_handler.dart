@@ -7,8 +7,10 @@ import 'package:matrix/matrix.dart';
 import '../../calls/matrixrtc/call_summary_message.dart';
 import '../../calls/matrixrtc/incoming_call_provider.dart';
 import '../../calls/notifications/ring_from_push.dart';
+import '../../calls/notifications/ring_over_lines.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
 import '../../errors/caught_errors.dart';
+import '../../matrix/retry_decrypt_last_event.dart';
 import '../../matrix/room_title.dart';
 import '../../matrix/undecryptable_event.dart';
 import '../../matrix/zuno_client.dart';
@@ -45,6 +47,8 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
   PushTiming? timing,
   IncomingCallPresenter? incomingCallPresenter,
   void Function(Future<void> refinement)? onRefining,
+  void Function()? onRinging,
+  Future<void>? appWantsClient,
 }) async {
   final roomId = notification.roomId;
   final eventId = notification.eventId;
@@ -63,6 +67,8 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
           incomingCallPresenter ??
           incomingCallPresenterFor(ambientCapabilities),
       onRefining: onRefining,
+      onRinging: onRinging,
+      appWantsClient: appWantsClient,
     );
   } finally {
     forgetNotice?.call();
@@ -78,6 +84,8 @@ Future<IncomingPushOutcome> _handle(
   required PushTiming? timing,
   required IncomingCallPresenter ring,
   required void Function(Future<void> refinement)? onRefining,
+  required void Function()? onRinging,
+  required Future<void>? appWantsClient,
 }) async {
   final handlingSince = clock.now();
   if (kDebugMode) {
@@ -96,9 +104,9 @@ Future<IncomingPushOutcome> _handle(
   // shortcut: firstSyncReceived also waits on device keys and to-device work, so a slow tail outlasts messageCatchUpWait and skips read-elsewhere, upgrade by counting the sync as landed at SyncStatus.cleaningUp
   final synced =
       catchUp ?? client.firstSyncReceived?.then<void>((_) {}, onError: (_) {});
-  final Event? event;
+  final Event? fetched;
   try {
-    event = await placeholder.race(
+    fetched = await placeholder.race(
       () => reportFailureOf(
         client.getEventByPushNotification(
           notification,
@@ -115,129 +123,195 @@ Future<IncomingPushOutcome> _handle(
         : IncomingPushOutcome.ignored;
   }
   timing?.mark('fetch');
-  if (event == null) {
+  if (fetched == null) {
     debugPrint('zuno/push: event could not be resolved');
     await placeholder.retract();
     return IncomingPushOutcome.ignored;
   }
-  if (isUndecryptableEvent(event)) {
-    if (event.senderId == client.userID) {
-      await placeholder.retract();
-      return IncomingPushOutcome.ignored;
-    }
-    debugPrint('zuno/push: event did not decrypt, keeping "New message"');
-    return await placeholder.post()
-        ? IncomingPushOutcome.message
-        : IncomingPushOutcome.ignored;
-  }
-  if (kDebugMode) {
-    final age = clock.now().difference(event.originServerTs);
-    debugPrint(
-      'zuno/push: resolved ${event.type}/${event.messageType} '
-      'in ${event.room.id}, sent ${age.inSeconds}s ago',
-    );
-  }
-
-  if (isCallSummaryMessage(event.messageType)) {
-    await endRingForCallSummary(event, ring);
-    if (!isMissedCallSummary(event)) {
-      await placeholder.retract();
-      return IncomingPushOutcome.ignored;
-    }
-  }
-
-  final call = incomingCallFromEvent(client, event);
-  if (call != null) {
-    final ringing = await ringFromPush(call, ring);
+  final dispatch = _Dispatch(
+    placeholder,
+    notifyMe: notifyMe,
+    currentlyOpenRoomId: currentlyOpenRoomId,
+    timing: timing,
+    ring: ring,
+    synced: synced,
+    handlingSince: handlingSince,
+    onRefining: onRefining,
+    onRinging: onRinging,
+  );
+  if (!isUndecryptableEvent(fetched)) return dispatch.run(fetched);
+  if (fetched.senderId == client.userID) {
     await placeholder.retract();
-    return ringing
-        ? IncomingPushOutcome.callRinging
-        : IncomingPushOutcome.ignored;
+    return IncomingPushOutcome.ignored;
   }
-
-  final invite = inviteNotificationFor(client, event);
-  if (invite != null) {
-    final claim = await claimInviteAnnouncement(
-      invite.roomId,
-      userId: client.userID,
-    );
-    if (!claim.won) {
-      debugPrint(
-        'zuno/push: invitation to ${invite.roomId} not announced here',
-      );
-      final announcedAt = claim.announcedAt;
-      await placeholder.settleAfterAnnounced(
-        replacedNotice:
-            announcedAt != null &&
-            announcedAt.isAfter(handlingSince.subtract(_noticeReplacedWithin)),
-      );
+  var underRing = await ringStandsInFor(fetched, ring);
+  if (!underRing) {
+    if (!await placeholder.post(senderId: fetched.senderId)) {
       return IncomingPushOutcome.ignored;
     }
-    try {
+    underRing = await ringStandsInFor(fetched, ring);
+  }
+  if (underRing) await placeholder.retract();
+  final keySync = onRefining != null ? syncForLateKey(client) : null;
+  if (onRefining != null && keySync != null) {
+    debugPrint('zuno/push: not decrypted yet, trying again after a sync');
+    onRefining(_openAfter(keySync, fetched, dispatch, stop: appWantsClient));
+  }
+  return underRing ? IncomingPushOutcome.ignored : IncomingPushOutcome.message;
+}
+
+Future<void> _openAfter(
+  Future<void> sync,
+  Event locked,
+  _Dispatch dispatch, {
+  required Future<void>? stop,
+}) async {
+  var stopped = false;
+  await Future.any([sync, ?stop?.then((_) => stopped = true)]);
+  if (stopped) return;
+  final opened = await decryptAgain(dispatch.client, locked);
+  if (opened != null) await dispatch.run(opened);
+}
+
+class _Dispatch {
+  _Dispatch(
+    this.placeholder, {
+    required this.notifyMe,
+    required this.currentlyOpenRoomId,
+    required this.timing,
+    required this.ring,
+    required this.synced,
+    required this.handlingSince,
+    required this.onRefining,
+    required this.onRinging,
+  });
+
+  final _Placeholder placeholder;
+  final NotifyMe notifyMe;
+  final String? currentlyOpenRoomId;
+  final PushTiming? timing;
+  final IncomingCallPresenter ring;
+  final Future<void>? synced;
+  final DateTime handlingSince;
+  final void Function(Future<void> refinement)? onRefining;
+  final void Function()? onRinging;
+
+  Client get client => placeholder.client;
+
+  Future<NotificationPreview> get preview => placeholder.preview;
+
+  Future<IncomingPushOutcome> run(Event event) async {
+    if (kDebugMode) {
+      final age = clock.now().difference(event.originServerTs);
+      debugPrint(
+        'zuno/push: resolved ${event.type}/${event.messageType} '
+        'in ${event.room.id}, sent ${age.inSeconds}s ago',
+      );
+    }
+
+    if (isCallSummaryMessage(event.messageType)) {
+      await endRingForCallSummary(event, ring);
+      if (!isMissedCallSummary(event)) {
+        await placeholder.retract();
+        return IncomingPushOutcome.ignored;
+      }
+    }
+
+    final call = incomingCallFromEvent(client, event);
+    if (call != null) {
+      final ringing = await ringFromPush(call, ring);
+      await placeholder.retract();
+      if (!ringing) return IncomingPushOutcome.ignored;
+      onRinging?.call();
+      return IncomingPushOutcome.callRinging;
+    }
+
+    final invite = inviteNotificationFor(client, event);
+    if (invite != null) {
+      final claim = await claimInviteAnnouncement(
+        invite.roomId,
+        userId: client.userID,
+      );
+      if (!claim.won) {
+        debugPrint(
+          'zuno/push: invitation to ${invite.roomId} not announced here',
+        );
+        final announcedAt = claim.announcedAt;
+        await placeholder.settleAfterAnnounced(
+          replacedNotice:
+              announcedAt != null &&
+              announcedAt.isAfter(
+                handlingSince.subtract(_noticeReplacedWithin),
+              ),
+        );
+        return IncomingPushOutcome.ignored;
+      }
+      try {
+        await postMessageNotification(
+          invite,
+          client: client,
+          preview: await preview,
+          isMessage: false,
+          onRefining: onRefining,
+        );
+      } catch (_) {
+        await forgetInviteAnnouncements([invite.roomId]);
+        rethrow;
+      }
+      await placeholder.retract();
+      return IncomingPushOutcome.message;
+    }
+
+    final verification = verificationRequestNotificationFor(client, event);
+    if (verification != null) {
       await postMessageNotification(
-        invite,
+        verification,
         client: client,
         preview: await preview,
         isMessage: false,
         onRefining: onRefining,
       );
-    } catch (_) {
-      await forgetInviteAnnouncements([invite.roomId]);
-      rethrow;
+      await placeholder.retract();
+      return IncomingPushOutcome.message;
     }
-    await placeholder.retract();
-    return IncomingPushOutcome.message;
-  }
 
-  final verification = verificationRequestNotificationFor(client, event);
-  if (verification != null) {
+    final synced = this.synced;
+    if (synced != null &&
+        await placeholder.caughtUp(synced) &&
+        _readElsewhere(client, event)) {
+      debugPrint('zuno/push: read on another device, as the catch-up showed');
+      await placeholder.retract();
+      return IncomingPushOutcome.ignored;
+    }
+
+    final decision = messageNotificationFor(
+      client,
+      event,
+      pushRuleAction: client.pushruleEvaluator.match(event),
+      notifyMe: notifyMe,
+      currentlyOpenRoomId: currentlyOpenRoomId,
+      preview: await preview,
+    );
+    final content = decision.content;
+    if (content == null) {
+      if (kDebugMode) {
+        debugPrint('zuno/push: not notifying (${decision.refusal?.label})');
+      }
+      await placeholder.retract();
+      return IncomingPushOutcome.ignored;
+    }
     await postMessageNotification(
-      verification,
+      content,
       client: client,
       preview: await preview,
-      isMessage: false,
+      fetchImage: () => fetchMessageNotificationImage(event),
+      onPosted: () => timing?.mark('post'),
       onRefining: onRefining,
+      timing: timing,
     );
-    await placeholder.retract();
+    timing?.mark('refine');
     return IncomingPushOutcome.message;
   }
-
-  if (synced != null &&
-      await placeholder.caughtUp(synced) &&
-      _readElsewhere(client, event)) {
-    debugPrint('zuno/push: read on another device, as the catch-up showed');
-    await placeholder.retract();
-    return IncomingPushOutcome.ignored;
-  }
-
-  final decision = messageNotificationFor(
-    client,
-    event,
-    pushRuleAction: client.pushruleEvaluator.match(event),
-    notifyMe: notifyMe,
-    currentlyOpenRoomId: currentlyOpenRoomId,
-    preview: await preview,
-  );
-  final content = decision.content;
-  if (content == null) {
-    if (kDebugMode) {
-      debugPrint('zuno/push: not notifying (${decision.refusal?.label})');
-    }
-    await placeholder.retract();
-    return IncomingPushOutcome.ignored;
-  }
-  final resolved = event;
-  await postMessageNotification(
-    content,
-    client: client,
-    preview: await preview,
-    fetchImage: () => fetchMessageNotificationImage(resolved),
-    onPosted: () => timing?.mark('post'),
-    onRefining: onRefining,
-    timing: timing,
-  );
-  timing?.mark('refine');
-  return IncomingPushOutcome.message;
 }
 
 class _Placeholder {
@@ -253,6 +327,7 @@ class _Placeholder {
   final bool quiet;
   final Future<NotificationPreview> preview;
   bool _posted = false;
+  String? _postedSender;
   Future<void>? _mark;
 
   Future<Event?> race(
@@ -283,21 +358,26 @@ class _Placeholder {
     return landed;
   }
 
-  Future<bool> post() async {
-    if (_posted) return true;
+  bool _alreadyPosted(String? senderId) =>
+      _posted && (senderId == null || senderId == _postedSender);
+
+  Future<bool> post({String? senderId}) async {
+    if (_alreadyPosted(senderId)) return true;
     if (notification.roomId case final roomId?) {
       if (client.getRoomById(roomId) case final room?) {
         await loadRoomNameMembers(room);
       }
     }
-    if (_posted) return true;
+    if (_alreadyPosted(senderId)) return true;
     final content = unresolvedPushNotification(
       client,
       notification,
+      senderId: senderId,
       quiet: quiet,
     );
     if (content == null) return false;
     _posted = true;
+    _postedSender = senderId;
     debugPrint('zuno/push: showing a placeholder while the fetch continues');
     await postMessageNotification(
       content,
@@ -335,6 +415,7 @@ class _Placeholder {
 MessageNotificationContent? unresolvedPushNotification(
   Client client,
   PushNotification notification, {
+  String? senderId,
   bool quiet = false,
 }) {
   final roomId = notification.roomId;
@@ -343,6 +424,7 @@ MessageNotificationContent? unresolvedPushNotification(
     roomId,
     room: client.getRoomById(roomId),
     eventId: notification.eventId,
+    senderId: senderId,
     roomName: notification.roomName,
     senderName: notification.senderDisplayName,
     quiet: quiet,

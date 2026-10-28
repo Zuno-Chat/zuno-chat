@@ -14,7 +14,6 @@ struct VoipRing: Equatable, Sendable {
   let rname: String
   let kind: VoipKind
   let ts: Int64
-  let rts: Int64
 }
 
 struct VoipBlobHeader: Equatable, Sendable {
@@ -26,7 +25,7 @@ enum VoipBlobOpen: Equatable, Sendable {
   case opened(VoipBlobHeader, VoipRing)
   case unknownKid(VoipBlobHeader)
   case unknownVersion
-  case forged(VoipBlobHeader?)
+  case forged
 }
 
 enum VoipBlob {
@@ -43,7 +42,7 @@ enum VoipBlob {
   }
 
   static func open(payload: [AnyHashable: Any], key: (UInt32) -> SymmetricKey?) -> VoipBlobOpen {
-    guard let blob = data(from: payload) else { return .forged(nil) }
+    guard let blob = data(from: payload) else { return .forged }
     return open(blob, key: key)
   }
 
@@ -55,11 +54,11 @@ enum VoipBlob {
 
   static func open(_ blob: Data, key: (UInt32) -> SymmetricKey?) -> VoipBlobOpen {
     let bytes = [UInt8](blob)
-    guard bytes.count >= headerLength else { return .forged(nil) }
+    guard bytes.count >= headerLength else { return .forged }
     guard let header = header(blob) else { return .unknownVersion }
     guard let secret = key(header.kid) else { return .unknownKid(header) }
     guard paddedLengths.contains(bytes.count - headerLength - nonceLength - tagLength) else {
-      return .forged(header)
+      return .forged
     }
     let plaintext: Data
     do {
@@ -68,9 +67,9 @@ enum VoipBlob {
         box, using: secret, authenticating: associatedData(Data(bytes[0..<headerLength])))
     } catch {
       CaughtErrors.record("voip blob open", error)
-      return .forged(header)
+      return .forged
     }
-    guard let ring = ring(from: plaintext) else { return .forged(header) }
+    guard let ring = ring(from: plaintext) else { return .forged }
     return .opened(header, ring)
   }
 
@@ -84,14 +83,13 @@ enum VoipBlob {
       let object = parsed as? [String: Any],
       let room = object["room"] as? String, !room.isEmpty,
       let call = object["call"] as? String, !call.isEmpty,
-      let caller = object["caller"] as? String,
+      let caller = object["caller"] as? String, !caller.isEmpty,
       let kindName = object["kind"] as? String, let kind = VoipKind(rawValue: kindName),
-      let ts = (object["ts"] as? NSNumber)?.int64Value,
-      let rts = (object["rts"] as? NSNumber)?.int64Value
+      let ts = (object["ts"] as? NSNumber)?.int64Value
     else { return nil }
     return VoipRing(
       room: room, call: call, caller: caller, cname: object["cname"] as? String ?? "",
-      rname: object["rname"] as? String ?? "", kind: kind, ts: ts, rts: rts)
+      rname: object["rname"] as? String ?? "", kind: kind, ts: ts)
   }
 
   private static func associatedData(_ header: Data) -> Data {

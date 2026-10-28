@@ -5,6 +5,7 @@ import android.os.SystemClock
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import im.zuno.chat.zuno_notifications.FlutterStore
 import im.zuno.chat.zuno_notifications.PushNotice
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -19,19 +20,25 @@ class FcmService : FirebaseMessagingService() {
             val appInFront = PushNotice.appInFront(applicationContext)
             handling = FcmBadgeDecision.handlingFor(message.data, appInFront)
             when (handling) {
-                FcmPushHandling.DART -> {
-                    val args = mapOf<String, Any?>(
-                        "data" to HashMap(message.data),
-                        "appInFront" to appInFront,
-                    )
-                    val done = FcmRouter.deliver(
-                        applicationContext,
-                        "push",
-                        args,
-                        messageId ?: "push",
-                    )
-                    if (awaitHandled(done, "push $messageId")) {
-                        ackedAtElapsedMs = SystemClock.elapsedRealtime()
+                FcmPushHandling.DART -> ackedAtElapsedMs = deliverToDart(
+                    "push",
+                    mapOf("data" to HashMap(message.data), "appInFront" to appInFront),
+                    messageId,
+                )
+
+                FcmPushHandling.RING -> {
+                    val outcome = RingRegistration.takeOrJudge(this, messageId, message.data)
+                    when (outcome) {
+                        is RingPushOutcome.Ring -> ackedAtElapsedMs = deliverToDart(
+                            "ring",
+                            ringArgs(outcome, appInFront),
+                            messageId,
+                        )
+
+                        is RingPushOutcome.Drop ->
+                            Log.i(TAG, "Ring push $messageId dropped: ${outcome.reason}")
+
+                        RingPushOutcome.ReRegister -> Unit
                     }
                 }
 
@@ -51,9 +58,10 @@ class FcmService : FirebaseMessagingService() {
 
     @Suppress("OVERRIDE_DEPRECATION")
     override fun onNewToken(token: String) {
-        val registered = getSharedPreferences(PREFERENCES, MODE_PRIVATE).getString(TOKEN_KEY, null)
+        val registered = FcmPushKeys.registeredToken(applicationContext)
         if (!FcmPushKeys.shouldForwardToken(registered, token)) return
         Log.i(TAG, "FCM token changed, updating the push registration")
+        RingRegistration.queueEvent(applicationContext, RingRegistration.TOKEN_EVENT)
         awaitHandled(
             FcmRouter.deliver(applicationContext, "token", mapOf("token" to token), "token"),
             "token refresh",
@@ -64,6 +72,23 @@ class FcmService : FirebaseMessagingService() {
         Log.w(TAG, "FCM dropped messages it could not deliver")
         PushNotice.postMissed(applicationContext)
     }
+
+    private fun deliverToDart(method: String, args: Map<String, Any?>, messageId: String?): Long? {
+        val done = FcmRouter.deliver(applicationContext, method, args, messageId ?: method)
+        return if (awaitHandled(done, "$method $messageId")) SystemClock.elapsedRealtime() else null
+    }
+
+    private fun ringArgs(outcome: RingPushOutcome.Ring, appInFront: Boolean): Map<String, Any?> =
+        mapOf(
+            "room" to outcome.ring.room,
+            "call" to outcome.ring.call,
+            "caller" to outcome.ring.caller,
+            "cname" to outcome.ring.cname,
+            "rname" to outcome.ring.rname,
+            "kind" to outcome.ring.kind.wire,
+            "appInFront" to appInFront,
+            "ringMs" to outcome.ringMs,
+        )
 
     private fun clearMessageNotifications() {
         Log.i(TAG, "Badge push says everything is read, clearing chat notifications")
@@ -77,10 +102,7 @@ class FcmService : FirebaseMessagingService() {
             CaughtErrors.record(this, "fcm clear chat notifications", e)
         }
         try {
-            getSharedPreferences(PREFERENCES, MODE_PRIVATE)
-                .edit()
-                .remove(FcmBadgeDecision.THREADS_KEY)
-                .apply()
+            FlutterStore.preferences(this).edit().remove(FlutterStore.THREADS).apply()
         } catch (e: Exception) {
             CaughtErrors.record(this, "fcm forget notification threads", e)
         }
@@ -99,7 +121,5 @@ class FcmService : FirebaseMessagingService() {
     private companion object {
         const val TAG = "FcmService"
         const val ACK_TIMEOUT_MS = 17_000L
-        const val PREFERENCES = "FlutterSharedPreferences"
-        const val TOKEN_KEY = "flutter.push.fcm.token"
     }
 }

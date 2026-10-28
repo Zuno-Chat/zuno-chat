@@ -1,0 +1,54 @@
+{
+  "file": "FlutterSharedPreferences",
+  "prefix": "flutter.",
+  "keys": {
+    "ringingCall": "calls.ringing_notification",
+    "resolvedCallPrefix": "calls.resolved.",
+    "roomCache": "notifications.rooms",
+    "threads": "notifications.threads",
+    "recentDeliveries": "push.recent_deliveries",
+    "fcmToken": "push.fcm.token",
+    "notificationPreview": "settings.notification_preview",
+    "notifyMe": "settings.notify_me",
+    "messageTone": "settings.message_tone_enabled",
+    "messageVibration": "settings.message_vibration_enabled",
+    "ringtone": "settings.ringtone_enabled",
+    "callVibration": "settings.call_vibration_enabled"
+  },
+  "values": {
+    "previewHidden": "nothing",
+    "notifyMeMentionsOnly": "mentionsOnly"
+  },
+  "ringingCall": {
+    "roomId": "!room:example.org",
+    "callId": "call1",
+    "callerId": "@bob:example.org",
+    "isVideo": true,
+    "postedAt": 1790000000000
+  },
+  "resolvedCall": {
+    "callId": "call1",
+    "at": 1790000000000
+  },
+  "roomCache": {
+    "rooms": [
+      { "id": "!dm:example.org", "isDirect": true, "name": "Bob" },
+      { "id": "!group:example.org", "isDirect": false, "name": "Climbing club" }
+    ],
+    "encoded": "!dm:example.org\td\tBob\n!group:example.org\tg\tClimbing club"
+  },
+  "delivery": {
+    "receivedAtMs": 1790000001000,
+    "sentAtMs": 1790000000000,
+    "originalPriority": "high",
+    "deliveredPriority": "normal",
+    "deviceIdle": true,
+    "standbyBucket": 10,
+    "receiverMs": 12,
+    "noticePosted": true,
+    "serviceStartMs": 30,
+    "handling": "dart",
+    "ackMs": 450,
+    "line": "1790000001000\t1790000000000\thigh\tnormal\t1\t10\t12\t1\t30\tdart\t450"
+  }
+}

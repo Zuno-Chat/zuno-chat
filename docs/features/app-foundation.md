@@ -15,6 +15,8 @@ The layer every screen sits on: one Matrix client per process, startup, navigati
 | `firstSyncProvider` | Done once a first sync has finished, or at once for a restored session. Onboarding and the chat list's empty state wait on it, because `client.login` can give up waiting for that sync. |
 | `connectionStatusProvider`, `isOfflineProvider` | Connectivity (below). |
 
+**Late decryptions are announced app-wide** (`LateDecryptions`, one per client). The SDK re-decrypts a timeline event whose key arrives late but announces it only on a deprecated stream, so this watcher re-announces it for every reader outside a `Timeline`: the ring, call signals, the unread correction and the media feed read its stream (every timeline event, late ones included) instead of `onTimelineEvent`, and the in-app notifier reads its late ones. It watches a locked event for a bounded time and drops one deleted before its key arrived.
+
 **The HTTP stack** has four deliberate quirks.
 - **Dart refuses cleartext HTTP.** The process-wide `HttpOverrides` (`app_http_overrides.dart`) set the User-Agent and refuse any connection that is not https, because Android's network security config and iOS ATS govern only the platform's own network stacks, never `dart:io`. A refused connection throws its own exception, so callers can tell it from an unreachable server.
 - The `HttpClient` has a connect-only timeout, so a dead route fails fast while a slow upload or download is never cut off.
@@ -133,7 +135,7 @@ Each flag is one of these kinds:
 |---|---|
 | Native handler on both platforms | `screenSecurity`, `inboundShare`, `nativeSignOutWipe`, `clientLease`, `pictureInPicture`, `liveLocation` |
 | Awaiting an iOS handler | `deviceSafetyChecks` |
-| Off on iOS by design (`../decisions/ios-push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
+| Off on iOS by design (`../decisions/push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
 | Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
 | Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `nativeFileShare`, `nativeLogFloor`, `overlayHiding`, `accessibilitySensitivity` |
 | iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `recorderNeedsAudioSession`, `thirdPartyKeyboardBlocking`, `notificationRetentionCheck` |
@@ -145,7 +147,7 @@ The `zuno/*` channels, each behind its flag:
 
 | Area | Both platforms | Android | iOS |
 |---|---|---|---|
-| Calls (`calls.md`) | `zuno/calls`: call presentation, call audio and its routes, ringback | `zuno/call_style` | `zuno/voip` |
+| Calls (`calls.md`) | `zuno/calls`: call presentation, call audio and its routes, ringback; `zuno/ring`: the server ring's key and registration (`notifications.md`) | `zuno/call_style` | |
 | Privacy (`settings.md`) | `zuno/privacy`: screen security, the sensitive clipboard and, on iOS, the third-party keyboard policy | | |
 | Push and notifications (`notifications.md`) | `zuno/push_wakelock`, `zuno/push_diag` | `zuno/fcm`, `zuno/background_sync`, `zuno/conversations`, `zuno/vibration` | `zuno/apns`, `zuno/nse`, `zuno/notification_actions` |
 | Media and uploads | `zuno/image`, `zuno/video`, `zuno/upload_service` | | |
@@ -387,7 +389,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 
 **Storage and iOS**
 - **Never give flutter_secure_storage a `groupId` or change its `accessibility` without migrating first**: the database key then reads as absent, and `obtainDatabaseCipher` deletes `zuno.db`.
-- **Never give `zuno.db` a plaintext header**, because the key cache and the shared open read the salt from its first bytes. Those reads also drop the process's POSIX locks on the file, one more reason the database never moves to an App Group (`../decisions/ios-push-and-ring.md`).
+- **Never give `zuno.db` a plaintext header**, because the key cache and the shared open read the salt from its first bytes. Those reads also drop the process's POSIX locks on the file, one more reason the database never moves to an App Group (`../decisions/push-and-ring.md`).
 - **SQLCipher 5 cannot open a 4.x database with its defaults**, so a bump needs compatibility settings or a migration.
 - **The SDK keeps every encrypted to-device payload for replay and queues failed sends**, so the app's database keeps ephemeral payloads (call keys, live location positions and watches) out of both, or keys and coordinates would reach the disk and stale ones would replay later.
 - **App Group files are written through a temp file and a rename, never in the purged `Library/Caches`**, because a file lock held at suspension gets the process killed (`0xdead10cc`). The write takes the temp file's protection class, so set it on the temp file.

@@ -22,6 +22,7 @@ import '../../../core/calls/ring_identity.dart';
 import '../../../core/calls/show_over_lockscreen.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/late_decryptions.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/platform/platform_capabilities.dart';
@@ -91,9 +92,8 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
       if (response.call.callId != widget.call.callId) return;
       _runAction(response.action);
     });
-    _callEndedSub = widget.call.room.client.onTimelineEvent.stream.listen(
-      _handleCallEnded,
-    );
+    _callEndedSub = LateDecryptions.of(widget.call.room.client).timeline
+        .listen(_handleCallEnded);
     ref.listenManual<String?>(
       callWaitingProvider,
       (_, _) => _ringAloudUnlessWaiting(),

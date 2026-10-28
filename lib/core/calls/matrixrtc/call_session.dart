@@ -18,6 +18,7 @@ import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/bearer_authorization.dart';
 import '../../matrix/ephemeral_to_device.dart';
+import '../../matrix/late_decryptions.dart';
 import '../../matrix/olm_sender.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
@@ -199,7 +200,8 @@ class CallSession {
     _roomSub = client.onSync.stream.listen((update) {
       if (_leftRoom(update)) unawaited(_endLocally());
     });
-    _moderationSub = client.onTimelineEvent.stream.listen(_handleModeration);
+    _moderationSub = LateDecryptions.of(client).timeline
+        .listen(_handleModeration);
   }
 
   void _handleModeration(Event event) {
@@ -321,7 +323,8 @@ class CallSession {
   }
 
   void _listenForDecline() {
-    _declineSub = client.onTimelineEvent.stream.listen(_handleDeclineEvent);
+    _declineSub = LateDecryptions.of(client).timeline
+        .listen(_handleDeclineEvent);
   }
 
   void _handleDeclineEvent(Event event) {
@@ -450,7 +453,7 @@ class CallSession {
   }
 
   void _endOnceSummarizedUnjoined() {
-    _summarySub = client.onTimelineEvent.stream.listen((event) {
+    _summarySub = LateDecryptions.of(client).timeline.listen((event) {
       if (_everHadRemote || _phase == CallSessionPhase.ended) return;
       if (event.room.id != _roomId) return;
       if (!isCallSummaryMessage(event.messageType)) return;

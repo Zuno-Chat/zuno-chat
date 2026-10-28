@@ -34,8 +34,7 @@ final class VoipBlobTests: XCTestCase {
         cname: try XCTUnwrap(payload["cname"] as? String, name),
         rname: try XCTUnwrap(payload["rname"] as? String, name),
         kind: try XCTUnwrap(VoipKind(rawValue: payload["kind"] as? String ?? ""), name),
-        ts: try XCTUnwrap((payload["ts"] as? NSNumber)?.int64Value, name),
-        rts: try XCTUnwrap((payload["rts"] as? NSNumber)?.int64Value, name))
+        ts: try XCTUnwrap((payload["ts"] as? NSNumber)?.int64Value, name))
       let expiry = UInt32(try XCTUnwrap(vector["x"] as? Int, name))
       let blob = try ContractFixture.bytes(vector["blob"])
 
@@ -83,15 +82,15 @@ final class VoipBlobTests: XCTestCase {
 
   func testACiphertextOfAnyOtherSizeIsForged() {
     XCTAssertEqual(
-      VoipBlob.open(VoipBlobFixture.seal(padTo: 600), key: keys), .forged(header))
+      VoipBlob.open(VoipBlobFixture.seal(padTo: 600), key: keys), .forged)
     XCTAssertEqual(
-      VoipBlob.open(VoipBlobFixture.seal().prefix(30), key: keys), .forged(header))
+      VoipBlob.open(VoipBlobFixture.seal().prefix(30), key: keys), .forged)
   }
 
   func testABlobTooShortForItsHeaderIsForgedWhateverItsVersion() {
-    XCTAssertEqual(VoipBlob.open(VoipBlobFixture.seal().prefix(5), key: keys), .forged(nil))
-    XCTAssertEqual(VoipBlob.open(Data([0x02, 0x00]), key: keys), .forged(nil))
-    XCTAssertEqual(VoipBlob.open(Data(), key: keys), .forged(nil))
+    XCTAssertEqual(VoipBlob.open(VoipBlobFixture.seal().prefix(5), key: keys), .forged)
+    XCTAssertEqual(VoipBlob.open(Data([0x02, 0x00]), key: keys), .forged)
+    XCTAssertEqual(VoipBlob.open(Data(), key: keys), .forged)
   }
 
   func testAnUnknownKidIsGenericWhateverItsLength() {
@@ -99,20 +98,38 @@ final class VoipBlobTests: XCTestCase {
       VoipBlob.open(VoipBlobFixture.seal().prefix(30), key: { _ in nil }), .unknownKid(header))
   }
 
-  func testAnAuthenticRingWithoutItsRoomIsForged() {
-    let blob = VoipBlobFixture.seal(
-      #"{"room":"","call":"c1","caller":"@a:zuno.im","cname":"","rname":"","kind":"voice","ts":1,"rts":1}"#
-    )
+  func testAnAuthenticRingWithoutItsRoomCallOrCallerIsForged() {
+    let payloads = [
+      #"{"room":"","call":"c1","caller":"@a:zuno.im","kind":"voice","ts":1}"#,
+      #"{"room":"!r:zuno.im","call":"","caller":"@a:zuno.im","kind":"voice","ts":1}"#,
+      #"{"room":"!r:zuno.im","call":"c1","caller":"","kind":"voice","ts":1}"#,
+      #"{"room":"!r:zuno.im","call":"c1","kind":"voice","ts":1}"#,
+    ]
 
-    XCTAssertEqual(VoipBlob.open(blob, key: keys), .forged(header))
+    for payload in payloads {
+      XCTAssertEqual(VoipBlob.open(VoipBlobFixture.seal(payload), key: keys), .forged, payload)
+    }
   }
 
   func testAnUnknownKindIsForged() {
     let blob = VoipBlobFixture.seal(
-      #"{"room":"!r:zuno.im","call":"c1","caller":"@a:zuno.im","cname":"","rname":"","kind":"fax","ts":1,"rts":1}"#
+      #"{"room":"!r:zuno.im","call":"c1","caller":"@a:zuno.im","kind":"fax","ts":1}"#
     )
 
-    XCTAssertEqual(VoipBlob.open(blob, key: keys), .forged(header))
+    XCTAssertEqual(VoipBlob.open(blob, key: keys), .forged)
+  }
+
+  func testARingOpensWithoutRtsAndWhateverOtherKeysItCarries() {
+    let ring = VoipRing(
+      room: "!r:zuno.im", call: "c1", caller: "@a:zuno.im", cname: "", rname: "", kind: .voice,
+      ts: 1)
+    let bare = VoipBlobFixture.seal(
+      #"{"room":"!r:zuno.im","call":"c1","caller":"@a:zuno.im","kind":"voice","ts":1}"#)
+    let extra = VoipBlobFixture.seal(
+      #"{"room":"!r:zuno.im","call":"c1","caller":"@a:zuno.im","kind":"voice","ts":1,"v":2}"#)
+
+    XCTAssertEqual(VoipBlob.open(bare, key: keys), .opened(header, ring))
+    XCTAssertEqual(VoipBlob.open(extra, key: keys), .opened(header, ring))
   }
 
   func testThePushCarriesTheBlobInZ() {
@@ -121,7 +138,7 @@ final class VoipBlobTests: XCTestCase {
     XCTAssertEqual(VoipBlob.data(from: ["z": blob.base64EncodedString(), "event_id": "$z"]), blob)
     XCTAssertNil(VoipBlob.data(from: ["z": "%%%"]))
     XCTAssertNil(VoipBlob.data(from: ["event_id": "$z"]))
-    XCTAssertEqual(VoipBlob.open(payload: ["event_id": "$z"], key: keys), .forged(nil))
-    XCTAssertEqual(VoipBlob.open(payload: ["z": "%%%"], key: keys), .forged(nil))
+    XCTAssertEqual(VoipBlob.open(payload: ["event_id": "$z"], key: keys), .forged)
+    XCTAssertEqual(VoipBlob.open(payload: ["z": "%%%"], key: keys), .forged)
   }
 }

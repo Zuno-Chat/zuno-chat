@@ -382,9 +382,10 @@ the commonest words of ordinary prose break any run.
   before the post-restore sync, or that sync rebuilds previews from the same
   locked state.
 - **Late keys arrive per room** (`Room.onSessionKeyReceived`), not on sync,
-  and only the `Timeline` re-decrypts on them, so the room list preview
-  (`Room.lastEvent` is decrypted once and cached) and reply quotes retry
-  themselves.
+  and only the `Timeline` re-decrypts on them where the app can hear it, so
+  the room list preview (`Room.lastEvent` is decrypted once and cached) and
+  reply quotes retry themselves, and readers outside a `Timeline` use the
+  app-wide late-decryption stream (`app-foundation.md`).
 - **Starting over mints a new identity**, so it must clear both the
   confirmed-identity store and the SDK's `directVerified` flags, or a stale
   confirmation or a false `identityChanged` follows. Restoring clears nothing.

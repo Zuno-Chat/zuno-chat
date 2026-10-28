@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../matrix/late_decryptions.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../platform/system_ring.dart';
@@ -55,7 +56,7 @@ final ringElsewhereProvider = Provider<void>((ref) {
 
   final syncSub = client.onSync.stream.listen((_) => checkRing());
   SystemRing.instance.ringing.addListener(checkRingSoon);
-  final declineSub = client.onTimelineEvent.stream.listen((event) {
+  final declineSub = LateDecryptions.of(client).timeline.listen((event) {
     final ring = SystemRing.instance.ringing.value;
     if (ring == null || !declinedByMe(event, ring)) return;
     resolve(ring, RingEnd.declinedElsewhere);

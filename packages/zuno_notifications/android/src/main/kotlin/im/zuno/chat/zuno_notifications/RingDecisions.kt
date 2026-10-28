@@ -1,5 +1,9 @@
 package im.zuno.chat.zuno_notifications
 
+import android.app.NotificationManager
+import org.json.JSONException
+import org.json.JSONObject
+
 class RingPlan(
     val ringtoneAsset: String?,
     val vibrationPattern: LongArray?,
@@ -9,29 +13,46 @@ class RingPlan(
 
     val toneNow: String? get() = if (waiting) null else ringtoneAsset
 
+    fun quiet(): RingPlan = RingPlan(null, vibrationPattern, waitingText)
+
     companion object {
-        fun from(args: Map<String, Any?>): RingPlan = RingPlan(
-            ringtoneAsset = (args["ringtoneAsset"] as? String)
-                ?.takeIf { args["ringtone"] == true && it.isNotBlank() },
-            vibrationPattern = if (args["vibrate"] == true) {
-                vibrationPattern(args["vibrationPattern"])
-            } else {
-                null
-            },
+        private const val RINGTONE_ASSET = "assets/sounds/ringtone.wav"
+        private val callVibration = longArrayOf(0, 800, 500, 800, 2000)
+
+        fun from(args: Map<String, Any?>): RingPlan = of(
+            ringtone = args["ringtone"] == true,
+            vibrate = args["vibrate"] == true,
             waitingText = args["waitingText"] as? String,
         )
 
-        private fun vibrationPattern(raw: Any?): LongArray? {
-            val entries = raw as? List<*> ?: return null
-            val timings = entries.map { (it as? Number)?.toLong() ?: return null }.toLongArray()
-            if (timings.any { it < 0 } || timings.none { it > 0 }) return null
-            return timings
-        }
+        fun of(ringtone: Boolean, vibrate: Boolean, waitingText: String? = null): RingPlan =
+            RingPlan(
+                ringtoneAsset = RINGTONE_ASSET.takeIf { ringtone },
+                vibrationPattern = callVibration.copyOf().takeIf { vibrate },
+                waitingText = waitingText,
+            )
     }
 }
 
 data class RememberedRing(val callId: String, val postedAtMs: Long) {
     companion object {
+        fun record(call: InstantRingCall, postedAtMs: Long): String = JSONObject().apply {
+            put("roomId", call.roomId)
+            put("callId", call.callId)
+            put("callerId", call.callerId)
+            put("isVideo", call.isVideo)
+            put("postedAt", postedAtMs)
+        }.toString()
+
+        fun parse(stored: String?): RememberedRing? {
+            val record = try {
+                JSONObject(stored ?: return null)
+            } catch (e: JSONException) {
+                return null
+            }
+            return of(record.opt("roomId"), record.opt("callId"), record.opt("postedAt"))
+        }
+
         fun of(roomId: Any?, callId: Any?, postedAt: Any?): RememberedRing? {
             if (roomId !is String || callId !is String) return null
             val postedAtMs = when (postedAt) {
@@ -56,6 +77,7 @@ object RingDecisions {
     const val ACTION_ID_EXTRA = "actionId"
     const val TOKEN_EXTRA = "im.zuno.chat.zuno_notifications.RING_TOKEN"
     private const val REMEMBERED_RING_MAX_AGE_MS = 45_000L
+    private const val RESOLVED_RETENTION_MS = 300_000L
 
     fun ringLaunch(action: String?, notificationId: Int): Boolean =
         action == SELECT_FOREGROUND_ACTION && notificationId == IncomingRing.NOTIFICATION_ID
@@ -86,6 +108,34 @@ object RingDecisions {
         return RingCancel(forget, dismiss)
     }
 
+    fun resolvedCallIds(stored: Map<String, *>, nowMs: Long): Set<String> = stored.mapNotNullTo(
+        HashSet(),
+    ) { (key, at) ->
+        key.removePrefix(FlutterStore.RESOLVED_CALL_PREFIX).takeIf {
+            key.startsWith(FlutterStore.RESOLVED_CALL_PREFIX) &&
+                at is Long &&
+                nowMs - at <= RESOLVED_RETENTION_MS
+        }
+    }
+
+    fun canRing(
+        notificationsEnabled: Boolean,
+        channelImportance: Int?,
+        groupBlocked: Boolean,
+    ): Boolean = notificationsEnabled &&
+        channelImportance != null &&
+        channelImportance != NotificationManager.IMPORTANCE_NONE &&
+        !groupBlocked
+
+    fun ringsAloud(channelImportance: Int?): Boolean =
+        channelImportance != null && channelImportance >= NotificationManager.IMPORTANCE_DEFAULT
+
+    fun remembersRing(remembered: RememberedRing?, nowMs: Long): String? =
+        remembered?.takeIf { nowMs - it.postedAtMs <= REMEMBERED_RING_MAX_AGE_MS }?.callId
+
+    fun showingRing(notificationShowing: Boolean, remembered: RememberedRing?): String? =
+        remembered?.callId?.takeIf { notificationShowing }
+
     fun stops(ringingCallId: String?, requestedCallId: String?): Boolean =
         ringingCallId == null || requestedCallId == null || ringingCallId == requestedCallId
 
@@ -93,7 +143,5 @@ object RingDecisions {
         remembered: RememberedRing?,
         callId: String,
         nowMs: Long,
-    ): Boolean = remembered != null &&
-        remembered.callId != callId &&
-        nowMs - remembered.postedAtMs <= REMEMBERED_RING_MAX_AGE_MS
+    ): Boolean = remembersRing(remembered, nowMs).let { it != null && it != callId }
 }

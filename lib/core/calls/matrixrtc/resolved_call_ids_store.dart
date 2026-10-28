@@ -7,7 +7,7 @@ import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 
 const _legacyKey = 'calls.resolved';
-const _keyPrefix = 'calls.resolved.';
+const resolvedCallKeyPrefix = 'calls.resolved.';
 const _retention = Duration(minutes: 5);
 const _maxEntries = 32;
 
@@ -17,7 +17,10 @@ Future<void> markCallResolvedOnDisk(
 ) async {
   final at = clock.now();
   await _moveLegacyValue(prefs, now: at);
-  await prefs.setInt('$_keyPrefix$callId', at.millisecondsSinceEpoch);
+  await prefs.setInt(
+    '$resolvedCallKeyPrefix$callId',
+    at.millisecondsSinceEpoch,
+  );
   await _prune(prefs, now: at);
 }
 
@@ -35,9 +38,9 @@ int _cutoff(DateTime now) => now.subtract(_retention).millisecondsSinceEpoch;
 
 Map<String, int> _entries(SharedPreferences prefs) => {
   for (final key in prefs.getKeys())
-    if (key.startsWith(_keyPrefix))
+    if (key.startsWith(resolvedCallKeyPrefix))
       if (prefs.get(key) case final int at)
-        key.substring(_keyPrefix.length): at,
+        key.substring(resolvedCallKeyPrefix.length): at,
 };
 
 Map<String, int> _legacyEntries(SharedPreferences prefs) {
@@ -67,7 +70,7 @@ Future<void> _moveLegacyValue(
     if (entry.value < cutoff || (kept[entry.key] ?? 0) >= entry.value) {
       continue;
     }
-    await prefs.setInt('$_keyPrefix${entry.key}', entry.value);
+    await prefs.setInt('$resolvedCallKeyPrefix${entry.key}', entry.value);
   }
   await prefs.remove(_legacyKey);
 }
@@ -78,7 +81,7 @@ Future<void> _prune(SharedPreferences prefs, {required DateTime now}) async {
     ..sort((a, b) => b.value.compareTo(a.value));
   for (final (index, entry) in newestFirst.indexed) {
     if (entry.value >= cutoff && index < _maxEntries) continue;
-    await prefs.remove('$_keyPrefix${entry.key}');
+    await prefs.remove('$resolvedCallKeyPrefix${entry.key}');
   }
 }
 

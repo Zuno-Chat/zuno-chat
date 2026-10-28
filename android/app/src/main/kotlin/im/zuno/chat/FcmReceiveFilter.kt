@@ -7,6 +7,8 @@ sealed interface FcmReceivePlan {
 
     data class MessageNotice(val wakeLockKey: String?, val warmUpFlutter: Boolean) : FcmReceivePlan
 
+    data object RingWarmUp : FcmReceivePlan
+
     data object RecordOnly : FcmReceivePlan
 }
 
@@ -32,6 +34,8 @@ class FcmReceiveFilter(private val capacity: Int = RECENT_MESSAGE_IDS) {
                 wakeLockKey = messageId?.takeIf { !appInFront },
                 warmUpFlutter = !appInFront,
             )
+
+            PushKind.RING -> FcmReceivePlan.RingWarmUp
 
             PushKind.BADGE -> FcmReceivePlan.RecordOnly
         }

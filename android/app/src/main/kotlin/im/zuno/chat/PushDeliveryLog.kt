@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
+import im.zuno.chat.zuno_notifications.FlutterStore
 import java.util.concurrent.Executors
 
 data class PushDelivery(
@@ -46,8 +47,6 @@ class PendingDeliveries(private val capacity: Int) {
 }
 
 object PushDeliveryLog {
-    private const val PREFERENCES = "FlutterSharedPreferences"
-    private const val KEY = "flutter.push.recent_deliveries"
     private const val MAX_ENTRIES = 50
     private const val MAX_PENDING = 32
     private const val TAG = "PushDeliveryLog"
@@ -124,8 +123,9 @@ object PushDeliveryLog {
                 messageId?.let { pending.put(it, PendingDelivery(delivery, receivedAtElapsedMs)) }
                 val line = lineFor(delivery)
                 Log.i(TAG, line)
-                val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-                prefs.edit().putString(KEY, prepend(prefs.getString(KEY, null), line)).apply()
+                val prefs = FlutterStore.preferences(context)
+                val updated = prepend(prefs.getString(FlutterStore.RECENT_DELIVERIES, null), line)
+                prefs.edit().putString(FlutterStore.RECENT_DELIVERIES, updated).apply()
             } catch (e: Exception) {
                 CaughtErrors.record(context, "push delivery log received", e)
             }
@@ -139,9 +139,10 @@ object PushDeliveryLog {
                 val entry = pending.take(messageId) ?: return@execute
                 val line = lineFor(completed(entry, timing))
                 Log.i(TAG, line)
-                val prefs = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
-                replace(prefs.getString(KEY, null), lineFor(entry.delivery), line)?.let {
-                    prefs.edit().putString(KEY, it).apply()
+                val prefs = FlutterStore.preferences(context)
+                val existing = prefs.getString(FlutterStore.RECENT_DELIVERIES, null)
+                replace(existing, lineFor(entry.delivery), line)?.let {
+                    prefs.edit().putString(FlutterStore.RECENT_DELIVERIES, it).apply()
                 }
             } catch (e: Exception) {
                 CaughtErrors.record(context, "push delivery log handled", e)

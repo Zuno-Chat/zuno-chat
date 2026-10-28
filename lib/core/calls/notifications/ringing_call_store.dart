@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'call_notification_service.dart' show RingingCallInfo;
 
-const _ringingCallKey = 'calls.ringing_notification';
+const ringingCallKey = 'calls.ringing_notification';
 const _maxAge = Duration(seconds: 45);
 
 Future<void> saveRingingCall(
@@ -13,7 +13,7 @@ Future<void> saveRingingCall(
   RingingCallInfo call,
 ) async {
   await prefs.setString(
-    _ringingCallKey,
+    ringingCallKey,
     jsonEncode({
       'roomId': call.roomId,
       'callId': call.callId,
@@ -24,14 +24,17 @@ Future<void> saveRingingCall(
   );
 }
 
-RingingCallInfo? readRingingCall(SharedPreferences prefs) {
+RingingCallInfo? readRingingCall(
+  SharedPreferences prefs, {
+  bool onScreen = false,
+}) {
   final decoded = _readStored(prefs);
   if (decoded == null) return null;
   final roomId = decoded['roomId'];
   final callId = decoded['callId'];
   final postedAt = decoded['postedAt'];
   if (roomId is! String || callId is! String || postedAt is! int) return null;
-  if (_ageOf(postedAt) > _maxAge) return null;
+  if (!onScreen && _ageOf(postedAt) > _maxAge) return null;
   final callerId = decoded['callerId'];
   return (
     roomId: roomId,
@@ -42,7 +45,7 @@ RingingCallInfo? readRingingCall(SharedPreferences prefs) {
 }
 
 Future<void> clearRingingCall(SharedPreferences prefs) =>
-    prefs.remove(_ringingCallKey);
+    prefs.remove(ringingCallKey);
 
 Duration? ringAgeFor(SharedPreferences prefs, String callId) {
   final decoded = _readStored(prefs);
@@ -55,7 +58,7 @@ Duration? ringAgeFor(SharedPreferences prefs, String callId) {
 }
 
 Map<String, Object?>? _readStored(SharedPreferences prefs) {
-  final stored = prefs.getString(_ringingCallKey);
+  final stored = prefs.getString(ringingCallKey);
   if (stored == null) return null;
   final Object? decoded;
   try {

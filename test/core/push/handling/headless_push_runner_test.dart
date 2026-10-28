@@ -5,10 +5,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/calls/active_call_marker.dart';
+import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
+import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
+import 'package:zuno/core/calls/notifications/server_ring.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
 import 'package:zuno/core/push/handling/headless_push_runner.dart';
 import 'package:zuno/core/push/handling/incoming_push_handler.dart';
 
+import '../../../helpers/fake_call_style_channel.dart';
+import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -38,6 +44,26 @@ _MessageClient _messageClient({String? avatarUrl, http.Client? httpClient}) {
     senderId: '@a:x',
     content: {'msgtype': MessageTypes.Text, 'body': 'hi'},
   );
+  return client;
+}
+
+class _SyncingClient extends PushTestClient {
+  _SyncingClient() : super(decryption: FakeRoomDecryption());
+
+  final inFlight = Completer<void>();
+
+  @override
+  bool get syncPending => !inFlight.isCompleted;
+
+  @override
+  Future<void> oneShotSync({Duration? timeout}) => inFlight.future;
+}
+
+PushTestClient _lockedClient() {
+  final client = _SyncingClient()..setUserId('@me:x');
+  final room = buildTestRoom(client);
+  client.pushedEvent = (notification) =>
+      lockedTestEvent(room, eventId: notification.eventId!, senderId: '@a:x');
   return client;
 }
 
@@ -102,6 +128,24 @@ void main() {
         expect(built.single.disposeCalls, 0);
         expect(runner.quiescent, isFalse);
       });
+    });
+
+    test('a push trying again after the sync in flight lets the client go '
+        'as soon as the app asks for it', () async {
+      installFakeLocalNotifications();
+      installSilentNotificationSideChannels();
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: _lockedClient);
+
+      await runner.deliver(_push());
+      await pumpEventQueue();
+      expect(runner.lastPushOutcome, IncomingPushOutcome.message);
+      expect(built.single.disposeCalls, 0);
+
+      runner.yieldClient();
+      await pumpEventQueue();
+
+      expect(built.single.disposeCalls, 1);
     });
 
     test('a push after the client was given up opens a fresh one', () async {
@@ -525,15 +569,13 @@ void main() {
       expect(builds, 2);
     });
 
-    test('reports no outcome to the caller', () async {
-      IncomingPushOutcome? reported;
+    test('leaves the push unhandled and the runner quiet', () async {
       final runner = HeadlessPushRunner()
-        ..clientBuilder = (() async => throw const ClientLeaseDenied())
-        ..onPushHandled = (outcome) async => reported = outcome;
+        ..clientBuilder = (() async => throw const ClientLeaseDenied());
 
       await runner.deliver(_push());
 
-      expect(reported, isNull);
+      expect(runner.lastPushOutcome, IncomingPushOutcome.ignored);
       expect(runner.quiescent, isTrue);
     });
   });
@@ -593,49 +635,6 @@ void main() {
         expect(built.single.disposeCalls, 1);
       });
     });
-  });
-
-  test('runs onPushHandled outside the queue, so a ring hold does not '
-      'block the push that would cancel it', () async {
-    final runner = HeadlessPushRunner()
-      ..clientBuilder = () async => PushTestClient();
-    final holdReleased = Completer<void>();
-    var handledCount = 0;
-
-    runner.onPushHandled = (_) async {
-      handledCount++;
-      if (handledCount == 1) await holdReleased.future;
-    };
-
-    final first = runner.deliver(_push(eventId: '\$ring'));
-    await runner
-        .deliver(_push(eventId: '\$hangup'))
-        .timeout(
-          const Duration(seconds: 2),
-          onTimeout: () => fail('the ring hold blocked the next push'),
-        );
-
-    expect(handledCount, 2);
-    holdReleased.complete();
-    await first;
-  });
-
-  test('onPushHandled runs once the push is done with its client, so a '
-      'decline from it reuses that client', () async {
-    final built = <PushTestClient>[];
-    final runner = _recordingRunner(built);
-    final handled = <IncomingPushOutcome>[];
-    Client? declinedWith;
-    runner.onPushHandled = (outcome) async {
-      handled.add(outcome);
-      declinedWith = await runner.withClient((client) async => client);
-    };
-
-    await runner.deliver(_push());
-
-    expect(handled, [IncomingPushOutcome.ignored]);
-    expect(built, hasLength(1));
-    expect(declinedWith, same(built.single));
   });
 
   test('a throwing push does not poison the queue for the next one', () async {
@@ -836,6 +835,192 @@ void main() {
     });
   });
 
+  group('a ring the server sent', () {
+    late RecordedMethodCalls callStyle;
+
+    setUp(() => callStyle = installHeadlessRingChannels());
+
+    ServerRing ring({String caller = '@bob:example.org', bool front = false}) =>
+        ServerRing.from({
+          'room': '!room:example.org',
+          'call': 'call1',
+          'caller': caller,
+          'cname': 'Bob',
+          'rname': '',
+          'kind': 'video',
+          'appInFront': front,
+        })!;
+
+    test('rings without fetching anything, and holds the ring', () async {
+      final built = <PushTestClient>[];
+      var holds = 0;
+      final runner = _recordingRunner(built, newClient: ringingPushClient)
+        ..onRinging = () async => holds++;
+
+      await runner.deliverRing(ring());
+
+      expect(runner.lastPushOutcome, IncomingPushOutcome.callRinging);
+      expect((callStyle.lastShow.arguments as Map)['callId'], 'call1');
+      expect(built.single.fetched, isEmpty);
+      expect(holds, 1);
+    });
+
+    test('rings once for the same call', () async {
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: ringingPushClient);
+
+      await runner.deliverRing(ring());
+      await runner.deliverRing(ring());
+
+      expect(callStyle.named('showIncomingCallStyle'), hasLength(1));
+    });
+
+    test('does not ring for a call I started', () async {
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: ringingPushClient);
+
+      await runner.deliverRing(ring(caller: '@me:example.org'));
+
+      expect(runner.lastPushOutcome, IncomingPushOutcome.ignored);
+      expect(callStyle.named('showIncomingCallStyle'), isEmpty);
+    });
+
+    test(
+      'takes back a ring for a call in a room I may not join calls in',
+      () async {
+        PushTestClient unjoinable() {
+          final client = ringingPushClient();
+          final room = buildTestRoom(client, id: '!room:example.org');
+          client.rooms.add(room);
+          room.setState(
+            buildTestEvent(
+              room,
+              eventId: r'$powerlevels',
+              senderId: '@creator:example.org',
+              type: EventTypes.RoomPowerLevels,
+              stateKey: '',
+              content: {'state_default': 50, 'users_default': 0},
+            ),
+          );
+          return client;
+        }
+
+        final built = <PushTestClient>[];
+        final runner = _recordingRunner(built, newClient: unjoinable);
+
+        await runner.deliverRing(ring());
+
+        expect(callStyle.named('showIncomingCallStyle'), isEmpty);
+        expect(callStyle.named('cancelIncomingCallStyle').single.arguments, {
+          'callId': 'call1',
+        });
+      },
+    );
+
+    test('takes back a ring once signed out', () async {
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(
+        built,
+        newClient: () => ringingPushClient()..signedIn = false,
+      );
+
+      await runner.deliverRing(ring());
+
+      expect(callStyle.named('cancelIncomingCallStyle').single.arguments, {
+        'callId': 'call1',
+      });
+    });
+
+    test('takes over a ring native code already shows, holding it without '
+        'showing it again', () async {
+      final notifications = installFakeLocalNotifications();
+      await saveRingingCall(await SharedPreferences.getInstance(), (
+        roomId: '!room:example.org',
+        callId: 'call1',
+        callerId: '@bob:example.org',
+        isVideo: true,
+      ));
+      notifications.active = [ringNotificationOnScreen()];
+      var holds = 0;
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: ringingPushClient)
+        ..onRinging = () async => holds++;
+
+      await runner.deliverRing(ring());
+
+      expect(runner.lastPushOutcome, IncomingPushOutcome.callRinging);
+      expect(callStyle.named('showIncomingCallStyle'), isEmpty);
+      expect(callStyle.named('cancelIncomingCallStyle'), isEmpty);
+      expect(holds, 1);
+    });
+
+    test('leaves the call-waiting ring of that call alone while I am on '
+        'another call', () async {
+      final notifications = installFakeLocalNotifications();
+      await saveRingingCall(await SharedPreferences.getInstance(), (
+        roomId: '!room:example.org',
+        callId: 'call1',
+        callerId: '@bob:example.org',
+        isVideo: true,
+      ));
+      notifications.active = [ringNotificationOnScreen()];
+      markCallActiveInProcess(true);
+      addTearDown(() => markCallActiveInProcess(false));
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: ringingPushClient);
+
+      await runner.deliverRing(ring());
+
+      expect(callStyle.named('cancelIncomingCallStyle'), isEmpty);
+    });
+
+    test(
+      'takes back the ring of a call that should not ring any more',
+      () async {
+        await markCallResolvedOnDisk(
+          await SharedPreferences.getInstance(),
+          'call1',
+        );
+        final built = <PushTestClient>[];
+        final runner = _recordingRunner(built, newClient: ringingPushClient);
+
+        await runner.deliverRing(ring());
+
+        expect(runner.lastPushOutcome, IncomingPushOutcome.ignored);
+        expect(callStyle.named('cancelIncomingCallStyle').single.arguments, {
+          'callId': 'call1',
+        });
+      },
+    );
+
+    test('is handed to the app\'s own incoming call when it is in front and '
+        'syncing', () async {
+      final handed = <ServerRing>[];
+      final runner = HeadlessPushRunner()
+        ..liveClient = ringingPushClient()
+        ..isAppSyncing = (() => true)
+        ..ringInApp = handed.add;
+
+      await runner.deliverRing(ring(front: true));
+
+      expect(handed.single.callId, 'call1');
+      expect(callStyle.named('showIncomingCallStyle'), isEmpty);
+    });
+
+    test('is not handed to the app while it is in the background', () async {
+      final handed = <ServerRing>[];
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: ringingPushClient)
+        ..isAppSyncing = (() => true)
+        ..ringInApp = handed.add;
+
+      await runner.deliverRing(ring());
+
+      expect(handed, isEmpty);
+      expect(callStyle.named('showIncomingCallStyle'), hasLength(1));
+    });
+  });
+
   group('a push that rings', () {
     setUp(installHeadlessRingChannels);
 
@@ -903,26 +1088,19 @@ void main() {
       });
     });
 
-    test('a ring the caller waits out after the push does not keep the '
-        'client from the app', () {
+    test('a ring held after the push does not keep the client from the app, '
+        'and the rings it holds end with it', () {
       fakeAsync((async) {
         final built = <PushTestClient>[];
         final ringOver = Completer<void>();
-        final runner = ringingRunner(built)
-          ..onPushHandled = (outcome) async {
-            if (outcome == IncomingPushOutcome.callRinging) {
-              await ringOver.future;
-            }
-          };
-        var delivered = false;
+        final runner = ringingRunner(built)..onRinging = () => ringOver.future;
+        var ringsEnded = false;
 
-        unawaited(
-          runner
-              .deliver(_push(eventId: r'$invite'))
-              .then((_) => delivered = true),
-        );
+        unawaited(runner.deliver(_push(eventId: r'$invite')));
         async.flushMicrotasks();
-        expect(delivered, isFalse);
+        unawaited(runner.heldWorkDone.then((_) => ringsEnded = true));
+        async.flushMicrotasks();
+        expect(ringsEnded, isFalse);
 
         runner.yieldClient();
         async.flushMicrotasks();
@@ -931,8 +1109,31 @@ void main() {
 
         ringOver.complete();
         async.flushMicrotasks();
-        expect(delivered, isTrue);
+        expect(ringsEnded, isTrue);
         expect(runner.quiescent, isTrue);
+      });
+    });
+
+    test('held work waits for a refinement still running and for a ring '
+        'held while it waits', () {
+      fakeAsync((async) {
+        final built = <PushTestClient>[];
+        final refinement = Completer<void>();
+        final ringOver = Completer<void>();
+        final runner = ringingRunner(built)..onRinging = () => ringOver.future;
+        var done = false;
+
+        runner.keepClientWhile(refinement.future);
+        unawaited(runner.heldWorkDone.then((_) => done = true));
+        unawaited(runner.deliver(_push(eventId: r'$invite')));
+        async.flushMicrotasks();
+        refinement.complete();
+        async.flushMicrotasks();
+        expect(done, isFalse);
+
+        ringOver.complete();
+        async.flushMicrotasks();
+        expect(done, isTrue);
       });
     });
 
@@ -1221,16 +1422,12 @@ void badgeTests() {
       expect(notifications.cancelled, isEmpty);
     });
 
-    test('a badge push still reports back to the caller, so a headless '
-        'wakelock is released', () async {
-      IncomingPushOutcome? reported;
-      runner.onPushHandled = (outcome) async => reported = outcome;
-
+    test('a badge push is handled as a badge', () async {
       await runner.deliver(
         const PushNotification(counts: PushNotificationCounts(unread: 0)),
       );
 
-      expect(reported, IncomingPushOutcome.badge);
+      expect(runner.lastPushOutcome, IncomingPushOutcome.badge);
     });
   });
 }

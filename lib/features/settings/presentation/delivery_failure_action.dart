@@ -9,8 +9,8 @@ import '../../../core/push/delivery/delivery_failure.dart';
 import '../../../core/push/delivery/delivery_failure_provider.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
 import '../../../core/push/fcm/fcm_delivery_provider.dart';
+import '../../../core/push/ring/ring_registration.dart';
 import '../../../core/push/unified_push/unified_push_delivery_provider.dart';
-import '../../../core/push/voip/voip_registration.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import 'notification_delivery_page.dart';
 
@@ -58,7 +58,7 @@ Future<void> runDeliveryFailureAction(
       }
     case DeliveryFailureAction.retryCalls:
       await ref
-          .read(voipRegistrationProvider)
+          .read(ringRegistrationProvider)
           .registerNow(ref.read(matrixClientProvider));
   }
 }

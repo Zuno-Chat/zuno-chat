@@ -11,21 +11,29 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ring_notification.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
+import 'package:zuno/core/notifications/messages/message_notification_content.dart';
+import 'package:zuno/core/notifications/messages/message_notifications.dart';
+import 'package:zuno/core/notifications/messages/notification_ids.dart';
+import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
+import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   late Client client;
   late Room room;
   late RecordedMethodCalls callStyle;
+  late RecordedNotifications notifications;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
-    installFakeLocalNotifications();
+    notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
     callStyle = installFakeCallStyleChannel();
     client = buildTestClient(userId: '@me:example.org');
@@ -148,6 +156,23 @@ void main() {
     expect(lastShowArgs()['isVideo'], isFalse);
   });
 
+  test('rings a call only as long as its push allows, and a call without '
+      'a limit for as long as rings go', () async {
+    await postRingNotification(
+      IncomingCall(
+        room: room,
+        callId: 'call1',
+        callerId: '@bob:example.org',
+        kind: CallKind.voice,
+        ringFor: const Duration(seconds: 20),
+      ),
+    );
+    expect(lastShowArgs()['ringMs'], 20000);
+
+    await postRingNotification(call(callId: 'call2'));
+    expect(lastShowArgs().containsKey('ringMs'), isFalse);
+  });
+
   test('carries the room and call an action will need', () async {
     addCaller('Bob');
 
@@ -219,6 +244,85 @@ void main() {
     expect(requested, [contains('hike-avatar')]);
   });
 
+  group('the chat\'s "New message" lines', () {
+    Future<void> newMessageFrom(String senderId, String eventId) async {
+      await MessageNotifications.instance.showMessage(
+        MessageNotificationContent(
+          roomId: room.id,
+          title: 'Climbing club',
+          body: 'New message',
+          text: 'New message',
+          eventId: eventId,
+          isDirectChat: false,
+          senderId: senderId,
+        ),
+        preview: NotificationPreview.full,
+        isMessage: true,
+        placeholder: true,
+      );
+      notifications.active = [
+        {
+          'id': messageNotificationIdFor(room.id),
+          'channelId': 'group_messages',
+          'payload': '',
+        },
+      ];
+    }
+
+    Future<List<String>> linesLeft() async {
+      final prefs = await SharedPreferences.getInstance();
+      return [
+        for (final line in readNotificationThread(prefs, room.id)?.lines ?? [])
+          line.senderId,
+      ];
+    }
+
+    test('from the caller are taken down once the ring shows, other '
+        'people\'s stay', () async {
+      await newMessageFrom('@bob:example.org', r'$1');
+      await newMessageFrom('@carol:example.org', r'$2');
+
+      await postRingNotification(call());
+
+      expect(await linesLeft(), ['@carol:example.org']);
+      expect(notifications.shown.last.lineTexts, ['New message']);
+    });
+
+    test('stay on an iPhone, where CallKit rings rather than a '
+        'notification', () async {
+      await newMessageFrom('@bob:example.org', r'$1');
+      ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
+
+      await postRingNotification(call(), presenter: _ScriptedPresenter());
+
+      expect(await linesLeft(), ['@bob:example.org']);
+    });
+
+    test('stay while the ring cannot be shown', () async {
+      await newMessageFrom('@bob:example.org', r'$1');
+
+      await postRingNotification(
+        call(),
+        presenter: _ScriptedPresenter(outcome: RingOutcome.unavailable),
+      );
+
+      expect(await linesLeft(), ['@bob:example.org']);
+    });
+
+    test('stay when the call ended while it was being rung', () async {
+      await newMessageFrom('@bob:example.org', r'$1');
+
+      await postRingNotification(
+        call(),
+        presenter: _ScriptedPresenter(
+          whileShowing: () => markCallResolved('call1'),
+        ),
+      );
+
+      expect(await linesLeft(), ['@bob:example.org']);
+    });
+  });
+
   group('a call that ends while it is being rung', () {
     test('has its ring taken back at once, so it never rings on', () async {
       final presenter = _ScriptedPresenter(
@@ -273,6 +377,7 @@ class _ScriptedPresenter extends NoopIncomingCallPresenter {
     Uint8List? avatarBytes,
     Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
+    Duration? ringFor,
   }) async {
     await whileShowing?.call();
     return outcome;

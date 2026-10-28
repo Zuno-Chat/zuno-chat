@@ -111,9 +111,7 @@ void main() {
         'callId': 'call1',
         'avatarBytes': Uint8List.fromList([1, 2, 3]),
         'ringtone': true,
-        'ringtoneAsset': 'assets/sounds/ringtone.wav',
         'vibrate': true,
-        'vibrationPattern': [0, 800, 500, 800, 2000],
       });
       expect((await remembered())?.callId, 'call1');
     });
@@ -259,12 +257,10 @@ void main() {
       expect((callStyle.lastShow.arguments as Map)['vibrate'], isFalse);
     });
 
-    test('plays a ringtone that ships with the app', () async {
-      await ring(presenter);
+    test('the ringtone native code plays ships with the app', () async {
+      final tone = await rootBundle.load('assets/sounds/ringtone.wav');
 
-      final asset =
-          (callStyle.lastShow.arguments as Map)['ringtoneAsset'] as String;
-      expect((await rootBundle.load(asset)).lengthInBytes, greaterThan(0));
+      expect(tone.lengthInBytes, greaterThan(0));
     });
 
     test('leaves the sound to the native side, so no engine going away can '
@@ -369,6 +365,67 @@ void main() {
       expect(await presenter.activeRing(), isNull);
     });
 
+    test('a ring still on screen in its last seconds still counts as '
+        'ringing', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await withClock(
+        Clock.fixed(clock.now().subtract(const Duration(seconds: 55))),
+        () => saveRingingCall(prefs, (
+          roomId: '!room:example.org',
+          callId: 'call1',
+          callerId: '@bob:example.org',
+          isVideo: true,
+        )),
+      );
+      notifications.active = [ringNotificationOnScreen()];
+
+      expect((await presenter.activeRing())?.callId, 'call1');
+    });
+
+    test('a ring native code could not show is no ring, and leaves no '
+        'record of one', () async {
+      recordMethodChannel(
+        'zuno/call_style',
+        reply: (call) => call.method == 'showIncomingCallStyle' ? false : null,
+      );
+
+      final outcome = await ring(presenter);
+
+      expect(outcome, RingOutcome.unavailable);
+      expect(await remembered(), isNull);
+    });
+
+    test('a call that rang here and was declined or answered does not ring '
+        'again', () async {
+      await saveRingingCall(await SharedPreferences.getInstance(), (
+        roomId: '!room:example.org',
+        callId: 'call1',
+        callerId: '@bob:example.org',
+        isVideo: true,
+      ));
+
+      final outcome = await ring(presenter);
+
+      expect(outcome, RingOutcome.filtered);
+      expect(callStyle.named('showIncomingCallStyle'), isEmpty);
+    });
+
+    test('a call that rang here long ago may ring again', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await withClock(
+        Clock.fixed(clock.now().subtract(const Duration(minutes: 2))),
+        () => saveRingingCall(prefs, (
+          roomId: '!room:example.org',
+          callId: 'call1',
+          callerId: '@bob:example.org',
+          isVideo: true,
+        )),
+      );
+
+      expect(await ring(presenter), RingOutcome.shown);
+      expect(callStyle.named('showIncomingCallStyle'), hasLength(1));
+    });
+
     test(
       'cancelling takes the notification down and forgets the call',
       () async {
@@ -434,9 +491,7 @@ void main() {
         'callId': 'call1',
         'avatarBytes': null,
         'ringtone': true,
-        'ringtoneAsset': 'assets/sounds/ringtone.wav',
         'vibrate': true,
-        'vibrationPattern': [0, 800, 500, 800, 2000],
       });
       expect(callStyle.calls.map((c) => c.method), [
         'showIncomingCallStyle',
@@ -966,7 +1021,7 @@ class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
   final dismissals = <String?>[];
 
   @override
-  Future<void> presentIncoming({
+  Future<bool> presentIncoming({
     required String name,
     String? caller,
     required String callerId,
@@ -976,10 +1031,12 @@ class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
     required bool isGroupCall,
     Uint8List? avatarBytes,
     required bool waiting,
+    Duration? ringFor,
   }) async {
     await presenting;
     if (fails) throw StateError('no ring screen');
     presented++;
+    return true;
   }
 
   @override

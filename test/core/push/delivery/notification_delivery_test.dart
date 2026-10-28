@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/calls/notifications/server_ring.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns/apns_delivery_provider.dart';
 import 'package:zuno/core/push/apns/apns_pusher.dart';
@@ -13,9 +14,9 @@ import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_pusher.dart';
 import 'package:zuno/core/push/nse/nse_channel.dart';
 import 'package:zuno/core/push/pushers/pusher_info.dart';
+import 'package:zuno/core/push/ring/ring_channel.dart';
+import 'package:zuno/core/push/ring/ring_registration.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
-import 'package:zuno/core/push/voip/voip_channel.dart';
-import 'package:zuno/core/push/voip/voip_registration.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -143,7 +144,7 @@ void main() {
 
     setUp(() {
       voip.clear();
-      messenger.setMockMethodCallHandler(voipChannel, (call) async {
+      messenger.setMockMethodCallHandler(ringChannel, (call) async {
         voip.add(call);
         return null;
       });
@@ -152,7 +153,7 @@ void main() {
         return null;
       });
       addTearDown(() {
-        messenger.setMockMethodCallHandler(voipChannel, null);
+        messenger.setMockMethodCallHandler(ringChannel, null);
         messenger.setMockMethodCallHandler(nseChannel, null);
       });
     });
@@ -161,7 +162,7 @@ void main() {
         'sign-out wipe', () async {
       ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
       SharedPreferences.setMockInitialValues({
-        voipSessionKey: '@me:example.org|PHONE',
+        ringSessionKey: '@me:example.org|PHONE',
       });
 
       await stopAllNotificationDelivery(PusherRecordingClient());
@@ -174,15 +175,20 @@ void main() {
       ]);
     });
 
-    test('never touches calls on Android', () async {
+    test('closes the server ring session on Android too', () async {
       ambientCapabilities = androidCapabilities;
       SharedPreferences.setMockInitialValues({
-        voipSessionKey: '@me:example.org|PHONE',
+        ringSessionKey: '@me:example.org|PHONE',
       });
 
       await stopAllNotificationDelivery(PusherRecordingClient());
 
-      expect(voip, isEmpty);
+      expect(voip.map((c) => [c.method, c.arguments]), [
+        [
+          'setSession',
+          {'signedIn': false},
+        ],
+      ]);
     });
   });
 
@@ -194,9 +200,11 @@ void main() {
     );
     addTearDown(() => messenger.setMockMethodCallHandler(lock, null));
 
+    final handed = <ServerRing>[];
     bindAppStateToPushDelivery(
       currentlyOpenRoomId: () => '!open:example.org',
       isAppSyncing: () => true,
+      ringInApp: handed.add,
     );
 
     for (final runner in [
@@ -205,6 +213,7 @@ void main() {
     ]) {
       expect(runner.currentlyOpenRoomId(), '!open:example.org');
       expect(runner.isAppSyncing(), isTrue);
+      expect(runner.ringInApp, handed.add);
       expect(await runner.nativeAppInFront(), isFalse);
     }
   });
@@ -238,6 +247,7 @@ void main() {
       bindAppStateToPushDelivery(
         currentlyOpenRoomId: () => '!ready:example.org',
         isAppSyncing: () => true,
+        ringInApp: (_) {},
       );
       await pumpEventQueue();
 
@@ -256,6 +266,7 @@ void main() {
       bindAppStateToPushDelivery(
         currentlyOpenRoomId: () => null,
         isAppSyncing: () => false,
+        ringInApp: (_) {},
       );
       await pumpEventQueue();
 

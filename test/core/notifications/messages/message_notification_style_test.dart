@@ -50,7 +50,7 @@ void main() {
     String? body,
     String text = 'hi',
     String? eventId,
-    String senderId = '@a:x',
+    String? senderId = '@a:x',
     String senderName = 'Alice',
     Uri? senderAvatarUrl,
     Uint8List? senderAvatar,
@@ -91,14 +91,10 @@ void main() {
     ];
   }
 
-  Map<String, Object?> lastRoomPost() =>
-      notifications.shown.lastWhere((n) => n.id == roomNotificationId).android;
+  ShownNotification roomPost() =>
+      notifications.shown.lastWhere((n) => n.id == roomNotificationId);
 
-  List<Map<String, Object?>> messagesOf(Map<String, Object?> android) =>
-      ((android['styleInformation'] as Map)['messages'] as List)
-          .cast<Map>()
-          .map((m) => m.cast<String, Object?>())
-          .toList();
+  Map<String, Object?> lastRoomPost() => roomPost().android;
 
   clockedTest(
     'posts a MessagingStyle line with the sender as the person',
@@ -107,7 +103,7 @@ void main() {
 
       final android = lastRoomPost();
       expect(android['style'], AndroidNotificationStyle.messaging.index);
-      final messages = messagesOf(android);
+      final messages = roomPost().lines;
       expect(messages, hasLength(1));
       expect(messages.single['text'], 'hi');
       expect(messages.single['timestamp'], noon.millisecondsSinceEpoch);
@@ -142,10 +138,7 @@ void main() {
       showing();
       await post(eventId: r'$2', text: 'there?');
 
-      expect(messagesOf(lastRoomPost()).map((m) => m['text']), [
-        'hi',
-        'there?',
-      ]);
+      expect(roomPost().lineTexts, ['hi', 'there?']);
     },
   );
 
@@ -159,7 +152,7 @@ void main() {
 
     await post(eventId: r'$2', text: 'there?');
 
-    expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['hi', 'there?']);
+    expect(roomPost().lineTexts, ['hi', 'there?']);
   });
 
   clockedTest('a post under a thread of its own keeps apart from the room\'s '
@@ -193,9 +186,7 @@ void main() {
     final knock = notifications.shown.last;
     expect(knock.id, messageNotificationIdFor(own));
     expect(jsonDecode(knock.payload)['roomId'], roomId);
-    expect(messagesOf(knock.android).map((m) => m['text']), [
-      'Ines asks to join',
-    ]);
+    expect(knock.lineTexts, ['Ines asks to join']);
     expect(noticed.takenNotices, isEmpty);
     final prefs = await SharedPreferences.getInstance();
     expect(readNotificationThread(prefs, roomId)?.lines, hasLength(1));
@@ -208,7 +199,7 @@ void main() {
       await post(eventId: r'$1', text: 'hi');
       await post(eventId: r'$2', text: 'there?');
 
-      expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['there?']);
+      expect(roomPost().lineTexts, ['there?']);
     },
   );
 
@@ -291,7 +282,7 @@ void main() {
 
     final posts = notifications.shown.where((n) => n.id == roomNotificationId);
     expect(posts, hasLength(2));
-    expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['hello']);
+    expect(roomPost().lineTexts, ['hello']);
     expect(lastRoomPost()['onlyAlertOnce'], isTrue);
     await prefs.reload();
     expect(wasEventNotified(prefs, r'$1'), isTrue);
@@ -310,7 +301,7 @@ void main() {
         (n) => n.id == roomNotificationId,
       );
       expect(posts, hasLength(2));
-      expect(messagesOf(lastRoomPost()), hasLength(1));
+      expect(roomPost().lines, hasLength(1));
       expect(lastRoomPost()['onlyAlertOnce'], isTrue);
       expect(lastRoomPost()['largeIcon'], bytes);
     },
@@ -356,7 +347,7 @@ void main() {
         text: 'yo',
       );
 
-      final messages = messagesOf(lastRoomPost());
+      final messages = roomPost().lines;
       expect((messages[0]['person'] as Map)['icon'], bytes);
       expect((messages[1]['person'] as Map)['icon'], isNull);
     },
@@ -395,7 +386,7 @@ void main() {
         expect(lastRoomPost()['channelId'], 'direct_messages');
         expect(lastRoomPost()['silent'], isFalse);
         expect(lastRoomPost()['onlyAlertOnce'], isFalse);
-        expect(messagesOf(lastRoomPost()), hasLength(2));
+        expect(roomPost().lines, hasLength(2));
       },
     );
 
@@ -471,11 +462,153 @@ void main() {
         preview: preview,
       );
 
-      expect(messagesOf(lastRoomPost()).map((m) => m['text']), ['hi']);
+      expect(roomPost().lineTexts, ['hi']);
       expect(lastRoomPost()['onlyAlertOnce'], isTrue);
       expect(notifications.cancelled, isNot(contains(roomNotificationId)));
     },
   );
+
+  group('taking down one sender\'s placeholders', () {
+    Future<void> takeDown(String senderId) => MessageNotifications.instance
+        .retractPlaceholdersFrom(roomId, senderId, preview: preview);
+
+    clockedTest(
+      'leaves their messages and other people\'s placeholders',
+      () async {
+        await post(eventId: r'$1', text: 'hi', isGroupChat: true);
+        showing();
+        await post(
+          eventId: r'$2',
+          text: 'New message',
+          placeholder: true,
+          isGroupChat: true,
+        );
+        await post(
+          eventId: r'$3',
+          text: 'New message',
+          senderId: '@b:x',
+          placeholder: true,
+          isGroupChat: true,
+        );
+
+        await takeDown('@a:x');
+
+        expect(roomPost().lineTexts, ['hi', 'New message']);
+        final prefs = await SharedPreferences.getInstance();
+        expect(
+          readNotificationThread(prefs, roomId)!.lines.map((l) => l.eventId),
+          [r'$1', r'$3'],
+        );
+      },
+    );
+
+    clockedTest(
+      'takes the notification down when nothing else is left',
+      () async {
+        await post(eventId: r'$1', text: 'New message', placeholder: true);
+        showing();
+
+        await takeDown('@a:x');
+
+        expect(notifications.cancelled, contains(roomNotificationId));
+      },
+    );
+
+    clockedTest('reaches a placeholder that learned its sender when it was '
+        'posted again', () async {
+      await post(
+        eventId: r'$1',
+        text: 'New message',
+        senderId: roomId,
+        placeholder: true,
+      );
+      showing();
+      await post(eventId: r'$1', text: 'New message', placeholder: true);
+
+      await takeDown('@a:x');
+
+      expect(notifications.cancelled, contains(roomNotificationId));
+    });
+
+    clockedTest(
+      'no longer holds back the message once it can be read',
+      () async {
+        await post(eventId: r'$1', text: 'New message', placeholder: true);
+        showing();
+        await takeDown('@a:x');
+        notifications.active = [];
+
+        await post(eventId: r'$1', text: 'are you free?');
+
+        expect(roomPost().lineTexts, ['are you free?']);
+      },
+    );
+
+    clockedTest('leaves a thread the user swiped away alone, still dealt '
+        'with', () async {
+      await post(eventId: r'$1', text: 'hi', isGroupChat: true);
+      await post(
+        eventId: r'$2',
+        text: 'New message',
+        placeholder: true,
+        isGroupChat: true,
+      );
+      final postsBefore = notifications.shown.length;
+
+      await takeDown('@a:x');
+      await post(eventId: r'$2', text: 'are you free?', isGroupChat: true);
+
+      expect(notifications.shown, hasLength(postsBefore));
+      expect(notifications.cancelled, isNot(contains(roomNotificationId)));
+    });
+  });
+
+  clockedTest('a placeholder posted again without its sender keeps the sender '
+      'it had', () async {
+    await post(eventId: r'$1', text: 'New message', placeholder: true);
+    showing();
+
+    await post(
+      eventId: r'$1',
+      text: 'New message',
+      senderId: null,
+      placeholder: true,
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      readNotificationThread(prefs, roomId)!.lines.single.senderId,
+      '@a:x',
+    );
+  });
+
+  clockedTest('a placeholder posted again keeps its place among the other '
+      'lines', () async {
+    await post(
+      eventId: r'$1',
+      text: 'New message',
+      senderId: roomId,
+      placeholder: true,
+    );
+    showing();
+    await post(
+      eventId: r'$2',
+      text: 'hi',
+      timestamp: noon.add(const Duration(minutes: 1)),
+    );
+
+    await post(
+      eventId: r'$1',
+      text: 'New message',
+      placeholder: true,
+      timestamp: noon.add(const Duration(minutes: 2)),
+    );
+
+    final prefs = await SharedPreferences.getInstance();
+    final lines = readNotificationThread(prefs, roomId)!.lines;
+    expect(lines.map((l) => l.eventId), [r'$1', r'$2']);
+    expect(lines.first.senderId, '@a:x');
+  });
 
   clockedTest(
     'a real post for a placeholder the user already dealt with is skipped',
@@ -499,7 +632,7 @@ void main() {
 
       await post(eventId: r'$1', text: 'New message', placeholder: true);
 
-      expect(messagesOf(lastRoomPost()), hasLength(1));
+      expect(roomPost().lines, hasLength(1));
     },
   );
 
@@ -515,7 +648,7 @@ void main() {
       imageMimeType: 'image/jpeg',
     );
 
-    final line = messagesOf(lastRoomPost()).single;
+    final line = roomPost().lines.single;
     expect(line['dataUri'], 'content://zuno/1');
     expect(line['dataMimeType'], 'image/jpeg');
   });
@@ -535,7 +668,7 @@ void main() {
 
       await post(eventId: r'$2', text: 'cute?');
 
-      final lines = messagesOf(lastRoomPost());
+      final lines = roomPost().lines;
       expect(lines[0]['dataUri'], 'content://zuno/1');
       expect(lines[1]['dataUri'], isNull);
     },
@@ -561,9 +694,6 @@ void main() {
   );
 
   group('posts racing in one room', () {
-    List<String?> linesOfLastPost() =>
-        messagesOf(lastRoomPost()).map((m) => m['text'] as String?).toList();
-
     void noticePendingFor(String eventId) =>
         installFakeConversationsChannel(noticed: {roomId: eventId});
 
@@ -579,7 +709,7 @@ void main() {
         ),
       ]);
 
-      expect(linesOfLastPost(), ['one', 'two']);
+      expect(roomPost().lineTexts, ['one', 'two']);
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
       expect(readNotificationThread(prefs, roomId)!.lines.map((l) => l.text), [
@@ -600,7 +730,7 @@ void main() {
 
         await post(eventId: r'$1', text: 'older');
 
-        expect(linesOfLastPost(), ['older', 'newer']);
+        expect(roomPost().lineTexts, ['older', 'newer']);
         expect(lastRoomPost()['when'], later.millisecondsSinceEpoch);
         final shown = notifications.shown.last;
         expect(shown.body, 'newer');
@@ -627,7 +757,7 @@ void main() {
 
         await post(eventId: r'$late', text: 'one');
 
-        expect(linesOfLastPost(), ['one', 'two']);
+        expect(roomPost().lineTexts, ['one', 'two']);
       },
     );
 
@@ -667,12 +797,12 @@ void main() {
           text: 'second',
           timestamp: noon.add(const Duration(seconds: 1)),
         );
-        expect(linesOfLastPost(), ['second']);
+        expect(roomPost().lineTexts, ['second']);
         expect(lastRoomPost()['onlyAlertOnce'], isTrue);
 
         await post(eventId: r'$a', text: 'first');
 
-        expect(linesOfLastPost(), ['first', 'second']);
+        expect(roomPost().lineTexts, ['first', 'second']);
       },
     );
 
@@ -748,7 +878,7 @@ void main() {
         expect(android['actions'], isNull);
         expect(android['largeIcon'], avatar);
         expect(android['shortcutId'], roomId);
-        final line = messagesOf(android).single;
+        final line = roomPost().lines.single;
         expect(line['text'], 'New message');
         expect((line['person'] as Map)['name'], 'Alice');
         expect(line['dataUri'], isNull);

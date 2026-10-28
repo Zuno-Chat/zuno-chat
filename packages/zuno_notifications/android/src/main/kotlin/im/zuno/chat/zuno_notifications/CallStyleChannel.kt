@@ -1,13 +1,7 @@
 package im.zuno.chat.zuno_notifications
 
-import android.app.Notification
-import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.graphics.BitmapFactory
-import androidx.core.app.NotificationCompat
-import androidx.core.app.Person
-import androidx.core.graphics.drawable.IconCompat
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
@@ -16,7 +10,6 @@ import io.flutter.plugin.common.MethodChannel
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 import io.flutter.plugin.common.PluginRegistry
-import java.util.UUID
 import org.json.JSONObject
 
 class CallStyleChannel :
@@ -93,8 +86,7 @@ class CallStyleChannel :
             "showIncomingCallStyle" -> {
                 @Suppress("UNCHECKED_CAST")
                 val args = call.arguments as? Map<String, Any?> ?: emptyMap()
-                show(context, args)
-                result.success(null)
+                result.success(show(context, args))
             }
 
             "cancelIncomingCallStyle" -> {
@@ -112,130 +104,14 @@ class CallStyleChannel :
         }
     }
 
-    private fun show(context: Context, args: Map<String, Any?>) {
-        val channelId = args["channelId"] as? String ?: return
-        val name = (args["name"] as? String)?.takeUnless { it.isBlank() }
-            ?: context.getString(R.string.callsIncomingCall)
-        val text = args["text"] as? String
-        val callerId = args["callerId"] as? String ?: ""
-        val isVideo = args["isVideo"] == true
-        val roomId = args["roomId"] as? String ?: return
-        val callId = args["callId"] as? String ?: return
-        val avatarBytes = args["avatarBytes"] as? ByteArray
-
-        val payload = JSONObject().apply {
-            put("roomId", roomId)
-            put("callId", callId)
-            put("callerId", callerId)
-            put("isVideo", isVideo)
-        }.toString()
-
-        val personBuilder = Person.Builder().setName(name)
-        if (avatarBytes != null) {
-            val bitmap = BitmapFactory.decodeByteArray(avatarBytes, 0, avatarBytes.size)
-            if (bitmap != null) {
-                personBuilder.setIcon(IconCompat.createWithBitmap(bitmap))
-            }
-        }
-        val person = personBuilder.build()
-
-        val token = UUID.randomUUID().toString()
-
-        val launchIntent = AppLaunchIntent.of(context, RingDecisions.SELECT_FOREGROUND_ACTION)
-            .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
-            .putExtra(PAYLOAD_EXTRA, payload)
-            .putExtra(RingDecisions.TOKEN_EXTRA, token)
-        val contentPendingIntent = PendingIntent.getActivity(
-            context,
-            RING_NOTIFICATION_ID,
-            launchIntent,
-            pendingIntentFlags(),
-        )
-
-        val declineIntent = Intent(context, RingStopReceiver::class.java)
-            .setAction(IncomingRing.ACTION_DECLINED)
-            .putExtra(IncomingRing.EXTRA_CALL_ID, callId)
-            .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
-            .putExtra(ACTION_ID_EXTRA, RingDecisions.DECLINE_ACTION_ID)
-            .putExtra(CANCEL_NOTIFICATION_EXTRA, true)
-            .putExtra(PAYLOAD_EXTRA, payload)
-            .putExtra(RingDecisions.TOKEN_EXTRA, token)
-        val declinePendingIntent = PendingIntent.getBroadcast(
-            context,
-            RING_NOTIFICATION_ID * 16,
-            declineIntent,
-            pendingIntentFlags(),
-        )
-
-        val answerIntent = AppLaunchIntent.of(context, RingDecisions.SELECT_FOREGROUND_ACTION)
-            .putExtra(NOTIFICATION_ID_EXTRA, RING_NOTIFICATION_ID)
-            .putExtra(ACTION_ID_EXTRA, RingDecisions.ANSWER_ACTION_ID)
-            .putExtra(CANCEL_NOTIFICATION_EXTRA, true)
-            .putExtra(PAYLOAD_EXTRA, payload)
-            .putExtra(RingDecisions.TOKEN_EXTRA, token)
-        val answerPendingIntent = PendingIntent.getActivity(
-            context,
-            RING_NOTIFICATION_ID * 16 + 1,
-            answerIntent,
-            pendingIntentFlags(),
-        )
-
-        val smallIcon = smallIconResId(context)
-        val dismissIntent = IncomingRing.dismissIntent(context, callId)
-        fun notification(line: String?, alertOnce: Boolean): Notification =
-            NotificationCompat.Builder(context, channelId)
-                .setContentTitle(name)
-                .setContentText(line)
-                .setSmallIcon(smallIcon)
-                .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setOngoing(true)
-                .setAutoCancel(false)
-                .setOnlyAlertOnce(alertOnce)
-                .setTimeoutAfter(RingDecisions.RING_TIMEOUT_MS)
-                .setContentIntent(contentPendingIntent)
-                .setFullScreenIntent(contentPendingIntent, true)
-                .setDeleteIntent(dismissIntent)
-                .setStyle(
-                    NotificationCompat.CallStyle.forIncomingCall(
-                        person,
-                        declinePendingIntent,
-                        answerPendingIntent,
-                    ).setIsVideo(isVideo),
-                )
-                .build()
-
-        val ring = RingPlan.from(args)
-        fun tonePath(asset: String?) = asset?.let { assets.getAssetFilePathByName(it) }
-        IncomingRing.present(
-            context,
-            callId,
-            token,
-            notification(ring.waitingText ?: text, alertOnce = false),
-            tonePath(ring.toneNow),
-            ring.vibrationPattern,
-            if (ring.waiting) {
-                AloudRing(notification(text, alertOnce = true), tonePath(ring.ringtoneAsset))
-            } else {
-                null
-            },
-        )
+    private fun show(context: Context, args: Map<String, Any?>): Boolean {
+        val spec = IncomingCallSpec.from(args) ?: return false
+        return IncomingCallStyle.show(context, spec) { assets.getAssetFilePathByName(it) }
     }
 
-    private fun smallIconResId(context: Context): Int = context.resources.getIdentifier(
-        SMALL_ICON_NAME,
-        "drawable",
-        context.packageName,
-    )
-
-    private fun pendingIntentFlags(): Int =
-        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-
     private companion object {
-        const val RING_NOTIFICATION_ID = IncomingRing.NOTIFICATION_ID
         const val NOTIFICATION_ID_EXTRA = RingDecisions.NOTIFICATION_ID_EXTRA
-        const val PAYLOAD_EXTRA = "payload"
+        const val PAYLOAD_EXTRA = IncomingCallStyle.PAYLOAD_EXTRA
         const val ACTION_ID_EXTRA = RingDecisions.ACTION_ID_EXTRA
-        const val CANCEL_NOTIFICATION_EXTRA = "cancelNotification"
-        const val SMALL_ICON_NAME = "ic_stat_zuno_mark"
     }
 }

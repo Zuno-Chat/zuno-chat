@@ -16,6 +16,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import '../../../helpers/call_membership.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
+import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -179,6 +180,28 @@ void main() {
       ]);
       expect(SystemRing.instance.ringing.value, isNull);
       expect(container.read(resolvedCallIdsProvider), {'c1'});
+    });
+
+    test('my other device\'s decline that decrypts late still ends the ring '
+        'here', () async {
+      final decryption = FakeRoomDecryption();
+      client = DecryptingTestClient(decryption)..setUserId(_me);
+      room = buildTestRoom(client);
+      client.rooms.add(room);
+      final presenter = RecordingIncomingCallPresenter();
+      watchRings(presenter: presenter);
+      await ring();
+      final decline = declineFrom(room);
+      await onTimeline(
+        lockedTestEvent(room, eventId: decline.eventId, senderId: _me),
+      );
+
+      decryption.keyArrives(room, opens: decline);
+      await pumpEventQueue();
+
+      expect(presenter.ends, [
+        (roomId: room.id, callId: 'c1', end: RingEnd.declinedElsewhere),
+      ]);
     });
 
     test('with nothing ringing, my other device joining or declining changes '

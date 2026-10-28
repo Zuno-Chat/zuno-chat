@@ -6,7 +6,7 @@ final class RingDecisionTests: XCTestCase {
   private let header = VoipBlobHeader(kid: 7, expiry: 1_790_000_045)
   private let ring = VoipRing(
     room: "!abc:zuno.im", call: "c1", caller: "@alice:zuno.im", cname: "Alice", rname: "",
-    kind: .video, ts: 1_790_000_000_000, rts: 1_789_999_999_000)
+    kind: .video, ts: 1_790_000_000_000)
   private let identity = CallIdentity.uuid(roomId: "!abc:zuno.im", callId: "c1")
   private let placeholder = UUID(uuidString: "00000000-0000-4000-8000-000000000001")!
   private let other = UUID(uuidString: "00000000-0000-4000-8000-000000000002")!
@@ -163,18 +163,11 @@ final class RingDecisionTests: XCTestCase {
 
   func testAForgedRingIsReportedThenEndedAsFailed() {
     for mustReport in delegates {
-      let outcome = decide(.forged(header), mustReport: mustReport)
+      let outcome = decide(.forged, mustReport: mustReport)
       XCTAssertEqual(outcome.action, .reportThenEnd(uuid: placeholder, reason: .failed))
       XCTAssertEqual(outcome.log, "forged")
     }
-    XCTAssertEqual(decide(.forged(header), mustReport: false).action, .complete)
-  }
-
-  func testAPushWithoutAReadableBlobIsForged() {
-    let outcome = decide(.forged(nil))
-
-    XCTAssertEqual(outcome.action, .reportThenEnd(uuid: placeholder, reason: .failed))
-    XCTAssertEqual(outcome.log, "forged")
+    XCTAssertEqual(decide(.forged, mustReport: false).action, .complete)
   }
 
   func testBeforeFirstUnlockAFreshRingIsGenericWithoutAnEngine() {
@@ -205,7 +198,7 @@ final class RingDecisionTests: XCTestCase {
 
   func testBeforeFirstUnlockAPushWithoutABlobIsReportedThenEnded() {
     XCTAssertEqual(
-      decide(.forged(nil), locked: true).action,
+      decide(.forged, locked: true).action,
       .reportThenEnd(uuid: placeholder, reason: .failed))
   }
 
@@ -220,7 +213,7 @@ final class RingDecisionTests: XCTestCase {
   func testWithoutATitleFileTheBlobNamesAreUsed() {
     let named = VoipRing(
       room: "!abc:zuno.im", call: "c1", caller: "@alice:zuno.im", cname: "Alice",
-      rname: "Design team", kind: .voice, ts: 1_790_000_000_000, rts: 1_790_000_000_000)
+      rname: "Design team", kind: .voice, ts: 1_790_000_000_000)
 
     XCTAssertEqual(decide(.opened(header, named)).action.ringName, "Design team")
     XCTAssertEqual(decide().action.ringName, "Alice")
@@ -235,7 +228,7 @@ final class RingDecisionTests: XCTestCase {
   func testAtNothingARingFromAnUnknownRoomNeverShowsTheSealedNames() {
     let named = VoipRing(
       room: "!abc:zuno.im", call: "c1", caller: "@alice:zuno.im", cname: "Alice",
-      rname: "Design team", kind: .voice, ts: 1_790_000_000_000, rts: 1_790_000_000_000)
+      rname: "Design team", kind: .voice, ts: 1_790_000_000_000)
 
     XCTAssertEqual(decide(.opened(header, named), level: .none).action.ringName, "Zuno call")
   }
@@ -277,7 +270,7 @@ final class RingDecisionTests: XCTestCase {
   func testSealedNamesAndTitleFilesAreCleanedBeforeTheyRing() {
     let sealed = VoipRing(
       room: "!abc:zuno.im", call: "c1", caller: "@alice:zuno.im", cname: "\u{202E}Alice\u{200F}",
-      rname: "", kind: .voice, ts: 1_790_000_000_000, rts: 1_790_000_000_000)
+      rname: "", kind: .voice, ts: 1_790_000_000_000)
     let room = NotifyRoomFile(
       room: "!abc:zuno.im", title: "\u{2067}Design\u{0000} team", dm: false, partner: "")
 

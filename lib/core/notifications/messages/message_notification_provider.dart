@@ -1,16 +1,18 @@
 import 'dart:async';
 
-import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../calls/matrixrtc/call_summary_message.dart';
+import '../../calls/notifications/ring_over_lines.dart';
+import '../../calls/platform/incoming_call_presenter.dart';
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/currently_open_room_provider.dart';
 import '../../matrix/event_display.dart';
+import '../../matrix/late_decryptions.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../matrix/room_title.dart';
 import '../../matrix/undecryptable_event.dart';
@@ -74,6 +76,7 @@ MessageNotificationContent messageFloor(
   String roomId, {
   Room? room,
   String? eventId,
+  String? senderId,
   String? roomName,
   String? senderName,
   bool quiet = false,
@@ -92,6 +95,7 @@ MessageNotificationContent messageFloor(
     text: l10n.notificationsNewMessage,
     eventId: eventId,
     isDirectChat: room?.isDirectChat ?? true,
+    senderId: senderId,
     senderName: title,
     quiet: quiet,
   );
@@ -144,7 +148,13 @@ MessageNotificationDecision messageNotificationFor(
   final room = event.room;
   if (locked) {
     return MessageNotificationDecision.floor(
-      messageFloor(room.id, room: room, eventId: event.eventId, quiet: !loud),
+      messageFloor(
+        room.id,
+        room: room,
+        eventId: event.eventId,
+        senderId: event.senderId,
+        quiet: !loud,
+      ),
     );
   }
   final sender = room.unsafeGetUserFromMemoryOrFallback(event.senderId);
@@ -185,13 +195,7 @@ final messageNotificationProvider =
       MessageNotificationNotifier.new,
     );
 
-typedef _AwaitedKey = ({
-  StreamSubscription<Event> sub,
-  String roomId,
-  DateTime since,
-});
-
-const _lateKeyWindow = Duration(minutes: 5);
+typedef _AwaitedKey = ({String roomId, bool floorPosted});
 
 class MessageNotificationNotifier extends Notifier<void> {
   final _roomCache = NotificationRoomCacheWriter();
@@ -204,13 +208,16 @@ class MessageNotificationNotifier extends Notifier<void> {
     final sub = client.onTimelineEvent.stream.listen(
       (event) => _handleEvent(client, event),
     );
+    final lateSub = LateDecryptions.of(client).decrypted
+        .listen((event) => _handleLateKey(client, event));
     final syncSub = client.onSync.stream.listen(
       (update) => _handleSync(client, update),
     );
     ref.onDispose(() {
       sub.cancel();
+      lateSub.cancel();
       syncSub.cancel();
-      _stopAwaiting((_) => true);
+      _awaitingKeys.clear();
     });
   }
 
@@ -223,11 +230,11 @@ class MessageNotificationNotifier extends Notifier<void> {
       for (final MapEntry(key: roomId, value: room) in joined.entries)
         if (room.unreadNotifications?.notificationCount == 0) roomId,
     ];
-    final now = clock.now();
-    _stopAwaiting(
-      (awaited) =>
+    final late = LateDecryptions.of(client);
+    _awaitingKeys.removeWhere(
+      (eventId, awaited) =>
           readRooms.contains(awaited.roomId) ||
-          now.difference(awaited.since) > _lateKeyWindow,
+          (!late.watches(eventId) && !_posting.containsKey(awaited.roomId)),
     );
     if (readRooms.isEmpty) return;
     if (ambientCapabilities.apnsRegistration) {
@@ -250,46 +257,21 @@ class MessageNotificationNotifier extends Notifier<void> {
     }
   }
 
-  void _awaitKey(Client client, Event event, {required bool floorPosted}) {
-    final encryption = client.encryption;
-    final sessionId = event.content.tryGet<String>('session_id');
-    if (encryption == null || sessionId == null) return;
-    if (_awaitingKeys.containsKey(event.eventId)) return;
-    final sub = event.room.onSessionKeyReceived.stream
-        .where((received) => received == sessionId)
-        .asyncMap((_) => encryption.decryptRoomEvent(event))
-        .where((decrypted) => !isUndecryptableEvent(decrypted))
-        .listen(
-          (decrypted) =>
-              _handleLateKey(client, decrypted, floorPosted: floorPosted),
-        );
-    _awaitingKeys[event.eventId] = (
-      sub: sub,
-      roomId: event.room.id,
-      since: clock.now(),
-    );
-  }
-
-  void _stopAwaiting(bool Function(_AwaitedKey awaited) done) =>
-      _awaitingKeys.removeWhere((_, awaited) {
-        if (!done(awaited)) return false;
-        unawaited(awaited.sub.cancel());
-        return true;
-      });
-
-  Future<void> _handleLateKey(
-    Client client,
-    Event decrypted, {
-    required bool floorPosted,
-  }) async {
-    final eventId = decrypted.eventId;
-    unawaited(_awaitingKeys.remove(eventId)?.sub.cancel());
-    if (await _handleEvent(client, decrypted, refinesFloor: floorPosted)) {
+  Future<void> _handleLateKey(Client client, Event decrypted) async {
+    var awaited = _awaitingKeys.remove(decrypted.eventId);
+    await Future.wait([...?_posting[decrypted.room.id]]);
+    awaited ??= _awaitingKeys.remove(decrypted.eventId);
+    if (awaited == null) return;
+    if (await _handleEvent(
+      client,
+      decrypted,
+      refinesFloor: awaited.floorPosted,
+    )) {
       return;
     }
     await MessageNotifications.instance.retractPlaceholder(
       decrypted.room.id,
-      eventId,
+      decrypted.eventId,
       preview: ref.read(notificationPreviewProvider),
     );
   }
@@ -317,10 +299,11 @@ class MessageNotificationNotifier extends Notifier<void> {
           .read(platformCapabilitiesProvider)
           .nseNotifications;
       final preview = ref.read(notificationPreviewProvider);
+      final pushRuleAction = client.pushruleEvaluator.match(event);
       final decision = messageNotificationFor(
         client,
         event,
-        pushRuleAction: client.pushruleEvaluator.match(event),
+        pushRuleAction: pushRuleAction,
         notifyMe: ref.read(notifyMeProvider),
         currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
         preview: preview,
@@ -338,15 +321,31 @@ class MessageNotificationNotifier extends Notifier<void> {
         }
       }
 
+      if (content == null && pushRuleAction.notify) {
+        await MessageNotifications.instance.retractPushNotice(
+          roomId,
+          event.eventId,
+        );
+      }
       if (decision.refusal == MessageNotificationRefusal.roomOpen) {
         markShown();
         return false;
       }
       if (content == null) return false;
+      final ring = ref.read(incomingCallPresenterProvider);
+      Future<bool> underRing() async =>
+          decision.placeholder && await ringStandsInFor(event, ring);
       final quietInFront = content.quiet && inFront;
       final posts =
-          !quietInFront && (inFront || !presentsInFrontOnly || refinesFloor);
-      if (decision.placeholder) _awaitKey(client, event, floorPosted: posts);
+          !quietInFront &&
+          (inFront || !presentsInFrontOnly || refinesFloor) &&
+          !await underRing();
+      if (decision.placeholder) {
+        _awaitingKeys.putIfAbsent(
+          event.eventId,
+          () => (roomId: event.room.id, floorPosted: posts),
+        );
+      }
       if (quietInFront) markShown();
       if (!posts) return false;
       await postMessageNotification(
@@ -357,6 +356,14 @@ class MessageNotificationNotifier extends Notifier<void> {
         fetchImage: () => fetchMessageNotificationImage(event),
         onPosted: settle,
       );
+      if (await underRing()) {
+        await MessageNotifications.instance.retractPlaceholder(
+          roomId,
+          event.eventId,
+          preview: preview,
+        );
+        return false;
+      }
       markShown();
       return true;
     } finally {

@@ -6,7 +6,6 @@ import '../../errors/crash_reporting.dart';
 import '../../matrix/client_lease.dart';
 import '../handling/headless_decline_hold.dart';
 import '../handling/headless_push_runner.dart';
-import '../handling/incoming_push_handler.dart';
 import '../handling/push_wake_lock.dart';
 import 'unified_push_delivery_provider.dart';
 
@@ -29,15 +28,10 @@ Future<void> runUnifiedPushHeadless({
   delivery.runner
     ..idleLimit = unifiedPushClientIdleLimit
     ..yieldWhenAsked(yieldRequests ?? ClientLeases.instance.yieldRequests);
+  holdRingsUntilDeclined(delivery.runner, hold: hold);
   answerQuiescence(delivery.runner);
   await delivery.ensureHeadlessCallbacksRegistered(
     clientBuilder: clientBuilder,
-    onPushHandled: (outcome) async {
-      debugPrint('zuno/push: headless callback done, outcome=$outcome');
-      if (outcome == IncomingPushOutcome.callRinging) {
-        await hold(delivery.runner);
-      }
-    },
     releaseAfterPush: releaseWakeLock,
   );
   await prepareHeadlessPush(initializeNotifications: initializeNotifications);

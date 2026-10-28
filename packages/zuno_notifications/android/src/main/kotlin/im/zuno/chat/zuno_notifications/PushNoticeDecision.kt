@@ -24,8 +24,6 @@ data class NoticeAlert(val silent: Boolean, val vibrate: Boolean)
 object PushNoticeDecision {
     const val DIRECT_CHANNEL = "direct_messages"
     const val GROUP_CHANNEL = "group_messages"
-    const val MENTIONS_ONLY = "mentionsOnly"
-    const val PREVIEW_NOTHING = "nothing"
 
     fun shouldPost(
         roomId: String?,
@@ -58,7 +56,8 @@ object PushNoticeDecision {
     fun channelFor(room: CachedRoom?): String =
         if (room?.isDirect == false) GROUP_CHANNEL else DIRECT_CHANNEL
 
-    fun mutedByNotifyMe(notifyMe: String?): Boolean = notifyMe == MENTIONS_ONLY
+    fun mutedByNotifyMe(notifyMe: String?): Boolean =
+        notifyMe == FlutterStore.NOTIFY_ME_MENTIONS_ONLY
 
     fun shouldPostMissed(notificationsEnabled: Boolean, channelExists: Boolean): Boolean =
         notificationsEnabled && channelExists
@@ -67,7 +66,7 @@ object PushNoticeDecision {
         NoticeAlert(silent = !messageTone, vibrate = messageVibration)
 
     fun presentationFor(room: CachedRoom?, preview: String?): NoticePresentation =
-        if (preview == PREVIEW_NOTHING) {
+        if (preview == FlutterStore.PREVIEW_HIDDEN) {
             NoticePresentation(
                 NoticeCopy(NoticeText.Brand, NoticeText.NewMessage),
                 conversation = null,

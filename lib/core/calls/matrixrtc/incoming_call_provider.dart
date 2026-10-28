@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../matrix/late_decryptions.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../models/call_kind.dart';
+import '../notifications/server_ring.dart';
 import 'call_member_state.dart';
 import 'call_summary_message.dart';
 import 'incoming_call.dart';
@@ -61,17 +65,32 @@ IncomingCall? incomingCallFromEvent(Client client, Event event) {
 
 const _maxRememberedCallIds = 128;
 
-final incomingCallProvider = StreamProvider<IncomingCall>((ref) async* {
+final incomingCallProvider = StreamProvider<IncomingCall>((ref) {
   final client = ref.watch(matrixClientProvider);
   final seenCallIds = <String>{};
+  final calls = StreamController<IncomingCall>();
 
-  await for (final event in client.onTimelineEvent.stream) {
-    final call = incomingCallFromEvent(client, event);
-    if (call == null) continue;
-    if (!seenCallIds.add(call.callId)) continue;
+  void ring(IncomingCall? call) {
+    if (call == null || !seenCallIds.add(call.callId)) return;
     if (seenCallIds.length > _maxRememberedCallIds) {
       seenCallIds.remove(seenCallIds.first);
     }
-    yield call;
+    calls.add(call);
   }
+
+  final subscriptions = [
+    LateDecryptions.of(client).timeline
+        .listen((event) => ring(incomingCallFromEvent(client, event))),
+    ref
+        .watch(serverRingsProvider)
+        .stream
+        .listen((pushed) => ring(incomingCallFromServerRing(client, pushed))),
+  ];
+  ref.onDispose(() {
+    for (final subscription in subscriptions) {
+      unawaited(subscription.cancel());
+    }
+    unawaited(calls.close());
+  });
+  return calls.stream;
 });
