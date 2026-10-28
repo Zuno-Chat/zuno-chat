@@ -3,15 +3,12 @@ New
 • Picture-in-picture on iPhone calls.
 • Restore from a recovery code file.
 • Minimize a call.
-• Mute, speaker or camera off while a call rings.
-• Move your own view in a video call.
 • See how Zuno protects you.
-• Double-tap to react with a heart.
 • Use Zuno in more languages.
 • See who is calling in a group.
 • Answer a call while on a call.
-• Photo previews while loading.
 • React and reply in the photo viewer.
 • Forward photos, videos and files.
+• Spot unencrypted messages.
 
 Fixed 168 bugs.

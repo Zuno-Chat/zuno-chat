@@ -194,6 +194,11 @@ one rule for what counts.
   rebuilds and byte-cache churn. A failed download is tried again when the
   connection comes back, when the image is shown afresh or on Try again;
   one that downloaded but cannot be decoded is not.
+- **A message sent in clear wears a red lock badge** straddling its
+  bubble's top corner on the side facing the middle of the screen, clear of
+  the avatar and the reactions. It sits level with the bubble's top, so it
+  never adds space or reaches the message above. What counts as sent in
+  clear: `security-verification.md`.
 - **Reply quotes** fetch their target once per room visit through
   `getEventById`, which decrypts a stored event with the keys held now. A
   target still encrypted is fetched again once the room's late keys arrive

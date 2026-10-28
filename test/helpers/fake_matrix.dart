@@ -175,13 +175,15 @@ Room namedRoom(
   final room = Room(id: id, client: client, membership: membership)
     ..partial = false;
   applyOptimisticRoomState(room, EventTypes.RoomName, {'name': name});
-  if (encrypted) {
-    applyOptimisticRoomState(room, EventTypes.Encryption, {
-      'algorithm': AlgorithmTypes.megolmV1AesSha2,
-    });
-  }
+  if (encrypted) encryptRoom(room);
   return room;
 }
+
+void encryptRoom(Room room) => applyOptimisticRoomState(
+  room,
+  EventTypes.Encryption,
+  {'algorithm': AlgorithmTypes.megolmV1AesSha2},
+);
 
 class _TestClient extends Client {
   _TestClient(
@@ -252,16 +254,31 @@ Event buildTestEvent(
   String? stateKey,
   Map<String, Object?>? prevContent,
   EventStatus? status,
+  bool encrypted = false,
+  String? senderKey,
 }) {
+  final sentAt = originServerTs ?? clock.now();
   final event = Event(
     eventId: eventId,
     type: type,
     senderId: senderId,
-    originServerTs: originServerTs ?? clock.now(),
+    originServerTs: sentAt,
     content: content,
     room: room,
     stateKey: stateKey,
     unsigned: prevContent == null ? null : {'prev_content': prevContent},
+    originalSource: encrypted
+        ? MatrixEvent(
+            eventId: eventId,
+            type: EventTypes.Encrypted,
+            senderId: senderId,
+            originServerTs: sentAt,
+            content: {
+              'algorithm': AlgorithmTypes.megolmV1AesSha2,
+              'sender_key': ?senderKey,
+            },
+          )
+        : null,
   );
   if (status != null) event.status = status;
   return event;

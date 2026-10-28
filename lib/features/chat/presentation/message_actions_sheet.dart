@@ -187,9 +187,15 @@ class QuickReactionRow extends StatelessWidget {
 
 class MessageFact extends StatelessWidget {
   final IconData icon;
+  final Color? iconColor;
   final Widget child;
 
-  const MessageFact({super.key, required this.icon, required this.child});
+  const MessageFact({
+    super.key,
+    required this.icon,
+    this.iconColor,
+    required this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +204,7 @@ class MessageFact extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon),
+          Icon(icon, color: iconColor),
           const SizedBox(width: 10),
           Expanded(child: child),
         ],

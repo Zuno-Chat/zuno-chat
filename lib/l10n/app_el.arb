@@ -197,6 +197,8 @@
   "chatMediaPause": "Παύση",
   "chatMediaUnmute": "Κατάργηση σίγασης",
   "chatMessageDeleted": "Το μήνυμα διαγράφηκε",
+  "chatMessageNotEncrypted": "Μη κρυπτογραφημένο",
+  "chatMessageNotEncryptedHint": "Αυτό το μήνυμα δεν κρυπτογραφείται, οπότε ο διακομιστής μπορεί να το διαβάσει.",
   "chatMessagesNotReloaded": "Τα μηνύματα δεν επαναφορτώθηκαν. Δοκιμάστε ξανά.",
   "chatMicrophoneAccessNeeded": "Επιτρέψτε την πρόσβαση στο μικρόφωνο για να ηχογραφείτε φωνητικά μηνύματα",
   "chatMoreReactions": "Περισσότερες αντιδράσεις",

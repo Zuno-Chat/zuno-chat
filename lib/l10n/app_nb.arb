@@ -197,6 +197,8 @@
   "chatMediaPause": "Sett på pause",
   "chatMediaUnmute": "Slå på lyd",
   "chatMessageDeleted": "Melding slettet",
+  "chatMessageNotEncrypted": "Ikke kryptert",
+  "chatMessageNotEncryptedHint": "Denne meldingen er ikke kryptert, så serveren kan lese den.",
   "chatMessagesNotReloaded": "Meldingene ble ikke lastet inn på nytt. Prøv igjen.",
   "chatMicrophoneAccessNeeded": "Tillat mikrofontilgang for å ta opp talemeldinger",
   "chatMoreReactions": "Flere reaksjoner",

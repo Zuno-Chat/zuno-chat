@@ -764,9 +764,7 @@ void main() {
     testWidgets('an encrypted room offers only history its members can '
         'read', (tester) async {
       setOwnLevel(100);
-      setRoomState(EventTypes.Encryption, {
-        'algorithm': 'm.megolm.v1.aes-sha2',
-      });
+      encryptRoom(room);
       setRoomState(EventTypes.HistoryVisibility, {
         'history_visibility': 'joined',
       });
@@ -786,9 +784,7 @@ void main() {
     testWidgets('an encrypted room still shows a current choice it no longer '
         'offers', (tester) async {
       setOwnLevel(100);
-      setRoomState(EventTypes.Encryption, {
-        'algorithm': 'm.megolm.v1.aes-sha2',
-      });
+      encryptRoom(room);
       await pumpPage(tester);
 
       await openSheet(tester);

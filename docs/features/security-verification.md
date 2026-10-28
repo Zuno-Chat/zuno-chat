@@ -32,7 +32,7 @@ Logic lives in `lib/core/security/`, screens in `features/settings/`,
 | Devices | `verification_page.dart`, `approve_this_device_page.dart`, `active_sessions_page.dart` |
 | People | `user_trust.dart`, `confirmed_identity_store.dart`, `confirm_person.dart` |
 | Alerts | `alerts/` (the alert model, its stores and the one watcher), shown by `security_alert_banners.dart` |
-| Messages | `undecryptable_reason.dart`, `recovery_code_leak.dart` |
+| Messages | `undecryptable_reason.dart`, `room_encryption.dart` (sent in clear), `recovery_code_leak.dart` |
 
 Calls check call-key senders against the same device keys and flag
 unapproved devices in the call (`calls.md`), and onboarding asks for
@@ -242,6 +242,19 @@ otherwise, with no button, because a button that cannot work is worse than
 none. It reads the same facts as the status card, so the two never
 contradict each other. Display: `chats-messaging.md`.
 
+### Messages sent in clear
+
+In an encrypted chat, a message that reached this device unencrypted carries
+a red lock on its bubble and a line on its long-press sheet, whoever sent it,
+since a message the server could read is one it could also have written. It
+is the one mark with nothing to act on, because a message already sent in
+clear cannot be encrypted afterwards and the reader needs to know before
+trusting it. One rule decides both places: a message counts as encrypted only
+if this device decrypted it, and your own message still on its way counts by
+whether this device encrypts. History from before the chat turned encryption
+on is marked too, since skipping it would mean trusting send times, which the
+server sets. Display: `chats-messaging.md`.
+
 ### Leak check
 
 `recovery_code_leak.dart` flags outgoing text that contains ten consecutive
@@ -389,6 +402,12 @@ the commonest words of ordinary prose break any run.
 - **Starting over mints a new identity**, so it must clear both the
   confirmed-identity store and the SDK's `directVerified` flags, or a stale
   confirmation or a false `identityChanged` follows. Restoring clears nothing.
+- **Whether a message was encrypted is read from its decryption, never its
+  send status**, because the SDK's timeline swaps a decrypted message back to
+  its plaintext local copy (still marked synced) when sync beats the send's
+  reply, and a message from the server takes its status from a field the
+  server writes; so only your own local copy is judged by whether this device
+  encrypts.
 - **A contact with a master key gets no room keys on an unapproved device**,
   so messages stay undecryptable there until they approve it, which is the
   default key policy working, not a bug.

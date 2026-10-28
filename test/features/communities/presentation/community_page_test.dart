@@ -68,9 +68,7 @@ void main() {
   Room member(String id, String name) {
     final room = buildTestRoom(client, id: id)..membership = Membership.join;
     putState(room, EventTypes.RoomName, {'name': name});
-    putState(room, EventTypes.Encryption, {
-      'algorithm': 'm.megolm.v1.aes-sha2',
-    });
+    encryptRoom(room);
     room.lastEvent = buildTestEvent(
       room,
       eventId: '\$msg-$id',

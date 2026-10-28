@@ -30,20 +30,14 @@ void main() {
     room = buildTestRoom(client);
   });
 
-  Event messageFrom(String sender, {String? senderKey}) => Event(
+  Event messageFrom(String sender, {String? senderKey}) => buildTestEvent(
+    room,
     eventId: r'$m',
-    type: EventTypes.Message,
     senderId: sender,
     originServerTs: DateTime(2026, 9, 27),
     content: {'msgtype': 'm.text', 'body': 'hi'},
-    room: room,
-    originalSource: MatrixEvent(
-      eventId: r'$m',
-      type: EventTypes.Encrypted,
-      senderId: sender,
-      originServerTs: DateTime(2026, 9, 27),
-      content: {'algorithm': 'm.megolm.v1.aes-sha2', 'sender_key': ?senderKey},
-    ),
+    encrypted: true,
+    senderKey: senderKey,
   );
 
   Future<void> pump(

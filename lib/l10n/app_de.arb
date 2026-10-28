@@ -197,6 +197,8 @@
   "chatMediaPause": "Pausieren",
   "chatMediaUnmute": "Stummschaltung aufheben",
   "chatMessageDeleted": "Nachricht gelöscht",
+  "chatMessageNotEncrypted": "Nicht verschlüsselt",
+  "chatMessageNotEncryptedHint": "Diese Nachricht ist nicht verschlüsselt, daher kann der Server sie lesen.",
   "chatMessagesNotReloaded": "Nachrichten nicht neu geladen. Versuche es erneut.",
   "chatMicrophoneAccessNeeded": "Erlaube den Mikrofonzugriff, um Sprachnachrichten aufzunehmen",
   "chatMoreReactions": "Weitere Reaktionen",

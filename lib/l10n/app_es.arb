@@ -197,6 +197,8 @@
   "chatMediaPause": "Pausar",
   "chatMediaUnmute": "Activar sonido",
   "chatMessageDeleted": "Mensaje eliminado",
+  "chatMessageNotEncrypted": "Sin cifrar",
+  "chatMessageNotEncryptedHint": "Este mensaje no está cifrado, así que el servidor puede leerlo.",
   "chatMessagesNotReloaded": "Mensajes no recargados. Vuelve a intentarlo.",
   "chatMicrophoneAccessNeeded": "Permite el acceso al micrófono para grabar mensajes de voz",
   "chatMoreReactions": "Más reacciones",

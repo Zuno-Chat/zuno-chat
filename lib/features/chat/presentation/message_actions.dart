@@ -12,7 +12,9 @@ import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/attachment_feedback.dart';
 import '../../../core/matrix/event_display.dart';
+import '../../../core/matrix/room_encryption.dart';
 import '../../../core/matrix/room_permission.dart';
+import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
 import '../data/discarded_sends.dart';
@@ -65,6 +67,7 @@ Future<void> showMessageActions(
           isNotSent(event) ||
           gallery != null ||
           (isOwn && isAttachment && event.status.isSending));
+  final messages = gallery ?? [event];
   final shown = withEditApplied(event, displayEvent);
   final media = gallery == null
       ? [shown]
@@ -97,6 +100,12 @@ Future<void> showMessageActions(
           _ => l10n.chatSentAt(labels.dateTime(event.originServerTs)),
         }),
       ),
+      if (sentInClear(messages, timeline))
+        MessageFact(
+          icon: notEncryptedIcon,
+          iconColor: notEncryptedColor(context),
+          child: Text(l10n.chatMessageNotEncryptedHint),
+        ),
       if (!isOwn) SenderDeviceTile(event: event),
       if (isOwn) SeenByTile(room: room, event: event),
     ],
@@ -116,7 +125,7 @@ Future<void> showMessageActions(
         ref,
         room,
         timeline,
-        gallery ?? [event],
+        messages,
         gallery: gallery != null,
       );
     case MessageAction.forward:

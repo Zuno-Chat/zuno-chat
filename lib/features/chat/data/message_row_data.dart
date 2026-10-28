@@ -5,6 +5,7 @@ import '../../../core/format/date_labels.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/reactions.dart';
 import '../../../core/matrix/read_receipts.dart';
+import '../../../core/matrix/room_encryption.dart';
 import '../../../core/matrix/undecryptable_event.dart';
 import 'message_kinds.dart';
 import 'message_look.dart';
@@ -40,6 +41,7 @@ class MessageRowData {
   final List<EventStatus> galleryStatuses;
   final List<int> galleryFailureIndexes;
   final bool canRespond;
+  final bool sentInClear;
 
   const MessageRowData({
     required this.eventId,
@@ -71,6 +73,7 @@ class MessageRowData {
     required this.galleryStatuses,
     required this.galleryFailureIndexes,
     required this.canRespond,
+    required this.sentInClear,
   });
 
   MetaStatus get metaStatus {
@@ -108,6 +111,7 @@ class MessageRowData {
     showReadTick,
     isRead,
     canRespond,
+    sentInClear,
     reactions.length,
     ...reactions,
     galleryIds.length,
@@ -211,5 +215,6 @@ MessageRowData messageRowDataFor({
     ],
     galleryFailureIndexes: galleryFailureIndexes,
     canRespond: canRespond && event.status.isSent,
+    sentInClear: sentInClear(gallery ?? [event], timeline),
   );
 }

@@ -197,6 +197,8 @@
   "chatMediaPause": "Pausa",
   "chatMediaUnmute": "Slå på ljud",
   "chatMessageDeleted": "Meddelandet raderat",
+  "chatMessageNotEncrypted": "Inte krypterat",
+  "chatMessageNotEncryptedHint": "Det här meddelandet är inte krypterat, så servern kan läsa det.",
   "chatMessagesNotReloaded": "Meddelandena lästes inte in igen. Försök igen.",
   "chatMicrophoneAccessNeeded": "Tillåt mikrofonåtkomst för att spela in röstmeddelanden",
   "chatMoreReactions": "Fler reaktioner",

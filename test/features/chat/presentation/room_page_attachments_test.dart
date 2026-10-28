@@ -1754,16 +1754,7 @@ void main() {
           }),
         ],
         prepare: (room) {
-          room.setState(
-            buildTestEvent(
-              room,
-              eventId: r'$encryption',
-              senderId: '@me:example.org',
-              type: EventTypes.Encryption,
-              stateKey: '',
-              content: {'algorithm': AlgorithmTypes.megolmV1AesSha2},
-            ),
-          );
+          encryptRoom(room);
           room.setState(
             buildTestEvent(
               room,

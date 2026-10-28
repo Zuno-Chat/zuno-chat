@@ -68,7 +68,11 @@ class ChatRow extends StatelessWidget {
                   Row(
                     children: [
                       if (!data.encrypted) ...[
-                        Icon(notEncryptedIcon, size: 14, color: scheme.error),
+                        Icon(
+                          notEncryptedIcon,
+                          size: 14,
+                          color: notEncryptedColor(context),
+                        ),
                         const SizedBox(width: 4),
                       ],
                       if (statusIcon != null) ...[

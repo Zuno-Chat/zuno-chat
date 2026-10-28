@@ -685,7 +685,10 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                   if (!room.encrypted)
                     ListTile(
                       dense: true,
-                      leading: Icon(notEncryptedIcon, color: colors.error),
+                      leading: Icon(
+                        notEncryptedIcon,
+                        color: notEncryptedColor(context),
+                      ),
                       title: Text(l10n.roomInfoNotEncrypted),
                       subtitle: Text(l10n.roomInfoNotEncryptedHint),
                     ),

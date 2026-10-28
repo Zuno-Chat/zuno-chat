@@ -13,6 +13,7 @@ import '../../../core/matrix/image_caption.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/state_event_description.dart';
 import '../../../core/matrix/undecryptable_event.dart';
+import '../../../core/security/security_emphasis.dart';
 import '../../location/presentation/live_location_map_page.dart';
 import '../../location/presentation/live_location_tile.dart';
 import '../../location/presentation/location_bubble.dart';
@@ -319,18 +320,27 @@ class MessageTile extends StatelessWidget {
     );
 
     final hasReactions = data.reactions.isNotEmpty;
-    final bubbleWithReactions = !hasReactions
+    final sentInClear = data.sentInClear;
+    final decoratedBubble = !hasReactions && !sentInClear
         ? sizedBubble
         : Stack(
             clipBehavior: Clip.none,
             children: [
               sizedBubble,
-              Positioned(
-                bottom: -reactionOverflow,
-                left: own ? null : 10,
-                right: own ? 10 : null,
-                child: ReactionsRow(event: event, timeline: timeline),
-              ),
+              if (hasReactions)
+                Positioned(
+                  bottom: -reactionOverflow,
+                  left: own ? null : 10,
+                  right: own ? 10 : null,
+                  child: ReactionsRow(event: event, timeline: timeline),
+                ),
+              if (sentInClear)
+                Positioned(
+                  top: 0,
+                  left: own ? -_badgeSize / 2 : null,
+                  right: own ? null : -_badgeSize / 2,
+                  child: const _NotEncryptedBadge(),
+                ),
             ],
           );
 
@@ -364,7 +374,7 @@ class MessageTile extends StatelessWidget {
             ),
             const SizedBox(width: 6),
           ],
-          Flexible(child: bubbleWithReactions),
+          Flexible(child: decoratedBubble),
         ],
       ),
     );
@@ -372,6 +382,32 @@ class MessageTile extends StatelessWidget {
     final onSwipeReply = this.onSwipeReply;
     if (unreadable || onSwipeReply == null) return row;
     return SwipeToReply(onReply: onSwipeReply, child: row);
+  }
+}
+
+const _badgeSize = 20.0;
+
+class _NotEncryptedBadge extends StatelessWidget {
+  const _NotEncryptedBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Container(
+      width: _badgeSize,
+      height: _badgeSize,
+      decoration: BoxDecoration(
+        color: notEncryptedColor(context),
+        shape: BoxShape.circle,
+        border: Border.all(color: colors.surface, width: 1.5),
+      ),
+      child: Icon(
+        notEncryptedIcon,
+        size: 12,
+        color: colors.onError,
+        semanticLabel: context.l10n.chatMessageNotEncrypted,
+      ),
+    );
   }
 }
 

@@ -788,6 +788,14 @@
   "@chatMessageDeleted": {
     "description": "Placeholder in the chat where a deleted message was"
   },
+  "chatMessageNotEncrypted": "Not encrypted",
+  "@chatMessageNotEncrypted": {
+    "description": "Screen-reader label for the red open lock beside a message's time: in an encrypted chat, this message was sent without end-to-end encryption"
+  },
+  "chatMessageNotEncryptedHint": "This message is not encrypted, so the server can read it.",
+  "@chatMessageNotEncryptedHint": {
+    "description": "Line on a message's long-press sheet: in an encrypted chat, this message was sent without end-to-end encryption"
+  },
   "chatMessagesNotReloaded": "Messages not reloaded. Try again.",
   "chatMicrophoneAccessNeeded": "Allow microphone access to record voice messages",
   "chatMoreReactions": "More reactions",

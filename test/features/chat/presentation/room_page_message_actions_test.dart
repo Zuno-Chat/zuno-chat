@@ -14,9 +14,11 @@ import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
+import 'package:zuno/features/chat/presentation/message_meta.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
@@ -64,12 +66,14 @@ void main() {
     List<Event> Function() events, {
     List<Override> overrides = const [],
     bool canPost = true,
+    bool encrypted = false,
   }) async {
     harness = RoomPageHarness(
       db: SendingFakeDatabaseApi(),
       overrides: overrides,
     );
     if (!canPost) harness.blockPosting();
+    if (encrypted) encryptRoom(harness.room);
     harness.respond = (request) {
       final path = request.url.path;
       if (path.contains('/state/$liveLocationStateType/')) {
@@ -933,6 +937,219 @@ void main() {
       );
       expect(find.widgetWithText(ListTile, 'Save'), findsOneWidget);
       expect(find.widgetWithText(ListTile, 'Copy'), findsNothing);
+    });
+  });
+
+  group('in an encrypted chat', () {
+    Event fromBob({required bool encrypted}) => buildTestEvent(
+      harness.room,
+      eventId: r'$bob',
+      senderId: '@bob:example.org',
+      originServerTs: DateTime(2026, 9, 20, 12),
+      status: EventStatus.synced,
+      encrypted: encrypted,
+      content: {'msgtype': 'm.text', 'body': 'meet at the usual place'},
+    );
+
+    Finder bubbleLock() => find.bySemanticsLabel(RegExp('Not encrypted'));
+
+    testWidgets('a message sent without encryption shows a lock and says so '
+        'on its sheet', (tester) async {
+      await openRoom(
+        tester,
+        () => [fromBob(encrypted: false)],
+        encrypted: true,
+      );
+
+      expect(bubbleLock(), findsOneWidget);
+
+      await openActions(tester, 'usual place');
+
+      expect(
+        find.text('This message is not encrypted, so the server can read it.'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('an encrypted message shows neither', (tester) async {
+      await openRoom(tester, () => [fromBob(encrypted: true)], encrypted: true);
+
+      expect(bubbleLock(), findsNothing);
+
+      await openActions(tester, 'usual place');
+
+      expect(find.textContaining('not encrypted'), findsNothing);
+    });
+
+    group('the badge', () {
+      Rect bubbleOf(WidgetTester tester, String body) => tester.getRect(
+        find.ancestor(
+          of: find.textContaining(body, findRichText: true),
+          matching: find.byType(MessageBubble),
+        ),
+      );
+
+      Rect badge(WidgetTester tester) => tester.getRect(
+        find
+            .ancestor(
+              of: find.byIcon(notEncryptedIcon),
+              matching: find.byType(Container),
+            )
+            .first,
+      );
+
+      testWidgets('straddles the top corner facing the middle of the '
+          'screen', (tester) async {
+        await openRoom(
+          tester,
+          () => [fromBob(encrypted: false)],
+          encrypted: true,
+        );
+        final bubble = bubbleOf(tester, 'usual place');
+
+        expect(badge(tester).center.dx, closeTo(bubble.right, 0.5));
+        expect(badge(tester).top, closeTo(bubble.top, 0.5));
+      });
+
+      testWidgets('on your own message straddles its left corner', (
+        tester,
+      ) async {
+        await openRoom(
+          tester,
+          () => [own(r'$mine', 'sent from elsewhere')],
+          encrypted: true,
+        );
+        final bubble = bubbleOf(tester, 'sent from elsewhere');
+
+        expect(badge(tester).center.dx, closeTo(bubble.left, 0.5));
+        expect(badge(tester).top, closeTo(bubble.top, 0.5));
+      });
+
+      testWidgets('never covers the text, even on a full-width bubble', (
+        tester,
+      ) async {
+        const long =
+            'and bring the keys, the spare set is in the drawer by the door '
+            'next to the coats, the one with the broken handle';
+        await openRoom(
+          tester,
+          () => [
+            buildTestEvent(
+              harness.room,
+              eventId: r'$long',
+              senderId: '@bob:example.org',
+              originServerTs: DateTime(2026, 9, 20, 12),
+              status: EventStatus.synced,
+              content: {'msgtype': 'm.text', 'body': long},
+            ),
+          ],
+          encrypted: true,
+        );
+        final text = tester.getRect(
+          find.textContaining('spare set', findRichText: true).first,
+        );
+
+        expect(badge(tester).left, greaterThanOrEqualTo(text.right));
+      });
+
+      testWidgets('moves nothing around it', (tester) async {
+        Event bob(String id, String body, int minute, {required bool plain}) =>
+            buildTestEvent(
+              harness.room,
+              eventId: id,
+              senderId: '@bob:example.org',
+              originServerTs: DateTime(2026, 9, 20, 12, minute),
+              status: EventStatus.synced,
+              encrypted: !plain,
+              content: {'msgtype': 'm.text', 'body': body},
+            );
+        await openRoom(
+          tester,
+          () => [
+            bob(r'$c', 'third', 2, plain: false),
+            bob(r'$b', 'second', 1, plain: true),
+            bob(r'$a', 'first', 0, plain: false),
+          ],
+          encrypted: true,
+        );
+        final first = bubbleOf(tester, 'first');
+        final second = bubbleOf(tester, 'second');
+        final third = bubbleOf(tester, 'third');
+
+        expect(second.top - first.bottom, third.top - second.bottom);
+      });
+
+      testWidgets('leaves the time row', (tester) async {
+        await openRoom(
+          tester,
+          () => [fromBob(encrypted: false)],
+          encrypted: true,
+        );
+
+        expect(
+          find.descendant(
+            of: find.byType(MessageMeta),
+            matching: find.byIcon(notEncryptedIcon),
+          ),
+          findsNothing,
+        );
+      });
+    });
+
+    group('a photo', () {
+      Event photoFromBob(String id, {required bool encrypted, int? index}) =>
+          buildTestEvent(
+            harness.room,
+            eventId: id,
+            senderId: '@bob:example.org',
+            originServerTs: DateTime(2026, 9, 20, 12),
+            status: EventStatus.synced,
+            encrypted: encrypted,
+            content: {
+              'msgtype': 'm.image',
+              'body': '$id.jpg',
+              'url': 'mxc://example.org/${id.substring(1)}',
+              'info': {'w': 40, 'h': 30, 'mimetype': 'image/jpeg'},
+              if (index != null)
+                ...galleryGroupContent(id: 'g', index: index, count: 2),
+            },
+          );
+
+      testWidgets('sent without encryption shows the lock badge', (
+        tester,
+      ) async {
+        await openRoom(
+          tester,
+          () => [photoFromBob(r'$p', encrypted: false)],
+          encrypted: true,
+        );
+
+        expect(bubbleLock(), findsOneWidget);
+      });
+
+      testWidgets('that was encrypted shows no lock', (tester) async {
+        await openRoom(
+          tester,
+          () => [photoFromBob(r'$p', encrypted: true)],
+          encrypted: true,
+        );
+
+        expect(bubbleLock(), findsNothing);
+      });
+
+      testWidgets('in a gallery marks the gallery once', (tester) async {
+        await openRoom(
+          tester,
+          () => [
+            photoFromBob(r'$p2', encrypted: false, index: 1),
+            photoFromBob(r'$p1', encrypted: true, index: 0),
+          ],
+          encrypted: true,
+        );
+
+        expect(find.byType(GalleryMessage), findsOneWidget);
+        expect(bubbleLock(), findsOneWidget);
+      });
     });
   });
 

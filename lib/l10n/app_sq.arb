@@ -197,6 +197,8 @@
   "chatMediaPause": "Pezullo",
   "chatMediaUnmute": "Hiq heshtjen",
   "chatMessageDeleted": "Mesazhi u fshi",
+  "chatMessageNotEncrypted": "Pa enkriptim",
+  "chatMessageNotEncryptedHint": "Ky mesazh nuk është i enkriptuar, ndaj serveri mund ta lexojë.",
   "chatMessagesNotReloaded": "Mesazhet nuk u ringarkuan. Provo sërish.",
   "chatMicrophoneAccessNeeded": "Lejo qasjen në mikrofon për të regjistruar mesazhe zanore",
   "chatMoreReactions": "Më shumë reagime",

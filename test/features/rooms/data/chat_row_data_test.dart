@@ -196,16 +196,7 @@ void main() {
     final before = read();
     expect(before.encrypted, isFalse);
 
-    room.setState(
-      buildTestEvent(
-        room,
-        eventId: r'$enc',
-        senderId: '@me:example.org',
-        type: EventTypes.Encryption,
-        stateKey: '',
-        content: {'algorithm': 'm.megolm.v1.aes-sha2'},
-      ),
-    );
+    encryptRoom(room);
     final after = read();
 
     expect(after.encrypted, isTrue);

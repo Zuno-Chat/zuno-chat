@@ -197,6 +197,8 @@
   "chatMediaPause": "Pauzeren",
   "chatMediaUnmute": "Dempen opheffen",
   "chatMessageDeleted": "Bericht verwijderd",
+  "chatMessageNotEncrypted": "Niet versleuteld",
+  "chatMessageNotEncryptedHint": "Dit bericht is niet versleuteld, dus de server kan het lezen.",
   "chatMessagesNotReloaded": "Berichten niet opnieuw geladen. Probeer het opnieuw.",
   "chatMicrophoneAccessNeeded": "Sta microfoontoegang toe om spraakberichten op te nemen",
   "chatMoreReactions": "Meer reacties",

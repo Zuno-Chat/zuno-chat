@@ -548,6 +548,18 @@ void main() {
     );
   });
 
+  test('a message sent in clear is marked once the chat is encrypted, and '
+      'the mark changes the record', () async {
+    final event = text(r'$m1');
+    final before = await record(event);
+    expect(before.sentInClear, isFalse);
+
+    encryptRoom(room);
+    final after = await record(event);
+    expect(after.sentInClear, isTrue);
+    expect(after, isNot(equals(before)));
+  });
+
   test('canRespond changes the record', () async {
     final event = text(r'$m1');
     expect(

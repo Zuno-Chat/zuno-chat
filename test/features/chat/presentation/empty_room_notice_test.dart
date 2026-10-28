@@ -26,15 +26,6 @@ void main() {
     client.rooms.add(room);
   });
 
-  void encrypt() => room.setState(
-    StrippedStateEvent(
-      type: EventTypes.Encryption,
-      senderId: '@me:example.org',
-      stateKey: '',
-      content: {'algorithm': 'm.megolm.v1.aes-sha2'},
-    ),
-  );
-
   void makeDirectChat() => room.client.accountData['m.direct'] = BasicEvent(
     type: 'm.direct',
     content: {
@@ -66,7 +57,7 @@ void main() {
   testWidgets('a room with several people keeps its line and no link', (
     tester,
   ) async {
-    encrypt();
+    encryptRoom(room);
     await pump(tester, UserTrustState.unconfirmed);
 
     expect(
@@ -82,7 +73,7 @@ void main() {
   ]) {
     testWidgets('a chat with someone ${trust.name} promises nothing it cannot '
         'keep and offers why', (tester) async {
-      encrypt();
+      encryptRoom(room);
       makeDirectChat();
       await pump(tester, trust);
 
@@ -98,7 +89,7 @@ void main() {
     testWidgets('a chat with someone ${trust.name} says only the two of you', (
       tester,
     ) async {
-      encrypt();
+      encryptRoom(room);
       makeDirectChat();
       await pump(tester, trust);
 
@@ -113,7 +104,7 @@ void main() {
   testWidgets('someone who cannot be confirmed gets no promise and no link', (
     tester,
   ) async {
-    encrypt();
+    encryptRoom(room);
     makeDirectChat();
     await pump(tester, UserTrustState.noIdentity);
 
@@ -124,7 +115,7 @@ void main() {
   testWidgets('Why confirm opens the explanation for that person', (
     tester,
   ) async {
-    encrypt();
+    encryptRoom(room);
     makeDirectChat();
     await pump(tester, UserTrustState.unconfirmed);
 
@@ -143,7 +134,7 @@ void main() {
   testWidgets('before they join, it explains but says confirming waits', (
     tester,
   ) async {
-    encrypt();
+    encryptRoom(room);
     makeDirectChat();
     room.summary = RoomSummary.fromJson({
       'm.heroes': [_sam],

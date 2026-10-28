@@ -623,17 +623,7 @@ void main() {
     setUp(() {
       now = clock.now();
       client.rooms.add(room);
-      room.setState(
-        buildTestEvent(
-          room,
-          eventId: '\$encryption',
-          senderId: bob,
-          type: EventTypes.Encryption,
-          stateKey: '',
-          originServerTs: now,
-          content: {'algorithm': AlgorithmTypes.megolmV1AesSha2},
-        ),
-      );
+      encryptRoom(room);
     });
 
     testWidgets('a live share opens its map on the sender', (tester) async {

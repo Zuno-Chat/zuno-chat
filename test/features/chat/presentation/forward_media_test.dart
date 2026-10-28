@@ -7,7 +7,6 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/forwarded_message.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
-import 'package:zuno/core/matrix/optimistic_room_state.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/share/presentation/forward_picker_page.dart';
@@ -198,9 +197,7 @@ void main() {
     'from an encrypted chat the picker warns about an unencrypted one',
     (tester) async {
       await openRoom(tester, () => [photo('p1')], encrypting: true);
-      applyOptimisticRoomState(harness.room, EventTypes.Encryption, {
-        'algorithm': AlgorithmTypes.megolmV1AesSha2,
-      });
+      encryptRoom(harness.room);
 
       await tester.longPress(find.byType(ImageMessage));
       await harness.settle(tester);

@@ -15,5 +15,8 @@ Color deviceApprovedColor(BuildContext context) =>
 Color deviceUnapprovedColor(BuildContext context) =>
     Theme.of(context).colorScheme.error;
 
+Color notEncryptedColor(BuildContext context) =>
+    Theme.of(context).colorScheme.error;
+
 IconData securityStatusIcon({required bool attention}) =>
     attention ? attentionIcon : settledIcon;

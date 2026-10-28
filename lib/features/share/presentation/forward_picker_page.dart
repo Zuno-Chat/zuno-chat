@@ -107,7 +107,7 @@ class _ForwardPickerPageState extends State<ForwardPickerPage> {
                               Icon(
                                 notEncryptedIcon,
                                 size: 18,
-                                color: Theme.of(context).colorScheme.error,
+                                color: notEncryptedColor(context),
                               ),
                               const SizedBox(width: 8),
                               Expanded(child: Text(note)),

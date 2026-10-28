@@ -57,7 +57,6 @@ class _ShareTargetListState extends State<ShareTargetList> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final error = Theme.of(context).colorScheme.error;
     return Column(
       children: [
         Padding(
@@ -109,7 +108,11 @@ class _ShareTargetListState extends State<ShareTargetList> {
                     title: Row(
                       children: [
                         if (!room.encrypted) ...[
-                          Icon(notEncryptedIcon, size: 16, color: error),
+                          Icon(
+                            notEncryptedIcon,
+                            size: 16,
+                            color: notEncryptedColor(context),
+                          ),
                           const SizedBox(width: 4),
                         ],
                         Flexible(

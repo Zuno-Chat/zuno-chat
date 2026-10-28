@@ -90,7 +90,11 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
                       ],
                       if (!room.encrypted) ...[
                         const SizedBox(width: 6),
-                        Icon(notEncryptedIcon, size: 18, color: colors.error),
+                        Icon(
+                          notEncryptedIcon,
+                          size: 18,
+                          color: notEncryptedColor(context),
+                        ),
                       ],
                       ConfirmedPersonCheck(room: room),
                     ],

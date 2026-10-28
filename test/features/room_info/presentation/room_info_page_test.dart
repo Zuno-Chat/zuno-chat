@@ -395,16 +395,7 @@ void main() {
   ) async {
     addMember('@owner:example.org', 'Olga');
     addMember('@me:example.org', 'Me');
-    room.setState(
-      buildTestEvent(
-        room,
-        eventId: r'$enc',
-        senderId: '@owner:example.org',
-        type: EventTypes.Encryption,
-        stateKey: '',
-        content: {'algorithm': 'm.megolm.v1.aes-sha2'},
-      ),
-    );
+    encryptRoom(room);
     await pumpPage(
       tester,
       trustStubbedIds: ['@owner:example.org', '@me:example.org'],
@@ -1338,16 +1329,7 @@ void main() {
       tester,
     ) async {
       seedPlainChat();
-      room.setState(
-        buildTestEvent(
-          room,
-          eventId: r'$enc',
-          senderId: '@owner:example.org',
-          type: EventTypes.Encryption,
-          stateKey: '',
-          content: {'algorithm': 'm.megolm.v1.aes-sha2'},
-        ),
-      );
+      encryptRoom(room);
       await pumpPage(tester, trustStubbedIds: ['@owner:example.org']);
 
       expect(find.text('Not encrypted'), findsNothing);

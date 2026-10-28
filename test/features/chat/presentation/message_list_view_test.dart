@@ -218,14 +218,7 @@ void main() {
   testWidgets('a chat with nothing to show has the empty notice', (
     tester,
   ) async {
-    room.setState(
-      StrippedStateEvent(
-        type: EventTypes.Encryption,
-        senderId: bob,
-        stateKey: '',
-        content: {'algorithm': 'm.megolm.v1.aes-sha2'},
-      ),
-    );
+    encryptRoom(room);
     final timeline = await timelineOf(tester, [
       buildTestEvent(
         room,
