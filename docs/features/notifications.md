@@ -260,6 +260,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **A pusher delete is skipped once signed out, and an unknown or missing token counts as done**, because the homeserver drops a device's pushers with the device.
 - **Sygnal omits falsy counts and drops the empty badge push**, so an `unread` 0 clear may never arrive and the next sync cleans up instead.
 - **Background audio hardening mutes app-process sound** once no activity is visible, so one-shot sounds play as a channel's own sound, which the system plays.
+- **Release builds strip any resource only Dart names**, so `res/raw/keep.xml` keeps the message tone, and a test fails if a sound Dart plays by name is missing from it; without it the channel's tone fails to load and only Zuno's own vibration fires.
 - **Never reuse a retired channel id** (`messages`, `messages_group`, `messages_sound_v1`, `messages_group_sound_v1`), because recreating one restores its old settings.
 - **The instant notice never creates a channel**, so a missing channel means no notice.
 - **Message vibration is done by hand with notification usage**, because message channels have vibration off and Android 12+ drops background vibrations of other usages.
