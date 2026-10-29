@@ -258,7 +258,7 @@ void main() {
     });
 
     test('the ringtone native code plays ships with the app', () async {
-      final tone = await rootBundle.load('assets/sounds/ringtone.wav');
+      final tone = await rootBundle.load('assets/sounds/ringtone.ogg');
 
       expect(tone.lengthInBytes, greaterThan(0));
     });

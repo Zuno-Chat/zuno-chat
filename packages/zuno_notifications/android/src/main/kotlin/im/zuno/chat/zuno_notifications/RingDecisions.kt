@@ -16,7 +16,7 @@ class RingPlan(
     fun quiet(): RingPlan = RingPlan(null, vibrationPattern, waitingText)
 
     companion object {
-        private const val RINGTONE_ASSET = "assets/sounds/ringtone.wav"
+        private const val RINGTONE_ASSET = "assets/sounds/ringtone.ogg"
         private val callVibration = longArrayOf(0, 800, 500, 800, 2000)
 
         fun from(args: Map<String, Any?>): RingPlan = of(

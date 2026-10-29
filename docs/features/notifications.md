@@ -261,6 +261,8 @@ Both platforms show the permission, this device's registration and the module's 
 - **Sygnal omits falsy counts and drops the empty badge push**, so an `unread` 0 clear may never arrive and the next sync cleans up instead.
 - **Background audio hardening mutes app-process sound** once no activity is visible, so one-shot sounds play as a channel's own sound, which the system plays.
 - **Release builds strip any resource only Dart names**, so `res/raw/keep.xml` keeps the message tone, and a test fails if a sound Dart plays by name is missing from it; without it the channel's tone fails to load and only Zuno's own vibration fires.
+- **Every tone comes from `tool/generate_tones.py` in the smallest format its player takes**: Ogg Vorbis for Android's players, µ-law WAV for call tones, which Android decodes itself into call audio, and IMA4 CAF for iOS alert and CallKit sounds; Android-only tones are limited to Android in `pubspec.yaml`, so the iPhone app doesn't ship them.
+- **An Android tone must be a file type the build stores uncompressed** (`.ogg` or `.wav`, never `.flac`), because the channel sound and the ringtone open it by file descriptor, which fails on a compressed file.
 - **Never reuse a retired channel id** (`messages`, `messages_group`, `messages_sound_v1`, `messages_group_sound_v1`), because recreating one restores its old settings.
 - **The instant notice never creates a channel**, so a missing channel means no notice.
 - **Message vibration is done by hand with notification usage**, because message channels have vibration off and Android 12+ drops background vibrations of other usages.

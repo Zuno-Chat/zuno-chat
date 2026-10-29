@@ -16,23 +16,24 @@ class CallToneWaveTest {
             .put(body)
             .array()
 
-    private fun format(channels: Int = 1, rate: Int = 8_000, bits: Int = 16, pcm: Int = 1) = chunk(
-        "fmt ",
-        ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
-            .putShort(pcm.toShort())
-            .putShort(channels.toShort())
-            .putInt(rate)
-            .putInt(rate * channels * bits / 8)
-            .putShort((channels * bits / 8).toShort())
-            .putShort(bits.toShort())
-            .array(),
-    )
+    private fun format(channels: Int = 1, rate: Int = 8_000, bits: Int = 8, encoding: Int = 7) =
+        chunk(
+            "fmt ",
+            ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN)
+                .putShort(encoding.toShort())
+                .putShort(channels.toShort())
+                .putInt(rate)
+                .putInt(rate * channels * bits / 8)
+                .putShort((channels * bits / 8).toShort())
+                .putShort(bits.toShort())
+                .array(),
+        )
 
-    private fun data(vararg samples: Short) = chunk(
+    private fun data(vararg codes: Int) = chunk(
         "data",
-        ByteBuffer.allocate(samples.size * 2).order(ByteOrder.LITTLE_ENDIAN)
-            .apply { samples.forEach { putShort(it) } }
-            .array(),
+        ByteArray(codes.size) {
+            codes[it].toByte()
+        },
     )
 
     private fun wave(vararg chunks: ByteArray): ByteArray {
@@ -44,32 +45,34 @@ class CallToneWaveTest {
     }
 
     @Test
-    fun `reads the rate and samples of a 16-bit mono tone`() {
-        val tone = CallToneWave.parse(wave(format(rate = 8_000), data(0, 1200, -1200, 0)))
+    fun `decodes the rate and samples of a mu-law mono tone`() {
+        val tone = CallToneWave.parse(
+            wave(format(rate = 8_000), data(0xFF, 0x7F, 0x80, 0x00, 0xEF, 0x6F)),
+        )
 
         assertEquals(8_000, tone.sampleRate)
-        assertArrayEquals(shortArrayOf(0, 1200, -1200, 0), tone.samples)
+        assertArrayEquals(shortArrayOf(0, 0, 32_124, -32_124, 132, -132), tone.samples)
     }
 
     @Test
     fun `skips chunks it does not need before the samples`() {
         val tone = CallToneWave.parse(
-            wave(format(), chunk("LIST", byteArrayOf(1, 2, 3)), data(7, 8)),
+            wave(format(), chunk("fact", byteArrayOf(2, 0, 0, 0)), data(0xFF, 0x80)),
         )
 
-        assertArrayEquals(shortArrayOf(7, 8), tone.samples)
+        assertArrayEquals(shortArrayOf(0, 32_124), tone.samples)
     }
 
     @Test
-    fun `refuses anything but 16-bit mono PCM`() {
+    fun `refuses anything but 8-bit mono mu-law`() {
         assertThrows(IllegalArgumentException::class.java) {
-            CallToneWave.parse(wave(format(channels = 2), data(1, 2)))
+            CallToneWave.parse(wave(format(channels = 2), data(0xFF, 0xFF)))
         }
         assertThrows(IllegalArgumentException::class.java) {
-            CallToneWave.parse(wave(format(bits = 8), data(1)))
+            CallToneWave.parse(wave(format(bits = 16), data(0xFF, 0xFF)))
         }
         assertThrows(IllegalArgumentException::class.java) {
-            CallToneWave.parse(wave(format(pcm = 3), data(1)))
+            CallToneWave.parse(wave(format(encoding = 1, bits = 16), data(0, 0)))
         }
     }
 
@@ -82,7 +85,7 @@ class CallToneWaveTest {
             CallToneWave.parse(wave(format()))
         }
         assertThrows(IllegalArgumentException::class.java) {
-            CallToneWave.parse(wave(data(1, 2)))
+            CallToneWave.parse(wave(data(0xFF, 0xFF)))
         }
     }
 }

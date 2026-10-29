@@ -197,7 +197,7 @@ class IncomingRingDecisionsTest {
     fun `rings with the app's tone and the call buzz the settings ask for`() {
         val plan = RingPlan.from(mapOf("ringtone" to true, "vibrate" to true))
 
-        assertEquals("assets/sounds/ringtone.wav", plan.ringtoneAsset)
+        assertEquals("assets/sounds/ringtone.ogg", plan.ringtoneAsset)
         assertArrayEquals(longArrayOf(0, 800, 500, 800, 2000), plan.vibrationPattern)
     }
 
@@ -212,7 +212,7 @@ class IncomingRingDecisionsTest {
         )
 
         assertNull(plan.toneNow)
-        assertEquals("assets/sounds/ringtone.wav", plan.ringtoneAsset)
+        assertEquals("assets/sounds/ringtone.ogg", plan.ringtoneAsset)
         assertTrue(plan.waiting)
         assertEquals("Answering ends your current call", plan.waitingText)
     }
@@ -221,7 +221,7 @@ class IncomingRingDecisionsTest {
     fun `a normal ring plays its ringtone at once`() {
         val plan = RingPlan.of(ringtone = true, vibrate = false)
 
-        assertEquals("assets/sounds/ringtone.wav", plan.toneNow)
+        assertEquals("assets/sounds/ringtone.ogg", plan.toneNow)
         assertFalse(plan.waiting)
     }
 
@@ -232,7 +232,7 @@ class IncomingRingDecisionsTest {
 
         assertNull(noTone.ringtoneAsset)
         assertArrayEquals(longArrayOf(0, 800, 500, 800, 2000), noTone.vibrationPattern)
-        assertEquals("assets/sounds/ringtone.wav", noBuzz.ringtoneAsset)
+        assertEquals("assets/sounds/ringtone.ogg", noBuzz.ringtoneAsset)
         assertNull(noBuzz.vibrationPattern)
     }
 

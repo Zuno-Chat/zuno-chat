@@ -161,15 +161,35 @@ void main() {
   });
 
   group('the call tone sounds', () {
+    int muLaw(int code) {
+      final bits = ~code & 0xFF;
+      final magnitude =
+          ((((bits & 0x0F) << 3) + 0x84) << ((bits >> 4) & 0x07)) - 0x84;
+      return bits & 0x80 == 0 ? magnitude : -magnitude;
+    }
+
     Future<({int rate, List<int> samples})> sound(CallTone tone) async {
       final bytes = (await rootBundle.load(tone.asset)).buffer.asByteData();
-      return (
-        rate: bytes.getUint32(24, Endian.little),
-        samples: [
-          for (var at = 44; at < bytes.lengthInBytes; at += 2)
-            bytes.getInt16(at, Endian.little),
-        ],
-      );
+      int? rate;
+      for (var at = 12; at + 8 <= bytes.lengthInBytes;) {
+        final id = String.fromCharCodes(bytes.buffer.asUint8List(at, 4));
+        final size = bytes.getUint32(at + 4, Endian.little);
+        final body = at + 8;
+        if (id == 'fmt ') {
+          expect(bytes.getUint16(body, Endian.little), 7, reason: 'mu-law');
+          rate = bytes.getUint32(body + 4, Endian.little);
+        } else if (id == 'data') {
+          return (
+            rate: rate!,
+            samples: [
+              for (final code in bytes.buffer.asUint8List(body, size))
+                muLaw(code),
+            ],
+          );
+        }
+        at = body + size + size % 2;
+      }
+      throw StateError('${tone.asset} has no samples');
     }
 
     List<int> between(
@@ -194,15 +214,18 @@ void main() {
       expect(silent(between(ringback, 1, 5)), isTrue);
     });
 
-    test('the waiting tone is two short beeps, then a three-second rest', () async {
-      final waiting = await sound(CallTone.waiting);
+    test(
+      'the waiting tone is two short beeps, then a three-second rest',
+      () async {
+        final waiting = await sound(CallTone.waiting);
 
-      expect(waiting.samples, hasLength(4 * waiting.rate));
-      expect(silent(between(waiting, 0, 0.2)), isFalse);
-      expect(silent(between(waiting, 0.2, 0.8)), isTrue);
-      expect(silent(between(waiting, 0.8, 1)), isFalse);
-      expect(silent(between(waiting, 1, 4)), isTrue);
-    });
+        expect(waiting.samples, hasLength(4 * waiting.rate));
+        expect(silent(between(waiting, 0, 0.2)), isFalse);
+        expect(silent(between(waiting, 0.2, 0.8)), isTrue);
+        expect(silent(between(waiting, 0.8, 1)), isFalse);
+        expect(silent(between(waiting, 1, 4)), isTrue);
+      },
+    );
 
     test('each beep is a 425 Hz tone at the set level', () async {
       final beep = between(await sound(CallTone.ringback), 0, 1);

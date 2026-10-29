@@ -166,7 +166,11 @@ flutter:
     - assets/wordlist/
     # Ringtone/ringback/message tones — synthesized, not sampled; see
     # tool/generate_tones.py to change them.
-    - assets/sounds/
+    - assets/sounds/ringback.wav
+    - path: assets/sounds/call_waiting.wav
+      platforms: [android]
+    - path: assets/sounds/ringtone.ogg
+      platforms: [android]
     - assets/wallpaper/
     - pubspec.lock
 

@@ -52,7 +52,7 @@ class InstantRingDecisionTest {
         assertEquals("calls_ringing", look.channelId)
         assertEquals(RingName.Named("Alice Smith"), look.name)
         assertEquals(RingText.Kind, look.text)
-        assertEquals("assets/sounds/ringtone.wav", look.plan.ringtoneAsset)
+        assertEquals("assets/sounds/ringtone.ogg", look.plan.ringtoneAsset)
         assertArrayEquals(longArrayOf(0, 800, 500, 800, 2000), look.plan.vibrationPattern)
     }
 
