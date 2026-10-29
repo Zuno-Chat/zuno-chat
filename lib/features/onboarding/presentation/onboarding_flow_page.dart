@@ -12,6 +12,7 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/own_profile.dart';
 import '../../../core/matrix/picker_access.dart';
 import '../../../core/notifications/settings/notification_permission.dart';
 import '../../../core/notifications/settings/notifications_allowed_provider.dart';
@@ -19,7 +20,6 @@ import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
 import '../../../core/platform/background_restrictions.dart';
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/push/background_sync/background_sync_service.dart';
 import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
 import '../../../core/push/fcm/fcm_availability_provider.dart';
@@ -31,7 +31,10 @@ import '../../../core/security/security_prompt_provider.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
+import '../../../core/ui/notice.dart';
+import '../../../core/ui/page_dots.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
 import '../../../core/ui/zuno_motion.dart';
@@ -95,7 +98,7 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
     }
     await _pages.animateToPage(
       index + 1,
-      duration: ZunoDurations.standard,
+      duration: ZunoDurations.motion(context, ZunoDurations.standard),
       curve: Curves.easeOut,
     );
   }
@@ -215,10 +218,11 @@ class _OnboardingFlowPageState extends ConsumerState<OnboardingFlowPage> {
                 height: 32,
                 child: steps.length > 1
                     ? Center(
-                        child: _StepDots(
+                        child: PageDots(
                           key: onboardingDotsKey,
                           count: steps.length,
                           current: _index,
+                          dot: 8,
                         ),
                       )
                     : null,
@@ -284,34 +288,6 @@ class _StepPage extends StatelessWidget {
       children: const [CrashReportsTile()],
     ),
   };
-}
-
-class _StepDots extends StatelessWidget {
-  final int count;
-  final int current;
-
-  const _StepDots({required this.count, required this.current, super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < count; i++)
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            width: i == current ? 20 : 8,
-            height: 8,
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              color: i == current ? colors.primary : colors.outlineVariant,
-            ),
-          ),
-      ],
-    );
-  }
 }
 
 class _StepScaffold extends StatelessWidget {
@@ -508,12 +484,6 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
   bool get _canSave => _name.text.trim().isNotEmpty || _avatar != null;
 
   @override
-  void initState() {
-    super.initState();
-    _name.addListener(() => setState(() {}));
-  }
-
-  @override
   void dispose() {
     _name.dispose();
     super.dispose();
@@ -524,23 +494,15 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     try {
-      final picked = await ImagePicker().pickImage(
-        source: ImageSource.gallery,
-        imageQuality: 90,
+      final photo = await pickAvatarPhoto(
+        ImageSource.gallery,
+        client.nativeImplementations,
       );
-      if (picked == null || !mounted) return;
-      final shrunk = await prepareAvatarPhoto(
-        await picked.readAsBytes(),
-        name: picked.name,
-        nativeImplementations: client.nativeImplementations,
-      );
-      if (!mounted) return;
-      setState(() => _avatar = shrunk);
+      if (photo == null || !mounted) return;
+      setState(() => _avatar = photo);
     } catch (e, s) {
       if (!isPickerAccessDenied(e)) reportCaught('pick onboarding photo', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.onboardingPhotoNotAdded)),
-      );
+      messenger.say(l10n.onboardingPhotoNotAdded);
     }
   }
 
@@ -554,15 +516,11 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     try {
-      if (name.isNotEmpty) {
-        await client.setProfileField(client.userID!, 'displayname', {
-          'displayname': name,
-        });
-      }
+      if (name.isNotEmpty) await setOwnDisplayName(client, name);
       if (avatar != null) await client.setAvatar(avatar);
     } catch (e, s) {
       reportCaught('save onboarding profile', e, s);
-      messenger.showSnackBar(SnackBar(content: Text(l10n.onboardingNotSaved)));
+      messenger.say(l10n.onboardingNotSaved);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -609,15 +567,14 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
       ),
       title: l10n.onboardingProfileTitle,
       body: l10n.onboardingProfileBody,
-      action: FilledButton(
-        onPressed: _saving || !_canSave ? null : _save,
-        child: _saving
-            ? const SizedBox(
-                height: 16,
-                width: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Text(l10n.commonSave),
+      action: ListenableBuilder(
+        listenable: _name,
+        builder: (context, _) => FilledButton(
+          onPressed: _saving || !_canSave ? null : _save,
+          child: _saving
+              ? const InlineSpinner(size: 16)
+              : Text(l10n.commonSave),
+        ),
       ),
       children: [
         ZunoTextField(
@@ -625,10 +582,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
           controller: _name,
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.done,
-          decoration: InputDecoration(
-            labelText: l10n.onboardingNameLabel,
-            border: const OutlineInputBorder(),
-          ),
+          decoration: InputDecoration(labelText: l10n.onboardingNameLabel),
           onSubmitted: (_) => _save(),
         ),
       ],
@@ -687,15 +641,12 @@ class _NotificationsStepState extends ConsumerState<_NotificationsStep>
     try {
       final previous = _statusBeforeAsking;
       final status = await Permission.notification.request();
-      await ref.read(notificationsAllowedProvider.notifier).refresh();
-      if (ref.read(notificationDeliveryModeProvider) ==
-              NotificationDeliveryMode.backgroundService &&
-          shouldRefreshBackgroundSync(
-            previousStatus: previous,
-            newStatus: status,
-          )) {
-        BackgroundSyncService.instance.start();
-      }
+      if (!mounted) return;
+      await notificationPermissionChanged(
+        ref,
+        previous: previous,
+        current: status,
+      );
       if (!mounted) return;
       if (!status.isGranted) {
         await widget.onDone();

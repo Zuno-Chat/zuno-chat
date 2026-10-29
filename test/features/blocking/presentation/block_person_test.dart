@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +8,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_matrix.dart';
 
 void main() {
@@ -100,8 +102,13 @@ void main() {
 
   testWidgets('Block blocks the person and says so', (tester) async {
     await openDialog(tester);
+    final block = find.widgetWithText(TextButton, 'Block');
+    expect(
+      tester.widget<TextButton>(block).style?.foregroundColor?.resolve({}),
+      Theme.of(tester.element(block)).colorScheme.error,
+    );
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Block'));
+    await tester.tap(block);
     await tester.pumpAndSettle();
 
     expect(blocked, ['@ann:example.org']);
@@ -116,12 +123,12 @@ void main() {
     final gate = Completer<void>();
     await openDialog(tester, block: (_) => gate.future);
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Block'));
+    await tester.tap(find.widgetWithText(TextButton, 'Block'));
     await tester.pump();
 
     expect(
       tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Blocking…'))
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Blocking…'))
           .onPressed,
       isNull,
     );
@@ -137,16 +144,43 @@ void main() {
     expect(results, [true]);
   });
 
-  testWidgets('a refused block stays open and says to try again', (
+  Future<List<String>> blockFailing(WidgetTester tester) =>
+      reportsDuring(() async {
+        await tester.tap(find.widgetWithText(TextButton, 'Block'));
+        await tester.pumpAndSettle();
+      });
+
+  testWidgets('a refused block stays open, says to try again and reports it', (
     tester,
   ) async {
-    await openDialog(tester, block: (_) async => throw Exception('offline'));
+    await openDialog(
+      tester,
+      block: (_) async => throw StateError('server said no'),
+    );
 
-    await tester.tap(find.widgetWithText(FilledButton, 'Block'));
-    await tester.pumpAndSettle();
+    final reports = await blockFailing(tester);
 
     expect(find.text('Block Ann?'), findsOneWidget);
     expect(find.text('Not blocked. Try again.'), findsOneWidget);
+    expect(find.textContaining('server said no'), findsNothing);
+    expect(results, isEmpty);
+    expect(reports, ['block person']);
+  });
+
+  testWidgets('a block that fails offline asks to check the connection', (
+    tester,
+  ) async {
+    await openDialog(
+      tester,
+      block: (_) async => throw const SocketException('offline'),
+    );
+
+    await blockFailing(tester);
+
+    expect(
+      find.text('Not blocked. Check your connection and try again.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('offline'), findsNothing);
     expect(results, isEmpty);
   });

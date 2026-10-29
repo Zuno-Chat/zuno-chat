@@ -10,8 +10,10 @@ import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/attachment_actions.dart';
 import '../../../core/matrix/attachment_feedback.dart';
+import '../../../core/matrix/media_size.dart';
 import '../../../core/matrix/room_media_feed.dart';
 import '../../../core/ui/failure_notice.dart';
+import '../../../core/ui/load_more_trigger.dart';
 import '../../chat/presentation/file_name_text.dart';
 import '../../chat/presentation/media_viewer/media_viewer_page.dart';
 import 'room_media_thumb.dart';
@@ -36,7 +38,9 @@ class RoomMediaPage extends ConsumerStatefulWidget {
 }
 
 class _RoomMediaPageState extends ConsumerState<RoomMediaPage> {
-  late final RoomMediaFeed _feed = ref.read(roomMediaFeedProvider(widget.viewerChat.room));
+  late final RoomMediaFeed _feed = ref.read(
+    roomMediaFeedProvider(widget.viewerChat.room),
+  );
 
   @override
   void initState() {
@@ -178,11 +182,11 @@ class _FileRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final size = event.infoMap.tryGet<int>('size');
-    final details = [
+    final size = event.fileSize;
+    final details = joinDetails([
       if (size != null) formatBytes(l10n, size),
       labels.date(event.originServerTs),
-    ].join(' · ');
+    ]);
     return ListTile(
       leading: const Icon(Icons.insert_drive_file_outlined),
       title: FileNameText(attachmentFileName(event)),
@@ -242,7 +246,10 @@ class _LoadFooter extends StatelessWidget {
     if (feed.loading) return const CircularProgressIndicator();
     if (!feed.hasMore) return isEmpty ? Text(emptyText) : null;
     if (feed.stalled) return _stalledContent(context);
-    return _AutoLoad(key: ValueKey(feed.items.length), feed: feed);
+    return LoadMoreTrigger(
+      key: ValueKey(feed.items.length),
+      onVisible: () => unawaited(loadRoomMedia(feed.loadMore)),
+    );
   }
 
   Widget _sliver(BuildContext context) {
@@ -265,26 +272,4 @@ class _LoadFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       SliverSafeArea(top: false, sliver: _sliver(context));
-}
-
-class _AutoLoad extends StatefulWidget {
-  final RoomMediaFeed feed;
-
-  const _AutoLoad({required this.feed, super.key});
-
-  @override
-  State<_AutoLoad> createState() => _AutoLoadState();
-}
-
-class _AutoLoadState extends State<_AutoLoad> {
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(loadRoomMedia(widget.feed.loadMore));
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => const CircularProgressIndicator();
 }

@@ -9,34 +9,33 @@ import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/errors/connection_error.dart';
 import '../../../core/format/date_labels.dart';
+import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/communities.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/join_room.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
+import '../../../core/matrix/room_changes.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/matrix/room_title.dart';
+import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/failure_notice.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/section_label.dart';
-import '../../../core/ui/sheet.dart';
 import '../../chat/presentation/room_page.dart';
+import '../../room_info/presentation/member_actions.dart';
 import '../../room_info/presentation/members_sheet.dart';
-import '../../room_info/presentation/remove_member_dialog.dart';
-import '../../room_info/presentation/role_picker.dart';
 import '../../room_info/presentation/room_access_label.dart';
+import '../../room_info/presentation/room_header.dart';
 import '../../room_info/presentation/room_permissions_page.dart';
 import '../../room_info/presentation/room_settings_page.dart';
-import '../../room_info/presentation/room_topic.dart';
 import '../../rooms/data/chat_row_data.dart';
 import '../../rooms/presentation/chat_row.dart';
 import '../../rooms/presentation/last_message_preview.dart';
@@ -58,22 +57,6 @@ void _pushRoomPage(BuildContext context, Room room) =>
 
 enum _Menu { settings, permissions, leave }
 
-enum _MemberAction {
-  changeRole(Icons.badge_outlined),
-  remove(Icons.person_remove_outlined),
-  ban(Icons.block_outlined);
-
-  final IconData icon;
-
-  const _MemberAction(this.icon);
-
-  String label(AppLocalizations l10n) => switch (this) {
-    changeRole => l10n.commonChangeRole,
-    remove => l10n.communitiesRemoveFromCommunity,
-    ban => l10n.communitiesBanFromCommunity,
-  };
-}
-
 class CommunityPage extends ConsumerStatefulWidget {
   final Room community;
   final CommunityRoomsLoader loadRooms;
@@ -94,7 +77,6 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     with RouteSettled {
   final _memo = RowMemo<ChatRowData>();
   final _joining = <String>{};
-  StreamSubscription<SyncUpdate>? _syncSub;
   List<SpaceRoomsChunk$2>? _more;
   bool _failed = false;
   bool _loadingMembers = false;
@@ -105,17 +87,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
   @override
   void initState() {
     super.initState();
-    _syncSub = _client.onSync.stream.listen(_onSync);
     if (_community.partial) unawaited(_loadFullState());
-  }
-
-  void _onSync(SyncUpdate update) {
-    if (!mounted || !_concerns(update)) return;
-    if (_community.membership != Membership.join) {
-      _close();
-      return;
-    }
-    setState(() {});
   }
 
   bool _concerns(SyncUpdate update) {
@@ -130,6 +102,10 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         touches(rooms.invite?.keys);
   }
 
+  void _closeIfLeft() {
+    if (_community.membership != Membership.join) _close();
+  }
+
   void _close() {
     if (ModalRoute.of(context)?.isCurrent ?? false) Navigator.of(context).pop();
   }
@@ -137,12 +113,6 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
   Future<void> _loadFullState() async {
     await runBestEffort(_community.postLoad, label: 'community state');
     if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    _syncSub?.cancel();
-    super.dispose();
   }
 
   @override
@@ -168,24 +138,18 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
 
   Future<void> _join(SpaceRoomsChunk$2 chunk) async {
     final id = chunk.roomId;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
     setState(() => _joining.add(id));
-    try {
-      final room = await joinAndAwaitRoom(_client, id, via: _viaFor(id));
-      if (room != null && mounted) widget.openRoom(context, room);
-    } catch (e, s) {
-      reportCaught('join community room', e, s);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            failureMessage(l10n, e, failed: l10n.roomsCouldNotJoinRoom),
-          ),
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => _joining.remove(id));
-    }
+    Room? room;
+    await attempt(
+      context,
+      () async => room = await joinAndAwaitRoom(_client, id, via: _viaFor(id)),
+      label: 'join community room',
+      failed: context.l10n.roomsCouldNotJoinRoom,
+    );
+    if (!mounted) return;
+    setState(() => _joining.remove(id));
+    final joined = room;
+    if (joined != null) widget.openRoom(context, joined);
   }
 
   _Entry _entryFor(SpaceRoomsChunk$2 chunk, Set<String> asked) {
@@ -217,28 +181,18 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
   }
 
   Future<void> _withdraw(String roomId) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.communitiesWithdrawTitle),
-        content: Text(context.l10n.communitiesWithdrawBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.communitiesWithdraw),
-          ),
-        ],
-      ),
+    final l10n = context.l10n;
+    final confirmed = await confirm(
+      context,
+      title: l10n.communitiesWithdrawTitle,
+      body: l10n.communitiesWithdrawBody,
+      confirmLabel: l10n.communitiesWithdraw,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     await _answer(
       roomId,
       () => ref.read(joinRequestsProvider.notifier).withdraw(roomId),
-      failed: context.l10n.communitiesWithdrawFailed,
+      failed: l10n.communitiesWithdrawFailed,
     );
   }
 
@@ -247,19 +201,9 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     Future<void> Function() action, {
     required String failed,
   }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
     setState(() => _joining.add(roomId));
-    try {
-      await action();
-    } catch (e, s) {
-      reportCaught('join request', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
-      );
-    } finally {
-      if (mounted) setState(() => _joining.remove(roomId));
-    }
+    await attempt(context, action, label: 'join request', failed: failed);
+    if (mounted) setState(() => _joining.remove(roomId));
   }
 
   Future<void> _invite() => inviteFromDialog(
@@ -282,19 +226,11 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         access: newRoom.access,
       );
     } on RoomNotAddedToCommunity catch (e) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.communitiesRoomNotAdded(name))),
-      );
+      messenger.say(l10n.communitiesRoomNotAdded(name));
       roomId = e.roomId;
     } catch (e, s) {
       reportCaught('create community room', e, s);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            failureMessage(l10n, e, failed: l10n.roomsCouldNotCreateRoom),
-          ),
-        ),
-      );
+      messenger.sayFailed(l10n, e, failed: l10n.roomsCouldNotCreateRoom);
       return;
     }
     final room = _client.getRoomById(roomId);
@@ -342,7 +278,11 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         key: ValueKey(room.id),
         data: data,
         client: _client,
-        preview: LastMessagePreview(room: room, event: room.lastEvent),
+        preview: LastMessagePreview(
+          room: room,
+          event: room.lastEvent,
+          summary: data.preview,
+        ),
         onTap: () => widget.openRoom(context, room),
       ),
     );
@@ -367,129 +307,67 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       context,
       room: community,
       members: membersOwnerFirst(community, people),
-      canManage: (user) => _memberActions(user).isNotEmpty,
+      canManage: (user) => memberActionsFor(community, user).isNotEmpty,
     );
     if (user == null || !mounted) return;
     await _manageMember(user);
   }
 
-  List<_MemberAction> _memberActions(User user) {
-    final community = _community;
-    if (user.membership != Membership.join) return const [];
-    final manageable = canManageMember(community, user.id);
-    return [
-      if (assignableRolesFor(community, targetUserId: user.id).isNotEmpty)
-        _MemberAction.changeRole,
-      if (canRemoveMember(community, user.id)) _MemberAction.remove,
-      if (manageable && community.canBan) _MemberAction.ban,
-    ];
-  }
-
   Future<void> _manageMember(User user) async {
-    final actions = _memberActions(user);
-    final action = await showSheet<_MemberAction>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            for (final action in actions)
-              ListTile(
-                leading: Icon(action.icon),
-                title: Text(action.label(context.l10n)),
-                onTap: () => Navigator.of(context).pop(action),
-              ),
-          ],
-        ),
-      ),
-    );
+    final community = _community;
+    final action = await chooseMemberAction(context, community, user);
     if (action == null || !mounted) return;
+    final bool changed;
     switch (action) {
-      case _MemberAction.changeRole:
-        await _changeRole(user);
-      case _MemberAction.remove:
-        await _removeMember(user, ban: false);
-      case _MemberAction.ban:
-        await _removeMember(user, ban: true);
+      case MemberAction.changeRole:
+        changed = await changeMemberRole(context, community, user);
+      case MemberAction.remove || MemberAction.ban:
+        changed = await removeMember(
+          context,
+          community,
+          user,
+          ban: action == MemberAction.ban,
+        );
+      case MemberAction.message || MemberAction.block || MemberAction.report:
+        changed = false;
     }
+    if (changed && mounted) setState(() {});
   }
-
-  Future<void> _changeRole(User user) async {
-    final community = _community;
-    final current = roomRoleOfUser(community, user.id);
-    final chosen = await showRolePicker(
-      context,
-      current: current,
-      options: assignableRolesFor(community, targetUserId: user.id),
-    );
-    if (chosen == null || chosen == current || !mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await setUserRoomRole(community, user.id, chosen);
-      if (mounted) setState(() {});
-    } catch (e, s) {
-      reportCaught('change community role', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.commonRoleNotChanged)),
-      );
-    }
-  }
-
-  Future<void> _removeMember(User user, {required bool ban}) async {
-    final confirmed = await confirmRemoveMember(
-      context,
-      name: user.calcDisplayname(),
-      ban: ban,
-      place: RemoveMemberPlace.community,
-    );
-    if (!confirmed || !mounted) return;
-    final community = _community;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await (ban ? community.ban(user.id) : community.kick(user.id));
-      applyOptimisticMembership(
-        community,
-        user.id,
-        ban ? Membership.ban : Membership.leave,
-      );
-      if (mounted) setState(() {});
-    } catch (e, s) {
-      reportCaught(ban ? 'ban from community' : 'remove from community', e, s);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            ban ? l10n.commonMemberNotBanned : l10n.commonMemberNotRemoved,
-          ),
-        ),
-      );
-    }
-  }
-
-  bool get _canEditSettings =>
-      _community.canChangeStateEvent(EventTypes.RoomName) ||
-      _community.canChangeStateEvent(EventTypes.RoomTopic) ||
-      _community.canChangeStateEvent(EventTypes.RoomAvatar) ||
-      canChangeRoomAccess(_community);
 
   @override
   Widget build(BuildContext context) {
-    final community = _community;
     final corrections = ref.watch(callUnreadCorrectionProvider);
+    final asked = ref.watch(joinRequestsProvider);
+    return RoomChangesBuilder(
+      changes: RoomChanges.where(_client, syncs: _concerns),
+      onChange: _closeIfLeft,
+      builder: (context) => _page(context, corrections, asked),
+    );
+  }
+
+  Widget _page(
+    BuildContext context,
+    Map<String, int> corrections,
+    Set<String> asked,
+  ) {
+    final community = _community;
     final rooms = communityRooms(community);
     _memo.retainOnly(rooms.map((room) => room.id));
+    final positions = {for (var i = 0; i < rooms.length; i++) rooms[i].id: i};
     final joinable = _more
         ?.where(
           (c) => _client.getRoomById(c.roomId)?.membership != Membership.join,
         )
         .toList();
-    final asked = ref.watch(joinRequestsProvider);
     final canInvite = community.canInvite;
     final canAddRooms = community.canChangeStateEvent(EventTypes.SpaceChild);
     final now = clock.now();
     final labels = DateLabels.of(context);
     final l10n = context.l10n;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final members =
+        community.summary.mJoinedMemberCount ??
+        community.getParticipants([Membership.join]).length;
 
     return Scaffold(
       appBar: AppBar(
@@ -498,7 +376,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
             tooltip: l10n.commonMore,
             onSelected: _onMenu,
             itemBuilder: (context) => [
-              if (_canEditSettings)
+              if (canEditRoomSettings(community))
                 PopupMenuItem(
                   value: _Menu.settings,
                   child: Text(l10n.communitiesSettings),
@@ -522,56 +400,83 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         child: MediaQuery.removePadding(
           context: context,
           removeBottom: true,
-          child: ListView(
+          child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(),
-            padding: EdgeInsets.only(bottom: 24 + bottomInset),
-            children: [
-              _Header(community: community, onMembers: _viewMembers),
+            slivers: [
+              SliverToBoxAdapter(
+                child: RoomHeader(
+                  room: community,
+                  details: [
+                    RoomAccessLabel.of(community, l10n),
+                    _MembersButton(count: members, onTap: _viewMembers),
+                  ],
+                ),
+              ),
               if (canInvite || canAddRooms)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      if (canInvite)
-                        Flexible(
-                          child: QuickAction(
-                            icon: Icons.person_add_alt_outlined,
-                            label: l10n.commonInvite,
-                            onTap: _invite,
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        if (canInvite)
+                          Flexible(
+                            child: QuickAction(
+                              icon: Icons.person_add_alt_outlined,
+                              label: l10n.commonInvite,
+                              onTap: _invite,
+                            ),
                           ),
-                        ),
-                      if (canAddRooms)
-                        Flexible(
-                          child: QuickAction(
-                            icon: Icons.add_comment_outlined,
-                            label: l10n.roomsNewRoom,
-                            onTap: _newRoom,
+                        if (canAddRooms)
+                          Flexible(
+                            child: QuickAction(
+                              icon: Icons.add_comment_outlined,
+                              label: l10n.roomsNewRoom,
+                              onTap: _newRoom,
+                            ),
                           ),
-                        ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               if (rooms.isNotEmpty) ...[
-                SectionLabel(l10n.communitiesYourRooms),
-                for (final room in rooms)
-                  _roomRow(room, corrections, now, labels),
+                SliverToBoxAdapter(
+                  child: SectionLabel(l10n.communitiesYourRooms),
+                ),
+                SliverList.builder(
+                  itemCount: rooms.length,
+                  findChildIndexCallback: (key) =>
+                      key is ValueKey<String> ? positions[key.value] : null,
+                  itemBuilder: (context, index) =>
+                      _roomRow(rooms[index], corrections, now, labels),
+                ),
               ],
               if (_failed)
-                FailureNotice(
-                  message: context.l10n.communitiesLoadFailed,
-                  onRetry: _loadMore,
+                SliverToBoxAdapter(
+                  child: FailureNotice(
+                    message: l10n.communitiesLoadFailed,
+                    onRetry: _loadMore,
+                  ),
                 )
               else if (joinable == null)
-                const Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Center(child: CircularProgressIndicator()),
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
                 )
               else if (joinable.isNotEmpty) ...[
-                SectionLabel(l10n.communitiesMoreRooms),
-                for (final chunk in joinable) _joinable(chunk, asked),
+                SliverToBoxAdapter(
+                  child: SectionLabel(l10n.communitiesMoreRooms),
+                ),
+                SliverList.builder(
+                  itemCount: joinable.length,
+                  itemBuilder: (context, index) =>
+                      _joinable(joinable[index], asked),
+                ),
               ] else if (rooms.isEmpty)
-                _NoRooms(canAddRooms: canAddRooms),
+                SliverToBoxAdapter(child: _NoRooms(canAddRooms: canAddRooms)),
+              SliverToBoxAdapter(child: SizedBox(height: 24 + bottomInset)),
             ],
           ),
         ),
@@ -580,73 +485,27 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
   }
 }
 
-class _Header extends StatelessWidget {
-  final Room community;
-  final VoidCallback onMembers;
+class _MembersButton extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
 
-  const _Header({required this.community, required this.onMembers});
+  const _MembersButton({required this.count, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final name = roomTitle(community, context.l10n);
-    final topic = community.topic.trim();
-    final members =
-        community.summary.mJoinedMemberCount ??
-        community.getParticipants([Membership.join]).length;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 4, 24, 18),
-      child: Column(
-        children: [
-          MxcAvatar(
-            client: community.client,
-            avatarUrl: community.avatar,
-            fallbackText: name,
-            toneSeed: community.id,
-            radius: 44,
-            shape: AvatarShape.roundedSquare,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            name,
-            style: theme.textTheme.headlineSmall,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 4),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(child: RoomAccessLabel.of(community, context.l10n)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text('•', style: theme.textTheme.bodySmall),
-              ),
-              Flexible(
-                child: TextButton(
-                  onPressed: onMembers,
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    minimumSize: const Size(0, 32),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    textStyle: theme.textTheme.bodySmall,
-                  ),
-                  child: Text(
-                    context.l10n.unitsMembers(members),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (topic.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            RoomTopic(topic: topic),
-          ],
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => TextButton(
+    onPressed: onTap,
+    style: TextButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      minimumSize: const Size(0, 32),
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      textStyle: Theme.of(context).textTheme.bodySmall,
+    ),
+    child: Text(
+      context.l10n.unitsMembers(count),
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+    ),
+  );
 }
 
 enum _Entry { join, ask, requested }
@@ -677,11 +536,11 @@ class _JoinableRoom extends StatelessWidget {
         ? l10n.communitiesUnnamedRoom
         : name;
     final topic = chunk.topic?.trim();
-    final detail = [
+    final detail = joinDetails([
       if (entry != _Entry.join) RoomAccess.askToJoin.label(l10n),
       l10n.unitsMembers(chunk.numJoinedMembers),
       if (topic != null && topic.isNotEmpty) topic,
-    ].join(' • ');
+    ]);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 16, 10),
       child: Column(

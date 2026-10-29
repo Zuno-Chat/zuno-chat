@@ -1,28 +1,11 @@
-import 'dart:async';
-
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/calls/active_call_provider.dart';
-import '../../../core/calls/call_waiting_provider.dart';
 import '../../../core/calls/end_call.dart';
-import '../../../core/calls/incoming_call_gate.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
-import '../../../core/calls/matrixrtc/incoming_call.dart';
-import '../../../core/calls/matrixrtc/incoming_call_provider.dart';
-import '../../../core/calls/matrixrtc/resolved_call_ids_provider.dart';
-import '../../../core/calls/matrixrtc/ring_elsewhere_provider.dart';
-import '../../../core/calls/notifications/call_notification_router.dart';
-import '../../../core/calls/notifications/headless_call_decline_provider.dart';
-import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
-import '../../../core/calls/notifications/ring_notification.dart';
-import '../../../core/calls/platform/incoming_call_presenter.dart';
-import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/communities.dart';
@@ -32,65 +15,28 @@ import '../../../core/matrix/local_username_dialog.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/read_receipts.dart';
 import '../../../core/matrix/room_access.dart';
+import '../../../core/matrix/room_changes.dart';
 import '../../../core/matrix/room_exit.dart';
-import '../../../core/notifications/actions/headless_message_action_provider.dart';
-import '../../../core/notifications/join_request_notification_provider.dart';
-import '../../../core/notifications/messages/message_notification_provider.dart';
-import '../../../core/notifications/room_invite_notification_provider.dart';
-import '../../../core/notifications/server_push_rules.dart';
+import '../../../core/matrix/room_mute.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
-import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/push/delivery/delivery_auto_fallback.dart';
-import '../../../core/security/alerts/security_alerts_provider.dart';
 import '../../../core/security/security_prompt.dart';
 import '../../../core/security/security_prompt_provider.dart';
-import '../../../core/security/verification_cancel_message.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/sheet.dart';
 import '../../../core/ui/zuno_motion.dart';
-import '../../calls/presentation/incoming_call_page.dart';
 import '../../communities/presentation/community_page.dart';
 import '../../location/presentation/own_live_location_banner.dart';
 import '../../onboarding/presentation/onboarding_flow_page.dart';
 import '../../security_alerts/presentation/security_alert_banners.dart';
 import '../../settings/presentation/secure_backup_page.dart';
 import '../../settings/presentation/settings_page.dart';
-import '../../verification/presentation/verification_page.dart';
-import '../../verification/presentation/verification_request_dialog.dart';
 import 'chat_list_view.dart';
 import 'home_bottom_bar.dart';
 import 'new_room_dialog.dart';
 import 'notification_delivery_banner.dart';
 import 'public_rooms_sheet.dart';
-
-Stream<void> _coalesced(Iterable<Stream<void>> streams) {
-  late final StreamController<void> controller;
-  final subs = <StreamSubscription<void>>[];
-  var pending = false;
-  void schedule() {
-    if (pending) return;
-    pending = true;
-    scheduleMicrotask(() {
-      pending = false;
-      if (!controller.isClosed) controller.add(null);
-    });
-  }
-
-  controller = StreamController<void>.broadcast(
-    onListen: () {
-      for (final s in streams) {
-        subs.add(s.listen((_) => schedule()));
-      }
-    },
-    onCancel: () async {
-      for (final sub in subs) {
-        await sub.cancel();
-      }
-      subs.clear();
-    },
-  );
-  return controller.stream;
-}
 
 enum _NewChatType {
   directMessage,
@@ -102,22 +48,40 @@ enum _NewChatType {
 
 enum _RoomAction { markRead, mute, unmute, exit }
 
-List<(_NewChatType, IconData, String)> _chatsMenu(AppLocalizations l10n) => [
-  (_NewChatType.directMessage, Icons.person_outline, l10n.roomsNewChat),
-  (_NewChatType.group, Icons.groups_outlined, l10n.roomsNewRoom),
-  (_NewChatType.findPublicRooms, Icons.search, l10n.roomsFindPublicRooms),
-];
-
-List<(_NewChatType, IconData, String)> _communitiesMenu(
+List<SheetAction<_NewChatType>> _newChatActions(
+  HomeTab tab,
   AppLocalizations l10n,
-) => [
-  (_NewChatType.community, Icons.workspaces_outlined, l10n.roomsNewCommunity),
-  (
-    _NewChatType.findPublicCommunities,
-    Icons.search,
-    l10n.roomsFindPublicCommunities,
-  ),
-];
+) => switch (tab) {
+  HomeTab.chats => [
+    SheetAction(
+      _NewChatType.directMessage,
+      icon: Icons.person_outline,
+      label: l10n.roomsNewChat,
+    ),
+    SheetAction(
+      _NewChatType.group,
+      icon: Icons.groups_outlined,
+      label: l10n.roomsNewRoom,
+    ),
+    SheetAction(
+      _NewChatType.findPublicRooms,
+      icon: Icons.search,
+      label: l10n.roomsFindPublicRooms,
+    ),
+  ],
+  HomeTab.communities => [
+    SheetAction(
+      _NewChatType.community,
+      icon: Icons.workspaces_outlined,
+      label: l10n.roomsNewCommunity,
+    ),
+    SheetAction(
+      _NewChatType.findPublicCommunities,
+      icon: Icons.search,
+      label: l10n.roomsFindPublicCommunities,
+    ),
+  ],
+};
 
 class RoomListPage extends ConsumerStatefulWidget {
   const RoomListPage({super.key});
@@ -129,92 +93,72 @@ class RoomListPage extends ConsumerStatefulWidget {
 class _RoomListPageState extends ConsumerState<RoomListPage> {
   HomeTab _tab = HomeTab.chats;
 
-  late final Stream<void> _updates = _coalesced([
-    ref.read(matrixClientProvider).onSync.stream,
-    ref.read(matrixClientProvider).onRoomState.stream,
-  ]);
+  Client get _client => ref.read(matrixClientProvider);
 
   void _select(HomeTab tab) {
     if (tab != _tab) setState(() => _tab = tab);
   }
 
-  Future<void> _newChat(BuildContext context, Client client) async {
-    final l10n = context.l10n;
-    final options = _tab == HomeTab.chats
-        ? _chatsMenu(l10n)
-        : _communitiesMenu(l10n);
-    final type = await showSheet<_NewChatType>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            for (final (type, icon, label) in options)
-              ListTile(
-                leading: Icon(icon),
-                title: Text(label),
-                onTap: () => Navigator.of(context).pop(type),
-              ),
-          ],
-        ),
-      ),
+  void _open(Room room) =>
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
+
+  Future<void> _newChat() async {
+    final type = await showActionSheet(
+      context,
+      actions: _newChatActions(_tab, context.l10n),
     );
-    if (type == null || !context.mounted) return;
+    if (type == null || !mounted) return;
 
     switch (type) {
       case _NewChatType.directMessage:
-        await _startDirectMessage(context, client);
+        await _startDirectMessage();
       case _NewChatType.group:
-        await _createGroup(context, client);
+        await _createGroup();
       case _NewChatType.findPublicRooms:
-        await _findPublic(context, client, communities: false);
+        await _findPublic(communities: false);
       case _NewChatType.community:
-        await _createCommunity(context, client);
+        await _createCommunity();
       case _NewChatType.findPublicCommunities:
-        await _findPublic(context, client, communities: true);
+        await _findPublic(communities: true);
     }
   }
 
-  Future<void> _startDirectMessage(BuildContext context, Client client) async {
+  Future<void> _startDirectMessage() async {
+    final client = _client;
     final userId = await showLocalUsernameDialog(
       context,
       client: client,
       title: context.l10n.roomsNewChat,
       actionLabel: context.l10n.roomsStart,
     );
-    if (userId == null || !context.mounted) return;
+    if (userId == null || !mounted) return;
     await _createAndOpen(
-      context,
-      client,
       () => startEncryptedDirectChat(client, userId),
       failed: context.l10n.roomsCouldNotStartChat,
     );
   }
 
-  Future<void> _createGroup(BuildContext context, Client client) async {
+  Future<void> _createGroup() async {
     final newRoom = await showNewRoomDialog(context);
-    if (newRoom == null || newRoom.name.isEmpty || !context.mounted) return;
+    if (newRoom == null || newRoom.name.isEmpty || !mounted) return;
     await _createAndOpen(
-      context,
-      client,
-      () => createGroupRoom(client, name: newRoom.name, access: newRoom.access),
+      () =>
+          createGroupRoom(_client, name: newRoom.name, access: newRoom.access),
       failed: context.l10n.roomsCouldNotCreateRoom,
     );
   }
 
-  Future<void> _createCommunity(BuildContext context, Client client) async {
+  Future<void> _createCommunity() async {
     final newCommunity = await showNewRoomDialog(
       context,
       title: context.l10n.roomsNewCommunity,
       hint: context.l10n.communitiesCommunityName,
     );
-    if (newCommunity == null || newCommunity.name.isEmpty || !context.mounted) {
-      return;
-    }
+    if (newCommunity == null || newCommunity.name.isEmpty || !mounted) return;
     await _createAndOpen(
-      context,
-      client,
       () => createCommunity(
-        client,
+        _client,
         name: newCommunity.name,
         access: newCommunity.access,
       ),
@@ -222,22 +166,17 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     );
   }
 
-  Future<void> _findPublic(
-    BuildContext context,
-    Client client, {
-    required bool communities,
-  }) async {
+  Future<void> _findPublic({required bool communities}) async {
+    final client = _client;
     final roomId = await showPublicRoomsSheet(
       context,
       client: client,
       communities: communities,
     );
-    if (roomId == null || !context.mounted) return;
+    if (roomId == null || !mounted) return;
     final alreadyJoined =
         client.getRoomById(roomId)?.membership == Membership.join;
     await _createAndOpen(
-      context,
-      client,
       () async {
         if (!alreadyJoined) await joinAndAwaitRoom(client, roomId);
         return roomId;
@@ -249,37 +188,23 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
   }
 
   Future<void> _createAndOpen(
-    BuildContext context,
-    Client client,
     Future<String> Function() action, {
     @displayText required String failed,
   }) async {
     final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     try {
-      final roomId = await action();
-      final room = client.getRoomById(roomId);
-      if (room != null && context.mounted) {
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
-      }
+      final room = _client.getRoomById(await action());
+      if (room != null && mounted) _open(room);
     } on RoomListingRefused {
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.matrixRoomListingRefused)),
-      );
+      messenger.say(l10n.matrixRoomListingRefused);
     } catch (e, s) {
       reportCaught('create or join room', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
-      );
+      messenger.sayFailed(l10n, e, failed: failed);
     }
   }
 
-  Future<void> _maybeStartOnboarding(
-    BuildContext context,
-    WidgetRef ref,
-    List<OnboardingStep> steps,
-  ) async {
+  Future<void> _maybeStartOnboarding(List<OnboardingStep> steps) async {
     final store = ref.read(onboardingStoreProvider);
     if (store.flow != OnboardingFlow.undecided) return;
     if (steps.isEmpty) {
@@ -296,7 +221,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }
   }
 
-  Future<void> _maybeOfferRecovery(BuildContext context, WidgetRef ref) async {
+  Future<void> _maybeOfferRecovery() async {
     final store = ref.read(securityPromptStoreProvider);
     if (store.promptInFlight) return;
     final lastPrompted = store.lastPrompted();
@@ -305,7 +230,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
       return;
     }
     final pendingSteps = await ref.read(onboardingStepsProvider.future);
-    if (!context.mounted || store.promptInFlight) return;
+    if (!mounted || store.promptInFlight) return;
     if (recoveryPromptDefersToOnboarding(
       flow: ref.read(onboardingStoreProvider).flow,
       pendingSteps: pendingSteps,
@@ -314,163 +239,80 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }
     store.promptInFlight = true;
     try {
-      await _offerRecovery(context, ref, store);
+      await _offerRecovery(store);
     } finally {
       store.promptInFlight = false;
     }
   }
 
-  Future<void> _offerRecovery(
-    BuildContext context,
-    WidgetRef ref,
-    SecurityPromptStore store,
-  ) async {
+  Future<void> _offerRecovery(SecurityPromptStore store) async {
     await store.markPrompted();
-    if (!context.mounted) return;
-    final accepted = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.roomsRecoveryPromptTitle),
-        actionsOverflowDirection: VerticalDirection.up,
-        actionsOverflowButtonSpacing: 4,
-        content: Text(context.l10n.roomsRecoveryPromptBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonNotNow),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.securitySetUpRecovery),
-          ),
-        ],
-      ),
+    if (!mounted) return;
+    final l10n = context.l10n;
+    final accepted = await confirm(
+      context,
+      title: l10n.roomsRecoveryPromptTitle,
+      body: l10n.roomsRecoveryPromptBody,
+      confirmLabel: l10n.securitySetUpRecovery,
+      cancelLabel: l10n.commonNotNow,
+      tone: ConfirmTone.primary,
     );
-    if (accepted != true || !context.mounted) return;
+    if (!accepted || !mounted) return;
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const SecureBackupPage()));
   }
 
-  Future<void> _handleIncomingVerification(
-    BuildContext context,
-    KeyVerification keyVerification,
-  ) async {
-    if (keyVerification.isDone) return;
-    final messenger = ScaffoldMessenger.of(context);
+  Future<void> _showRoomActions(Room room) async {
     final l10n = context.l10n;
-    final isOwnDevice =
-        keyVerification.userId == ref.read(matrixClientProvider).userID;
-    final accept = await showDialog<bool>(
-      context: context,
-      builder: (_) =>
-          VerificationRequestDialog(keyVerification: keyVerification),
-    );
-    if (keyVerification.isDone) {
-      final message = verificationCancelMessage(
-        l10n,
-        code: keyVerification.canceledCode,
-        isOwnDevice: isOwnDevice,
-      );
-      messenger.showSnackBar(SnackBar(content: Text(message.body)));
-      return;
-    }
-    if (accept != true) {
-      await keyVerification.rejectVerification();
-      return;
-    }
-    await keyVerification.acceptVerification();
-    if (context.mounted) {
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => VerificationPage(
-            keyVerification: keyVerification,
-            isOwnDevice: isOwnDevice,
-          ),
-        ),
-      );
-    }
-  }
-
-  Future<void> _showRoomActions(BuildContext context, Room room) async {
     final isCommunity = room.isSpace;
-    final isMuted = room.pushRuleState == PushRuleState.dontNotify;
+    final isMuted = isRoomMuted(room);
     final hasUnread = !isCommunity && room.notificationCount > 0;
 
-    final action = await showSheet<_RoomAction>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            if (hasUnread)
-              ListTile(
-                leading: const Icon(Icons.mark_chat_read_outlined),
-                title: Text(context.l10n.commonMarkAsRead),
-                onTap: () => Navigator.of(context).pop(_RoomAction.markRead),
-              ),
-            if (!isCommunity)
-              ListTile(
-                leading: Icon(
-                  isMuted
-                      ? Icons.notifications_active_outlined
-                      : Icons.notifications_off_outlined,
+    final action = await showActionSheet(
+      context,
+      actions: [
+        if (hasUnread)
+          SheetAction(
+            _RoomAction.markRead,
+            icon: Icons.mark_chat_read_outlined,
+            label: l10n.commonMarkAsRead,
+          ),
+        if (!isCommunity)
+          isMuted
+              ? SheetAction(
+                  _RoomAction.unmute,
+                  icon: Icons.notifications_active_outlined,
+                  label: l10n.roomsUnmute,
+                )
+              : SheetAction(
+                  _RoomAction.mute,
+                  icon: Icons.notifications_off_outlined,
+                  label: l10n.roomsMute,
                 ),
-                title: Text(
-                  isMuted ? context.l10n.roomsUnmute : context.l10n.roomsMute,
-                ),
-                onTap: () =>
-                    Navigator.of(context)
-                        .pop(isMuted ? _RoomAction.unmute : _RoomAction.mute),
-              ),
-            ListTile(
-              leading: Icon(
-                roomExitIcon(room),
-                color: Theme.of(context).colorScheme.error,
-              ),
-              title: Text(
-                roomExitLabel(room, context.l10n),
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
-              ),
-              onTap: () => Navigator.of(context).pop(_RoomAction.exit),
-            ),
-          ],
+        SheetAction(
+          _RoomAction.exit,
+          icon: roomExitIcon(room),
+          label: roomExitLabel(room, l10n),
+          destructive: true,
         ),
-      ),
+      ],
     );
-    if (action == null || !context.mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    Future<void> attempt(
-      Future<void> Function() write, {
-      @displayText required String failed,
-    }) async {
-      try {
-        await write();
-      } catch (e, s) {
-        reportCaught('room action ${action.name}', e, s);
-        messenger.showSnackBar(
-          SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
-        );
-      }
-    }
+    if (action == null || !mounted) return;
 
     switch (action) {
       case _RoomAction.markRead:
-        await attempt(() async {
-          final eventId = await newestReadMarkerEventId(room);
-          if (eventId == null) return;
-          await markRoomRead(room, eventId);
-        }, failed: l10n.roomsNotMarkedAsRead);
-      case _RoomAction.mute:
         await attempt(
-          () => room.setPushRuleState(PushRuleState.dontNotify),
-          failed: l10n.roomsNotMuted,
+          context,
+          () async {
+            final eventId = await newestReadMarkerEventId(room);
+            if (eventId == null) return;
+            await markRoomRead(room, eventId);
+          },
+          label: 'room action mark read',
+          failed: l10n.roomsNotMarkedAsRead,
         );
-      case _RoomAction.unmute:
-        await attempt(
-          () => room.setPushRuleState(PushRuleState.notify),
-          failed: l10n.roomsNotUnmuted,
-        );
+      case _RoomAction.mute || _RoomAction.unmute:
+        await _setMuted(room, action == _RoomAction.mute);
       case _RoomAction.exit:
         await confirmAndExitRoom(
           context,
@@ -480,84 +322,44 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }
   }
 
-  Future<void> _onIncomingCall(IncomingCall call) async {
-    final gate = ref.read(incomingCallGateProvider.notifier);
-    if (!await gate.shouldRing(call) || !mounted) return;
-    SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
-    unawaited(
-      postRingNotification(
-        call,
-        presenter: ref.read(incomingCallPresenterProvider),
-        waiting: waitingRing(ref.read(activeCallProvider), call.callId) != null,
-      ),
-    );
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => IncomingCallPage(call: call)));
+  Future<void> _setMuted(Room room, bool muted) async {
+    final asked = askToMuteRoom(context, room, muted);
+    setState(() {});
+    await asked;
+    if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final client = ref.watch(matrixClientProvider);
     final unreadCorrections = ref.watch(callUnreadCorrectionProvider);
-    ref.watch(resolvedCallIdsProvider);
-    ref.watch(ringElsewhereProvider);
-    ref.watch(pendingCallNotificationActionProvider);
-    ref.watch(messageNotificationProvider);
-    ref.watch(roomInviteNotificationProvider);
-    ref.watch(joinRequestNotificationProvider);
     final pendingJoins = ref.watch(joinRequestsProvider);
     final firstSyncPending = ref.watch(firstSyncProvider).isLoading;
-    ref.watch(pushRuleMaintenanceProvider);
-    ref.watch(deliveryAutoFallbackProvider);
-    ref.watch(securityAlertsProvider);
-    ref.watch(headlessCallDeclineProvider);
-    ref.watch(headlessMessageActionProvider);
-    ref.watch(callNotificationRouterProvider);
     ref.listen<AsyncValue<List<OnboardingStep>>>(onboardingStepsProvider, (
       _,
       next,
     ) {
       final steps = next.value;
-      if (steps != null && !next.isLoading) {
-        _maybeStartOnboarding(context, ref, steps);
-      }
+      if (steps != null && !next.isLoading) _maybeStartOnboarding(steps);
     });
     ref.listen<AsyncValue<SecurityPromptDecision>>(securityPromptProvider, (
       _,
       next,
     ) {
       if (next.value == SecurityPromptDecision.setUpRecovery) {
-        _maybeOfferRecovery(context, ref);
+        _maybeOfferRecovery();
       }
-    });
-    ref.listen<AsyncValue<KeyVerification>>(incomingKeyVerificationProvider, (
-      _,
-      next,
-    ) {
-      final keyVerification = next.value;
-      if (keyVerification != null) {
-        _handleIncomingVerification(context, keyVerification);
-      }
-    });
-    ref.listen<AsyncValue<IncomingCall>>(incomingCallProvider, (_, next) {
-      if (ref.read(platformCapabilitiesProvider).voipRing) return;
-      final call = next.value;
-      if (call != null) unawaited(_onIncomingCall(call));
     });
 
     final communities = _tab == HomeTab.communities;
-    void open(Room room) =>
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
-
     return PopScope(
       canPop: !communities,
       onPopInvokedWithResult: (didPop, _) {
         if (!didPop) _select(HomeTab.chats);
       },
-      child: StreamBuilder<void>(
-        stream: _updates,
-        builder: (context, _) {
+      child: RoomChangesBuilder(
+        changes: RoomChanges.everywhere(client),
+        builder: (context) {
           final layout = arrangeHome(client.rooms, pendingJoins: pendingJoins);
           final loading = firstSyncPending && client.rooms.isEmpty;
           return Scaffold(
@@ -585,33 +387,24 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
               chatsUnread: layout.hasUnreadChats(unreadCorrections),
               communitiesUnread: layout.hasUnreadCommunities(unreadCorrections),
               onSelect: _select,
-              onNew: () => _newChat(context, client),
+              onNew: _newChat,
             ),
             body: Column(
               children: [
                 const SecurityAlertBanners.account(),
                 const NotificationDeliveryBanner(),
-                OwnLiveLocationBanner(onOpen: open),
+                OwnLiveLocationBanner(onOpen: _open),
                 Expanded(
-                  child: communities
-                      ? ChatListView.communities(
-                          key: const ValueKey(HomeTab.communities),
-                          client: client,
-                          layout: layout,
-                          unreadCorrections: unreadCorrections,
-                          onOpen: open,
-                          onActions: (room) => _showRoomActions(context, room),
-                          loading: loading,
-                        )
-                      : ChatListView.chats(
-                          key: const ValueKey(HomeTab.chats),
-                          client: client,
-                          layout: layout,
-                          unreadCorrections: unreadCorrections,
-                          onOpen: open,
-                          onActions: (room) => _showRoomActions(context, room),
-                          loading: loading,
-                        ),
+                  child: ChatListView(
+                    key: ValueKey(_tab),
+                    client: client,
+                    layout: layout,
+                    section: _tab,
+                    unreadCorrections: unreadCorrections,
+                    onOpen: _open,
+                    onActions: _showRoomActions,
+                    loading: loading,
+                  ),
                 ),
               ],
             ),

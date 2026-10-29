@@ -12,6 +12,7 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
@@ -24,14 +25,12 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/features/chat/data/discarded_sends.dart';
 import 'package:zuno/features/chat/presentation/caption_bar.dart';
-import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
-import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_geolocator.dart';
@@ -286,7 +285,7 @@ void main() {
 
       await choose(tester, 'Take photo');
       expect(picker.calls, ['image:camera']);
-      expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
+      expect(find.byType(MediaCaptionComposerPage), findsOneWidget);
 
       await tester.enterText(find.byType(TextField).last, 'at the lake');
       await sendFromComposer(
@@ -307,7 +306,7 @@ void main() {
 
       await choose(tester, 'Take photo');
 
-      expect(find.byType(ImageCaptionComposerPage), findsNothing);
+      expect(find.byType(MediaCaptionComposerPage), findsNothing);
       expect(harness.sent, isEmpty);
     });
 
@@ -1430,7 +1429,7 @@ void main() {
       await openRoom(tester);
 
       await choose(tester, 'Choose from gallery');
-      expect(find.byType(VideoCaptionComposerPage), findsOneWidget);
+      expect(find.byType(MediaCaptionComposerPage), findsOneWidget);
       await tester.enterText(find.byType(TextField).last, 'waves');
       await sendFromComposer(
         tester,
@@ -1466,7 +1465,7 @@ void main() {
 
       await choose(tester, 'Record video');
 
-      expect(find.byType(VideoCaptionComposerPage), findsNothing);
+      expect(find.byType(MediaCaptionComposerPage), findsNothing);
       expect(harness.sent, isEmpty);
     });
 
@@ -1819,6 +1818,25 @@ void main() {
 
         expect(find.text(refusal), findsOneWidget);
       });
+
+      testWidgets('a share that fails while offline asks to check the '
+          'connection', (tester) async {
+        await openEncryptedRoom(tester);
+        sharing
+          ..refusal = LiveShareStartFailure.failed
+          ..refusalCause = const SocketException('offline');
+        final failed = englishLocalizations.errorsFailedCheckConnection(
+          englishLocalizations.locationStartFailed,
+        );
+
+        await startLive(
+          tester,
+          awaiting: 'the offline failure to be explained',
+          until: () => shows(failed),
+        );
+
+        expect(find.text(failed), findsOneWidget);
+      });
     });
   });
 
@@ -1872,6 +1890,7 @@ class _StartRecordingSharing extends LiveLocationSharing {
   final started =
       <({String roomId, LiveLocationDuration duration, LivePosition first})>[];
   LiveShareStartFailure? refusal;
+  Object? refusalCause;
 
   @override
   Future<void> start(
@@ -1879,7 +1898,9 @@ class _StartRecordingSharing extends LiveLocationSharing {
     LiveLocationDuration duration,
     LivePosition first,
   ) async {
-    if (refusal case final reason?) throw LiveShareStartException(reason);
+    if (refusal case final reason?) {
+      throw LiveShareStartException(reason, cause: refusalCause);
+    }
     started.add((roomId: room.id, duration: duration, first: first));
   }
 }

@@ -164,6 +164,21 @@ void main() {
       expect(leaveRequests(), isEmpty);
     });
 
+    testWidgets('the confirm button is red, since leaving is destructive', (
+      tester,
+    ) async {
+      await tapExit(tester, joinedRoom(exitClient()));
+
+      final leave = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Leave'),
+      );
+      final context = tester.element(find.text('Leave room?'));
+      expect(
+        leave.style?.foregroundColor?.resolve({}),
+        Theme.of(context).colorScheme.error,
+      );
+    });
+
     testWidgets('cancelling the prompt leaves the room alone and ends no '
         'call', (tester) async {
       await tapExit(tester, joinedRoom(exitClient()));
@@ -206,8 +221,8 @@ void main() {
       expect(find.textContaining('Exception'), findsNothing);
     });
 
-    testWidgets('a refused leave says only that the room was not left, and '
-        'logs why', (tester) async {
+    testWidgets('a refused leave says the room was not left without the '
+        "server's words, and logs why", (tester) async {
       final logged = <String>[];
       final originalDebugPrint = debugPrint;
       debugPrint = (String? message, {int? wrapWidth}) {
@@ -222,7 +237,7 @@ void main() {
         debugPrint = originalDebugPrint;
       }
 
-      expect(find.text('Could not leave the room.'), findsOneWidget);
+      expect(find.text('Could not leave the room. Try again.'), findsOneWidget);
       expect(find.textContaining('M_FORBIDDEN'), findsNothing);
       expect(find.textContaining('Not allowed'), findsNothing);
       expect(

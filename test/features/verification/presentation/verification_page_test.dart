@@ -13,6 +13,7 @@ import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/confirmed_identity_store.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/ui/qr_image.dart' as app_qr;
 import 'package:zuno/features/verification/presentation/qr_scanner_page.dart';
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
@@ -72,6 +73,8 @@ void main() {
     await tester.pageBack();
     await settle(tester);
   }
+
+  final appQrImage = find.byType(app_qr.QrImage);
 
   final qrImage = find.byWidgetPredicate(
     (widget) => widget is CustomPaint && widget.painter is QrPainter,
@@ -165,6 +168,23 @@ void main() {
       expect(find.text('Scan their code'), findsOneWidget);
       expect(find.text(_compare), findsOneWidget);
       expect(verification.calls, isEmpty);
+    });
+
+    testWidgets('the code is drawn from one QR build while the page '
+        'updates', (tester) async {
+      final verification = FakeKeyVerification(
+        state: KeyVerificationState.askChoice,
+        possibleMethods: showAndScan,
+        qrBytes: matrixQrBytes,
+      );
+      await open(tester, verification);
+      QrCode shownQr() => tester.widget<app_qr.QrImage>(appQrImage).qr;
+      final first = shownQr();
+
+      verification.moveTo(KeyVerificationState.askChoice);
+      await tester.pump();
+
+      expect(shownQr(), same(first));
     });
 
     testWidgets('an own-device check words the choice for two devices', (

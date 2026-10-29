@@ -179,6 +179,37 @@ void main() {
       expect(display.title, room.getLocalizedDisplayname());
       expect(display.avatarUrl, room.avatar);
     });
+
+    test('an unnamed chat is shown as the person who sent it', () {
+      final view = incomingInviteView(room, englishLocalizations);
+
+      expect(view.inviterId, '@alice:example.org');
+      expect(view.inviterName, 'Alice');
+      expect(view.inviterNamed, isTrue);
+      expect(view.name, 'Alice');
+      expect(view.group, isFalse);
+      expect(view.community, isFalse);
+    });
+
+    test('a named group is shown by its own name', () {
+      setRoomName('Book club');
+
+      final view = incomingInviteView(room, englishLocalizations);
+
+      expect(view.name, 'Book club');
+      expect(view.inviterName, 'Alice');
+      expect(view.group, isTrue);
+    });
+  });
+
+  test('an invitation from nobody known reads as from someone', () {
+    room.membership = Membership.invite;
+
+    final view = incomingInviteView(room, englishLocalizations);
+
+    expect(view.inviterId, isNull);
+    expect(view.inviterName, 'Someone');
+    expect(view.inviterNamed, isFalse);
   });
 
   group('restored from disk, with no member state loaded', () {
@@ -369,6 +400,47 @@ void main() {
 
       await expectLater(
         inviteToRoom(room, '@nobody:example.org'),
+        throwsA(isA<MatrixException>()),
+      );
+    });
+  });
+
+  group('accepting an invitation', () {
+    Room invitedRoom(Client client) =>
+        buildTestRoom(client)..membership = Membership.invite;
+
+    test('restores the inviter, then joins', () async {
+      final client = recordingClient(
+        answer: (request) => request.url.path.endsWith('/join')
+            ? http.Response('{"room_id":"!room:example.org"}', 200)
+            : null,
+        members: {
+          '@me:example.org': (r) => User.fromState(
+            stateKey: '@me:example.org',
+            senderId: '@bob:example.org',
+            typeKey: EventTypes.RoomMember,
+            content: const {'membership': 'invite'},
+            room: r,
+          ),
+        },
+      );
+      final room = invitedRoom(client);
+
+      await acceptInvite(room);
+
+      expect(ownInviteMember(room)?.senderId, '@bob:example.org');
+      expect(requests.where((r) => r.endsWith('/join')), hasLength(1));
+    });
+
+    test('a refused join fails', () async {
+      final client = recordingClient(
+        answer: (request) => request.url.path.endsWith('/join')
+            ? http.Response('{"errcode":"M_FORBIDDEN","error":"no"}', 403)
+            : null,
+      );
+
+      await expectLater(
+        acceptInvite(invitedRoom(client)),
         throwsA(isA<MatrixException>()),
       );
     });

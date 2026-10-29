@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/current_position.dart';
 import '../../../core/location/geo_uri.dart';
@@ -9,7 +10,9 @@ import '../../../core/location/live_location_availability.dart';
 import '../../../core/location/live_location_protocol.dart';
 import '../../../core/platform/background_restrictions.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/sheet.dart';
+import '../../../core/ui/zuno_theme.dart';
 import 'location_failure_text.dart';
 import 'location_map_page.dart';
 import 'location_map_view.dart';
@@ -157,11 +160,7 @@ class _Finding extends StatelessWidget {
     child: Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const SizedBox(
-          width: 20,
-          height: 20,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        ),
+        const InlineSpinner(),
         const SizedBox(width: 12),
         Flexible(child: Text(context.l10n.locationFinding)),
       ],
@@ -187,16 +186,16 @@ class _Found extends StatelessWidget {
     final theme = Theme.of(context);
     final l10n = context.l10n;
     final accuracy = accuracyLabel(l10n, fix.geo.uncertaintyMeters);
-    final detail = [
+    final detail = joinDetails([
       if (fix.approximate) l10n.locationApproximate,
       ?accuracy,
-    ].join(' · ');
+    ]);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(ZunoRadius.compact),
           child: ConstrainedBox(
             constraints: BoxConstraints(
               maxHeight: MediaQuery.sizeOf(context).height * _previewShare,

@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import '../calls/active_call_provider.dart';
 import '../calls/end_call.dart';
 import '../calls/matrixrtc/call_session.dart';
+import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import '../location/live_location_sharing.dart';
@@ -29,7 +30,10 @@ Future<void> windDownBeforeSignOut({
   required LiveLocationSharing liveLocation,
 }) async {
   await endCall(activeCall);
-  await liveLocation.stopAll(within: _liveShareStopBound);
+  await runBestEffort(
+    () => liveLocation.stopAll(within: _liveShareStopBound),
+    label: 'live location stop',
+  );
 }
 
 Future<void> signOutThisDeviceOrExplain(

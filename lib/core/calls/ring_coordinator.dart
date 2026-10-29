@@ -9,10 +9,13 @@ import '../../features/calls/presentation/incoming_call_page.dart';
 import '../l10n/l10n.dart';
 import '../matrix/matrix_client_provider.dart';
 import '../navigation/global_navigator.dart';
+import '../navigation/launch_route.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/nse/read_model_publisher.dart';
 import '../push/ring/ring_registration.dart';
+import 'active_call_provider.dart';
 import 'call_liveness.dart';
+import 'call_waiting_provider.dart';
 import 'incoming_call_gate.dart';
 import 'matrixrtc/call_member_state.dart';
 import 'matrixrtc/incoming_call.dart';
@@ -24,6 +27,7 @@ import 'models/call_kind.dart';
 import 'notifications/call_notification_router.dart';
 import 'notifications/call_notification_service.dart';
 import 'notifications/ring_notification.dart';
+import 'notifications/ringing_call_provider.dart';
 import 'platform/incoming_call_presenter.dart';
 import 'platform/launch_channel.dart';
 import 'platform/native_ring.dart';
@@ -93,14 +97,48 @@ Future<String> ringName(IncomingCall call) async {
   return ringIdentity(call, deviceLocalizations()).name;
 }
 
+final ringScreenProvider = NotifierProvider<RingScreen, void>(RingScreen.new);
+
+class RingScreen extends Notifier<void> {
+  @override
+  void build() {}
+
+  bool present(IncomingCall call, {bool instant = false}) {
+    final callId = call.callId;
+    if (RingingCall.instance.callId == callId) return true;
+    if (ref.read(incomingCallGateProvider.notifier).isSettled(callId)) {
+      return false;
+    }
+    if (_systemShows(callId)) return false;
+    final navigator = globalNavigatorKey.currentState;
+    if (navigator == null) return false;
+    RingingCall.instance.set(callId);
+    unawaited(
+      navigator
+          .push(
+            pageRoute<void>(
+              instant: instant,
+              builder: (_) => IncomingCallPage(call: call),
+            ),
+          )
+          .whenComplete(() => RingingCall.instance.clear(callId)),
+    );
+    return true;
+  }
+
+  bool _systemShows(String callId) =>
+      ref.read(platformCapabilitiesProvider).callKit &&
+      SystemRing.instance.ringing.value?.callId == callId;
+}
+
 final ringCoordinatorProvider = NotifierProvider<RingCoordinator, void>(
   RingCoordinator.new,
 );
 
 final pushRingServicesProvider = Provider<void>((ref) {
   ref.watch(ringLifecycleProvider);
-  if (!ref.watch(platformCapabilitiesProvider).voipRing) return;
   ref.watch(ringCoordinatorProvider);
+  if (!ref.watch(platformCapabilitiesProvider).voipRing) return;
   ref.watch(readModelPublisherProvider);
 });
 
@@ -112,11 +150,17 @@ class RingCoordinator extends Notifier<void> {
 
   @override
   void build() {
-    if (!ref.watch(platformCapabilitiesProvider).voipRing) return;
-    final client = ref.watch(matrixClientProvider);
     ref.watch(callNotificationRouterProvider);
     ref.watch(ringElsewhereProvider);
     ref.listen(resolvedCallIdsProvider, (_, _) {});
+    final voipRing = ref.watch(platformCapabilitiesProvider).voipRing;
+    ref.listen<AsyncValue<IncomingCall>>(incomingCallProvider, (_, next) {
+      final call = next.value;
+      if (call == null) return;
+      unawaited(voipRing ? _ringFromSync(call) : _ringInApp(call));
+    });
+    if (!voipRing) return;
+    final client = ref.watch(matrixClientProvider);
     final notifications = CallNotificationService.instance;
     final subscriptions = [
       notifications.onAction.listen(
@@ -127,10 +171,6 @@ class RingCoordinator extends Notifier<void> {
       ),
       client.onSync.stream.listen((_) => _bindPendingGeneric()),
     ];
-    ref.listen<AsyncValue<IncomingCall>>(incomingCallProvider, (_, next) {
-      final call = next.value;
-      if (call != null) unawaited(_onIncomingCall(call));
-    });
     SystemRing.instance.ringing.addListener(_forgetEndedSyncRings);
     ref.onDispose(() {
       SystemRing.instance.ringing.removeListener(_forgetEndedSyncRings);
@@ -157,7 +197,22 @@ class RingCoordinator extends Notifier<void> {
     _syncRung.removeWhere((callId) => callId != ringing);
   }
 
-  Future<void> _onIncomingCall(IncomingCall call) async {
+  Future<void> _ringInApp(IncomingCall call) async {
+    if (!await ref.read(incomingCallGateProvider.notifier).shouldRing(call)) {
+      return;
+    }
+    SystemRing.instance.set(roomId: call.room.id, callId: call.callId);
+    unawaited(
+      postRingNotification(
+        call,
+        presenter: ref.read(incomingCallPresenterProvider),
+        waiting: waitingRing(ref.read(activeCallProvider), call.callId) != null,
+      ),
+    );
+    ref.read(ringScreenProvider.notifier).present(call);
+  }
+
+  Future<void> _ringFromSync(IncomingCall call) async {
     bool pushRung() => _pushRung.contains(call.callId);
     final gate = ref.read(incomingCallGateProvider.notifier);
     if (!await gate.shouldRing(call, systemRinging: pushRung)) return;
@@ -188,12 +243,9 @@ class RingCoordinator extends Notifier<void> {
     } finally {
       if (outcome != RingOutcome.shown) SystemRing.instance.clear(call.callId);
     }
-    if (outcome != RingOutcome.unavailable) return;
-    unawaited(
-      globalNavigatorKey.currentState?.push(
-        MaterialPageRoute<void>(builder: (_) => IncomingCallPage(call: call)),
-      ),
-    );
+    if (outcome == RingOutcome.unavailable) {
+      ref.read(ringScreenProvider.notifier).present(call);
+    }
   }
 
   Future<void> _onNativeRing(NativeRing ring) async {

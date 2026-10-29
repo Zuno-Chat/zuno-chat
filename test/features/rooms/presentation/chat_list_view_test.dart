@@ -10,6 +10,7 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/chat_wallpaper.dart';
 import 'package:zuno/features/rooms/presentation/chat_list_view.dart';
 import 'package:zuno/features/rooms/presentation/chat_row.dart';
+import 'package:zuno/features/rooms/presentation/home_bottom_bar.dart';
 import 'package:zuno/features/rooms/presentation/invitation_group.dart';
 
 import '../../../helpers/fake_http.dart';
@@ -67,21 +68,14 @@ void main() {
         supportedLocales: AppLocalizations.supportedLocales,
         theme: zunoLightTheme,
         home: Scaffold(
-          body: communities
-              ? ChatListView.communities(
-                  client: client,
-                  layout: layout,
-                  unreadCorrections: const {},
-                  onOpen: onOpen ?? (_) {},
-                  onActions: onActions ?? (_) {},
-                )
-              : ChatListView.chats(
-                  client: client,
-                  layout: layout,
-                  unreadCorrections: const {},
-                  onOpen: onOpen ?? (_) {},
-                  onActions: onActions ?? (_) {},
-                ),
+          body: ChatListView(
+            client: client,
+            layout: layout,
+            section: communities ? HomeTab.communities : HomeTab.chats,
+            unreadCorrections: const {},
+            onOpen: onOpen ?? (_) {},
+            onActions: onActions ?? (_) {},
+          ),
         ),
       ),
     );
@@ -387,9 +381,10 @@ void main() {
     await expectSurvivesLayoutMatrix(
       tester,
       () => Scaffold(
-        body: ChatListView.communities(
+        body: ChatListView(
           client: client,
           layout: arrangeHome(client.rooms),
+          section: HomeTab.communities,
           unreadCorrections: const {},
           onOpen: (_) {},
           onActions: (_) {},

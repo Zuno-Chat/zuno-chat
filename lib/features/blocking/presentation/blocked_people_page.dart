@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/notice.dart';
 
 typedef UnblockPerson = Future<void> Function(String userId);
 
@@ -52,30 +52,22 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
   }
 
   Future<void> _unblock(String userId) async {
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
-    final client = ref.read(matrixClientProvider);
-    final name = withoutServer(userId);
+    final unblock =
+        widget.unblock ?? ref.read(matrixClientProvider).unignoreUser;
     setState(() => _busy = true);
-    try {
-      await (widget.unblock ?? client.unignoreUser)(userId);
-    } catch (e, s) {
-      reportCaught('unblock person', e, s);
-      if (mounted) setState(() => _busy = false);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.blockingUnblockFailed)),
-      );
-      return;
-    }
-    if (mounted) {
-      setState(() {
-        _busy = false;
-        _unblocked.add(userId);
-      });
-    }
-    messenger.showSnackBar(
-      SnackBar(content: Text(l10n.blockingUnblocked(name))),
+    final unblocked = await attempt(
+      context,
+      () => unblock(userId),
+      label: 'unblock person',
+      failed: l10n.blockingUnblockFailed,
+      succeeded: l10n.blockingUnblocked(withoutServer(userId)),
     );
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (unblocked) _unblocked.add(userId);
+    });
   }
 
   @override

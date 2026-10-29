@@ -27,15 +27,21 @@ class DateLabels {
 
   factory DateLabels.of(BuildContext context) {
     final l10n = context.l10n;
-    return DateLabels(
+    final deviceLocales = View.of(context).platformDispatcher.locales;
+    final use24Hour = MediaQuery.alwaysUse24HourFormatOf(context);
+    final key = (l10n, deviceLocales, use24Hour);
+    final cached = _shared[key];
+    if (cached != null) return cached;
+    if (_shared.length >= _sharedLimit) _shared.clear();
+    return _shared[key] = DateLabels(
       l10n,
-      locale: dateLocale(
-        l10n.localeName,
-        View.of(context).platformDispatcher.locales,
-      ),
-      use24Hour: MediaQuery.alwaysUse24HourFormatOf(context),
+      locale: dateLocale(l10n.localeName, deviceLocales),
+      use24Hour: use24Hour,
     );
   }
+
+  static const _sharedLimit = 8;
+  static final _shared = <(AppLocalizations, List<Locale>, bool), DateLabels>{};
 
   final AppLocalizations l10n;
   final String locale;

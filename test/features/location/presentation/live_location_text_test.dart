@@ -158,7 +158,7 @@ void main() {
         'You cannot share live location here.',
         'You are already sharing your live location here.',
         'Live location could not start. Check that location is on, then try again.',
-        'Live location did not start. Try again.',
+        'Live location did not start.',
       ],
     );
   });

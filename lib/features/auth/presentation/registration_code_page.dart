@@ -7,6 +7,7 @@ import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/registration_code_request.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 import 'register_page.dart';
@@ -102,19 +103,15 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
           autocorrect: false,
           autofillHints: const [AutofillHints.email],
           textInputAction: TextInputAction.done,
-          onChanged: (_) => setState(() => _error = null),
+          onChanged: (_) {
+            if (_error != null) setState(() => _error = null);
+          },
           onSubmitted: (_) => _send(),
-          decoration: InputDecoration(
-            labelText: l10n.authEmailLabel,
-            border: const OutlineInputBorder(),
-          ),
+          decoration: InputDecoration(labelText: l10n.authEmailLabel),
         ),
-        if (_error != null) ...[
+        if (_error case final error?) ...[
           const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
+          InlineError(error),
         ],
         const SizedBox(height: 24),
         FilledButton(

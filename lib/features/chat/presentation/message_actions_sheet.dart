@@ -14,7 +14,7 @@ Future<MessageAction?> showMessageActionsSheet(
   required bool canEdit,
   required bool canDelete,
   required bool isOwn,
-  required bool isTextMessage,
+  required bool canCopy,
   required bool isAttachment,
   required int galleryCount,
   required int forwardCount,
@@ -73,7 +73,7 @@ Future<MessageAction?> showMessageActionsSheet(
                   const Icon(Icons.reply_outlined),
                   l10n.commonReply,
                 ),
-              if (isTextMessage)
+              if (canCopy)
                 action(
                   MessageAction.copy,
                   const Icon(Icons.copy_outlined),

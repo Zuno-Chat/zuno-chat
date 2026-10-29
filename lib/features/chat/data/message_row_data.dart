@@ -123,6 +123,7 @@ class MessageRowData {
 
   @override
   bool operator ==(Object other) =>
+      identical(this, other) ||
       other is MessageRowData && listEquals(_fields, other._fields);
 
   @override
@@ -160,6 +161,7 @@ MessageRowData messageRowDataFor({
   required Event? older,
   required Event? newer,
   required bool isLastOwn,
+  required bool isDirect,
   required List<Event>? gallery,
   required List<int> galleryFailureIndexes,
   required bool canRespond,
@@ -186,7 +188,7 @@ MessageRowData messageRowDataFor({
     timeLabel: labels.clock(event.originServerTs),
     dayLabel: dayLabelFor(event, older, labels: labels, now: now),
     isOwn: isOwn,
-    isDirect: event.room.isDirectChat,
+    isDirect: isDirect,
     senderName: sender.calcDisplayname(),
     senderAvatar: sender.avatarUrl,
     startsRun: _startsRun(event, older),

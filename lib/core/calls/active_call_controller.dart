@@ -15,6 +15,7 @@ import '../errors/global_error_handler.dart';
 import '../l10n/l10n.dart';
 import '../matrix/room_title.dart';
 import '../platform/platform_capabilities.dart';
+import '../ui/notice.dart';
 import 'active_call_provider.dart';
 import 'call_audio_route.dart';
 import 'call_picture_in_picture.dart';
@@ -658,9 +659,7 @@ class ActiveCallController extends ChangeNotifier {
     await _deviceEffects.run(_releaseDevice);
     _releaseMedia();
     if (session.endMessage(deviceLocalizations()) case final message?) {
-      globalScaffoldMessengerKey.currentState?.showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      globalScaffoldMessengerKey.currentState?.say(message);
     }
     _releaseIfDone();
     await _stopOngoingCallOnceSent();

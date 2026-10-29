@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
 import '../errors/retry_backoff.dart';
 import '../l10n/l10n.dart';
@@ -61,8 +62,9 @@ enum LiveShareStartFailure {
 
 class LiveShareStartException implements Exception {
   final LiveShareStartFailure reason;
+  final Object? cause;
 
-  const LiveShareStartException(this.reason);
+  const LiveShareStartException(this.reason, {this.cause});
 }
 
 class _Watcher {
@@ -118,7 +120,7 @@ class LiveLocationSharing {
        _capture = capture {
     _subscriptions.addAll([
       capture.events.listen(_onCaptureEvent),
-      capture.stopRequests.listen((_) => unawaited(stopAll())),
+      capture.stopRequests.listen((_) => _stopUnwatched(stopAll)),
       client.onToDeviceEvent.stream.listen(_onToDevice),
       client.onTimelineEvent.stream.listen(_onTimelineEvent),
       client.onSync.stream.listen(_onSync),
@@ -214,6 +216,7 @@ class LiveLocationSharing {
         error is MatrixException && error.error == MatrixError.M_FORBIDDEN
             ? LiveShareStartFailure.notAllowed
             : LiveShareStartFailure.failed,
+        cause: error,
       );
     }
     if (_active[room.id] != share) return;
@@ -244,8 +247,8 @@ class LiveLocationSharing {
     } finally {
       _clearing--;
       _settle();
+      await _settleCapture();
     }
-    await _settleCapture();
   }
 
   Future<void> stopIn(String roomId) async {
@@ -372,9 +375,14 @@ class LiveLocationSharing {
   void _endDue() {
     final now = clock.now();
     for (final share in [..._active.values]) {
-      if (!share.endsAt.isAfter(now)) unawaited(stop(share.roomId));
+      if (!share.endsAt.isAfter(now)) {
+        _stopUnwatched(() => stop(share.roomId));
+      }
     }
   }
+
+  void _stopUnwatched(Future<void> Function() stopping) =>
+      unawaited(runBestEffort(stopping, label: 'live location stop'));
 
   Future<String> _writeState(String roomId, Map<String, Object?> content) {
     final userId = _client.userID;
@@ -413,14 +421,10 @@ class LiveLocationSharing {
   }
 
   Future<void> _clearState(String roomId) async {
-    try {
-      final eventId = await _writeState(roomId, const {});
-      final room = _client.getRoomById(roomId);
-      if (room != null && !_active.containsKey(roomId)) {
-        _echoState(room, eventId, const {});
-      }
-    } catch (error, stack) {
-      reportCaught('live location stop', error, stack);
+    final eventId = await _writeState(roomId, const {});
+    final room = _client.getRoomById(roomId);
+    if (room != null && !_active.containsKey(roomId)) {
+      _echoState(room, eventId, const {});
     }
   }
 
@@ -450,7 +454,7 @@ class LiveLocationSharing {
       case LiveCaptureLost(:final reason):
         if (_active.isEmpty) return;
         if (reason != LiveCaptureFailure.ended) _captureLost.add(reason);
-        unawaited(stopAll());
+        _stopUnwatched(stopAll);
     }
   }
 
@@ -719,7 +723,7 @@ class LiveLocationSharing {
             event.type == EventTypes.Redaction &&
             share.startEventIds.contains(redactionTarget(event)),
       )) {
-        unawaited(stop(share.roomId));
+        _stopUnwatched(() => stop(share.roomId));
         continue;
       }
       if (ignoredChanged ||

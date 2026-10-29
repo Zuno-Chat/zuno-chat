@@ -14,6 +14,8 @@ import '../../../core/push/diagnostics/push_diagnostics_source.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/notice.dart';
+import '../../../core/ui/status_icon.dart';
 import 'push_target_status_page.dart';
 import 'recent_pushes_page.dart';
 
@@ -65,16 +67,12 @@ class _PushDiagnosticsPageState extends ConsumerState<PushDiagnosticsPage> {
     if (!mounted) return;
     setState(() => _testing = false);
     final l10n = context.l10n;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(switch (outcome) {
-          PushTestOutcome.sent => l10n.diagnosticsTestSent,
-          PushTestOutcome.rateLimited => l10n.diagnosticsTestRateLimited,
-          PushTestOutcome.notAvailable => l10n.diagnosticsTestNotAvailable,
-          PushTestOutcome.failed => l10n.diagnosticsTestFailed,
-        }),
-      ),
-    );
+    ScaffoldMessenger.of(context).say(switch (outcome) {
+      PushTestOutcome.sent => l10n.diagnosticsTestSent,
+      PushTestOutcome.rateLimited => l10n.diagnosticsTestRateLimited,
+      PushTestOutcome.notAvailable => l10n.diagnosticsTestNotAvailable,
+      PushTestOutcome.failed => l10n.diagnosticsTestFailed,
+    });
   }
 
   Future<void> _share() async {
@@ -214,19 +212,9 @@ class _DiagnosticTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    final (icon, color) = switch (row.status) {
-      DiagnosticStatus.ok => (Icons.check_circle_outline, colors.primary),
-      DiagnosticStatus.warning => (
-        Icons.warning_amber_outlined,
-        colors.tertiary,
-      ),
-      DiagnosticStatus.problem => (Icons.error_outline, colors.error),
-      DiagnosticStatus.info => (Icons.info_outline, colors.onSurfaceVariant),
-    };
     return ListTile(
       dense: true,
-      leading: Icon(icon, color: color),
+      leading: StatusIcon(row.status),
       title: Text(row.label),
       subtitle: SelectableText(row.value),
     );

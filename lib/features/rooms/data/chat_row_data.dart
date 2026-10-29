@@ -6,7 +6,9 @@ import '../../../core/format/date_labels.dart';
 import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/official_room.dart';
+import '../../../core/matrix/room_encryption.dart';
 import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/room_mute.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/matrix/typing_indicator_text.dart';
 
@@ -20,14 +22,13 @@ class ChatRowData {
   final String toneSeed;
   final String? lastEventId;
   final EventStatus? lastEventStatus;
-  final MessageKind? previewKind;
-  final String? previewText;
+  final MessageSummary? preview;
   final String? previewSource;
   final String? typingText;
   final String timeLabel;
   final int unread;
   final bool muted;
-  final bool encrypted;
+  final bool notEncrypted;
   final bool awaitingAcceptance;
   final String? pendingInviteSubtitle;
   final bool partnerLeft;
@@ -42,14 +43,13 @@ class ChatRowData {
     required this.toneSeed,
     required this.lastEventId,
     required this.lastEventStatus,
-    required this.previewKind,
-    required this.previewText,
+    required this.preview,
     this.previewSource,
     required this.typingText,
     required this.timeLabel,
     required this.unread,
     required this.muted,
-    required this.encrypted,
+    required this.notEncrypted,
     required this.awaitingAcceptance,
     required this.pendingInviteSubtitle,
     required this.partnerLeft,
@@ -64,13 +64,12 @@ class ChatRowData {
     toneSeed: '',
     lastEventId: null,
     lastEventStatus: null,
-    previewKind: MessageKind.text,
-    previewText: 'Preview',
+    preview: MessageSummary(kind: MessageKind.text, text: 'Preview'),
     typingText: null,
     timeLabel: '00:00',
     unread: 1,
     muted: false,
-    encrypted: true,
+    notEncrypted: false,
     awaitingAcceptance: false,
     pendingInviteSubtitle: null,
     partnerLeft: false,
@@ -88,14 +87,13 @@ class ChatRowData {
     toneSeed,
     lastEventId,
     lastEventStatus,
-    previewKind,
-    previewText,
+    preview,
     previewSource,
     typingText,
     timeLabel,
     unread,
     muted,
-    encrypted,
+    notEncrypted,
     awaitingAcceptance,
     pendingInviteSubtitle,
     partnerLeft,
@@ -134,15 +132,14 @@ ChatRowData chatRowDataFor(
     toneSeed: roomToneSeed(room),
     lastEventId: event?.eventId,
     lastEventStatus: event?.status,
-    previewKind: summary?.kind,
-    previewText: summary?.text,
+    preview: summary,
     typingText: typing,
     timeLabel: event == null || display.awaitingAcceptance
         ? ''
         : labels.chatList(event.originServerTs, now: now),
     unread: displayedUnreadCount(unreadCorrections, room),
-    muted: room.pushRuleState == PushRuleState.dontNotify,
-    encrypted: room.encrypted,
+    muted: isRoomMuted(room),
+    notEncrypted: !sendsEncrypted(room),
     awaitingAcceptance: display.awaitingAcceptance,
     pendingInviteSubtitle: display.awaitingAcceptance
         ? pendingInviteSubtitle(room, labels.l10n)
@@ -166,7 +163,7 @@ ChatRowData communityRowDataFor(
       : null;
   var unread = 0;
   for (final room in rooms) {
-    if (room.pushRuleState == PushRuleState.dontNotify) continue;
+    if (isRoomMuted(room)) continue;
     unread += displayedUnreadCount(unreadCorrections, room);
   }
 
@@ -179,8 +176,7 @@ ChatRowData communityRowDataFor(
     toneSeed: community.id,
     lastEventId: event?.eventId,
     lastEventStatus: event?.status,
-    previewKind: summary?.kind,
-    previewText: summary?.text,
+    preview: summary,
     previewSource: newest == null ? null : roomTitle(newest, labels.l10n),
     typingText: null,
     timeLabel: event == null
@@ -188,7 +184,7 @@ ChatRowData communityRowDataFor(
         : labels.chatList(event.originServerTs, now: now),
     unread: unread,
     muted: false,
-    encrypted: true,
+    notEncrypted: false,
     awaitingAcceptance: false,
     pendingInviteSubtitle: null,
     partnerLeft: false,

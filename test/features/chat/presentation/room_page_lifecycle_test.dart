@@ -16,12 +16,11 @@ import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/currently_open_room_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/share/inbound_share.dart';
-import 'package:zuno/features/chat/presentation/image_caption_composer_page.dart';
+import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
-import 'package:zuno/features/chat/presentation/video_caption_composer_page.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -355,7 +354,7 @@ void main() {
       sharedVideo,
       overrides: overrides,
       awaiting: 'the caption screen for the video',
-      until: () => settledOn(VideoCaptionComposerPage),
+      until: () => settledOn(MediaCaptionComposerPage),
     );
 
     Future<void> sendFailingVideo(WidgetTester tester) async {
@@ -420,10 +419,10 @@ void main() {
         ),
         awaiting: 'the caption screen for the photo',
         until: () =>
-            find.byType(ImageCaptionComposerPage).evaluate().isNotEmpty,
+            find.byType(MediaCaptionComposerPage).evaluate().isNotEmpty,
       );
 
-      expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
+      expect(find.byType(MediaCaptionComposerPage), findsOneWidget);
     });
 
     testWidgets('a shared photo the other app gave no type still goes to the '
@@ -435,10 +434,10 @@ void main() {
         ),
         awaiting: 'the caption screen for the photo',
         until: () =>
-            find.byType(ImageCaptionComposerPage).evaluate().isNotEmpty,
+            find.byType(MediaCaptionComposerPage).evaluate().isNotEmpty,
       );
 
-      expect(find.byType(ImageCaptionComposerPage), findsOneWidget);
+      expect(find.byType(MediaCaptionComposerPage), findsOneWidget);
       expect(harness.sent, isEmpty);
     });
 
@@ -470,7 +469,7 @@ void main() {
       connection.add(ConnectionStatus.online);
       await harness.drive(tester, turns: 2);
 
-      expect(find.byType(VideoCaptionComposerPage), findsOneWidget);
+      expect(find.byType(MediaCaptionComposerPage), findsOneWidget);
       await sendFailingVideo(tester);
 
       expect(harness.sent, isEmpty);
@@ -530,7 +529,7 @@ void main() {
         tester,
         InboundShare(files: [sharedVideo.files.single, document('b.pdf')]),
         awaiting: 'the caption screen for the video',
-        until: () => settledOn(VideoCaptionComposerPage),
+        until: () => settledOn(MediaCaptionComposerPage),
       );
       harness.respond = (request) async {
         if (!request.url.path.contains('/upload')) return null;

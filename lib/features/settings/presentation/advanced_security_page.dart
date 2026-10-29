@@ -1,12 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/ui/notice.dart';
 import 'key_backup_management_page.dart';
 import 'secure_backup_page.dart';
 import 'session_key_format.dart';
@@ -47,12 +46,6 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
       setState(() {});
       unawaited(_loadCrossSigningCacheStatus());
     }
-  }
-
-  void _copyToClipboard(@displayText String copiedMessage, String value) {
-    Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(copiedMessage)));
   }
 
   @override
@@ -107,10 +100,8 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
             trailing: IconButton(
               icon: const Icon(Icons.copy_outlined),
               tooltip: l10n.settingsAdvancedCopySessionId,
-              onPressed: () => _copyToClipboard(
-                l10n.settingsAdvancedSessionIdCopied,
-                deviceId,
-              ),
+              onPressed: () => ScaffoldMessenger.of(context)
+                  .copy(deviceId, copied: l10n.settingsAdvancedSessionIdCopied),
             ),
           ),
           ListTile(
@@ -120,9 +111,9 @@ class _AdvancedSecurityPageState extends ConsumerState<AdvancedSecurityPage> {
             trailing: IconButton(
               icon: const Icon(Icons.copy_outlined),
               tooltip: l10n.settingsAdvancedCopySessionKey,
-              onPressed: () => _copyToClipboard(
-                l10n.settingsAdvancedSessionKeyCopied,
+              onPressed: () => ScaffoldMessenger.of(context).copy(
                 client.fingerprintKey,
+                copied: l10n.settingsAdvancedSessionKeyCopied,
               ),
             ),
           ),

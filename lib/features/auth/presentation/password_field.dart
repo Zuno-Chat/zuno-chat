@@ -42,7 +42,6 @@ class PasswordField extends StatelessWidget {
       onSubmitted: onSubmitted,
       decoration: InputDecoration(
         labelText: labelText,
-        border: const OutlineInputBorder(),
         suffixIcon: onToggleReveal == null
             ? null
             : ExcludeFocus(

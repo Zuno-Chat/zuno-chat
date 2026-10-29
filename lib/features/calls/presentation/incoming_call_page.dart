@@ -3,26 +3,20 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/active_call_provider.dart';
 import '../../../core/calls/call_waiting_provider.dart';
 import '../../../core/calls/matrixrtc/call_decline.dart';
-import '../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../core/calls/matrixrtc/incoming_call.dart';
 import '../../../core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import '../../../core/calls/models/call_kind.dart';
-import '../../../core/calls/notifications/call_notification_service.dart';
-import '../../../core/calls/notifications/pending_call_notification_action_provider.dart';
-import '../../../core/calls/notifications/ringing_call_provider.dart';
 import '../../../core/calls/platform/incoming_call_presenter.dart';
 import '../../../core/calls/platform/system_ring.dart';
 import '../../../core/calls/ring_identity.dart';
 import '../../../core/calls/show_over_lockscreen.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/late_decryptions.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/platform/platform_capabilities.dart';
@@ -43,8 +37,6 @@ class IncomingCallPage extends ConsumerStatefulWidget {
 }
 
 class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
-  StreamSubscription<CallNotificationResponse>? _notificationActionSub;
-  StreamSubscription<Event>? _callEndedSub;
   late final IncomingCallPresenter _incomingCallPresenter;
   late final bool _ownsRing;
   bool _resolved = false;
@@ -54,29 +46,12 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     super.initState();
     _incomingCallPresenter = ref.read(incomingCallPresenterProvider);
     _ownsRing = !ref.read(platformCapabilitiesProvider).callKit;
-    RingingCall.instance.set(widget.call.callId);
     unawaited(_loadIdentity());
-    ref.listenManual(resolvedCallIdsProvider, (previous, next) {
-      if (_resolved || !next.contains(widget.call.callId)) return;
-      _resolved = true;
-      _dismiss();
+    ref.listenManual(resolvedCallIdsProvider, (_, resolved) {
+      if (resolved.contains(widget.call.callId)) _settle();
     });
-    final answeredHere =
-        ref.read(activeCallProvider)?.callId == widget.call.callId;
-    if (answeredHere ||
-        ref.read(resolvedCallIdsProvider).contains(widget.call.callId)) {
-      _resolved = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) => _dismiss());
-      return;
-    }
-    final pendingAction = ref.read(pendingCallNotificationActionProvider);
-    if (pendingAction != null &&
-        pendingAction.call.callId == widget.call.callId) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        ref.read(pendingCallNotificationActionProvider.notifier).consume();
-        _runAction(pendingAction.action);
-      });
+    if (ref.read(resolvedCallIdsProvider).contains(widget.call.callId)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _settle());
       return;
     }
     ShowOverLockscreen.instance.claim(this);
@@ -86,14 +61,6 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
         callId: widget.call.callId,
       );
     }
-    _notificationActionSub = CallNotificationService.instance.onAction.listen((
-      response,
-    ) {
-      if (response.call.callId != widget.call.callId) return;
-      _runAction(response.action);
-    });
-    _callEndedSub = LateDecryptions.of(widget.call.room.client).timeline
-        .listen(_handleCallEnded);
     ref.listenManual<String?>(
       callWaitingProvider,
       (_, _) => _ringAloudUnlessWaiting(),
@@ -109,15 +76,6 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     unawaited(_incomingCallPresenter.ringAloud(callId));
   }
 
-  void _runAction(CallNotificationAction action) {
-    switch (action) {
-      case CallNotificationAction.accept:
-        _accept();
-      case CallNotificationAction.decline:
-        _decline();
-    }
-  }
-
   Future<void> _loadIdentity() async {
     await loadRingIdentity(widget.call, allowNetwork: true);
     if (mounted) setState(() {});
@@ -130,24 +88,18 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
   @override
   void dispose() {
     _releaseRing();
-    _notificationActionSub?.cancel();
-    _callEndedSub?.cancel();
     unawaited(
       _incomingCallPresenter.cancelIncoming(
         roomId: widget.call.room.id,
         callId: widget.call.callId,
       ),
     );
-    RingingCall.instance.clear(widget.call.callId);
     ShowOverLockscreen.instance.release(this);
     super.dispose();
   }
 
-  void _handleCallEnded(Event event) {
+  void _settle() {
     if (_resolved) return;
-    if (event.room.id != widget.call.room.id) return;
-    if (!isCallSummaryMessage(event.messageType)) return;
-    if (event.content.tryGet<String>('call_id') != widget.call.callId) return;
     _resolved = true;
     _dismiss();
   }
@@ -169,8 +121,7 @@ class _IncomingCallPageState extends ConsumerState<IncomingCallPage> {
     if (!mounted) return;
     final call = ref.read(activeCallControllerProvider);
     if (call != null) {
-      ShowOverLockscreen.instance.claim(call);
-      showCallScreen(Navigator.of(context), call, replace: true);
+      showAnsweredCallScreen(Navigator.of(context), call, replace: true);
     }
     session.accept().ignore();
   }

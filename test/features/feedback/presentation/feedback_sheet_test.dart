@@ -2,10 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:zuno/core/errors/feedback.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/features/feedback/presentation/feedback_sheet.dart';
+
+import '../../../helpers/caught_reports.dart';
 
 void main() {
   Future<void> openSheet(
@@ -92,22 +95,41 @@ void main() {
     expect(sends, 1);
   });
 
-  testWidgets('a failed send keeps the sheet open with the text intact', (
-    tester,
-  ) async {
+  Future<List<String>> sendFailing(WidgetTester tester) =>
+      reportsDuring(() async {
+        await tester.enterText(find.byType(TextField), 'Calls drop on wifi');
+        await tester.pump();
+        await tester.tap(find.byType(FilledButton));
+        await tester.pumpAndSettle();
+      });
+
+  testWidgets('a refused send keeps the sheet open with the text intact, '
+      'says to try again and reports it', (tester) async {
     await openSheet(tester, onSend: (_) async => throw const FeedbackNotSent());
 
-    await tester.enterText(find.byType(TextField), 'Calls drop on wifi');
-    await tester.pump();
-    await tester.tap(find.byType(FilledButton));
-    await tester.pumpAndSettle();
+    final reports = await sendFailing(tester);
 
     expect(find.text('Calls drop on wifi'), findsOneWidget);
+    expect(find.text('Feedback not sent. Try again.'), findsOneWidget);
+    expect(find.text('Feedback sent.'), findsNothing);
+    expect(sendButton(tester).onPressed, isNotNull);
+    expect(reports, ['send feedback']);
+  });
+
+  testWidgets('a send that fails offline asks to check the connection', (
+    tester,
+  ) async {
+    await openSheet(
+      tester,
+      onSend: (_) async => throw http.ClientException('offline'),
+    );
+
+    await sendFailing(tester);
+
     expect(
       find.text('Feedback not sent. Check your connection and try again.'),
       findsOneWidget,
     );
-    expect(find.text('Feedback sent.'), findsNothing);
-    expect(sendButton(tester).onPressed, isNotNull);
+    expect(find.text('Calls drop on wifi'), findsOneWidget);
   });
 }

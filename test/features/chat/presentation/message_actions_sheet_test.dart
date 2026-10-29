@@ -41,7 +41,7 @@ void main() {
       canEdit: canEdit,
       canDelete: canDelete,
       isOwn: isOwn,
-      isTextMessage: !isAttachment,
+      canCopy: !isAttachment,
       isAttachment: isAttachment,
       galleryCount: galleryCount,
       forwardCount: forwardCount,

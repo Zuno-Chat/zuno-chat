@@ -14,7 +14,7 @@ import '../../../helpers/fake_matrix.dart';
 ChatRowData data({
   int unread = 0,
   bool muted = false,
-  bool encrypted = true,
+  bool notEncrypted = false,
   bool awaitingAcceptance = false,
   bool partnerLeft = false,
   String? typingText,
@@ -27,13 +27,12 @@ ChatRowData data({
   toneSeed: '@maya:example.org',
   lastEventId: r'$e',
   lastEventStatus: EventStatus.synced,
-  previewKind: MessageKind.text,
-  previewText: 'See you at seven',
+  preview: MessageSummary(kind: MessageKind.text, text: 'See you at seven'),
   typingText: typingText,
   timeLabel: timeLabel,
   unread: unread,
   muted: muted,
-  encrypted: encrypted,
+  notEncrypted: notEncrypted,
   awaitingAcceptance: awaitingAcceptance,
   pendingInviteSubtitle: awaitingAcceptance ? 'Waiting for Maya to join' : null,
   partnerLeft: partnerLeft,
@@ -145,10 +144,17 @@ void main() {
   });
 
   testWidgets('a room that is not encrypted is marked in red', (tester) async {
-    await pump(tester, data(encrypted: false));
+    await pump(tester, data(notEncrypted: true));
 
     final icon = tester.widget<Icon>(find.byIcon(notEncryptedIcon));
     expect(icon.color, scheme.error);
+    expect(icon.semanticLabel, 'Not encrypted');
+  });
+
+  testWidgets('an encrypted room carries no mark', (tester) async {
+    await pump(tester, data());
+
+    expect(find.byIcon(notEncryptedIcon), findsNothing);
   });
 
   testWidgets('every line is strut-locked, so no script makes a row taller', (
@@ -188,7 +194,7 @@ void main() {
   ) async {
     await pump(tester, data());
     final plain = tester.getSize(find.byType(ChatRow)).height;
-    await pump(tester, data(unread: 12, muted: true, encrypted: false));
+    await pump(tester, data(unread: 12, muted: true, notEncrypted: true));
     final busy = tester.getSize(find.byType(ChatRow)).height;
     await pump(tester, ChatRowData.prototype);
     final prototype = tester.getSize(find.byType(ChatRow)).height;

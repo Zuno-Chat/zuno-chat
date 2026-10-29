@@ -8,7 +8,7 @@ Matrix spaces, called communities in the app: a family, club or team with severa
 |---|---|
 | `core/matrix/communities.dart` | `arrangeHome` splits the rooms once per sync, and one result feeds both tabs and the unread dots in the bottom bar. The file also holds community creation, leaving, and the `/hierarchy` read. |
 | `rooms/presentation/home_bottom_bar.dart` | The tab pill, with the + button beside it. Only the visible tab is built. |
-| `ChatListView.chats` / `.communities` | One list widget with two feeds. A community row is an ordinary `ChatRow` whose preview comes from the community's newest room and whose unread count adds up its unmuted rooms. |
+| `ChatListView` | One list widget for both tabs, its section picking the feed. A community row is an ordinary `ChatRow` whose preview comes from the community's newest room and whose unread count adds up its unmuted rooms. |
 | `communities/presentation/community_page.dart` | The header, your rooms, joinable rooms, members with their roles, and the community's settings, permissions and leave. |
 | `core/matrix/join_requests.dart` | Ask to join, for both the requester and the approvers. |
 

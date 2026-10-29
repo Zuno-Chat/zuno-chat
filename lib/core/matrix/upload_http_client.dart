@@ -18,6 +18,9 @@ class SendScope {
 
   final void Function(double fraction)? _onProgress;
   final _stop = Completer<void>();
+  Object? _failure;
+
+  Object? get failure => _failure;
 
   bool get isStopped => _stop.isCompleted;
 
@@ -41,10 +44,22 @@ class UploadHttpClient extends http.BaseClient {
     if (request is! http.Request) return _inner.send(request);
     final scope = Zone.current[_scopeKey] as SendScope?;
     if (request.method == 'POST' && request.url.path == _uploadPath) {
-      return _sendUpload(request, scope);
+      return _rememberingFailure(scope, () => _sendUpload(request, scope));
     }
     if (scope == null) return _inner.send(request);
-    return _sendAwaitingAnswer(request);
+    return _rememberingFailure(scope, () => _sendAwaitingAnswer(request));
+  }
+
+  Future<http.StreamedResponse> _rememberingFailure(
+    SendScope? scope,
+    Future<http.StreamedResponse> Function() send,
+  ) async {
+    try {
+      return await send();
+    } catch (error) {
+      scope?._failure = error;
+      rethrow;
+    }
   }
 
   Future<http.StreamedResponse> _sendUpload(

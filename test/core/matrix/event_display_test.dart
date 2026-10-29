@@ -365,6 +365,23 @@ final _cases = <_Case>[
     text: 'Ada changed the room name to "Book club"',
   ),
   _Case(
+    'a removed room update, which is no deleted message',
+    build: (room) =>
+        buildTestEvent(
+          room,
+          eventId: r'$e',
+          senderId: '@a:x',
+          type: EventTypes.RoomName,
+          stateKey: '',
+          content: {'name': 'Book club'},
+        )..setRedactionEvent(
+          buildTestEvent(room, eventId: r'$r', senderId: '@a:x'),
+        ),
+    visible: false,
+    visibleWhenShowingHidden: true,
+    kind: MessageKind.nonMessage,
+  ),
+  _Case(
     'a member changing their own name',
     build: (room) => buildTestEvent(
       room,
@@ -522,6 +539,42 @@ void main() {
     expect(
       isTimelineMessage(
         event(EventTypes.Message, {'msgtype': 'm.text', 'body': 'hi'}),
+      ),
+      isTrue,
+    );
+  });
+
+  test('a room update shows by the directness the caller already knows', () {
+    final renamed = buildTestEvent(
+      room,
+      eventId: r'$e',
+      senderId: '@a:x',
+      type: EventTypes.RoomName,
+      stateKey: '',
+      content: {'name': 'R'},
+    );
+
+    expect(
+      isDisplayableTimelineEvent(
+        renamed,
+        showHiddenMessages: false,
+        direct: false,
+      ),
+      isTrue,
+    );
+    expect(
+      isDisplayableTimelineEvent(
+        renamed,
+        showHiddenMessages: false,
+        direct: true,
+      ),
+      isFalse,
+    );
+    expect(
+      isDisplayableTimelineEvent(
+        renamed,
+        showHiddenMessages: true,
+        direct: true,
       ),
       isTrue,
     );

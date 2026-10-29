@@ -29,6 +29,7 @@ class CachedAttachmentImage extends StatefulWidget {
   final Widget placeholder;
   final Widget? progress;
   final Widget Function(VoidCallback? retry)? failure;
+  final bool gaplessPlayback;
 
   const CachedAttachmentImage({
     required this.event,
@@ -38,6 +39,7 @@ class CachedAttachmentImage extends StatefulWidget {
     this.placeholder = const SizedBox.shrink(),
     this.progress,
     this.failure,
+    this.gaplessPlayback = false,
     super.key,
   });
 
@@ -47,8 +49,29 @@ class CachedAttachmentImage extends StatefulWidget {
 
 class _CachedAttachmentImageState extends State<CachedAttachmentImage> {
   var _attempt = 0;
+  var _framed = false;
 
-  void _retry() => setState(() => _attempt++);
+  @override
+  void didUpdateWidget(CachedAttachmentImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.event.eventId != widget.event.eventId ||
+        oldWidget.thumbnail != widget.thumbnail) {
+      _framed = false;
+    }
+  }
+
+  void _retry() => setState(() {
+    _attempt++;
+    _framed = false;
+  });
+
+  Widget _frame(Widget child, int? frame, bool synchronous) {
+    if (frame != null || synchronous) {
+      _framed = true;
+      return child;
+    }
+    return widget.gaplessPlayback && _framed ? child : _waiting;
+  }
 
   Widget get _standIn {
     final blurhash = BlurhashImage.of(
@@ -96,8 +119,9 @@ class _CachedAttachmentImageState extends State<CachedAttachmentImage> {
       key: ValueKey(_attempt),
       image: widget.image?.call(context, attachment) ?? attachment,
       fit: widget.fit,
+      gaplessPlayback: widget.gaplessPlayback,
       frameBuilder: (context, child, frame, synchronous) =>
-          frame == null && !synchronous ? _waiting : child,
+          _frame(child, frame, synchronous),
       errorBuilder: (context, error, _) => _failed(error),
     );
   }

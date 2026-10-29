@@ -89,11 +89,29 @@ class MapAttribution extends StatelessWidget {
   }
 }
 
-class MapGridPainter extends CustomPainter {
+class MapGrid extends StatelessWidget {
+  final Widget? child;
+
+  const MapGrid({this.child, super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return CustomPaint(
+      painter: _MapGridPainter(
+        background: colors.surfaceContainerHighest,
+        line: colors.outlineVariant,
+      ),
+      child: child,
+    );
+  }
+}
+
+class _MapGridPainter extends CustomPainter {
   final Color background;
   final Color line;
 
-  const MapGridPainter({required this.background, required this.line});
+  const _MapGridPainter({required this.background, required this.line});
 
   static const _spacing = 24.0;
 
@@ -112,6 +130,59 @@ class MapGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(MapGridPainter old) =>
+  bool shouldRepaint(_MapGridPainter old) =>
       old.background != background || old.line != line;
+}
+
+class MapPreviewFrame extends StatelessWidget {
+  final Widget? preview;
+  final double radius;
+  final VoidCallback? onTap;
+  final IconData icon;
+  final Widget caption;
+  final Widget trailing;
+
+  const MapPreviewFrame({
+    this.preview,
+    required this.radius,
+    this.onTap,
+    required this.icon,
+    required this.caption,
+    required this.trailing,
+    super.key,
+  });
+
+  static const _aspectRatio = 16 / 10;
+
+  @override
+  Widget build(BuildContext context) {
+    final preview = this.preview;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (preview != null)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(radius),
+              child: AspectRatio(aspectRatio: _aspectRatio, child: preview),
+            ),
+          ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(7, 6, 7, 3),
+          child: Row(
+            children: [
+              Icon(icon, size: 16),
+              const SizedBox(width: 4),
+              Expanded(child: caption),
+              const SizedBox(width: 8),
+              trailing,
+            ],
+          ),
+        ),
+      ],
+    );
+  }
 }

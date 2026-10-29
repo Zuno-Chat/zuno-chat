@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/cover_image.dart';
+import '../../../../core/ui/inline_feedback.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_theme.dart';
 import '../../data/pending_attachment_send.dart';
@@ -64,7 +65,7 @@ class _PendingAttachmentPreview extends StatelessWidget {
     } else {
       media = const SizedBox(
         height: 120,
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        child: Center(child: InlineSpinner()),
       );
     }
     return Column(

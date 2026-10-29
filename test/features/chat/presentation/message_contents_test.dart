@@ -58,10 +58,35 @@ void main() {
         ),
       ),
     );
-    final icon = tester.widget<Icon>(find.byIcon(Icons.call_missed));
+    final icon = tester.widget<Icon>(find.byIcon(Icons.call_missed_outlined));
     expect(icon.color, colors.error);
     final label = tester.widget<Text>(find.textContaining('issed'));
     expect(label.style!.color, colors.error);
+  });
+
+  testWidgets('a call bubble draws the same icon as the chat list', (
+    tester,
+  ) async {
+    for (final (kind, status, icon) in [
+      ('video', CallSummaryStatus.missed, Icons.missed_video_call_outlined),
+      ('voice', CallSummaryStatus.declined, Icons.call_end_outlined),
+    ]) {
+      await tester.pumpWidget(
+        inZunoApp(
+          CallSummaryTile(
+            summary: CallSummary(
+              callId: 'c1',
+              kind: kind,
+              status: status,
+              durationMs: 0,
+            ),
+            own: false,
+            meta: meta,
+          ),
+        ),
+      );
+      expect(find.byIcon(icon), findsOneWidget, reason: '$kind $status');
+    }
   });
 
   testWidgets('a finished call shows its length in the muted color', (

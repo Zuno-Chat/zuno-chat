@@ -120,19 +120,20 @@ void main() {
     );
   });
 
-  for (final (name, error) in <(String, Object)>[
+  for (final (name, error) in <(String, Object?)>[
     ('a refusal from the server', refusal),
     ('a programming error', StateError('bad state')),
     ('a thrown string', 'Tried to request history'),
+    ('a failure with no error', null),
   ]) {
-    test('$name reads only as what failed', () {
+    test('$name reads as what failed and to try again', () {
       expect(
         failureMessage(
           englishLocalizations,
           error,
           failed: 'Could not leave the room.',
         ),
-        'Could not leave the room.',
+        'Could not leave the room. Try again.',
       );
     });
   }

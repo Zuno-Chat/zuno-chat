@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/event_display.dart';
 import 'package:zuno/features/chat/data/message_kinds.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -26,117 +26,12 @@ void main() {
     return timeline;
   }
 
-  Event message(
-    Map<String, Object?> content, {
-    String type = EventTypes.Message,
-    String? stateKey,
-  }) => buildTestEvent(
+  Event message(Map<String, Object?> content) => buildTestEvent(
     room,
     eventId: r'$e',
     senderId: '@bob:example.org',
-    type: type,
-    stateKey: stateKey,
     content: content,
   );
-
-  group('classifyAttachment', () {
-    final cases = <String, (Map<String, Object?>, String, AttachmentKind)>{
-      'a photo': (
-        {'msgtype': 'm.image', 'body': 'a.jpg'},
-        EventTypes.Message,
-        AttachmentKind.image,
-      ),
-      'a video': (
-        {'msgtype': 'm.video', 'body': 'a.mp4'},
-        EventTypes.Message,
-        AttachmentKind.video,
-      ),
-      'a voice message': (
-        {
-          'msgtype': 'm.audio',
-          'body': 'Voice message.ogg',
-          'org.matrix.msc3245.voice': <String, Object?>{},
-        },
-        EventTypes.Message,
-        AttachmentKind.voice,
-      ),
-      'a file': (
-        {'msgtype': 'm.file', 'body': 'report.pdf'},
-        EventTypes.Message,
-        AttachmentKind.file,
-      ),
-      'a location': (
-        {'msgtype': 'm.location', 'body': 'here', 'geo_uri': 'geo:1,2'},
-        EventTypes.Message,
-        AttachmentKind.location,
-      ),
-      'a live location': (
-        {
-          'msgtype': 'im.zuno.live_location',
-          'body': 'Live location for 1 hour',
-          'share_id': 'share1',
-          'ends_ts': 1700003600000,
-        },
-        EventTypes.Message,
-        AttachmentKind.liveLocation,
-      ),
-      'text': (
-        {'msgtype': 'm.text', 'body': 'hi'},
-        EventTypes.Message,
-        AttachmentKind.none,
-      ),
-      'a call summary': (
-        {
-          'msgtype': callSummaryMsgtype,
-          'body': 'Call',
-          'call_id': 'c1',
-          'kind': 'voice',
-          'status': 'ended',
-        },
-        EventTypes.Message,
-        AttachmentKind.none,
-      ),
-      'call signaling': (
-        {'msgtype': callInviteMsgtype, 'body': 'Calling'},
-        EventTypes.Message,
-        AttachmentKind.none,
-      ),
-      'an undecryptable message': (
-        {'algorithm': 'm.megolm.v1.aes-sha2'},
-        EventTypes.Encrypted,
-        AttachmentKind.none,
-      ),
-      'a state event': (
-        {'name': 'Room'},
-        EventTypes.RoomName,
-        AttachmentKind.none,
-      ),
-    };
-    cases.forEach((label, value) {
-      final (content, type, expected) = value;
-      test('$label is ${expected.name}', () {
-        final stateKey = type == EventTypes.RoomName ? '' : null;
-        expect(
-          classifyAttachment(message(content, type: type, stateKey: stateKey)),
-          expected,
-        );
-      });
-    });
-
-    test('a deleted message is no attachment', () {
-      final event = message({})
-        ..unsigned = {
-          'redacted_because': {
-            'event_id': r'$r',
-            'type': 'm.room.redaction',
-            'sender': '@bob:example.org',
-            'origin_server_ts': 0,
-            'content': <String, Object?>{},
-          },
-        };
-      expect(classifyAttachment(event), AttachmentKind.none);
-    });
-  });
 
   group('attachmentInfoText', () {
     test('a photo gives its size in pixels and bytes', () {
@@ -146,7 +41,7 @@ void main() {
         'info': {'w': 1600, 'h': 1200, 'size': 2048},
       });
       expect(
-        attachmentInfoText(englishLocalizations, event, AttachmentKind.image),
+        attachmentInfoText(englishLocalizations, event, MessageKind.photo),
         '1600 × 1200 · 2.0 KB',
       );
     });
@@ -158,7 +53,7 @@ void main() {
         'info': {'w': 640, 'h': 360, 'duration': 83000, 'size': 3 << 20},
       });
       expect(
-        attachmentInfoText(englishLocalizations, event, AttachmentKind.video),
+        attachmentInfoText(englishLocalizations, event, MessageKind.video),
         '640 × 360 · 1:23 · 3.0 MB',
       );
     });
@@ -170,7 +65,19 @@ void main() {
         'info': {'w': 10, 'h': 10, 'size': 512},
       });
       expect(
-        attachmentInfoText(englishLocalizations, event, AttachmentKind.file),
+        attachmentInfoText(englishLocalizations, event, MessageKind.file),
+        '512 B',
+      );
+    });
+
+    test('a size of nothing is left out', () {
+      final event = message({
+        'msgtype': 'm.video',
+        'body': 'a.mp4',
+        'info': {'w': 0, 'h': 0, 'size': 512},
+      });
+      expect(
+        attachmentInfoText(englishLocalizations, event, MessageKind.video),
         '512 B',
       );
     });
@@ -182,7 +89,7 @@ void main() {
         'info': {'w': 10},
       });
       expect(
-        attachmentInfoText(englishLocalizations, event, AttachmentKind.image),
+        attachmentInfoText(englishLocalizations, event, MessageKind.photo),
         'No file information available',
       );
     });

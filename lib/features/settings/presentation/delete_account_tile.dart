@@ -15,7 +15,9 @@ import '../../../core/matrix/sign_out.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/security/zuno_text_field.dart';
-import '../../../core/ui/circle_icon.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/danger_tile.dart';
+import '../../../core/ui/notice.dart';
 import 'uia_password_prompt.dart';
 
 class DeleteAccountTile extends ConsumerStatefulWidget {
@@ -27,21 +29,22 @@ class DeleteAccountTile extends ConsumerStatefulWidget {
 
 class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return ListTile(
-      leading: const CircleIcon(Icons.delete_forever_outlined, danger: true),
-      title: Text(
-        context.l10n.settingsDeleteAccount,
-        style: TextStyle(color: colors.error),
-      ),
-      onTap: _start,
-    );
-  }
+  Widget build(BuildContext context) => DangerTile(
+    icon: Icons.delete_forever_outlined,
+    label: context.l10n.settingsDeleteAccount,
+    onTap: _start,
+  );
 
   Future<void> _start() async {
-    final proceed = await _confirmWarning();
-    if (proceed != true || !mounted) return;
+    final l10n = context.l10n;
+    final proceed = await confirm(
+      context,
+      title: l10n.settingsDeleteAccountWarningTitle,
+      body: l10n.settingsDeleteAccountWarningBody,
+      confirmLabel: l10n.commonContinue,
+      tone: ConfirmTone.destructive,
+    );
+    if (!proceed || !mounted) return;
 
     final matches = await _confirmTypedId();
     if (matches != true || !mounted) return;
@@ -49,35 +52,9 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     await _deactivate();
   }
 
-  Future<bool?> _confirmWarning() {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.settingsDeleteAccountWarningTitle),
-        content: Text(context.l10n.settingsDeleteAccountWarningBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: Text(context.l10n.commonContinue),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<bool?> _confirmTypedId() {
-    final client = ref.read(matrixClientProvider);
-    final userId = client.userID ?? '';
-    final username = userId.startsWith('@')
-        ? userId.substring(1).split(':').first
-        : userId;
+    final userId = ref.read(matrixClientProvider).userID ?? '';
+    final username = userId.localpart ?? userId;
     return showDialog<bool>(
       context: context,
       builder: (context) => _ConfirmDeletionDialog(username: username),
@@ -118,9 +95,7 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
       if (isUiaCancel(e)) return;
       if (!isPasswordRefusal(e)) reportCaught('delete account', e, s);
       if (!mounted) return;
-      messenger.showSnackBar(
-        SnackBar(content: Text(deactivateAccountErrorMessage(context.l10n, e))),
-      );
+      messenger.say(deactivateAccountErrorMessage(context.l10n, e));
       return;
     } finally {
       unawaited(uiaSub.cancel());
@@ -154,7 +129,6 @@ class _ConfirmDeletionDialogState extends State<_ConfirmDeletionDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    final matches = _controller.text.trim() == widget.username;
     return AlertDialog(
       title: Text(l10n.settingsDeleteAccountConfirmTitle),
       content: Column(
@@ -167,7 +141,6 @@ class _ConfirmDeletionDialogState extends State<_ConfirmDeletionDialog> {
             autofillHints: null,
             controller: _controller,
             autofocus: true,
-            onChanged: (_) => setState(() {}),
           ),
         ],
       ),
@@ -176,12 +149,17 @@ class _ConfirmDeletionDialogState extends State<_ConfirmDeletionDialog> {
           onPressed: () => Navigator.of(context).pop(false),
           child: Text(l10n.commonCancel),
         ),
-        TextButton(
-          onPressed: matches ? () => Navigator.of(context).pop(true) : null,
-          style: TextButton.styleFrom(
-            foregroundColor: Theme.of(context).colorScheme.error,
+        ListenableBuilder(
+          listenable: _controller,
+          builder: (context, _) => TextButton(
+            onPressed: _controller.text.trim() == widget.username
+                ? () => Navigator.of(context).pop(true)
+                : null,
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            child: Text(l10n.settingsDeleteAccount),
           ),
-          child: Text(l10n.settingsDeleteAccount),
         ),
       ],
     );

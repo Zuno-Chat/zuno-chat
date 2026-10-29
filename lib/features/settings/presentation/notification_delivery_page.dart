@@ -9,26 +9,21 @@ import '../../../core/platform/background_restrictions.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
+import '../../../core/push/diagnostics/push_diagnostics_report.dart'
+    show DiagnosticStatus, fcmStatusLevel, unifiedPushStatusLevel;
 import '../../../core/push/fcm/fcm_availability_provider.dart';
 import '../../../core/push/fcm/fcm_delivery_provider.dart';
 import '../../../core/push/fcm/fcm_status_display.dart';
 import '../../../core/push/unified_push/unified_push_delivery_provider.dart'
-    show UnifiedPushStatus, unifiedPushDeliveryProvider;
+    show unifiedPushDeliveryProvider;
 import '../../../core/push/unified_push/unified_push_distributor_names.dart';
 import '../../../core/push/unified_push/unified_push_status_display.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/sheet.dart';
-
-const _statusSpinner = SizedBox(
-  width: 24,
-  height: 24,
-  child: Padding(
-    padding: EdgeInsets.all(2),
-    child: CircularProgressIndicator(strokeWidth: 2),
-  ),
-);
+import '../../../core/ui/status_icon.dart';
 
 class NotificationDeliveryPage extends ConsumerStatefulWidget {
   const NotificationDeliveryPage({super.key});
@@ -202,11 +197,7 @@ class _NotificationDeliveryPageState
         ];
       case NotificationDeliveryMode.unifiedPush:
         final upStatus = unifiedPushDeliveryProvider.status.value;
-        final busy = _unifiedPushStatusIsBusy(upStatus);
-        final action = unifiedPushStatusAction(
-          upStatus,
-          removed: unifiedPushDeliveryProvider.removed.value,
-        );
+        final busy = unifiedPushStatusIsBusy(upStatus);
         return [
           ListTile(
             leading: const Icon(Icons.info_outline),
@@ -224,23 +215,19 @@ class _NotificationDeliveryPageState
               onPressed: busy ? null : _discoverDistributors,
             ),
           ),
-          ListTile(
-            leading: busy
-                ? _statusSpinner
-                : Icon(_unifiedPushStatusIcon(upStatus)),
-            title: Text(l10n.commonStatus),
-            subtitle: Text(unifiedPushStatusLabel(l10n, upStatus)),
-            trailing: switch (action) {
+          _PushStatusRow(
+            label: unifiedPushStatusLabel(l10n, upStatus),
+            level: unifiedPushStatusLevel(upStatus),
+            busy: busy,
+            action: switch (unifiedPushStatusAction(
+              upStatus,
+              removed: unifiedPushDeliveryProvider.removed.value,
+            )) {
               UnifiedPushStatusAction.none => null,
-              UnifiedPushStatusAction.register => TextButton(
-                onPressed: busy ? null : _registerUnifiedPush,
-                child: Text(l10n.notificationsRegister),
-              ),
-              UnifiedPushStatusAction.retry => TextButton(
-                onPressed: busy ? null : _registerUnifiedPush,
-                child: Text(l10n.commonRetry),
-              ),
+              UnifiedPushStatusAction.register => l10n.notificationsRegister,
+              UnifiedPushStatusAction.retry => l10n.commonRetry,
             },
+            onAction: _registerUnifiedPush,
           ),
           ..._batteryExemptionRows(l10n, mode, capabilities),
           if (capabilities.batteryExemption)
@@ -278,7 +265,17 @@ class _NotificationDeliveryPageState
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _fcmStatusRow(l10n, fcmStatus),
+                  _PushStatusRow(
+                    label: fcmStatusLabel(l10n, fcmStatus),
+                    level: fcmStatusLevel(fcmStatus),
+                    busy: fcmStatusIsBusy(fcmStatus),
+                    action: switch (fcmStatusAction(fcmStatus)) {
+                      PushStatusAction.none || PushStatusAction.fix => null,
+                      PushStatusAction.register => l10n.notificationsRegister,
+                      PushStatusAction.retry => l10n.commonRetry,
+                    },
+                    onAction: _registerFcm,
+                  ),
                   if (fix != null)
                     ListTile(
                       leading: Icon(
@@ -299,27 +296,6 @@ class _NotificationDeliveryPageState
       case NotificationDeliveryMode.apns:
         return const [];
     }
-  }
-
-  Widget _fcmStatusRow(AppLocalizations l10n, FcmStatus status) {
-    final busy = fcmStatusIsBusy(status);
-    final action = fcmStatusAction(status);
-    return ListTile(
-      leading: busy ? _statusSpinner : Icon(_fcmStatusIcon(status)),
-      title: Text(l10n.commonStatus),
-      subtitle: Text(fcmStatusLabel(l10n, status)),
-      trailing: switch (action) {
-        PushStatusAction.none || PushStatusAction.fix => null,
-        PushStatusAction.register => TextButton(
-          onPressed: busy ? null : _registerFcm,
-          child: Text(l10n.notificationsRegister),
-        ),
-        PushStatusAction.retry => TextButton(
-          onPressed: busy ? null : _registerFcm,
-          child: Text(l10n.commonRetry),
-        ),
-      },
-    );
   }
 
   List<Widget> _batteryExemptionRows(
@@ -398,60 +374,31 @@ class _NotificationDeliveryPageState
   }
 }
 
-bool _unifiedPushStatusIsBusy(UnifiedPushStatus status) {
-  switch (status) {
-    case UnifiedPushStatus.findingDistributor:
-    case UnifiedPushStatus.registering:
-    case UnifiedPushStatus.postingPusher:
-      return true;
-    case UnifiedPushStatus.idle:
-    case UnifiedPushStatus.noDistributorFound:
-    case UnifiedPushStatus.distributorSelected:
-    case UnifiedPushStatus.ready:
-    case UnifiedPushStatus.registrationFailed:
-    case UnifiedPushStatus.pusherFailed:
-      return false;
-  }
-}
+class _PushStatusRow extends StatelessWidget {
+  final String label;
+  final DiagnosticStatus level;
+  final bool busy;
+  final String? action;
+  final VoidCallback onAction;
 
-IconData _fcmStatusIcon(FcmStatus status) {
-  switch (status) {
-    case FcmStatus.idle:
-      return Icons.pause_circle_outline;
-    case FcmStatus.checkingPlayServices:
-    case FcmStatus.registering:
-    case FcmStatus.postingPusher:
-      return Icons.sync_outlined;
-    case FcmStatus.playServicesUnavailable:
-    case FcmStatus.playServicesDisabled:
-    case FcmStatus.notConfigured:
-      return Icons.warning_amber_outlined;
-    case FcmStatus.playServicesUpdateRequired:
-      return Icons.system_update_outlined;
-    case FcmStatus.ready:
-      return Icons.check_circle_outline;
-    case FcmStatus.tokenFailed:
-    case FcmStatus.pusherFailed:
-      return Icons.error_outline;
-  }
-}
+  const _PushStatusRow({
+    required this.label,
+    required this.level,
+    required this.busy,
+    required this.action,
+    required this.onAction,
+  });
 
-IconData _unifiedPushStatusIcon(UnifiedPushStatus status) {
-  switch (status) {
-    case UnifiedPushStatus.idle:
-      return Icons.pause_circle_outline;
-    case UnifiedPushStatus.findingDistributor:
-    case UnifiedPushStatus.registering:
-    case UnifiedPushStatus.postingPusher:
-      return Icons.sync_outlined;
-    case UnifiedPushStatus.noDistributorFound:
-      return Icons.warning_amber_outlined;
-    case UnifiedPushStatus.distributorSelected:
-      return Icons.arrow_circle_right_outlined;
-    case UnifiedPushStatus.ready:
-      return Icons.check_circle_outline;
-    case UnifiedPushStatus.registrationFailed:
-    case UnifiedPushStatus.pusherFailed:
-      return Icons.error_outline;
+  @override
+  Widget build(BuildContext context) {
+    final action = this.action;
+    return ListTile(
+      leading: busy ? const InlineSpinner.icon() : StatusIcon(level),
+      title: Text(context.l10n.commonStatus),
+      subtitle: Text(label),
+      trailing: action == null
+          ? null
+          : TextButton(onPressed: busy ? null : onAction, child: Text(action)),
+    );
   }
 }

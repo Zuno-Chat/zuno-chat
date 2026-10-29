@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show TextInput;
 import '../../../core/l10n/l10n.dart';
 import '../../../core/security/password_strength.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
 
 class ChangePasswordDialog extends StatefulWidget {
   final String username;
@@ -126,12 +127,9 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
                 ),
                 onSubmitted: (_) => _submit(),
               ),
-              if (_error != null) ...[
+              if (_error case final error?) ...[
                 const SizedBox(height: 8),
-                Text(
-                  _error!,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
+                InlineError(error),
               ],
             ],
           ),

@@ -321,7 +321,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Pixel'), findsOneWidget);
-      expect(find.text('Could not refresh your devices.'), findsOneWidget);
+      expect(
+        find.text('Could not refresh your devices. Try again.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('pulling to refresh keeps the list on screen', (tester) async {
@@ -572,6 +575,29 @@ void main() {
         findsOneWidget,
       );
       expect(find.byType(VerificationPage), findsNothing);
+    });
+
+    testWidgets('a check that started after the page closed is canceled', (
+      tester,
+    ) async {
+      threeDevices();
+      final gate = Completer<KeyVerification>();
+      final verification = FakeKeyVerification(userId: _me);
+      (client.userDeviceKeys[_me]!.deviceKeys['TABLET']! as _Keys).onStart =
+          () => gate.future;
+      await pumpPage(tester);
+
+      await tester.tap(
+        find.descendant(of: tileOf('Tablet'), matching: find.text('Approve')),
+      );
+      await tester.pump();
+      await tester.pumpWidget(const SizedBox());
+
+      gate.complete(verification);
+      await settle(tester);
+
+      expect(find.byType(VerificationPage), findsNothing);
+      expect(verification.calls, ['cancel(m.user)']);
     });
   });
 

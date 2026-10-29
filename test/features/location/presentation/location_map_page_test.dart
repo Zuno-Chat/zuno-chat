@@ -88,7 +88,7 @@ void main() {
     expect(find.widgetWithText(AppBar, 'Ann'), findsOneWidget);
     expect(find.text('52.5163, 13.3777'), findsOneWidget);
     expect(
-      find.text('about 12 m · Sep 14, 2026 · 6:05\u202fPM'),
+      find.text('about 12 m · Sep 14, 2026 at 6:05\u202fPM'),
       findsOneWidget,
     );
     final map = tester.widget<LocationMapView>(find.byType(LocationMapView));
@@ -102,7 +102,7 @@ void main() {
       geo: const GeoUri(latitude: 52.5163, longitude: 13.3777),
     );
 
-    expect(find.text('Sep 14, 2026 · 6:05\u202fPM'), findsOneWidget);
+    expect(find.text('Sep 14, 2026 at 6:05\u202fPM'), findsOneWidget);
   });
 
   testWidgets('the button hands the pin to a maps app', (tester) async {

@@ -561,7 +561,7 @@ void main() {
     await tester.tap(find.text('Block'));
     await tester.pumpAndSettle();
     expect(find.text('Block Ann?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Block'));
+    await tester.tap(find.widgetWithText(TextButton, 'Block'));
     await tester.pumpAndSettle();
 
     expect(blocked, ['@ann:example.org']);
@@ -582,7 +582,7 @@ void main() {
 
     await tester.tap(find.text('Block Olga'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Block'));
+    await tester.tap(find.widgetWithText(TextButton, 'Block'));
     await tester.pumpAndSettle();
 
     expect(blocked, ['@owner:example.org']);
@@ -818,11 +818,9 @@ void main() {
     addMember('@me:example.org', 'Me');
     await pumpPage(tester);
 
-    final leave = tester.widget<Text>(
-      find.text(roomExitLabel(room, englishLocalizations)),
-    );
+    final leave = find.text(roomExitLabel(room, englishLocalizations));
     expect(
-      leave.style!.color,
+      DefaultTextStyle.of(tester.element(leave)).style.color,
       Theme.of(tester.element(find.byType(RoomInfoPage))).colorScheme.error,
     );
   });
@@ -846,8 +844,12 @@ void main() {
   Iterable<http.Request> requestsTo(String segment) =>
       requests.where((r) => r.url.pathSegments.contains(segment));
 
-  Finder memberTile(String userId) =>
-      find.byWidgetPredicate((w) => w is MemberTile && w.user.id == userId);
+  Finder memberTile(String userId) => find.byWidgetPredicate(
+    (w) =>
+        w is MemberTile &&
+        w.user.id == userId &&
+        w.user.membership != Membership.ban,
+  );
 
   void seedAdminRoom({int ownLevel = 100, Map<String, int> others = const {}}) {
     addMember('@owner:example.org', 'Olga');
@@ -1037,7 +1039,16 @@ void main() {
         ),
         findsOneWidget,
       );
-      await tester.tap(find.widgetWithText(TextButton, 'Ban'));
+      final banButton = find.widgetWithText(TextButton, 'Ban');
+      expect(
+        tester
+            .widget<TextButton>(banButton)
+            .style
+            ?.foregroundColor
+            ?.resolve({}),
+        Theme.of(tester.element(banButton)).colorScheme.error,
+      );
+      await tester.tap(banButton);
       await tester.pumpAndSettle();
 
       expect(requestsTo('ban'), hasLength(1));
@@ -1223,7 +1234,7 @@ void main() {
       await invite(tester, 'bob');
       await tester.pumpAndSettle();
 
-      expect(find.text('Invitation not sent.'), findsOneWidget);
+      expect(find.text('Invitation not sent. Try again.'), findsOneWidget);
       expect(memberTile('@bob:example.org'), findsNothing);
     });
 
@@ -1442,7 +1453,7 @@ void main() {
     await tester.pump();
     expect(find.text('Room alias copied'), findsOneWidget);
 
-    expect(copied, ['!room', '#chess']);
+    expect(copied, ['!room:example.org', '#chess:example.org']);
   });
 
   testWidgets('a room without an address offers only its ID to copy', (

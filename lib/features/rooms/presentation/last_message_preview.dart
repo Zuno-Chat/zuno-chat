@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
-import '../../../core/errors/best_effort.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/event_display.dart';
-import '../../../core/matrix/retry_decrypt_last_event.dart';
+import '../../../core/matrix/late_decryptions.dart';
+import '../../../core/matrix/message_icons.dart';
 import '../../../core/matrix/undecryptable_event.dart';
 import '../../../core/ui/line_strut.dart';
 import '../../chat/presentation/undecryptable_message.dart';
@@ -15,10 +15,12 @@ import '../../chat/presentation/undecryptable_message.dart';
 class LastMessagePreview extends StatefulWidget {
   final Room room;
   final Event? event;
+  final MessageSummary? summary;
 
   const LastMessagePreview({
     required this.room,
     required this.event,
+    required this.summary,
     super.key,
   });
 
@@ -26,127 +28,102 @@ class LastMessagePreview extends StatefulWidget {
   State<LastMessagePreview> createState() => _LastMessagePreviewState();
 }
 
-const _sessionKeyRetryDebounce = Duration(milliseconds: 300);
-
 class _LastMessagePreviewState extends State<LastMessagePreview> {
-  Event? _resolvedEvent;
-  StreamSubscription<String>? _sessionKeySub;
-  Timer? _retryDebounceTimer;
+  Event? _opened;
+  StreamSubscription<Event>? _openings;
 
   @override
   void initState() {
     super.initState();
-    _resolvedEvent = widget.event;
-    _listenForSessionKeys();
-    _maybeRetryDecrypt();
+    _openLocked();
   }
 
   @override
   void didUpdateWidget(covariant LastMessagePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final eventChanged = !identical(oldWidget.event, widget.event);
-    if (eventChanged) _resolvedEvent = widget.event;
-    if (eventChanged || oldWidget.room.id != widget.room.id) {
-      _listenForSessionKeys();
-    }
-    _maybeRetryDecrypt();
+    if (identical(oldWidget.event, widget.event)) return;
+    _opened = null;
+    _openLocked();
   }
 
   @override
   void dispose() {
-    _retryDebounceTimer?.cancel();
-    _sessionKeySub?.cancel();
+    unawaited(_openings?.cancel());
     super.dispose();
   }
 
-  void _listenForSessionKeys() {
-    _retryDebounceTimer?.cancel();
-    _sessionKeySub?.cancel();
-    _sessionKeySub = null;
-    final event = _resolvedEvent;
+  void _openLocked() {
+    unawaited(_openings?.cancel());
+    _openings = null;
+    final event = widget.event;
     if (event == null || !isUndecryptableEvent(event)) return;
-    _sessionKeySub = widget.room.onSessionKeyReceived.stream.listen((_) {
-      _retryDebounceTimer?.cancel();
-      _retryDebounceTimer = Timer(_sessionKeyRetryDebounce, _maybeRetryDecrypt);
-    });
-  }
-
-  void _maybeRetryDecrypt() {
-    final event = _resolvedEvent;
-    if (event == null) return;
-    unawaited(
-      runBestEffort(() async {
-        final decrypted = await retryDecryptIfUndecryptable(widget.room, event);
-        if (!mounted || decrypted == null) return;
-        setState(() => _resolvedEvent = decrypted);
-        _listenForSessionKeys();
-      }, label: 'retryDecrypt'),
-    );
+    final late = LateDecryptions.of(widget.room.client);
+    _openings = late.decrypted
+        .where((opened) => opened.eventId == event.eventId)
+        .listen((opened) => setState(() => _opened = opened));
+    unawaited(late.tryOpen(event));
   }
 
   @override
   Widget build(BuildContext context) {
-    final event = _resolvedEvent;
     final strut = inheritedLineStrut(context);
-    if (event == null) {
+    if (widget.event == null) {
       return Text(context.l10n.roomsNoMessages, strutStyle: strut);
     }
-    if (!isPreviewableLastEvent(event)) return Text('', strutStyle: strut);
-
-    final summary = summarize(context.l10n, event);
-
-    switch (summary.kind) {
-      case MessageKind.deleted:
-        return Text(
-          summary.text,
-          strutStyle: strut,
-          style: const TextStyle(fontStyle: FontStyle.italic),
-        );
-      case MessageKind.undecryptable:
-        return const UndecryptablePreviewText();
-      case MessageKind.photo:
-        return _iconLine(context, Icons.photo_outlined, summary.text);
-      case MessageKind.video:
-        return _iconLine(context, Icons.videocam_outlined, summary.text);
-      case MessageKind.voice:
-        return _iconLine(context, Icons.mic_none_outlined, summary.text);
-      case MessageKind.file:
-        return _iconLine(
-          context,
-          Icons.insert_drive_file_outlined,
-          summary.text,
-        );
-      case MessageKind.location:
-        return _iconLine(context, Icons.location_on_outlined, summary.text);
-      case MessageKind.liveLocation:
-        return _iconLine(context, Icons.share_location_outlined, summary.text);
-      case MessageKind.callSummary:
-        final missed = summary.call!.status == CallSummaryStatus.missed;
-        return _iconLine(
-          context,
-          _callSummaryIcon(summary.call!),
-          summary.text,
-          color: missed ? Theme.of(context).colorScheme.error : null,
-        );
-      case MessageKind.text:
-        return Text(
-          summary.text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          strutStyle: strut,
-        );
-      case MessageKind.nonMessage:
-      case MessageKind.hiddenSignaling:
-        return const SizedBox.shrink();
-    }
+    final opened = _opened;
+    final summary = opened != null && isPreviewableLastEvent(opened)
+        ? summarize(context.l10n, opened)
+        : widget.summary;
+    if (summary == null) return Text('', strutStyle: strut);
+    return switch (summary.kind) {
+      MessageKind.deleted => Text(
+        summary.text,
+        strutStyle: strut,
+        style: const TextStyle(fontStyle: FontStyle.italic),
+      ),
+      MessageKind.undecryptable => const UndecryptablePreviewText(),
+      MessageKind.nonMessage ||
+      MessageKind.hiddenSignaling => const SizedBox.shrink(),
+      MessageKind.text ||
+      MessageKind.photo ||
+      MessageKind.video ||
+      MessageKind.voice ||
+      MessageKind.file ||
+      MessageKind.location ||
+      MessageKind.liveLocation ||
+      MessageKind.callSummary => _SummaryLine(
+        icon: messageIcon(summary),
+        text: summary.text,
+        color: summary.call?.status == CallSummaryStatus.missed
+            ? Theme.of(context).colorScheme.error
+            : null,
+      ),
+    };
   }
+}
 
-  Widget _iconLine(
-    BuildContext context,
-    IconData icon,
-    String label, {
-    Color? color,
-  }) {
+class _SummaryLine extends StatelessWidget {
+  final IconData? icon;
+  final String text;
+  final Color? color;
+
+  const _SummaryLine({
+    required this.icon,
+    required this.text,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final line = Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      strutStyle: inheritedLineStrut(context),
+      style: color == null ? null : TextStyle(color: color),
+    );
+    final icon = this.icon;
+    if (icon == null) return line;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -156,27 +133,8 @@ class _LastMessagePreviewState extends State<LastMessagePreview> {
           color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
         ),
         const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            strutStyle: inheritedLineStrut(context),
-            style: color == null ? null : TextStyle(color: color),
-          ),
-        ),
+        Flexible(child: line),
       ],
     );
   }
-}
-
-IconData _callSummaryIcon(CallSummary summary) {
-  final isVideo = summary.isVideo;
-  return switch (summary.status) {
-    CallSummaryStatus.missed =>
-      isVideo ? Icons.missed_video_call_outlined : Icons.call_missed_outlined,
-    CallSummaryStatus.declined => Icons.call_end_outlined,
-    CallSummaryStatus.ended =>
-      isVideo ? Icons.videocam_outlined : Icons.call_outlined,
-  };
 }

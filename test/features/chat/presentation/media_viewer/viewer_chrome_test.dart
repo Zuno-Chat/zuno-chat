@@ -7,6 +7,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/reactions.dart';
 import 'package:zuno/core/ui/frosted_surface.dart';
+import 'package:zuno/core/ui/page_dots.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/forward_icon.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/video_playback.dart';
@@ -39,6 +40,7 @@ void main() {
     bool forward = true,
     VideoPlayback? playback,
     bool muted = false,
+    bool reduceMotion = false,
     List<ReactionSummary> reactions = const [],
   }) => tester.pumpWidget(
     MaterialApp(
@@ -46,7 +48,10 @@ void main() {
       supportedLocales: AppLocalizations.supportedLocales,
       theme: zunoViewerTheme,
       builder: (context, child) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(alwaysUse24HourFormat: true),
+        data: MediaQuery.of(context).copyWith(
+          alwaysUse24HourFormat: true,
+          disableAnimations: reduceMotion,
+        ),
         child: child!,
       ),
       home: Scaffold(
@@ -161,6 +166,8 @@ void main() {
 
     expect(find.bySemanticsLabel('3 of 7'), findsOneWidget);
     expect(find.text('3 of 7'), findsNothing);
+    final dots = tester.widget<PageDots>(find.byType(PageDots));
+    expect((dots.count, dots.current, dots.overMedia), (7, 2, true));
     handle.dispose();
   });
 
@@ -217,6 +224,20 @@ void main() {
 
     expect(pressed, isEmpty);
   });
+
+  testWidgets('the controls fade out, at once with reduced motion', (
+    tester,
+  ) async {
+    Duration fade() =>
+        tester.widget<AnimatedOpacity>(find.byType(AnimatedOpacity)).duration;
+
+    await pumpChrome(tester, photo(), visible: false);
+    expect(fade(), greaterThan(Duration.zero));
+
+    await pumpChrome(tester, photo(), visible: false, reduceMotion: true);
+    expect(fade(), Duration.zero);
+  });
+
   testWidgets('dragging the timeline seeks once, on release', (tester) async {
     final playback = await startedPlayback(
       tester,

@@ -3,13 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/caught_errors.dart';
-import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/notifications/room_invite_notification_provider.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'room_invite_page.dart';
@@ -24,7 +23,7 @@ class InvitationGroup extends StatefulWidget {
 }
 
 class _InvitationGroupState extends State<InvitationGroup> {
-  final _memo = RowMemo<(_InvitationView, BorderRadius)>();
+  final _memo = RowMemo<(IncomingInviteView, BorderRadius)>();
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +42,7 @@ class _InvitationGroupState extends State<InvitationGroup> {
             final corners = _cornersAt(index, invitations.length);
             return _memo.obtain(
               room.id,
-              (_viewOf(room, context.l10n), corners),
+              (incomingInviteView(room, context.l10n), corners),
               source: room,
               () => _Invitation(
                 key: ValueKey(room.id),
@@ -69,36 +68,10 @@ BorderRadius _cornersAt(int index, int count) {
   );
 }
 
-typedef _InvitationView = ({
-  String name,
-  String subtitle,
-  Uri? avatarUrl,
-  String toneSeed,
-  AvatarShape shape,
-});
-
-_InvitationView _viewOf(Room room, AppLocalizations l10n) {
-  final inviter = inviterId(room);
-  final inviterUser = inviter == null
-      ? null
-      : room.unsafeGetUserFromMemoryOrFallback(inviter);
-  final inviterName = inviterUser?.calcDisplayname() ?? l10n.roomsSomeone;
-  final isGroup = room.name.isNotEmpty;
-  final String subtitle;
-  if (room.isSpace) {
-    subtitle = l10n.roomsInvitedYouToCommunity(inviterName);
-  } else if (isGroup) {
-    subtitle = l10n.roomsInvitedYou(inviterName);
-  } else {
-    subtitle = l10n.roomsInvitedYouToChat;
-  }
-  return (
-    name: isGroup ? room.name : inviterName,
-    subtitle: subtitle,
-    avatarUrl: isGroup ? room.avatar : inviterUser?.avatarUrl,
-    toneSeed: roomToneSeed(room),
-    shape: AvatarShape.forRoom(room),
-  );
+String _invitedYou(IncomingInviteView view, AppLocalizations l10n) {
+  if (view.community) return l10n.roomsInvitedYouToCommunity(view.inviterName);
+  if (view.group) return l10n.roomsInvitedYou(view.inviterName);
+  return l10n.roomsInvitedYouToChat;
 }
 
 class _Invitation extends StatefulWidget {
@@ -126,20 +99,10 @@ class _InvitationState extends State<_Invitation> {
     Future<void> Function() action, {
     @displayText required String failed,
   }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
     setState(() => _busy = true);
     unawaited(cancelInviteNotification(widget.room));
-    try {
-      await action();
-    } catch (e, s) {
-      reportCaught('answer invitation', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    await attempt(context, action, label: 'answer invitation', failed: failed);
+    if (mounted) setState(() => _busy = false);
   }
 
   @override
@@ -147,7 +110,7 @@ class _InvitationState extends State<_Invitation> {
     final room = widget.room;
     final theme = Theme.of(context);
     final l10n = context.l10n;
-    final view = _viewOf(room, l10n);
+    final view = incomingInviteView(room, l10n);
 
     return Material(
       color: theme.colorScheme.secondaryContainer,
@@ -168,8 +131,8 @@ class _InvitationState extends State<_Invitation> {
                     avatarUrl: view.avatarUrl,
                     fallbackText: view.name,
                     radius: 26,
-                    toneSeed: view.toneSeed,
-                    shape: view.shape,
+                    toneSeed: roomToneSeed(room),
+                    shape: AvatarShape.forRoom(room),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -184,7 +147,7 @@ class _InvitationState extends State<_Invitation> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          view.subtitle,
+                          _invitedYou(view, l10n),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: theme.textTheme.bodyMedium?.copyWith(

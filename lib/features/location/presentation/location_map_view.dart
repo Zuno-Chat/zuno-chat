@@ -5,6 +5,7 @@ import 'package:latlong2/latlong.dart';
 
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/map_tiles_provider.dart';
+import '../../../core/ui/zuno_colors.dart';
 import 'map_parts.dart';
 
 const _pinSize = 40.0;
@@ -26,7 +27,7 @@ class LocationMapView extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tiles = ref.watch(mapTilesProvider).value;
-    if (tiles == null) return _GridFallback(geo: geo);
+    if (tiles == null) return const _GridFallback();
     return _TiledMap(
       tiles: tiles,
       point: LatLng(geo.latitude, geo.longitude),
@@ -149,29 +150,20 @@ class _LocationPin extends StatelessWidget {
     Icons.location_on,
     size: _pinSize,
     color: Theme.of(context).colorScheme.primary,
-    shadows: const [Shadow(blurRadius: 4, color: Colors.black38)],
+    shadows: const [Shadow(blurRadius: 4, color: mapMarkerShadowColor)],
   );
 }
 
 class _GridFallback extends StatelessWidget {
-  final GeoUri geo;
-
-  const _GridFallback({required this.geo});
+  const _GridFallback();
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return CustomPaint(
-      painter: MapGridPainter(
-        background: colors.surfaceContainerHighest,
-        line: colors.outlineVariant,
+  Widget build(BuildContext context) => const MapGrid(
+    child: Center(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: _pinSize),
+        child: _LocationPin(),
       ),
-      child: const Center(
-        child: Padding(
-          padding: EdgeInsets.only(bottom: _pinSize),
-          child: _LocationPin(),
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }

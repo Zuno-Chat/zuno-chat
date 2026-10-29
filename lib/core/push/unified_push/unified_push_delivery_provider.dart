@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
@@ -248,7 +247,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         endpointUrl: endpointUrl,
         keys: keys,
         gatewayUrl: homeserverGateway,
-        deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
+        deviceDisplayName: thisSessionDisplayName(),
       );
     }
     final gatewayUrl =
@@ -260,7 +259,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     return buildUnifiedPushPusher(
       endpointUrl: endpointUrl,
       gatewayUrl: gatewayUrl,
-      deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
+      deviceDisplayName: thisSessionDisplayName(),
     );
   }
 

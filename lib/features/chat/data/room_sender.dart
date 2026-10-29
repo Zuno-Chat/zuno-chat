@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:collection';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/errors/connection_error.dart';
 import '../../../core/errors/global_error_handler.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/files/picked_file.dart';
@@ -17,6 +17,7 @@ import '../../../core/matrix/currently_open_room_provider.dart';
 import '../../../core/matrix/image_send_preparation.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/media_processing_exception.dart';
+import '../../../core/matrix/media_size.dart';
 import '../../../core/matrix/room_media_feed.dart';
 import '../../../core/matrix/send_failure.dart';
 import '../../../core/matrix/send_progress.dart';
@@ -24,9 +25,8 @@ import '../../../core/matrix/upload_foreground_service.dart';
 import '../../../core/matrix/upload_http_client.dart';
 import '../../../core/matrix/video_send_preparation.dart';
 import '../../../core/settings/app_preferences_provider.dart';
-import 'composed_image.dart';
+import '../../../core/ui/notice.dart';
 import 'composed_media.dart';
-import 'composed_video.dart';
 import 'discarded_sends.dart';
 import 'forward_uploads.dart';
 import 'forwarding.dart';
@@ -40,15 +40,18 @@ final roomSenderProvider = Provider.family<RoomSender, Room>((ref, room) {
     discarded: ref.watch(discardedSendsProvider),
     reduceMediaSize: () => container.read(reduceMediaSizeProvider),
     chatOpen: () => container.read(currentlyOpenRoomIdProvider) == room.id,
-    say: _snack,
+    say: (message) => globalScaffoldMessengerKey.currentState?.say(message),
   );
   ref.onDispose(sender.dispose);
   return sender;
 });
 
-void _snack(@displayText String message) => globalScaffoldMessengerKey
-    .currentState
-    ?.showSnackBar(SnackBar(content: Text(message)));
+class ForwardNotSent implements Exception {
+  const ForwardNotSent();
+
+  @override
+  String toString() => 'ForwardNotSent';
+}
 
 class RoomSender extends ChangeNotifier {
   RoomSender({
@@ -78,6 +81,9 @@ class RoomSender extends ChangeNotifier {
 
   AppLocalizations get _l10n => deviceLocalizations();
 
+  void _sayFailed(Object? error, @displayText String failed) =>
+      _say(failureMessage(_l10n, error, failed: failed));
+
   Future<void> sendText(
     String text, {
     Event? editing,
@@ -97,9 +103,9 @@ class RoomSender extends ChangeNotifier {
     );
   }
 
-  Future<bool> forward(List<Event> items, {ForwardUploads? uploads}) async {
+  Future<Object?> forward(List<Event> items, {ForwardUploads? uploads}) async {
     final shared = uploads ?? ForwardUploads();
-    Future<List<bool>> sendAll() => _sendAsGallery(
+    Future<List<Object?>> sendAll() => _sendAsGallery(
       items,
       (item, gallery) => _forwardItem(
         item,
@@ -108,13 +114,13 @@ class RoomSender extends ChangeNotifier {
         announce: false,
       ),
     );
-    final delivered = items.any((item) => forwardNeedsUpload(item, room))
+    final failures = items.any((item) => forwardNeedsUpload(item, room))
         ? await _keepingUploadAlive(sendAll)
         : await sendAll();
-    return delivered.every((sent) => sent);
+    return failures.nonNulls.firstOrNull;
   }
 
-  Future<bool> _forwardItem(
+  Future<Object?> _forwardItem(
     Event item, {
     required GalleryGroupRef? gallery,
     required ForwardUploads uploads,
@@ -122,12 +128,14 @@ class RoomSender extends ChangeNotifier {
   }) async {
     final txid = room.client.generateUniqueTransactionId();
     final copy = forwardedContent(item, gallery: gallery);
+    Object? failure;
     Future<bool> send() async {
       if (_isDiscarded(txid, gallery?.id)) return true;
       return _sendThenDropIfDiscarded(
         txid: txid,
         galleryId: gallery?.id,
         send: () => room.sendEvent(copy, type: item.type, txid: txid),
+        onUndelivered: (error) => failure ??= error,
       );
     }
 
@@ -143,8 +151,8 @@ class RoomSender extends ChangeNotifier {
                   RoomMediaKind.video => SendMediaKind.video,
                   RoomMediaKind.file || null => SendMediaKind.file,
                 },
-                width: item.infoMap.tryGet<int>('w'),
-                height: item.infoMap.tryGet<int>('h'),
+                width: item.mediaWidth,
+                height: item.mediaHeight,
                 compresses: false,
               ),
               (progress) async {
@@ -158,13 +166,18 @@ class RoomSender extends ChangeNotifier {
                 return send();
               },
             ),
-      onFailed: () => _recordFailed(
-        FailedMediaSend(gallery: gallery, forward: item),
-        announce: announce,
-      ),
+      onFailed: (error) {
+        failure = error;
+        _recordFailed(
+          FailedForwardSend(item, gallery: gallery),
+          error,
+          announce: announce,
+        );
+      },
       announce: announce,
     );
-    return delivered ?? false;
+    if (delivered ?? false) return null;
+    return failure ?? const ForwardNotSent();
   }
 
   Future<void> holdCopies(
@@ -194,16 +207,7 @@ class RoomSender extends ChangeNotifier {
       _keepingUploadAlive(
         () => _sendAsGallery(
           composed,
-          (media, gallery) => switch (media) {
-            ComposedImageResult(:final image) => _sendPhoto(
-              image,
-              gallery: gallery,
-            ),
-            ComposedVideoResult(:final video) => _sendVideo(
-              video,
-              gallery: gallery,
-            ),
-          },
+          (media, gallery) => _sendComposedItem(media, gallery: gallery),
         ),
       );
 
@@ -251,7 +255,7 @@ class RoomSender extends ChangeNotifier {
           onUploadProgress: progress.upload,
         ),
       ),
-      onFailed: () => _say(_l10n.chatNotSentTryAgain),
+      onFailed: (error) => _sayFailed(error, _l10n.chatNotSentFailed),
     );
   }
 
@@ -278,7 +282,7 @@ class RoomSender extends ChangeNotifier {
       );
     } catch (e, s) {
       reportCaught('send voice message', e, s);
-      _say(_l10n.chatVoiceMessageNotSent);
+      _sayFailed(e, _l10n.chatVoiceMessageNotSent);
     }
   }
 
@@ -287,13 +291,11 @@ class RoomSender extends ChangeNotifier {
     _changed();
     await holdCopies([?failed.path], () async {
       switch (failed) {
-        case FailedMediaSend(photo: final photo?):
-          await _sendPhoto(photo, gallery: failed.gallery);
-        case FailedMediaSend(video: final video?):
-          await _sendVideo(video, gallery: failed.gallery);
-        case FailedMediaSend(forward: final item?):
+        case FailedComposedSend(:final media):
+          await _sendComposedItem(media, gallery: failed.gallery);
+        case FailedForwardSend(:final event):
           await _forwardItem(
-            item,
+            event,
             gallery: failed.gallery,
             uploads: ForwardUploads(),
             announce: true,
@@ -355,90 +357,98 @@ class RoomSender extends ChangeNotifier {
     unawaited(_releaseCopies([for (final failed in dropped) ?failed.path]));
   }
 
-  Future<void> _sendPhoto(ComposedImage image, {GalleryGroupRef? gallery}) {
+  Future<void> _sendComposedItem(
+    ComposedMedia media, {
+    required GalleryGroupRef? gallery,
+  }) {
     final txid = room.client.generateUniqueTransactionId();
     return _guardedSend(
       txid,
-      () async {
-        final bytes = await fileSystem.file(image.path).readAsBytes();
-        await _withSendProgress(
-          PendingAttachmentSend(
-            eventId: txid,
-            previewBytes: bytes,
-            kind: SendMediaKind.photo,
-          ),
-          (progress) async {
-            final prepared = await prepareImageForSend(
-              bytes,
-              reduceMediaSize: _reduceMediaSize(),
-              onProgress: progress.compression,
-            );
-            await _sendFileEvent(
-              prepared.file,
-              txid: txid,
-              thumbnail: prepared.thumbnail,
-              extraContent: _attachmentExtraContent(
-                caption: image.caption,
-                gallery: gallery,
-              ),
-              galleryId: gallery?.id,
-              onUploadProgress: progress.upload,
-            );
-          },
-        );
+      () => switch (media) {
+        ComposedImage() => _sendPhoto(media, txid: txid, gallery: gallery),
+        ComposedVideo() => _sendVideo(media, txid: txid, gallery: gallery),
       },
-      onFailed: () =>
-          _recordFailed(FailedMediaSend(gallery: gallery, photo: image)),
+      onFailed: (error) =>
+          _recordFailed(FailedComposedSend(media, gallery: gallery), error),
     );
   }
 
-  Future<void> _sendVideo(ComposedVideo composed, {GalleryGroupRef? gallery}) {
-    final txid = room.client.generateUniqueTransactionId();
-    return _guardedSend(
-      txid,
-      () => _withSendProgress(
-        PendingAttachmentSend(
-          eventId: txid,
-          width: composed.width,
-          height: composed.height,
-          kind: SendMediaKind.video,
-        ),
-        (progress) async {
-          final prepared = await prepareVideoForSend(
-            composed.path,
-            reduceMediaSize: _reduceMediaSize(),
-            fallbackWidth: composed.width,
-            fallbackHeight: composed.height,
-            fallbackDurationMs: composed.durationMs,
-            onThumbnail: (thumbnail) => progress.preview(
-              thumbnail.bytes,
-              width: thumbnail.width,
-              height: thumbnail.height,
-            ),
-            onProgress: progress.compression,
-          );
-          await _sendFileEvent(
-            prepared.file,
-            txid: txid,
-            thumbnail: prepared.thumbnail,
-            extraContent: _attachmentExtraContent(
-              caption: composed.caption,
-              gallery: gallery,
-            ),
-            galleryId: gallery?.id,
-            onUploadProgress: progress.upload,
-          );
-        },
+  Future<void> _sendPhoto(
+    ComposedImage image, {
+    required String txid,
+    required GalleryGroupRef? gallery,
+  }) async {
+    final bytes = await fileSystem.file(image.path).readAsBytes();
+    await _withSendProgress(
+      PendingAttachmentSend(
+        eventId: txid,
+        previewBytes: bytes,
+        kind: SendMediaKind.photo,
       ),
-      onFailed: () =>
-          _recordFailed(FailedMediaSend(gallery: gallery, video: composed)),
+      (progress) async {
+        final prepared = await prepareImageForSend(
+          bytes,
+          reduceMediaSize: _reduceMediaSize(),
+          onProgress: progress.compression,
+        );
+        await _sendFileEvent(
+          prepared.file,
+          txid: txid,
+          thumbnail: prepared.thumbnail,
+          extraContent: _attachmentExtraContent(
+            caption: image.caption,
+            gallery: gallery,
+          ),
+          galleryId: gallery?.id,
+          onUploadProgress: progress.upload,
+        );
+      },
     );
   }
+
+  Future<void> _sendVideo(
+    ComposedVideo video, {
+    required String txid,
+    required GalleryGroupRef? gallery,
+  }) => _withSendProgress(
+    PendingAttachmentSend(
+      eventId: txid,
+      width: video.width,
+      height: video.height,
+      kind: SendMediaKind.video,
+    ),
+    (progress) async {
+      final prepared = await prepareVideoForSend(
+        video.path,
+        reduceMediaSize: _reduceMediaSize(),
+        fallbackWidth: video.width,
+        fallbackHeight: video.height,
+        fallbackDurationMs: video.durationMs,
+        onThumbnail: (thumbnail) => progress.preview(
+          thumbnail.bytes,
+          width: thumbnail.width,
+          height: thumbnail.height,
+        ),
+        onProgress: progress.compression,
+      );
+      await _sendFileEvent(
+        prepared.file,
+        txid: txid,
+        thumbnail: prepared.thumbnail,
+        extraContent: _attachmentExtraContent(
+          caption: video.caption,
+          gallery: gallery,
+        ),
+        galleryId: gallery?.id,
+        onUploadProgress: progress.upload,
+      );
+    },
+  );
 
   Future<T?> _guardedSend<T>(
     String txid,
     Future<T> Function() send, {
-    required VoidCallback onFailed,
+    required void Function(Object error) onFailed,
     bool announce = true,
   }) async {
     try {
@@ -451,7 +461,7 @@ class RoomSender extends ChangeNotifier {
     } catch (e, s) {
       reportCaught('send attachment', e, s);
       await discardSendPlaceholder(room, txid);
-      onFailed();
+      onFailed(e);
     }
     return null;
   }
@@ -533,6 +543,7 @@ class RoomSender extends ChangeNotifier {
     required String? galleryId,
     required Future<String?> Function() send,
     void Function(double fraction)? onUploadProgress,
+    void Function(Object error)? onUndelivered,
   }) async {
     final scope = _sends[txid] = SendScope(onProgress: onUploadProgress);
     final sending = _discarded.whileSending([
@@ -546,6 +557,9 @@ class RoomSender extends ChangeNotifier {
       _sends.remove(txid);
     }
     if (scope.isStopped) _keepRemoved(txid, until: sending);
+    if (!delivered) {
+      if (scope.failure case final error?) onUndelivered?.call(error);
+    }
     return delivered;
   }
 
@@ -588,7 +602,8 @@ class RoomSender extends ChangeNotifier {
       }
     } catch (e, s) {
       reportCaught('delete a message that landed after its delete', e, s);
-      _say(
+      _sayFailed(
+        e,
         galleryId == null
             ? _l10n.chatDeleteOneFailed
             : _l10n.chatDeleteManyFailed,
@@ -610,15 +625,21 @@ class RoomSender extends ChangeNotifier {
     return content.isEmpty ? null : content;
   }
 
-  void _recordFailed(FailedMediaSend failed, {bool announce = true}) {
+  void _recordFailed(
+    FailedMediaSend failed,
+    Object error, {
+    bool announce = true,
+  }) {
     if (_discarded.contains(room, [failed.gallery?.id])) return;
     if (_disposed) {
-      if (announce) _say(_l10n.chatNotSentTryAgain);
+      if (announce) _sayFailed(error, _l10n.chatNotSentFailed);
       return;
     }
     _failed.add(failed);
     _changed();
-    if (announce && !_chatOpen()) _say(_l10n.chatNotSentTryAgain);
+    if (announce && !_chatOpen()) {
+      _sayFailed(error, _l10n.chatNotSentFailed);
+    }
   }
 
   Future<void> _releaseCopies(List<String> paths) async {

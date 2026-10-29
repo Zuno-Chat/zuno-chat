@@ -7,11 +7,11 @@ import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/account_security_status.dart';
+import '../../../core/security/alerts/room_security_alerts_provider.dart';
 import '../../../core/security/alerts/security_alert.dart';
 import '../../../core/security/alerts/security_alert_detection.dart';
 import '../../../core/security/alerts/security_alerts_provider.dart';
 import '../../../core/security/security_emphasis.dart';
-import '../../../core/security/security_providers.dart';
 import '../../../core/ui/alert_banner.dart';
 import '../../settings/presentation/active_sessions_page.dart';
 import '../../settings/presentation/security_status_action.dart';
@@ -29,11 +29,7 @@ class SecurityAlertBanners extends ConsumerWidget {
     final room = this.room;
     final alerts = room == null
         ? ref.watch(accountSecurityAlertsProvider)
-        : roomSecurityAlerts(
-            room,
-            recorded: ref.watch(securityAlertsProvider),
-            trustOf: (userId) => ref.watch(userTrustProvider(userId)),
-          );
+        : ref.watch(roomSecurityAlertsProvider(room));
     if (alerts.isEmpty) return const SizedBox.shrink();
     final reset = alerts.whereType<RecoveryResetAlert>().firstOrNull;
     final identityChanges = alerts.whereType<IdentityChangedAlert>().toList();
@@ -101,8 +97,7 @@ class SecurityAlertBanners extends ConsumerWidget {
     final seenAt = first.seenAt;
     final labels = DateLabels.of(context);
     final detail = [
-      if (seenAt != null)
-        labels.dayAndTime(seenAt, now: clock.now()),
+      if (seenAt != null) labels.dayAndTime(seenAt, now: clock.now()),
       ?first.ipAddress,
     ].join(' · ');
     return AlertBanner(

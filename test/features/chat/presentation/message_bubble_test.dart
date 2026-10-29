@@ -223,6 +223,26 @@ void main() {
     expect(holds, 1);
   });
 
+  testWidgets('the bubble clips nothing and keeps its ink in its shape', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      inZunoApp(
+        MessageBubble(
+          own: true,
+          position: RunPosition.first,
+          onTap: () {},
+          child: const Text('hi'),
+        ),
+      ),
+    );
+
+    final shape = bubbleRadius(own: true, position: RunPosition.first);
+    expect(_bubbleMaterial(tester).clipBehavior, Clip.none);
+    expect(_bubbleMaterial(tester).borderRadius, shape);
+    expect(tester.widget<InkWell>(find.byType(InkWell)).borderRadius, shape);
+  });
+
   testWidgets('only a bubble with a quote pays for IntrinsicWidth', (
     tester,
   ) async {

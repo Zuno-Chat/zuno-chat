@@ -11,8 +11,6 @@ import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/forwarded_message.dart';
 import '../../../core/matrix/image_caption.dart';
 import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/state_event_description.dart';
-import '../../../core/matrix/undecryptable_event.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../location/presentation/live_location_map_page.dart';
 import '../../location/presentation/live_location_tile.dart';
@@ -74,15 +72,15 @@ class MessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayEvent = event.getDisplayEvent(timeline);
-    if (data.redacted ||
-        isUndecryptableEvent(displayEvent) ||
-        classifyAttachment(displayEvent) != AttachmentKind.liveLocation) {
-      return _tile(context, displayEvent, liveShare: null);
+    final kind = messageKindOf(displayEvent);
+    if (kind != MessageKind.liveLocation) {
+      return _tile(context, displayEvent, kind, liveShare: null);
     }
     return Consumer(
       builder: (context, ref, _) => _tile(
         context,
         displayEvent,
+        kind,
         liveShare: ref.watch(
           liveSharesProvider(event.room.id)
               .select((shares) => liveShareStartedBy(shares, displayEvent)),
@@ -93,41 +91,33 @@ class MessageTile extends StatelessWidget {
 
   Widget _tile(
     BuildContext context,
-    Event displayEvent, {
+    Event displayEvent,
+    MessageKind kind, {
     required LiveShareView? liveShare,
   }) {
     final l10n = context.l10n;
-    final isHiddenState = displayEvent.stateKey != null;
-    if (isHiddenState || isCallSignalingMessage(displayEvent.messageType)) {
+    final gallery = this.gallery;
+    final look = _lookOf(
+      kind,
+      gallery: gallery != null,
+      liveMap: liveShare != null,
+    );
+    if (look == null) {
+      final text = summarize(l10n, displayEvent).text;
       return _HiddenEventRow(
-        text: isHiddenState
-            ? (describeStateEvent(l10n, displayEvent) ??
-                  l10n.matrixSummaryOtherEvent(displayEvent.type))
-            : l10n.chatHiddenMessage(displayEvent.body),
+        text: kind == MessageKind.hiddenSignaling
+            ? l10n.chatHiddenMessage(text)
+            : text,
       );
     }
 
     final own = data.isOwn;
-    final isUndecryptable = isUndecryptableEvent(displayEvent);
-    final unreadable = data.redacted || isUndecryptable;
-    final kind = classifyAttachment(displayEvent);
-    final gallery = this.gallery;
-    final isGallery = gallery != null;
-    final isImage = !isGallery && kind == AttachmentKind.image;
-    final isVideo = !isGallery && kind == AttachmentKind.video;
-    final isMedia = !unreadable && (isGallery || isImage || isVideo);
-    final isLocation = !unreadable && kind == AttachmentKind.location;
-    final isLiveLocation = !unreadable && kind == AttachmentKind.liveLocation;
-    final isLiveMap = liveShare != null;
-    final isFile = !unreadable && kind == AttachmentKind.file;
-    final isVoice = !unreadable && kind == AttachmentKind.voice;
-    final tightWidth = isMedia || isLocation || isLiveMap || isFile || isVoice;
-    final callSummary = unreadable ? null : CallSummary.fromEvent(displayEvent);
     final unsent = notSentBehind(event, timeline);
     final notSent = unsent != null;
     final shown = withEditApplied(event, displayEvent);
-    final caption = isMedia && !isGallery ? imageCaption(shown) : null;
-    final body = displayBody(event, timeline);
+    final caption = look == _Look.photo || look == _Look.video
+        ? imageCaption(shown)
+        : null;
 
     final meta = MessageMeta(
       time: data.timeLabel,
@@ -150,60 +140,55 @@ class MessageTile extends StatelessWidget {
       );
     }
 
-    final Widget content;
-    if (data.redacted) {
-      content = _NoticeContent(
+    PendingAttachmentSend? pendingHere(PendingAttachmentSend? pending) =>
+        pending?.eventId == shown.eventId ? pending : null;
+
+    final content = switch (look) {
+      _Look.deleted => _NoticeContent(
         icon: Icons.delete_outline,
         text: l10n.chatMessageDeleted,
         own: own,
         meta: meta,
-      );
-    } else if (isUndecryptable) {
-      content = Column(
+      ),
+      _Look.undecryptable => Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
         children: [
           const UndecryptableMessageContent(),
           Padding(padding: const EdgeInsets.only(top: 3), child: meta),
         ],
-      );
-    } else if (isGallery) {
-      content = sending(
+      ),
+      _Look.gallery => sending(
         (pending) => GalleryMessage(
-          events: gallery,
+          events: gallery!,
           failed: galleryFailures,
           onRetry: onRetryFailedSend,
           pendingSend: pending,
           mediaMeta: mediaMeta,
           onOpen: onOpenMedia,
         ),
-      );
-    } else if (isImage) {
-      content = sending(
+      ),
+      _Look.photo => sending(
         (pending) => ImageMessage(
           event: shown,
-          pendingSend: pending?.eventId == shown.eventId ? pending : null,
+          pendingSend: pendingHere(pending),
           mediaMeta: mediaMeta,
           showTimeOverlay: caption == null,
           onOpen: onOpenMedia,
         ),
-      );
-    } else if (isVideo) {
-      content = sending(
+      ),
+      _Look.video => sending(
         (pending) => VideoMessage(
           event: shown,
-          pendingSend: pending?.eventId == shown.eventId ? pending : null,
+          pendingSend: pendingHere(pending),
           mediaMeta: mediaMeta,
           showTimeOverlay: caption == null,
           onOpen: onOpenMedia,
         ),
-      );
-    } else if (isVoice) {
-      content = VoiceMessage(event: shown, own: own, meta: meta);
-    } else if (isFile) {
-      content = FileMessage(event: shown, own: own, meta: meta);
-    } else if (isLocation) {
-      content = LocationBubble(
+      ),
+      _Look.voice => VoiceMessage(event: shown, own: own, meta: meta),
+      _Look.file => FileMessage(event: shown, own: own, meta: meta),
+      _Look.location => LocationBubble(
         geo: locationOf(displayEvent),
         radius: mediaRadius,
         trailing: meta,
@@ -216,11 +201,10 @@ class MessageTile extends StatelessWidget {
             ),
           ),
         ),
-      );
-    } else if (liveShare != null) {
-      content = LiveLocationTile(
+      ),
+      _Look.liveMap => LiveLocationTile(
         room: event.room,
-        share: liveShare,
+        share: liveShare!,
         radius: mediaRadius,
         muted: bubbleMuted(Theme.of(context), own: own),
         trailing: meta,
@@ -230,33 +214,27 @@ class MessageTile extends StatelessWidget {
                 LiveLocationMapPage(room: event.room, focus: event.senderId),
           ),
         ),
-      );
-    } else if (isLiveLocation) {
-      content = _NoticeContent(
+      ),
+      _Look.liveEnded => _NoticeContent(
         icon: Icons.share_location_outlined,
         text: l10n.chatLiveLocationEnded,
         own: own,
         meta: meta,
-      );
-    } else if (callSummary != null) {
-      content = CallSummaryTile(summary: callSummary, own: own, meta: meta);
-    } else {
-      content = TextMessage(
+      ),
+      _Look.callSummary => CallSummaryTile(
+        summary: CallSummary.fromEvent(displayEvent)!,
+        own: own,
+        meta: meta,
+      ),
+      _Look.text => TextMessage(
         displayEvent: displayEvent,
-        body: body,
+        body: displayBody(event, timeline),
         meta: notSent ? null : meta,
-      );
-    }
+      ),
+    };
 
     final replyToId = data.replyToId;
-    final EdgeInsets bubblePadding;
-    if (isMedia || isLocation || isLiveMap) {
-      bubblePadding = const EdgeInsets.all(mediaInset);
-    } else if (tightWidth) {
-      bubblePadding = const EdgeInsets.fromLTRB(8, 8, 12, 7);
-    } else {
-      bubblePadding = const EdgeInsets.fromLTRB(12, 7, 12, 7);
-    }
+    final unreadable = look.unreadable;
     final bubble = MessageBubble(
       own: own,
       position: data.position,
@@ -272,7 +250,11 @@ class MessageTile extends StatelessWidget {
               cache: replyTargets,
               own: own,
             ),
-      padding: bubblePadding,
+      padding: look.framed
+          ? const EdgeInsets.all(mediaInset)
+          : look.tight
+          ? const EdgeInsets.fromLTRB(8, 8, 12, 7)
+          : const EdgeInsets.fromLTRB(12, 7, 12, 7),
       onTap: unsent == null ? null : () => onResend(unsent),
       onLongPress: unreadable ? null : onLongPress,
       onDoubleTap: unreadable ? null : onDoubleTap,
@@ -286,7 +268,7 @@ class MessageTile extends StatelessWidget {
             Align(
               alignment: AlignmentDirectional.centerStart,
               child: Padding(
-                padding: isMedia || isLocation || isLiveMap
+                padding: look.framed
                     ? const EdgeInsets.fromLTRB(6, 3, 8, 5)
                     : const EdgeInsets.only(bottom: 4),
                 child: ForwardedLabel(own: own),
@@ -313,7 +295,7 @@ class MessageTile extends StatelessWidget {
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     final sizedBubble = ConstrainedBox(
-      constraints: tightWidth
+      constraints: look.tight
           ? BoxConstraints.tightFor(width: screenWidth * 2 / 3)
           : BoxConstraints(maxWidth: screenWidth * 3 / 4),
       child: bubble,
@@ -384,6 +366,48 @@ class MessageTile extends StatelessWidget {
     return SwipeToReply(onReply: onSwipeReply, child: row);
   }
 }
+
+enum _Look {
+  deleted,
+  undecryptable,
+  text,
+  callSummary,
+  liveEnded,
+  voice(tight: true),
+  file(tight: true),
+  gallery(framed: true),
+  photo(framed: true),
+  video(framed: true),
+  location(framed: true),
+  liveMap(framed: true);
+
+  const _Look({this.framed = false, bool tight = false})
+    : tight = framed || tight;
+
+  final bool framed;
+  final bool tight;
+
+  bool get unreadable => this == deleted || this == undecryptable;
+}
+
+_Look? _lookOf(
+  MessageKind kind, {
+  required bool gallery,
+  required bool liveMap,
+}) => switch (kind) {
+  MessageKind.nonMessage || MessageKind.hiddenSignaling => null,
+  MessageKind.deleted => _Look.deleted,
+  MessageKind.undecryptable => _Look.undecryptable,
+  _ when gallery => _Look.gallery,
+  MessageKind.photo => _Look.photo,
+  MessageKind.video => _Look.video,
+  MessageKind.voice => _Look.voice,
+  MessageKind.file => _Look.file,
+  MessageKind.location => _Look.location,
+  MessageKind.liveLocation => liveMap ? _Look.liveMap : _Look.liveEnded,
+  MessageKind.callSummary => _Look.callSummary,
+  MessageKind.text => _Look.text,
+};
 
 const _badgeSize = 20.0;
 

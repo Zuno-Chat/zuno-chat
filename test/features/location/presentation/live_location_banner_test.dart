@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/features/location/presentation/live_location_banner.dart';
 import 'package:zuno/features/location/presentation/live_location_map_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_live_location.dart';
 
@@ -88,5 +90,31 @@ void main() {
 
     expect(harness.sharing.shares.value, isEmpty);
     expect(find.text('Alex is sharing live location'), findsOneWidget);
+  });
+
+  testWidgets('a Stop the server refuses says the share did not stop', (
+    tester,
+  ) async {
+    await harness.startSharing();
+    await pumpBanner(tester);
+    harness.client.stateWriteError = MatrixException.fromJson({
+      'errcode': 'M_FORBIDDEN',
+      'error': 'no',
+    });
+
+    await reportsDuring(() async {
+      await tester.tap(find.text('Stop'));
+      await tester.pump();
+      await tester.pump();
+    });
+
+    expect(
+      find.text(
+        englishLocalizations.errorsFailedTryAgain(
+          englishLocalizations.locationNotStopped,
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 }

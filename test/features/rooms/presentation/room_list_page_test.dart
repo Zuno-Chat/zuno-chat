@@ -8,9 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/notifications/actions/message_notification_action.dart';
-import 'package:zuno/core/notifications/local_notifications.dart';
+import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/security/security_prompt.dart';
@@ -19,16 +17,15 @@ import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/onboarding/presentation/onboarding_flow_page.dart';
+import 'package:zuno/features/rooms/presentation/chat_row.dart';
 import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/settings/presentation/settings_page.dart';
-import 'package:zuno/features/verification/presentation/verification_page.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/room_list_page_harness.dart';
 import '../../../helpers/room_opening_channels.dart';
-import '../../verification/presentation/verification_harness.dart';
 
 class _StubClient extends Client {
   _StubClient({required super.httpClient})
@@ -47,14 +44,11 @@ void main() {
   late Room room;
   late List<http.Request> requests;
   late bool offline;
-  late StreamController<KeyVerification> verifications;
 
   setUp(() {
     installRoomOpeningChannels();
     requests = [];
     offline = false;
-    verifications = StreamController<KeyVerification>.broadcast();
-    addTearDown(verifications.close);
     client = _StubClient(
       httpClient: FakeHttpClient((request) async {
         requests.add(request);
@@ -105,9 +99,6 @@ void main() {
           (ref) => onboardingBuild?.call() ?? Future.value(onboarding),
         ),
         securityPromptProvider.overrideWith((ref) async => prompt),
-        incomingKeyVerificationProvider.overrideWith(
-          (ref) => verifications.stream,
-        ),
       ],
     );
     await tester.pump();
@@ -133,26 +124,42 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  void mute() {
+  void mute({bool muted = true}) {
     client.accountData['m.push_rules'] = BasicEvent(
       type: 'm.push_rules',
       content: {
         'global': {
           'override': [
-            {
-              'rule_id': room.id,
-              'default': false,
-              'enabled': true,
-              'actions': <Object>[],
-              'conditions': [
-                {'kind': 'event_match', 'key': 'room_id', 'pattern': room.id},
-              ],
-            },
+            if (muted)
+              {
+                'rule_id': room.id,
+                'default': false,
+                'enabled': true,
+                'actions': <Object>[],
+                'conditions': [
+                  {'kind': 'event_match', 'key': 'room_id', 'pattern': room.id},
+                ],
+              },
           ],
         },
       },
     );
   }
+
+  void serverSaysMuted(bool muted) {
+    mute(muted: muted);
+    client.onSync.add(
+      SyncUpdate(
+        nextBatch: 's-push-rules',
+        accountData: [client.accountData['m.push_rules']!],
+      ),
+    );
+  }
+
+  Finder mutedMark() => find.descendant(
+    of: find.byType(ChatRow),
+    matching: find.byIcon(Icons.notifications_off_outlined),
+  );
 
   group('the actions on a chat', () {
     testWidgets('an unread chat can be marked read', (tester) async {
@@ -186,12 +193,18 @@ void main() {
       await pumpRoomList(tester);
       await openActions(tester);
 
+      expect(mutedMark(), findsNothing);
       await tester.tap(find.text('Mute'));
       await tester.pumpAndSettle();
 
       final rule = requestsTo('pushrules').single;
       expect(rule.method, 'PUT');
       expect(rule.url.pathSegments, contains('override'));
+      expect(mutedMark(), findsOneWidget);
+
+      serverSaysMuted(true);
+      await tester.pumpAndSettle();
+      expect(mutedMark(), findsOneWidget);
     });
 
     testWidgets('a muted chat offers Unmute instead', (tester) async {
@@ -204,6 +217,10 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(requestsTo('pushrules').single.method, 'DELETE');
+      expect(mutedMark(), findsNothing);
+
+      serverSaysMuted(false);
+      await tester.pumpAndSettle();
     });
 
     testWidgets('leaving asks first', (tester) async {
@@ -272,24 +289,11 @@ void main() {
     });
   });
 
-  testWidgets('Mark as read handed over from a notification is done by the '
-      'app\'s own client', (tester) async {
-    await pumpRoomList(tester);
+  testWidgets('starts none of the app-wide services, which the app runs '
+      'itself', (tester) async {
+    final container = await pumpRoomList(tester);
 
-    LocalNotifications.instance.onMessageActionForTest(
-      HandedMessageAction((
-        kind: MessageNotificationActionKind.markRead,
-        roomId: room.id,
-        eventId: r'$last',
-        replyText: null,
-      )),
-    );
-    await tester.pumpAndSettle();
-
-    expect(
-      jsonDecode(requestsTo('read_markers').single.body),
-      containsPair('m.read', r'$last'),
-    );
+    expect(container.exists(messageNotificationProvider), isFalse);
   });
 
   testWidgets('tapping a chat opens it', (tester) async {
@@ -678,130 +682,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(title), findsOneWidget);
-    });
-  });
-
-  group('a verification request from someone', () {
-    testWidgets('can be declined', (tester) async {
-      await pumpRoomList(tester);
-      final request = FakeKeyVerification();
-
-      verifications.add(request);
-      await tester.pumpAndSettle();
-      expect(find.text('@bob wants to verify with you.'), findsOneWidget);
-      await tester.tap(find.text('Decline'));
-      await tester.pumpAndSettle();
-
-      expect(request.calls, ['rejectVerification']);
-      expect(find.byType(VerificationPage), findsNothing);
-    });
-
-    testWidgets('once accepted, opens the check', (tester) async {
-      await pumpRoomList(tester);
-      final request = FakeKeyVerification();
-
-      verifications.add(request);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Accept'));
-      await bounded(tester);
-
-      expect(request.calls, ['acceptVerification']);
-      expect(find.byType(VerificationPage), findsOneWidget);
-      expect(find.text('Confirm it is them'), findsOneWidget);
-    });
-
-    testWidgets('from my own other device, opens it as approving a device', (
-      tester,
-    ) async {
-      await pumpRoomList(tester);
-      final request = FakeKeyVerification(userId: '@me:example.org');
-
-      verifications.add(request);
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Accept'));
-      await bounded(tester);
-
-      expect(find.text('Approve this device'), findsOneWidget);
-      expect(find.text('Confirm it is them'), findsNothing);
-    });
-
-    testWidgets('canceled before an answer, closes and says why', (
-      tester,
-    ) async {
-      await pumpRoomList(tester);
-      final request = FakeKeyVerification();
-
-      verifications.add(request);
-      await tester.pumpAndSettle();
-      request.stopWith('m.user');
-      await tester.pumpAndSettle();
-
-      expect(find.text('@bob wants to verify with you.'), findsNothing);
-      expect(
-        find.textContaining('One of you canceled the check.'),
-        findsOneWidget,
-      );
-      expect(request.calls, isEmpty);
-      expect(find.byType(VerificationPage), findsNothing);
-    });
-
-    testWidgets('answered on my other device, closes and says so', (
-      tester,
-    ) async {
-      await pumpRoomList(tester);
-      final request = FakeKeyVerification(userId: '@me:example.org');
-
-      verifications.add(request);
-      await tester.pumpAndSettle();
-      request.stopWith('m.accepted');
-      await tester.pumpAndSettle();
-
-      expect(
-        find.textContaining('Another one of your devices picked this up'),
-        findsOneWidget,
-      );
-      expect(request.calls, isEmpty);
-    });
-
-    testWidgets('canceled under another screen, closes and keeps that screen', (
-      tester,
-    ) async {
-      await pumpRoomList(tester);
-      final request = FakeKeyVerification();
-      verifications.add(request);
-      await tester.pumpAndSettle();
-      final prompt = find.text('@bob wants to verify with you.');
-      unawaited(
-        Navigator.of(tester.element(prompt)).push(
-          MaterialPageRoute<void>(
-            builder: (_) => const Scaffold(body: Text('On top')),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      request.stopWith('m.user');
-      await tester.pumpAndSettle();
-
-      expect(find.text('On top'), findsOneWidget);
-      expect(
-        find.text('@bob wants to verify with you.', skipOffstage: false),
-        findsNothing,
-      );
-      expect(request.calls, isEmpty);
-    });
-
-    testWidgets('already stopped when it arrives, shows nothing', (
-      tester,
-    ) async {
-      await pumpRoomList(tester);
-      final request = FakeKeyVerification()..canceled = true;
-
-      verifications.add(request);
-      await tester.pumpAndSettle();
-
-      expect(find.text('@bob wants to verify with you.'), findsNothing);
-      expect(request.calls, isEmpty);
     });
   });
 }

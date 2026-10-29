@@ -238,7 +238,10 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Delete'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Could not delete the key backup.'), findsOneWidget);
+      expect(
+        find.text('Could not delete the key backup. Try again.'),
+        findsOneWidget,
+      );
       expect(find.textContaining('M_FORBIDDEN'), findsNothing);
       expect(find.textContaining('Not allowed'), findsNothing);
       expect(tester.widget<ListTile>(deleteRow()).onTap, isNotNull);

@@ -15,9 +15,6 @@ import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/calls/notifications/pending_call_notification_action_provider.dart';
-import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -170,9 +167,9 @@ void main() {
     );
   }
 
-  group('synchronous initState guards (race with something else)', () {
-    testWidgets('a ring screen for the call answered here hands off to it, '
-        'though answering settled the call', (tester) async {
+  group('a call that settled before the page built', () {
+    testWidgets('answered here: the page closes and leaves the lock screen to '
+        'the call', (tester) async {
       final container = await pumpShell(tester);
       final answered = container
           .read(activeCallProvider.notifier)
@@ -188,134 +185,18 @@ void main() {
       expect(container.read(activeCallProvider), same(answered));
     });
 
-    testWidgets('dismisses immediately, never taking the system ring, when '
-        'resolvedCallIdsProvider already has this call_id', (tester) async {
+    testWidgets('resolved: the page closes, never taking the system ring', (
+      tester,
+    ) async {
       final container = await pumpShell(tester);
+      pushIncomingCall(call());
       container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
       final ringChanges = recordSystemRing();
-
-      pushIncomingCall(call());
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsNothing);
       expect(find.text('room list'), findsOneWidget);
       expect(ringChanges, isEmpty);
-    });
-
-    testWidgets(
-      'hands off without creating a second session or taking the system '
-      'ring when activeCallProvider already holds this call_id',
-      (tester) async {
-        final container = await pumpShell(tester);
-        final existing = CallSession.forIncoming(
-          room: room,
-          callId: 'call1',
-          kind: CallKind.voice,
-        );
-        addTearDown(existing.dispose);
-        container.read(activeCallProvider.notifier).set(existing);
-        final ringChanges = recordSystemRing();
-
-        pushIncomingCall(call());
-        await tester.pumpAndSettle();
-
-        expect(find.byType(IncomingCallPage), findsNothing);
-        expect(find.text('room list'), findsOneWidget);
-        expect(container.read(activeCallProvider), same(existing));
-        expect(ringChanges, isEmpty);
-      },
-    );
-
-    testWidgets(
-      'performs and consumes a pending decline action found at initState',
-      (tester) async {
-        final container = await pumpShell(tester);
-        container.read(pendingCallNotificationActionProvider);
-        CallNotificationService.instance.onActionForTest(
-          CallNotificationResponse(
-            action: CallNotificationAction.decline,
-            call: (
-              roomId: room.id,
-              callId: 'call1',
-              callerId: '@bob:example.org',
-              isVideo: false,
-            ),
-          ),
-        );
-        await tester.pump();
-        expect(
-          container.read(pendingCallNotificationActionProvider)?.action,
-          CallNotificationAction.decline,
-        );
-
-        pushIncomingCall(call());
-        await tester.pumpAndSettle();
-
-        expect(find.byType(IncomingCallPage), findsNothing);
-        expect(find.text('room list'), findsOneWidget);
-        expect(container.read(pendingCallNotificationActionProvider), isNull);
-      },
-    );
-
-    testWidgets(
-      'performs and consumes a pending accept action found at initState',
-      (tester) async {
-        final container = await pumpShell(tester);
-        container.read(pendingCallNotificationActionProvider);
-        CallNotificationService.instance.onActionForTest(
-          CallNotificationResponse(
-            action: CallNotificationAction.accept,
-            call: (
-              roomId: room.id,
-              callId: 'call1',
-              callerId: '@bob:example.org',
-              isVideo: false,
-            ),
-          ),
-        );
-        await tester.pump();
-        expect(
-          container.read(pendingCallNotificationActionProvider)?.action,
-          CallNotificationAction.accept,
-        );
-
-        pushIncomingCall(call());
-        await tester.pump();
-
-        final session = container.read(activeCallProvider);
-        expect(session, isNotNull);
-        expect(session!.callId, 'call1');
-        addTearDown(session.dispose);
-        expect(container.read(pendingCallNotificationActionProvider), isNull);
-      },
-    );
-
-    testWidgets('ignores a pending action for a different call_id', (
-      tester,
-    ) async {
-      final container = await pumpShell(tester);
-      container.read(pendingCallNotificationActionProvider);
-      CallNotificationService.instance.onActionForTest(
-        CallNotificationResponse(
-          action: CallNotificationAction.decline,
-          call: (
-            roomId: room.id,
-            callId: 'some-other-call',
-            callerId: '@bob:example.org',
-            isVideo: false,
-          ),
-        ),
-      );
-      await tester.pump();
-
-      pushIncomingCall(call());
-      await tester.pumpAndSettle();
-
-      expect(find.byType(IncomingCallPage), findsOneWidget);
-      expect(
-        container.read(pendingCallNotificationActionProvider)?.call.callId,
-        'some-other-call',
-      );
     });
   });
 
@@ -327,14 +208,12 @@ void main() {
         pushIncomingCall(call());
         await tester.pumpAndSettle();
         expect(find.byType(IncomingCallPage), findsOneWidget);
-        expect(RingingCall.instance.callId, 'call1');
 
         container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
         await tester.pumpAndSettle();
 
         expect(find.byType(IncomingCallPage), findsNothing);
         expect(find.text('room list'), findsOneWidget);
-        expect(RingingCall.instance.callId, isNull);
       },
     );
 
@@ -362,7 +241,6 @@ void main() {
 
         expect(find.byType(IncomingCallPage), findsNothing);
         expect(find.text('room list'), findsOneWidget);
-        expect(RingingCall.instance.callId, isNull);
       });
     }
 
@@ -417,14 +295,12 @@ void main() {
       await pumpShell(tester);
       pushIncomingCall(call());
       await tester.pumpAndSettle();
-      expect(RingingCall.instance.callId, 'call1');
 
       await tester.tap(find.byIcon(Icons.call_end));
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsNothing);
       expect(find.text('room list'), findsOneWidget);
-      expect(RingingCall.instance.callId, isNull);
       expect(lockscreenShows(), containsAll([true, false]));
       expect(sentEvents.single, endsWith('/${callDeclineTxid('call1')}'));
     });
@@ -441,7 +317,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsNothing);
-      expect(RingingCall.instance.callId, isNull);
       expect(container.read(resolvedCallIdsProvider), contains('call1'));
       expect(sentEvents.single, endsWith('/${callDeclineTxid('call1')}'));
       sendGate!.complete();
@@ -587,7 +462,6 @@ void main() {
         expect(find.byType(IncomingCallPage), findsNothing);
         expect(find.text('room list'), findsOneWidget);
         expect(container.read(activeCallProvider), same(existing));
-        expect(RingingCall.instance.callId, isNull);
         expect(lockscreenShows(), [true, false]);
       },
     );
@@ -916,18 +790,15 @@ void main() {
       final container = await pumpShell(tester);
       pushIncomingCall(call());
       await tester.pumpAndSettle();
-      expect(RingingCall.instance.callId, 'call1');
 
       container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
       await tester.pumpAndSettle();
       expect(find.byType(IncomingCallPage), findsNothing);
-      expect(RingingCall.instance.callId, isNull);
 
       pushIncomingCall(call(callId: 'call2'));
       await tester.pumpAndSettle();
 
       expect(find.byType(IncomingCallPage), findsOneWidget);
-      expect(RingingCall.instance.callId, 'call2');
       expect(container.read(resolvedCallIdsProvider), {'call1'});
     });
   });

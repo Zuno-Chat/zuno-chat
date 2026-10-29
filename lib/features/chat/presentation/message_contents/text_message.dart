@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_html/flutter_html.dart';
+import 'package:html/dom.dart' as dom;
+import 'package:html/parser.dart' show parseFragment;
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/matrix/linkified_text.dart';
@@ -19,12 +21,48 @@ import '../text_width_estimate.dart';
 
 final _htmlMessages = RowMemo<String>(capacity: 200);
 
-class _HtmlMessage extends StatelessWidget {
+const _rememberedHtml = 200;
+final _parsedHtml = <String, _ParsedHtml>{};
+
+class _ParsedHtml {
   final String html;
+  final String body;
+  final dom.DocumentFragment _fragment;
+  late final bool mentionOnly = isMentionOnlyHtml(_fragment, body: body);
+  (Color, dom.Element)? _document;
+
+  _ParsedHtml(this.html, this.body) : _fragment = parseFragment(html);
+
+  dom.Element documentFor(Color mentionColor) {
+    final document = _document;
+    if (document != null && document.$1 == mentionColor) return document.$2;
+    final sanitized = sanitizedMessageDocument(
+      _fragment,
+      mentionColor: mentionColor,
+    );
+    _document = (mentionColor, sanitized);
+    return sanitized;
+  }
+}
+
+_ParsedHtml _parsed(String eventId, String html, String body) {
+  final cached = _parsedHtml.remove(eventId);
+  final parsed = cached != null && cached.html == html && cached.body == body
+      ? cached
+      : _ParsedHtml(html, body);
+  _parsedHtml[eventId] = parsed;
+  if (_parsedHtml.length > _rememberedHtml) {
+    _parsedHtml.remove(_parsedHtml.keys.first);
+  }
+  return parsed;
+}
+
+class _HtmlMessage extends StatelessWidget {
+  final _ParsedHtml parsed;
 
   final bool collapsed;
 
-  const _HtmlMessage({required this.html, this.collapsed = false});
+  const _HtmlMessage({required this.parsed, this.collapsed = false});
 
   @override
   Widget build(BuildContext context) {
@@ -45,8 +83,8 @@ class _HtmlMessage extends StatelessWidget {
 
   Widget _buildHtml(BuildContext context, TextStyle bodyStyle) {
     final colors = Theme.of(context).colorScheme;
-    return Html(
-      data: sanitizeMessageHtml(html, mentionColor: colors.primary),
+    return Html.fromElement(
+      documentElement: parsed.documentFor(colors.primary),
       doNotRenderTheseTags: const {'img'},
       shrinkWrap: true,
       style: messageHtmlStyle(
@@ -79,10 +117,10 @@ class TextMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     final meta = this.meta;
     final html = displayEvent.formattedText;
-    final asHtml =
-        displayEvent.isRichMessage &&
-        !isMentionOnlyHtml(html: html, body: body);
-    if (asHtml) {
+    final parsed = displayEvent.isRichMessage
+        ? _parsed(displayEvent.eventId, html, body)
+        : null;
+    if (parsed != null && !parsed.mentionOnly) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
@@ -97,7 +135,7 @@ class TextMessage extends StatelessWidget {
               builder: (context, maxLines) => _htmlMessages.obtain(
                 '${displayEvent.eventId}|${maxLines != null}',
                 html,
-                () => _HtmlMessage(html: html, collapsed: maxLines != null),
+                () => _HtmlMessage(parsed: parsed, collapsed: maxLines != null),
               ),
             ),
           ),

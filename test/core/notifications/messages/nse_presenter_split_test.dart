@@ -1,6 +1,7 @@
 import 'package:clock/clock.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
@@ -19,6 +20,7 @@ import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/notifying_client.dart';
+import '../../../helpers/open_chat_route.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
 
@@ -170,14 +172,25 @@ void main() {
     expect(notifications.lastPlatformSpecifics['threadIdentifier'], 'zuno');
   });
 
-  test('a message in the open room is handled without a post', () async {
+  testWidgets('a message in the open room is handled without a post', (
+    tester,
+  ) async {
     inFront(true);
-    container.read(currentlyOpenRoomIdProvider.notifier).set(room.id);
+    final navigator = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigator,
+        navigatorObservers: [container.read(openChatObserverProvider)],
+        home: const SizedBox(),
+      ),
+    );
+    await openChatRoute(tester, navigator.currentState!, room.id);
 
-    await deliver();
+    await tester.runAsync(deliver);
 
     expect(notifications.shown, isEmpty);
     expect(sent('writeShown'), hasLength(1));
+    debugDefaultTargetPlatformOverride = null;
   });
 
   test('an invitation in the background is left to the extension', () async {

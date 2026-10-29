@@ -2,18 +2,24 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/session_display_name.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns/apns_delivery_provider.dart';
 import 'package:zuno/core/push/apns/apns_pusher.dart';
 import 'package:zuno/core/push/delivery/registration_retry.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/preferences_container.dart';
 import '../../../helpers/pusher_recording_client.dart';
 
 const _token =
@@ -95,6 +101,7 @@ void main() {
       expect(pusher.appId, apnsAppId);
       expect(pusher.pushkey, _pushkey);
       expect(pusher.kind, 'http');
+      expect(pusher.deviceDisplayName, thisSessionDisplayName());
       expect(pusher.data.toJson(), {
         'default_payload': {
           'aps': {
@@ -780,6 +787,75 @@ void main() {
 
       expect(client.posted.map(soundOf), [null]);
       expect(provider.status.value, ApnsStatus.ready);
+    });
+  });
+
+  group('the Message tone setting', () {
+    Object? soundOf(Pusher pusher) =>
+        ((pusher.data.toJson()['default_payload'] as Map)['aps']
+            as Map)['sound'];
+
+    Future<ProviderContainer> watchSetting({required bool applePush}) async {
+      final container = await containerWithPreferences(
+        {},
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          platformCapabilitiesProvider.overrideWithValue(
+            capabilitiesLike(iosCapabilities, apnsRegistration: applePush),
+          ),
+        ],
+      );
+      container.read(apnsMessageToneProvider);
+      return container;
+    }
+
+    setUp(() {
+      ambientCapabilities = iosCapabilities;
+      final tokenReader = apnsDeliveryProvider.tokenReader;
+      final notificationsAllowed = apnsDeliveryProvider.notificationsAllowed;
+      final environmentReader = apnsDeliveryProvider.environmentReader;
+      apnsDeliveryProvider
+        ..tokenReader = (() async => _token)
+        ..notificationsAllowed = (() async => true)
+        ..environmentReader = (() async => 'development');
+      addTearDown(() async {
+        await apnsDeliveryProvider.stop(client);
+        apnsDeliveryProvider
+          ..tokenReader = tokenReader
+          ..notificationsAllowed = notificationsAllowed
+          ..environmentReader = environmentReader
+          ..resetEnvironmentForTesting();
+      });
+    });
+
+    test('turned off re-posts the pusher without a sound', () async {
+      final container = await watchSetting(applePush: true);
+      await apnsDeliveryProvider.start(client);
+
+      await container.read(messageToneEnabledProvider.notifier).set(false);
+      await pumpEventQueue();
+
+      expect(client.posted.map(soundOf), ['message_tone.caf', null]);
+    });
+
+    test('turned back on re-posts it with the Zuno tone', () async {
+      final container = await watchSetting(applePush: true);
+      await container.read(messageToneEnabledProvider.notifier).set(false);
+      await apnsDeliveryProvider.start(client);
+
+      await container.read(messageToneEnabledProvider.notifier).set(true);
+      await pumpEventQueue();
+
+      expect(client.posted.map(soundOf), [null, 'message_tone.caf']);
+    });
+
+    test('without Apple push a change posts nothing', () async {
+      final container = await watchSetting(applePush: false);
+
+      await container.read(messageToneEnabledProvider.notifier).set(false);
+      await pumpEventQueue();
+
+      expect(client.posted, isEmpty);
     });
   });
 }

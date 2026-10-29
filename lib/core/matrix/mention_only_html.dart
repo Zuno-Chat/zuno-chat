@@ -1,11 +1,10 @@
 import 'package:html/dom.dart';
-import 'package:html/parser.dart' show parseFragment;
 
 import 'sanitize_message_html.dart';
 
-bool isMentionOnlyHtml({required String html, required String body}) {
+bool isMentionOnlyHtml(DocumentFragment html, {required String body}) {
   final nodes = [
-    for (final node in parseFragment(html).nodes)
+    for (final node in html.nodes)
       if (!(node is Element && node.localName == 'mx-reply')) node,
   ];
   final content = [

@@ -136,14 +136,18 @@ bool canSeeAdvancedRoomInfo(Room room) {
   return ownRoomRole(room) == RoomRole.admin;
 }
 
-List<User> membersOwnerFirst(Room room, List<User> users) => [
-  for (final user in users)
-    if (isRoomOwner(room, user.id)) user,
-  for (final user in users)
-    if (!isRoomOwner(room, user.id)) user,
-];
+List<User> membersOwnerFirst(Room room, List<User> users) {
+  final owners = room.creatorUserIds;
+  return [
+    for (final user in users)
+      if (owners.contains(user.id)) user,
+    for (final user in users)
+      if (!owners.contains(user.id)) user,
+  ];
+}
 
 String? memberBadge(Room room, User user, AppLocalizations l10n) {
+  if (user.membership == Membership.ban) return null;
   if (user.membership == Membership.invite) return l10n.matrixBadgeInvited;
   if (isRoomOwner(room, user.id)) return l10n.matrixBadgeOwner;
   return switch (ownRoomRole(room)) {

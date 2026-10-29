@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/ui/message_text.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
 import '../data/message_look.dart';
@@ -100,20 +101,17 @@ class MessageBubble extends StatelessWidget {
     );
     if (quote != null) column = IntrinsicWidth(child: column);
 
+    final radius = bubbleRadius(own: own, position: position);
     return Material(
       color: bubbleFill(theme, own: own),
-      borderRadius: bubbleRadius(own: own, position: position),
-      clipBehavior: Clip.antiAlias,
+      borderRadius: radius,
       child: InkWell(
+        borderRadius: radius,
         onTap: onTap,
         onLongPress: onLongPress,
         onDoubleTap: onDoubleTap,
         child: DefaultTextStyle.merge(
-          style: theme.textTheme.bodyLarge!.copyWith(
-            color: ink,
-            height: 1.3,
-            letterSpacing: 0.2,
-          ),
+          style: messageTextStyle(theme).copyWith(color: ink),
           child: IconTheme.merge(
             data: IconThemeData(color: ink),
             child: column,

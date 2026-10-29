@@ -550,18 +550,18 @@ DiagnosticRow? _deliveryStatus(
   (NotificationDeliveryMode.fcm, final FcmStatus status, _) => DiagnosticRow(
     l10n.commonStatus,
     fcmStatusLabel(l10n, status),
-    _fcmStatusLevel(status),
+    fcmStatusLevel(status),
   ),
   (NotificationDeliveryMode.unifiedPush, _, final UnifiedPushStatus status) =>
     DiagnosticRow(
       l10n.commonStatus,
       unifiedPushStatusLabel(l10n, status),
-      _unifiedPushStatusLevel(status),
+      unifiedPushStatusLevel(status),
     ),
   _ => null,
 };
 
-DiagnosticStatus _fcmStatusLevel(FcmStatus status) => switch (status) {
+DiagnosticStatus fcmStatusLevel(FcmStatus status) => switch (status) {
   FcmStatus.ready => DiagnosticStatus.ok,
   FcmStatus.idle => DiagnosticStatus.warning,
   FcmStatus.checkingPlayServices ||
@@ -575,7 +575,7 @@ DiagnosticStatus _fcmStatusLevel(FcmStatus status) => switch (status) {
   FcmStatus.pusherFailed => DiagnosticStatus.problem,
 };
 
-DiagnosticStatus _unifiedPushStatusLevel(UnifiedPushStatus status) =>
+DiagnosticStatus unifiedPushStatusLevel(UnifiedPushStatus status) =>
     switch (status) {
       UnifiedPushStatus.ready => DiagnosticStatus.ok,
       UnifiedPushStatus.idle ||

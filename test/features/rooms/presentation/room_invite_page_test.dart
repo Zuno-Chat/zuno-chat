@@ -309,7 +309,7 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Block and decline'));
     await tester.pumpAndSettle();
     expect(find.text('Block @bob:example.org?'), findsOneWidget);
-    await tester.tap(find.widgetWithText(FilledButton, 'Block'));
+    await tester.tap(find.widgetWithText(TextButton, 'Block'));
     await tester.pumpAndSettle();
 
     expect(blocked, ['@bob:example.org']);
@@ -343,7 +343,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Join'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Could not join.'), findsOneWidget);
+    expect(find.text('Could not join. Try again.'), findsOneWidget);
     expect(find.textContaining('M_FORBIDDEN'), findsNothing);
     expect(find.textContaining('Exception'), findsNothing);
     expect(find.byType(RoomInvitePage), findsOneWidget);

@@ -8,11 +8,14 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
+import 'package:zuno/core/push/diagnostics/push_diagnostics_report.dart'
+    show DiagnosticStatus;
 import 'package:zuno/core/push/fcm/fcm_availability_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/ui/status_icon.dart';
 import 'package:zuno/features/settings/presentation/notification_delivery_page.dart';
 import 'package:zuno/features/settings/presentation/push_target_status_page.dart';
 
@@ -304,6 +307,9 @@ void main() {
     Finder inStatusRow(Finder matching) =>
         find.descendant(of: statusRow(), matching: matching);
 
+    DiagnosticStatus statusHealth(WidgetTester tester) =>
+        tester.widget<StatusIcon>(inStatusRow(find.byType(StatusIcon))).status;
+
     Future<void> openSheet(WidgetTester tester) async {
       await tester.tap(find.text('Delivery method'));
       await tester.pumpAndSettle();
@@ -520,9 +526,7 @@ void main() {
     });
 
     group('UnifiedPush status', () {
-      testWidgets('an idle one on screen shows the paused icon', (
-        tester,
-      ) async {
+      testWidgets('an idle one on screen turns to a warning', (tester) async {
         unifiedPushDeliveryProvider.status.value =
             UnifiedPushStatus.pusherFailed;
         await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
@@ -530,10 +534,7 @@ void main() {
         unifiedPushDeliveryProvider.status.value = UnifiedPushStatus.idle;
         await tester.pumpAndSettle();
 
-        expect(
-          inStatusRow(find.byIcon(Icons.pause_circle_outline)),
-          findsOneWidget,
-        );
+        expect(statusHealth(tester), DiagnosticStatus.warning);
       });
 
       testWidgets('a removed one offers Register, which registers again', (
@@ -566,21 +567,20 @@ void main() {
         );
       });
 
-      for (final (status, icon) in [
-        (UnifiedPushStatus.noDistributorFound, Icons.warning_amber_outlined),
-        (
-          UnifiedPushStatus.distributorSelected,
-          Icons.arrow_circle_right_outlined,
-        ),
-        (UnifiedPushStatus.ready, Icons.check_circle_outline),
-        (UnifiedPushStatus.registrationFailed, Icons.error_outline),
-        (UnifiedPushStatus.pusherFailed, Icons.error_outline),
+      for (final (status, health) in [
+        (UnifiedPushStatus.noDistributorFound, DiagnosticStatus.problem),
+        (UnifiedPushStatus.distributorSelected, DiagnosticStatus.warning),
+        (UnifiedPushStatus.ready, DiagnosticStatus.ok),
+        (UnifiedPushStatus.registrationFailed, DiagnosticStatus.problem),
+        (UnifiedPushStatus.pusherFailed, DiagnosticStatus.problem),
       ]) {
-        testWidgets('${status.name} shows its icon', (tester) async {
+        testWidgets('${status.name} shows the health diagnostics shows', (
+          tester,
+        ) async {
           unifiedPushDeliveryProvider.status.value = status;
           await _pumpPage(tester, NotificationDeliveryMode.unifiedPush);
 
-          expect(inStatusRow(find.byIcon(icon)), findsOneWidget);
+          expect(statusHealth(tester), health);
         });
       }
 
@@ -666,21 +666,23 @@ void main() {
     });
 
     group('Google services status', () {
-      for (final (status, icon) in [
-        (FcmStatus.idle, Icons.pause_circle_outline),
-        (FcmStatus.playServicesUnavailable, Icons.warning_amber_outlined),
-        (FcmStatus.playServicesDisabled, Icons.warning_amber_outlined),
-        (FcmStatus.notConfigured, Icons.warning_amber_outlined),
-        (FcmStatus.playServicesUpdateRequired, Icons.system_update_outlined),
-        (FcmStatus.ready, Icons.check_circle_outline),
-        (FcmStatus.tokenFailed, Icons.error_outline),
-        (FcmStatus.pusherFailed, Icons.error_outline),
+      for (final (status, health) in [
+        (FcmStatus.idle, DiagnosticStatus.warning),
+        (FcmStatus.playServicesUnavailable, DiagnosticStatus.problem),
+        (FcmStatus.playServicesDisabled, DiagnosticStatus.problem),
+        (FcmStatus.notConfigured, DiagnosticStatus.problem),
+        (FcmStatus.playServicesUpdateRequired, DiagnosticStatus.problem),
+        (FcmStatus.ready, DiagnosticStatus.ok),
+        (FcmStatus.tokenFailed, DiagnosticStatus.problem),
+        (FcmStatus.pusherFailed, DiagnosticStatus.problem),
       ]) {
-        testWidgets('${status.name} shows its icon', (tester) async {
+        testWidgets('${status.name} shows the health diagnostics shows', (
+          tester,
+        ) async {
           fcmDeliveryProvider.status.value = status;
           await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
-          expect(inStatusRow(find.byIcon(icon)), findsOneWidget);
+          expect(statusHealth(tester), health);
         });
       }
 

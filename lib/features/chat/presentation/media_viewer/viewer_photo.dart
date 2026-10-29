@@ -38,6 +38,7 @@ class _ViewerPhotoState extends State<ViewerPhoto>
   Matrix4Tween? _zoomTween;
   Offset _doubleTapAt = Offset.zero;
   bool _zoomed = false;
+  bool _fullSize = false;
 
   @override
   void initState() {
@@ -55,8 +56,23 @@ class _ViewerPhotoState extends State<ViewerPhoto>
   void _followZoom() {
     final zoomed = _transform.value.getMaxScaleOnAxis() > 1.01;
     if (zoomed == _zoomed) return;
-    setState(() => _zoomed = zoomed);
+    setState(() {
+      _zoomed = zoomed;
+      if (zoomed) _fullSize = true;
+    });
     widget.onZoomChanged(zoomed);
+  }
+
+  ImageProvider _decoded(BuildContext context, ImageProvider attachment) {
+    if (_fullSize) return attachment;
+    final screen =
+        MediaQuery.sizeOf(context) * MediaQuery.devicePixelRatioOf(context);
+    return ResizeImage(
+      attachment,
+      width: screen.width.round(),
+      height: screen.height.round(),
+      policy: ResizeImagePolicy.fit,
+    );
   }
 
   void _stepZoom() {
@@ -95,6 +111,8 @@ class _ViewerPhotoState extends State<ViewerPhoto>
     final Widget image = CachedAttachmentImage(
       event: widget.event,
       thumbnail: false,
+      image: _decoded,
+      gaplessPlayback: true,
       fit: BoxFit.contain,
       progress: const CircularProgressIndicator(),
       failure: (retry) => Center(

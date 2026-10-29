@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
+import '../../../../core/matrix/message_icons.dart';
 import '../message_bubble.dart';
 
 class CallSummaryTile extends StatelessWidget {
@@ -23,14 +24,6 @@ class CallSummaryTile extends StatelessWidget {
     final colors = theme.colorScheme;
     final missed = summary.status == CallSummaryStatus.missed;
     final ended = summary.status == CallSummaryStatus.ended;
-    final IconData icon;
-    if (missed) {
-      icon = Icons.call_missed;
-    } else if (summary.isVideo) {
-      icon = Icons.videocam_outlined;
-    } else {
-      icon = Icons.call_outlined;
-    }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -38,7 +31,11 @@ class CallSummaryTile extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: 1),
-          child: Icon(icon, size: 18, color: missed ? colors.error : null),
+          child: Icon(
+            callSummaryIcon(summary),
+            size: 18,
+            color: missed ? colors.error : null,
+          ),
         ),
         const SizedBox(width: 6),
         Flexible(

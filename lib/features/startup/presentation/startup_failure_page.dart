@@ -4,6 +4,7 @@ import '../../../core/brand.dart';
 import '../../../core/l10n/app_locale.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/client_startup.dart';
+import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/zuno_theme.dart';
 
 class StartupFailureApp extends StatelessWidget {
@@ -50,24 +51,14 @@ class _StartupFailurePageState extends State<StartupFailurePage> {
 
   Future<void> _confirmStartOver() async {
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.startupStartOverTitle),
-        content: Text(l10n.startupStartOverBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.startupDeleteAndStartOver),
-          ),
-        ],
-      ),
+    final confirmed = await confirm(
+      context,
+      title: l10n.startupStartOverTitle,
+      body: l10n.startupStartOverBody,
+      confirmLabel: l10n.startupDeleteAndStartOver,
+      tone: ConfirmTone.destructive,
     );
-    if (confirmed == true) _choose(StartupChoice.startOver);
+    if (confirmed) _choose(StartupChoice.startOver);
   }
 
   @override

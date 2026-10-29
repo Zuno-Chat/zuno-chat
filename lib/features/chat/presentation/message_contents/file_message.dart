@@ -6,6 +6,7 @@ import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/attachment_actions.dart';
 import '../../../../core/matrix/attachment_feedback.dart';
 import '../../../../core/matrix/image_caption.dart';
+import '../../../../core/matrix/media_size.dart';
 import '../../../../core/ui/zuno_theme.dart';
 import '../file_name_text.dart';
 import '../message_bubble.dart';
@@ -43,7 +44,7 @@ class _FileMessageState extends State<FileMessage> {
 
   @override
   Widget build(BuildContext context) {
-    final size = widget.event.infoMap.tryGet<int>('size');
+    final size = widget.event.fileSize;
     final caption = imageCaption(widget.event);
     final theme = Theme.of(context);
     final ink = bubbleInk(theme, own: widget.own);

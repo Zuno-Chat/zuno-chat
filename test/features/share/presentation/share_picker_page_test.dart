@@ -16,7 +16,12 @@ void main() {
     client = buildTestClient(userId: '@me:example.org');
   });
 
-  group('filterShareTargets', () {
+  List<String> targetIds(List<Room> rooms) => [
+    for (final target in shareTargets(rooms, englishLocalizations))
+      target.room.id,
+  ];
+
+  group('shareTargets', () {
     test('keeps joined rooms in the given order and drops the rest', () {
       final rooms = [
         namedRoom(client, '!b:example.org', 'Bob'),
@@ -34,10 +39,7 @@ void main() {
           membership: Membership.leave,
         ),
       ];
-      expect(
-        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
-        ['!b:example.org', '!a:example.org'],
-      );
+      expect(targetIds(rooms), ['!b:example.org', '!a:example.org']);
     });
 
     test('drops communities, which hold no messages', () {
@@ -47,10 +49,7 @@ void main() {
       });
       final rooms = [community, namedRoom(client, '!a:example.org', 'Alice')];
 
-      expect(
-        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
-        ['!a:example.org'],
-      );
+      expect(targetIds(rooms), ['!a:example.org']);
     });
 
     test('drops rooms the user cannot post in', () {
@@ -68,10 +67,7 @@ void main() {
         namedRoom(client, '!a:example.org', 'Alice'),
       ];
 
-      expect(
-        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
-        ['!a:example.org'],
-      );
+      expect(targetIds(rooms), ['!a:example.org']);
     });
 
     test('drops a direct chat the other person left', () {
@@ -90,22 +86,85 @@ void main() {
         ..mInvitedMemberCount = 0;
       final rooms = [left, namedRoom(client, '!a:example.org', 'Alice')];
 
-      expect(
-        filterShareTargets(rooms, '', englishLocalizations).map((r) => r.id),
-        ['!a:example.org'],
-      );
+      expect(targetIds(rooms), ['!a:example.org']);
     });
+
+    test('a chat in a community carries that community', () {
+      final crew = namedRoom(client, '!crew:example.org', 'Belay crew');
+      final club = namedRoom(client, '!club:example.org', 'Climbing club');
+      applyOptimisticRoomState(club, EventTypes.RoomCreate, {
+        'type': 'm.space',
+      });
+      applyOptimisticRoomState(club, EventTypes.SpaceChild, {
+        'via': ['example.org'],
+      }, stateKey: crew.id);
+      applyOptimisticRoomState(crew, EventTypes.SpaceParent, {
+        'via': ['example.org'],
+      }, stateKey: club.id);
+      final other = namedRoom(client, '!other:example.org', 'Book club');
+
+      final targets = shareTargets([crew, other, club], englishLocalizations);
+
+      expect(targets.map((t) => t.community?.name), ['Climbing club', null]);
+    });
+
+    test('a half-linked chat carries no community', () {
+      final crew = namedRoom(client, '!crew:example.org', 'Belay crew');
+      final club = namedRoom(client, '!club:example.org', 'Climbing club');
+      applyOptimisticRoomState(club, EventTypes.RoomCreate, {
+        'type': 'm.space',
+      });
+      applyOptimisticRoomState(club, EventTypes.SpaceChild, {
+        'via': ['example.org'],
+      }, stateKey: crew.id);
+
+      final targets = shareTargets([crew, club], englishLocalizations);
+
+      expect(targets.single.community, isNull);
+    });
+  });
+
+  group('matchingShareTargets', () {
+    List<String> matching(List<Room> rooms, String query) => [
+      for (final target in matchingShareTargets(
+        shareTargets(rooms, englishLocalizations),
+        query,
+      ))
+        target.room.id,
+    ];
 
     test('matches the display name case-insensitively', () {
       final rooms = [
         namedRoom(client, '!a:example.org', 'Alice'),
         namedRoom(client, '!b:example.org', 'Bob'),
       ];
-      expect(
-        filterShareTargets(rooms, ' aLi ', englishLocalizations).single.id,
-        '!a:example.org',
-      );
-      expect(filterShareTargets(rooms, 'zzz', englishLocalizations), isEmpty);
+      expect(matching(rooms, ' aLi '), ['!a:example.org']);
+      expect(matching(rooms, 'zzz'), isEmpty);
+    });
+
+    test('an empty search keeps every target', () {
+      final rooms = [
+        namedRoom(client, '!a:example.org', 'Alice'),
+        namedRoom(client, '!b:example.org', 'Bob'),
+      ];
+      expect(matching(rooms, '  '), ['!a:example.org', '!b:example.org']);
+    });
+
+    test('matches the name shown, such as whom a new chat waits on', () {
+      final waiting = buildTestRoom(client, id: '!w:example.org')
+        ..membership = Membership.join;
+      applyOptimisticRoomState(waiting, EventTypes.RoomMember, {
+        'membership': 'join',
+      }, stateKey: '@me:example.org');
+      applyOptimisticRoomState(waiting, EventTypes.RoomMember, {
+        'membership': 'invite',
+        'displayname': 'Zed Smith',
+      }, stateKey: '@zed:example.org');
+      final target = shareTargets([waiting], englishLocalizations).single;
+
+      expect(target.title, '@zed');
+      expect(matching([waiting], '@zed'), ['!w:example.org']);
+      expect(matching([waiting], 'smith'), isEmpty);
     });
   });
 

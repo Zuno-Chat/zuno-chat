@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +13,7 @@ import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
 import '../../../core/security/screen_security_service.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 import 'homeserver_page.dart';
@@ -76,9 +75,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
               LoginType.mLoginPassword,
               identifier: AuthenticationUserIdentifier(user: username),
               password: _password.text,
-              initialDeviceDisplayName: sessionDisplayName(
-                Platform.operatingSystem,
-              ),
+              initialDeviceDisplayName: thisSessionDisplayName(),
               refreshToken: true,
             ),
           );
@@ -156,10 +153,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 autofillHints: const [AutofillHints.username],
                 inputFormatters: [lowercaseFormatter],
                 textInputAction: TextInputAction.next,
-                decoration: InputDecoration(
-                  labelText: l10n.commonUsername,
-                  border: const OutlineInputBorder(),
-                ),
+                decoration: InputDecoration(labelText: l10n.commonUsername),
               ),
               const SizedBox(height: 16),
               PasswordField(
@@ -175,12 +169,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ],
           ),
         ),
-        if (_error != null) ...[
+        if (_error case final error?) ...[
           const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
+          InlineError(error),
         ],
         const SizedBox(height: 24),
         FilledButton(

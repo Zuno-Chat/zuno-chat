@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
     show FilteringTextInputFormatter, TextInput, TextInputFormatter;
@@ -18,6 +16,7 @@ import '../../../core/navigation/zuno_links.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/security/screen_security_service.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 import 'password_field.dart';
@@ -65,7 +64,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
   }
 
   void _clearError() {
-    if (waitingToRetry) return;
+    if (waitingToRetry || (_error == null && !_codeRefused)) return;
     setState(() {
       _error = null;
       _codeRefused = false;
@@ -117,7 +116,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
           username: username,
           password: password,
           code: code,
-          deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
+          deviceDisplayName: thisSessionDisplayName(),
           progress: _progress,
         );
         final userId = client.userID;
@@ -217,7 +216,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
               decoration: InputDecoration(
                 labelText: l10n.authSignUpCodeLabel,
                 helperText: l10n.authSignUpCodeHelper,
-                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 16),
@@ -241,7 +239,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
                   decoration: InputDecoration(
                     labelText: l10n.commonUsername,
                     helperText: l10n.authRegisterUsernameHelper,
-                    border: const OutlineInputBorder(),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -258,9 +255,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
                   textInputAction: TextInputAction.next,
                   onChanged: (_) => _clearError(),
                 ),
-                PasswordStrengthBar(
-                  password: _password.text,
-                  username: _username.text.trim(),
+                ListenableBuilder(
+                  listenable: Listenable.merge([_password, _username]),
+                  builder: (context, _) => PasswordStrengthBar(
+                    password: _password.text,
+                    username: _username.text.trim(),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 PasswordField(
@@ -276,12 +276,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
               ],
             ),
           ),
-          if (_error != null) ...[
+          if (_error case final error?) ...[
             const SizedBox(height: 16),
-            Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
+            InlineError(error),
           ],
           if (_codeRefused) ...[
             const SizedBox(height: 8),

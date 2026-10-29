@@ -638,12 +638,13 @@ void main() {
     testWidgets('on iOS, turning it off re-posts the pusher without a sound', (
       tester,
     ) async {
-      await _pumpPage(
+      final container = await _pumpPage(
         tester,
         NotificationDeliveryMode.apns,
         capabilities: iosCapabilities,
         client: client,
       );
+      container.listen(apnsMessageToneProvider, (_, _) {});
       await apnsDeliveryProvider.start(client);
 
       await tester.tap(switchTile('Message tone'));
@@ -662,6 +663,7 @@ void main() {
         capabilities: androidCapabilities,
         client: client,
       );
+      container.listen(apnsMessageToneProvider, (_, _) {});
       await apnsDeliveryProvider.start(client);
 
       await tester.tap(switchTile('Message tone'));

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -10,15 +9,15 @@ import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/optimistic_room_state.dart';
 import '../../../core/matrix/room_access.dart';
+import '../../../core/matrix/room_changes.dart';
 import '../../../core/matrix/room_exit.dart';
 import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/room_mute.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/matrix/room_title.dart';
@@ -26,26 +25,25 @@ import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/circle_icon.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/danger_tile.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
-import '../../../core/ui/sheet.dart';
 import '../../blocking/presentation/block_person.dart';
 import '../../chat/presentation/media_viewer/media_viewer_page.dart';
 import '../../chat/presentation/room_page.dart';
 import '../../communities/presentation/join_requests_view.dart';
 import '../../reports/presentation/report_sheet.dart';
+import 'member_actions.dart';
 import 'member_tile.dart';
 import 'members_sheet.dart';
 import 'people_trust_tile.dart';
-import 'remove_member_dialog.dart';
-import 'role_picker.dart';
 import 'room_access_label.dart';
+import 'room_header.dart';
 import 'room_media_section.dart';
 import 'room_permissions_page.dart';
 import 'room_settings_page.dart';
-import 'room_topic.dart';
-
-enum _MemberAction { message, changeRole, remove, ban, block, report }
 
 const _memberPreviewCount = 5;
 
@@ -71,59 +69,15 @@ class RoomInfoPage extends ConsumerStatefulWidget {
 
 class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     with RouteSettled<RoomInfoPage> {
-  bool? _mutedOverride;
-  bool _muteBusy = false;
-  Completer<void>? _pushRulesArrived;
   bool _membersFromMemory = false;
   List<User>? _participants;
   bool _loadingParticipants = true;
-  StreamSubscription<void>? _roomStateSub;
 
   Future<void> _setMuted(bool muted) async {
-    if (_muteBusy) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final arrived = _pushRulesArrived = Completer<void>();
-    final sub = widget.room.client.onSync.stream.listen((sync) {
-      final rules =
-          sync.accountData?.any((e) => e.type == 'm.push_rules') ?? false;
-      if (rules && !arrived.isCompleted) arrived.complete();
-    });
-    setState(() {
-      _muteBusy = true;
-      _mutedOverride = muted;
-    });
-    var refused = false;
-    var confirmed = false;
-    try {
-      await widget.room.setPushRuleState(
-        muted ? PushRuleState.dontNotify : PushRuleState.notify,
-      );
-      await arrived.future.timeout(const Duration(seconds: 10));
-      confirmed = true;
-    } on TimeoutException {
-      confirmed = false;
-    } catch (e, s) {
-      reportCaught('mute from room info', e, s);
-      refused = true;
-    } finally {
-      unawaited(sub.cancel());
-    }
-    if (!mounted) return;
-    setState(() {
-      _muteBusy = false;
-      if (refused || confirmed) _mutedOverride = null;
-    });
-    if (refused) {
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            muted
-                ? context.l10n.roomInfoNotMuted
-                : context.l10n.roomInfoNotUnmuted,
-          ),
-        ),
-      );
-    }
+    final asked = askToMuteRoom(context, widget.room, muted);
+    setState(() {});
+    await asked;
+    if (mounted) setState(() {});
   }
 
   Future<void> _exit() async {
@@ -139,32 +93,18 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
   }
 
   @override
-  void initState() {
-    super.initState();
-    _roomStateSub = widget.room.client.onRoomState.stream.listen((update) {
-      if (update.roomId == widget.room.id && mounted) setState(() {});
-    });
-  }
-
-  @override
   void onRouteSettled() {
     unawaited(runBestEffort(_loadParticipants, label: 'loadParticipants'));
   }
 
-  @override
-  void dispose() {
-    final arrived = _pushRulesArrived;
-    if (arrived != null && !arrived.isCompleted) arrived.complete();
-    _roomStateSub?.cancel();
-    super.dispose();
+  List<User> _ordered(Iterable<User> users) {
+    final names = {
+      for (final user in users) user.id: user.calcDisplayname().toLowerCase(),
+    };
+    final byName = [...users]
+      ..sort((a, b) => names[a.id]!.compareTo(names[b.id]!));
+    return membersOwnerFirst(widget.room, byName);
   }
-
-  List<User> _byName(List<User> users) => users
-    ..sort(
-      (a, b) => a.calcDisplayname().toLowerCase().compareTo(
-        b.calcDisplayname().toLowerCase(),
-      ),
-    );
 
   Future<void> _loadParticipants() async {
     setState(() => _loadingParticipants = true);
@@ -175,7 +115,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       ]);
       if (mounted) {
         setState(() {
-          _participants = _byName(participants);
+          _participants = _ordered(participants);
           _membersFromMemory = false;
         });
       }
@@ -183,7 +123,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
       reportCaught('load members', e, s);
       if (mounted && _participants == null) {
         setState(() {
-          _participants = _byName(widget.room.getParticipants());
+          _participants = _ordered(widget.room.getParticipants());
           _membersFromMemory = true;
         });
       }
@@ -201,40 +141,11 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     if (invited != null) _listMembership(invited, Membership.invite);
   }
 
-  Future<void> _changeMemberRole(User user) async {
-    final room = widget.room;
-    final options = assignableRolesFor(room, targetUserId: user.id);
-    final current = roomRoleOfUser(room, user.id);
-    final chosen = await showRolePicker(
-      context,
-      current: current,
-      options: options,
-    );
-    if (chosen == null || chosen == current || !mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await setUserRoomRole(room, user.id, chosen);
-      if (mounted) setState(() {});
-    } catch (e, s) {
-      reportCaught('change role', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.commonRoleNotChanged)),
-      );
-    }
-  }
-
-  void _showMembership(String userId, Membership membership) {
-    applyOptimisticMembership(widget.room, userId, membership);
-    _listMembership(userId, membership);
-  }
-
   void _listMembership(String userId, Membership membership) {
     final participants = _participants;
     if (!mounted || participants == null) return;
     setState(() {
-      _participants = _byName([
+      _participants = _ordered([
         for (final user in participants)
           if (user.id != userId) user,
         if (membership == Membership.invite)
@@ -243,17 +154,13 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     });
   }
 
-  bool _canManage(User user) =>
-      !widget.room.isDirectChat &&
-      user.membership != Membership.invite &&
-      user.id != widget.room.client.userID;
+  bool _canManage(User user) => memberActionsFor(widget.room, user).isNotEmpty;
 
   Future<void> _viewAllMembers() async {
-    final room = widget.room;
     final user = await showMembersSheet(
       context,
-      room: room,
-      members: membersOwnerFirst(room, _participants ?? const []),
+      room: widget.room,
+      members: _participants ?? const [],
       canManage: _canManage,
     );
     if (user == null || !mounted) return;
@@ -262,72 +169,24 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
 
   Future<void> _manageMember(User user) async {
     final room = widget.room;
-    final canChangeRole = assignableRolesFor(
-      room,
-      targetUserId: user.id,
-    ).isNotEmpty;
-    final manageable = canManageMember(room, user.id);
-    final canRemove = canRemoveMember(room, user.id);
-    final canBanUser = manageable && room.canBan;
-
-    final action = await showSheet<_MemberAction>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.chat_bubble_outline),
-              title: Text(context.l10n.roomInfoStartChat),
-              onTap: () => Navigator.of(context).pop(_MemberAction.message),
-            ),
-            if (canChangeRole)
-              ListTile(
-                leading: const Icon(Icons.badge_outlined),
-                title: Text(context.l10n.commonChangeRole),
-                onTap: () =>
-                    Navigator.of(context).pop(_MemberAction.changeRole),
-              ),
-            if (canRemove)
-              ListTile(
-                leading: const Icon(Icons.person_remove_outlined),
-                title: Text(context.l10n.roomInfoRemoveFromRoom),
-                onTap: () => Navigator.of(context).pop(_MemberAction.remove),
-              ),
-            if (canBanUser)
-              ListTile(
-                leading: const Icon(Icons.block_outlined),
-                title: Text(context.l10n.roomInfoBanFromRoom),
-                onTap: () => Navigator.of(context).pop(_MemberAction.ban),
-              ),
-            if (canBlockPerson(user.id))
-              ListTile(
-                leading: const Icon(Icons.do_not_disturb_on_outlined),
-                title: Text(context.l10n.commonBlock),
-                onTap: () => Navigator.of(context).pop(_MemberAction.block),
-              ),
-            ListTile(
-              leading: const Icon(Icons.flag_outlined),
-              title: Text(context.l10n.commonReport),
-              onTap: () => Navigator.of(context).pop(_MemberAction.report),
-            ),
-          ],
-        ),
-      ),
-    );
+    final action = await chooseMemberAction(context, room, user);
     if (action == null || !mounted) return;
 
     switch (action) {
-      case _MemberAction.message:
+      case MemberAction.message:
         await _messageMember(user);
-      case _MemberAction.changeRole:
-        await _changeMemberRole(user);
-      case _MemberAction.remove:
-        await _removeMember(user, ban: false);
-      case _MemberAction.ban:
-        await _removeMember(user, ban: true);
-      case _MemberAction.block:
+      case MemberAction.changeRole:
+        if (await changeMemberRole(context, room, user) && mounted) {
+          setState(() {});
+        }
+      case MemberAction.remove || MemberAction.ban:
+        final ban = action == MemberAction.ban;
+        if (await removeMember(context, room, user, ban: ban)) {
+          _listMembership(user.id, ban ? Membership.ban : Membership.leave);
+        }
+      case MemberAction.block:
         await _blockPerson(user.id, user.calcDisplayname());
-      case _MemberAction.report:
+      case MemberAction.report:
         await _reportPerson(user.id, user.calcDisplayname());
     }
   }
@@ -347,9 +206,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
 
   Future<void> _reportPerson(String userId, String name) async {
     final room = widget.room;
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
-    final sent = await showReportSheet(
+    await showReportSheet(
       context,
       title: l10n.roomInfoReportPerson(name),
       explanation: room.isDirectChat
@@ -363,125 +221,60 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
         roomId: room.id,
       ),
     );
-    if (sent) {
-      messenger.showSnackBar(SnackBar(content: Text(l10n.commonReportSent)));
-    }
   }
 
   Future<void> _messageMember(User user) async {
     final client = widget.room.client;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      final roomId = await startEncryptedDirectChat(client, user.id);
-      final room = client.getRoomById(roomId);
-      if (room != null && mounted) {
-        Navigator.of(context)
-            .push(MaterialPageRoute(builder: (_) => RoomPage(room: room)));
-      }
-    } catch (e, s) {
-      reportCaught('start chat', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.roomInfoCouldNotStartChat)),
-      );
-    }
-  }
-
-  Future<void> _removeMember(User user, {required bool ban}) async {
-    final confirmed = await confirmRemoveMember(
+    final navigator = Navigator.of(context);
+    String? roomId;
+    final started = await attempt(
       context,
-      name: user.calcDisplayname(),
-      ban: ban,
-      place: RemoveMemberPlace.room,
+      () async => roomId = await startEncryptedDirectChat(client, user.id),
+      label: 'start chat',
+      failed: context.l10n.roomsCouldNotStartChat,
     );
-    if (!confirmed || !mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await (ban ? widget.room.ban(user.id) : widget.room.kick(user.id));
-      _showMembership(user.id, ban ? Membership.ban : Membership.leave);
-    } catch (e, s) {
-      reportCaught(ban ? 'ban member' : 'remove member', e, s);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            ban ? l10n.commonMemberNotBanned : l10n.commonMemberNotRemoved,
-          ),
-        ),
-      );
-    }
+    final room = started ? client.getRoomById(roomId!) : null;
+    if (room == null || !mounted) return;
+    navigator.push(MaterialPageRoute(builder: (_) => RoomPage(room: room)));
   }
 
   Future<void> _unbanMember(String userId) async {
-    if (!canManageMember(widget.room, userId)) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await widget.room.unban(userId);
-      _showMembership(userId, Membership.leave);
-    } catch (e, s) {
-      reportCaught('unban', e, s);
-      messenger.showSnackBar(SnackBar(content: Text(l10n.roomInfoNotUnbanned)));
-    }
-  }
-
-  Widget _bannedMemberTile(Room room, String userId) {
-    final user = room.unsafeGetUserFromMemoryOrFallback(userId);
-    return ListTile(
-      leading: MxcAvatar(
-        client: room.client,
-        avatarUrl: user.avatarUrl,
-        fallbackText: user.calcDisplayname(),
-        toneSeed: user.id,
-        radius: 18,
-      ),
-      title: Text(user.calcDisplayname()),
-      subtitle: Text(withoutServer(userId)),
-      trailing: canManageMember(room, userId)
-          ? TextButton(
-              onPressed: () => _unbanMember(userId),
-              child: Text(context.l10n.roomInfoUnban),
-            )
-          : null,
+    final room = widget.room;
+    if (!canManageMember(room, userId)) return;
+    final unbanned = await attempt(
+      context,
+      () async {
+        await room.unban(userId);
+        applyOptimisticMembership(room, userId, Membership.leave);
+      },
+      label: 'unban',
+      failed: context.l10n.roomInfoNotUnbanned,
     );
+    if (unbanned) _listMembership(userId, Membership.leave);
   }
 
   Future<void> _enableEncryption() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.roomInfoEnableEncryptionTitle),
-        actionsOverflowDirection: VerticalDirection.up,
-        actionsOverflowButtonSpacing: 4,
-        content: Text(context.l10n.roomInfoEnableEncryptionBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.roomInfoEnableEncryption),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
-    try {
-      await widget.room.enableEncryption();
-      applyOptimisticRoomState(widget.room, EventTypes.Encryption, {
-        'algorithm': Client.supportedGroupEncryptionAlgorithms.first,
-      });
-    } catch (e, s) {
-      reportCaught('enable encryption', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.roomInfoEncryptionNotEnabled)),
-      );
-    }
+    final confirmed = await confirm(
+      context,
+      title: l10n.roomInfoEnableEncryptionTitle,
+      body: l10n.roomInfoEnableEncryptionBody,
+      confirmLabel: l10n.roomInfoEnableEncryption,
+    );
+    if (!confirmed || !mounted) return;
+
+    final room = widget.room;
+    await attempt(
+      context,
+      () async {
+        await room.enableEncryption();
+        applyOptimisticRoomState(room, EventTypes.Encryption, {
+          'algorithm': Client.supportedGroupEncryptionAlgorithms.first,
+        });
+      },
+      label: 'enable encryption',
+      failed: l10n.roomInfoEncryptionNotEnabled,
+    );
   }
 
   String _membersTitle(Room room, List<User>? participants) {
@@ -492,48 +285,34 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     return context.l10n.roomInfoMembersCount(count);
   }
 
-  void _copyToClipboard(@displayText String copiedMessage, String value) {
-    Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(copiedMessage)));
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+  Widget build(BuildContext context) => RoomChangesBuilder(
+    changes: RoomChanges.state(widget.room),
+    builder: _page,
+  );
+
+  Widget _page(BuildContext context) {
     final l10n = context.l10n;
     final room = widget.room;
     final name = roomTitle(room, l10n);
-    final topic = room.topic.trim();
     final participants = _participants;
-    final members = membersOwnerFirst(room, participants ?? const <User>[]);
+    final members = participants ?? const <User>[];
     final canonicalAlias = room.canonicalAlias;
     final chatPartnerId = room.directChatMatrixID;
     final permissionsAccess = roomPermissionsAccessFor(room);
     final canSeePermissions =
         !room.isDirectChat && permissionsAccess != RoomPermissionsAccess.hidden;
-    final canEditAnyRoomSetting =
-        !room.isDirectChat &&
-        (room.canChangeStateEvent(EventTypes.RoomName) ||
-            room.canChangeStateEvent(EventTypes.RoomTopic) ||
-            room.canChangeStateEvent(EventTypes.RoomCanonicalAlias) ||
-            room.canChangeHistoryVisibility ||
-            room.canChangeStateEvent(EventTypes.RoomAvatar) ||
-            canChangeRoomAccess(room));
-
+    final canEditSettings = canEditRoomSettings(room);
     final onStartCall = widget.onStartCall;
-    final canCall =
-        onStartCall != null &&
-        canPublishCallMemberState(room) &&
-        hasSomeoneToCall(room);
-    final muted =
-        _mutedOverride ?? room.pushRuleState == PushRuleState.dontNotify;
+    final canCall = onStartCall != null && canStartCall(room);
+    final muted = isRoomMuted(room);
     final showSecurity =
         room.isDirectChat &&
         (!room.encrypted ||
             participants == null ||
             participants.any((u) => u.id != room.client.userID));
-    final colors = theme.colorScheme;
+    final banned = room.canBan ? bannedUserIds(room) : const <String>[];
+    final messenger = ScaffoldMessenger.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -547,58 +326,12 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
         child: CardListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 18),
-              child: Column(
-                children: [
-                  MxcAvatar(
-                    client: room.client,
-                    avatarUrl: room.avatar,
-                    fallbackText: name,
-                    toneSeed: roomToneSeed(room),
-                    radius: 44,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    name,
-                    style: theme.textTheme.headlineSmall,
-                    textAlign: TextAlign.center,
-                  ),
-                  if (room.encrypted || !room.isDirectChat) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (room.encrypted) ...[
-                          Icon(
-                            Icons.lock_outline,
-                            size: 16,
-                            color: colors.onSurfaceVariant,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            l10n.roomInfoEncrypted,
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                        if (room.encrypted && !room.isDirectChat)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
-                            child: Text(
-                              '\u2022',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ),
-                        if (!room.isDirectChat) RoomAccessLabel.of(room, l10n),
-                      ],
-                    ),
-                  ],
-                  if (topic.isNotEmpty) ...[
-                    const SizedBox(height: 12),
-                    RoomTopic(topic: topic),
-                  ],
-                ],
-              ),
+            RoomHeader(
+              room: room,
+              details: [
+                if (room.encrypted) const _EncryptedLabel(),
+                if (!room.isDirectChat) RoomAccessLabel.of(room, l10n),
+              ],
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
@@ -643,10 +376,10 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                 ],
               ),
             ),
-            if (canEditAnyRoomSetting || canSeePermissions)
+            if (canEditSettings || canSeePermissions)
               CardGroup(
                 children: [
-                  if (canEditAnyRoomSetting)
+                  if (canEditSettings)
                     ListTile(
                       leading: const CircleIcon(Icons.edit_outlined),
                       title: Text(l10n.roomInfoRoomSettings),
@@ -685,9 +418,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                   if (!room.encrypted)
                     ListTile(
                       dense: true,
-                      leading: Icon(
-                        notEncryptedIcon,
-                        color: notEncryptedColor(context),
+                      leading: const ExcludeSemantics(
+                        child: NotEncryptedMark(),
                       ),
                       title: Text(l10n.roomInfoNotEncrypted),
                       subtitle: Text(l10n.roomInfoNotEncryptedHint),
@@ -734,12 +466,21 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                   ],
                 ],
               ),
-            if (room.canBan && bannedUserIds(room).isNotEmpty)
+            if (banned.isNotEmpty)
               CardGroup(
                 title: l10n.roomInfoBanned,
                 children: [
-                  for (final userId in bannedUserIds(room))
-                    _bannedMemberTile(room, userId),
+                  for (final userId in banned)
+                    MemberTile(
+                      room: room,
+                      user: room.unsafeGetUserFromMemoryOrFallback(userId),
+                      trailing: canManageMember(room, userId)
+                          ? TextButton(
+                              onPressed: () => _unbanMember(userId),
+                              child: Text(l10n.roomInfoUnban),
+                            )
+                          : null,
+                    ),
                 ],
               ),
             CardGroup(
@@ -759,12 +500,9 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                     onTap: () => _reportPerson(chatPartnerId, name),
                   ),
                 ],
-                ListTile(
-                  leading: CircleIcon(roomExitIcon(room), danger: true),
-                  title: Text(
-                    roomExitLabel(room, l10n),
-                    style: TextStyle(color: colors.error),
-                  ),
+                DangerTile(
+                  icon: roomExitIcon(room),
+                  label: roomExitLabel(room, l10n),
                   onTap: _exit,
                 ),
               ],
@@ -779,9 +517,9 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                     title: Text(l10n.roomInfoRoomId),
                     subtitle: Text(withoutServer(room.id)),
                     trailing: const Icon(Icons.copy_outlined, size: 18),
-                    onTap: () => _copyToClipboard(
-                      l10n.roomInfoRoomIdCopied,
-                      withoutServer(room.id),
+                    onTap: () => messenger.copy(
+                      room.id,
+                      copied: l10n.roomInfoRoomIdCopied,
                     ),
                   ),
                   if (canonicalAlias.isNotEmpty)
@@ -791,9 +529,9 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                       title: Text(l10n.roomInfoRoomAlias),
                       subtitle: Text(withoutServer(canonicalAlias)),
                       trailing: const Icon(Icons.copy_outlined, size: 18),
-                      onTap: () => _copyToClipboard(
-                        l10n.roomInfoRoomAliasCopied,
-                        withoutServer(canonicalAlias),
+                      onTap: () => messenger.copy(
+                        canonicalAlias,
+                        copied: l10n.roomInfoRoomAliasCopied,
                       ),
                     ),
                 ],
@@ -810,4 +548,32 @@ int _summaryMemberCount(Room room, int known) {
   final invited = room.summary.mInvitedMemberCount ?? 0;
   final summary = joined + invited;
   return summary > known ? summary : known;
+}
+
+class _EncryptedLabel extends StatelessWidget {
+  const _EncryptedLabel();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          Icons.lock_outline,
+          size: 16,
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            context.l10n.roomInfoEncrypted,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+      ],
+    );
+  }
 }

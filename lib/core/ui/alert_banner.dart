@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../l10n/display_text.dart';
 import '../l10n/l10n.dart';
 
 const attentionStripeWidth = 4.0;
@@ -15,6 +16,20 @@ class AttentionStripe extends StatelessWidget {
 }
 
 enum AlertBannerTone { attention, notice }
+
+({Color background, Color foreground}) _colorsOf(
+  AlertBannerTone tone,
+  ColorScheme colors,
+) => switch (tone) {
+  AlertBannerTone.attention => (
+    background: colors.errorContainer,
+    foreground: colors.onErrorContainer,
+  ),
+  AlertBannerTone.notice => (
+    background: colors.secondaryContainer,
+    foreground: colors.onSecondaryContainer,
+  ),
+};
 
 class AlertBanner extends StatelessWidget {
   final IconData icon;
@@ -45,12 +60,7 @@ class AlertBanner extends StatelessWidget {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final attention = tone == AlertBannerTone.attention;
-    final background = attention
-        ? colors.errorContainer
-        : colors.secondaryContainer;
-    final foreground = attention
-        ? colors.onErrorContainer
-        : colors.onSecondaryContainer;
+    final (:background, :foreground) = _colorsOf(tone, colors);
     final textStyle = theme.textTheme.bodySmall?.copyWith(color: foreground);
     final body = this.body;
     final detail = this.detail;
@@ -140,6 +150,78 @@ class AlertBanner extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class InfoStrip extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? body;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final VoidCallback? onTap;
+
+  const InfoStrip({
+    required this.icon,
+    @displayText required this.title,
+    @displayText this.body,
+    @displayText this.actionLabel,
+    this.onAction,
+    this.onTap,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final (:background, :foreground) = _colorsOf(
+      AlertBannerTone.notice,
+      theme.colorScheme,
+    );
+    final body = this.body;
+    final actionLabel = this.actionLabel;
+    return Material(
+      color: background,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            spacing: 12,
+            children: [
+              Icon(icon, color: foreground),
+              Expanded(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: foreground,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    if (body != null)
+                      Text(
+                        body,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: foreground,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (actionLabel != null)
+                FilledButton.tonal(
+                  onPressed: onAction,
+                  child: Text(actionLabel),
+                ),
+            ],
+          ),
         ),
       ),
     );

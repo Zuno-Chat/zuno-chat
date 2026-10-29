@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 import '../../../../core/errors/caught_errors.dart';
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/reactions.dart';
+import '../../../../core/ui/notice.dart';
 
 const reactionOverflow = 12.0;
 
@@ -20,7 +21,7 @@ Future<void> toggleReactionWithFeedback(
     await toggleReaction(event, timeline, key);
   } catch (e, s) {
     reportCaught('react', e, s);
-    messenger.showSnackBar(SnackBar(content: Text(l10n.chatReactionNotSent)));
+    messenger.sayFailed(l10n, e, failed: l10n.chatReactionNotSent);
   }
 }
 

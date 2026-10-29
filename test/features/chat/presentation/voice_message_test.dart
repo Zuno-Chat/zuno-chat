@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 
@@ -366,6 +367,28 @@ void main() {
     expect(find.text('Voice message did not load. Try again.'), findsOneWidget);
     expect(audio.methods, isNot(contains('load')));
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+  });
+
+  voiceTest('a message that does not load offline asks to check the '
+      'connection', (tester) async {
+    final event = voice();
+    server.respond = (request) =>
+        throw http.ClientException('offline', request.url);
+    await pumpVoice(tester, event);
+
+    await tester.tap(find.byType(InkWell));
+    await pumpUntil(
+      tester,
+      () => find.byType(SnackBar).evaluate().isNotEmpty,
+      reason: 'the failure to be reported',
+    );
+
+    expect(
+      find.text(
+        'Voice message did not load. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
   });
 
   voiceTest('a message the player cannot play says so', (tester) async {

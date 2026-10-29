@@ -6,8 +6,9 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/failure_notice.dart';
+import '../../../core/ui/load_more_trigger.dart';
+import '../../../core/ui/search_field.dart';
 import '../../../core/ui/sheet.dart';
 import 'room_kind_avatar.dart';
 
@@ -167,28 +168,19 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
         heightFactor: 0.9,
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Text(
-                widget.communities
-                    ? context.l10n.roomsPublicCommunities
-                    : context.l10n.roomsPublicRooms,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
+            SheetTitle(
+              widget.communities
+                  ? context.l10n.roomsPublicCommunities
+                  : context.l10n.roomsPublicRooms,
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: ZunoTextField(
-                autofillHints: null,
+              child: SearchField(
+                hint: context.l10n.roomsSearchHint,
                 controller: _controller,
                 autofocus: true,
                 textInputAction: TextInputAction.search,
                 onChanged: _onChanged,
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: context.l10n.roomsSearchHint,
-                  border: const OutlineInputBorder(),
-                ),
               ),
             ),
             Expanded(child: _body()),
@@ -224,7 +216,13 @@ class _PublicRoomsSheetState extends State<_PublicRoomsSheet> {
     return ListView.builder(
       itemCount: _rooms.length + (hasMore ? 1 : 0),
       itemBuilder: (context, index) {
-        if (index == _rooms.length) return _LoadMore(onVisible: _loadMore);
+        if (index == _rooms.length) {
+          return Padding(
+            key: ValueKey(_rooms.length),
+            padding: const EdgeInsets.all(16),
+            child: Center(child: LoadMoreTrigger(onVisible: _loadMore)),
+          );
+        }
         final room = _rooms[index];
         return _RoomRow(
           client: widget.client,
@@ -277,21 +275,6 @@ class _RoomRow extends StatelessWidget {
       isThreeLine: hasTopic,
       trailing: joined ? Text(context.l10n.roomsJoined) : null,
       onTap: () => Navigator.of(context).pop(room.roomId),
-    );
-  }
-}
-
-class _LoadMore extends StatelessWidget {
-  final VoidCallback onVisible;
-
-  const _LoadMore({required this.onVisible});
-
-  @override
-  Widget build(BuildContext context) {
-    WidgetsBinding.instance.addPostFrameCallback((_) => onVisible());
-    return const Padding(
-      padding: EdgeInsets.all(16),
-      child: Center(child: CircularProgressIndicator()),
     );
   }
 }

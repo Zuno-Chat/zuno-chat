@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
@@ -71,6 +72,19 @@ void main() {
     expect(find.text('Could not save. Try again.'), findsOneWidget);
   });
 
+  testWidgets('a save that fails offline asks to check the connection', (
+    tester,
+  ) async {
+    server.respond = (request) =>
+        throw http.ClientException('offline', request.url);
+    await save(tester, [server.attachment()]);
+
+    expect(
+      find.text('Could not save. Check your connection and try again.'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('saving several says how many made it', (tester) async {
     final gone = server.attachment(eventId: r'$gone');
     server.goneFromServer(gone);
@@ -105,5 +119,20 @@ void main() {
 
     expect(device.shared, isEmpty);
     expect(find.text('Could not share. Try again.'), findsOneWidget);
+  });
+
+  testWidgets('a share that fails offline asks to check the connection', (
+    tester,
+  ) async {
+    server.respond = (request) =>
+        throw http.ClientException('offline', request.url);
+    await share(tester, server.attachment());
+    await tester.pumpAndSettle();
+
+    expect(device.shared, isEmpty);
+    expect(
+      find.text('Could not share. Check your connection and try again.'),
+      findsOneWidget,
+    );
   });
 }

@@ -1,16 +1,14 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/best_effort.dart';
-import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 import '../../settings/presentation/secure_backup_page.dart';
-import 'verification_page.dart';
+import 'start_verification.dart';
 
 Future<void> confirmPerson(
   BuildContext context,
@@ -26,24 +24,15 @@ Future<void> confirmPerson(
   final facts = await accountSecurityFactsOf(client);
   if (!facts.recoveryExists || !facts.thisDeviceHasIdentityKeys) {
     if (!context.mounted) return;
-    final proceed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.verificationSetUpRecoveryTitle),
-        content: Text(context.l10n.verificationSetUpRecoveryBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonNotNow),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.commonContinue),
-          ),
-        ],
-      ),
+    final proceed = await confirm(
+      context,
+      title: l10n.verificationSetUpRecoveryTitle,
+      body: l10n.verificationSetUpRecoveryBody,
+      confirmLabel: l10n.commonContinue,
+      cancelLabel: l10n.commonNotNow,
+      tone: ConfirmTone.primary,
     );
-    if (proceed != true || !context.mounted) return;
+    if (!proceed || !context.mounted) return;
     if (setUpRecovery != null) {
       await setUpRecovery(context);
     } else {
@@ -62,37 +51,18 @@ Future<void> confirmPerson(
 
   final keys = client.userDeviceKeys[userId];
   if (keys == null || keys.masterKey == null) {
-    messenger.showSnackBar(
-      SnackBar(content: Text(l10n.verificationTheyHaveNoRecovery)),
-    );
+    messenger.say(l10n.verificationTheyHaveNoRecovery);
     return;
   }
+  if (!context.mounted) return;
 
-  try {
-    final keyVerification = await keys.startVerification();
-    if (!context.mounted) {
-      unawaited(
-        runBestEffort(
-          () => keyVerification.cancel('m.user'),
-          label: 'cancel unattended verification',
-        ),
-      );
-      return;
-    }
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => VerificationPage(
-          keyVerification: keyVerification,
-          picturesFirst: picturesFirst,
-        ),
-      ),
-    );
-  } catch (e, s) {
-    reportCaught('start verification', e, s);
-    messenger.showSnackBar(
-      SnackBar(content: Text(l10n.verificationCouldNotStart)),
-    );
-  }
+  await startAndOpenVerification(
+    context,
+    keys.startVerification,
+    label: 'start verification',
+    failed: l10n.verificationCouldNotStart,
+    picturesFirst: picturesFirst,
+  );
 }
 
 bool canConfirmPerson(Client client, String userId) =>

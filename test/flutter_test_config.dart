@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/async/background_work.dart';
 import 'package:zuno/core/async/serial_lock.dart';
+import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/call_tone_player.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
@@ -69,6 +70,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   tearDown(NativeCallTonePlayer.forgetForTest);
   tearDown(AppLocale.instance.forgetForTest);
   tearDown(NotificationSoundPlayer.instance.forgetForTest);
+  tearDown(() => RingingCall.instance.callId = null);
 
   await testMain();
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
@@ -273,7 +272,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
         buildFcmPusher(
           token: token,
           gatewayUrl: gatewayUrl,
-          deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
+          deviceDisplayName: thisSessionDisplayName(),
         ),
       );
     } catch (e, s) {

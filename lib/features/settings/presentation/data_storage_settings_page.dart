@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/map_tile_cache.dart';
 import '../../../core/matrix/attachment_cache.dart';
@@ -9,43 +8,29 @@ import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 
 class DataStorageSettingsPage extends ConsumerWidget {
   const DataStorageSettingsPage({super.key});
 
   Future<void> _clearCache(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.settingsDataClearCacheTitle),
-        content: Text(l10n.settingsDataClearCacheBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(l10n.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(l10n.settingsDataClearCache),
-          ),
-        ],
-      ),
+    final confirmed = await confirm(
+      context,
+      title: l10n.settingsDataClearCacheTitle,
+      body: l10n.settingsDataClearCacheBody,
+      confirmLabel: l10n.settingsDataClearCache,
+      tone: ConfirmTone.primary,
     );
-    if (confirmed != true) return;
+    if (!confirmed || !context.mounted) return;
 
-    try {
-      await ref.read(matrixClientProvider).clearCache();
-    } catch (e, s) {
-      reportCaught('clear cache', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.settingsDataClearCacheFailed)),
-      );
-      return;
-    }
-    messenger.showSnackBar(
-      SnackBar(content: Text(l10n.settingsDataCacheCleared)),
+    await attempt(
+      context,
+      ref.read(matrixClientProvider).clearCache,
+      label: 'clear cache',
+      failed: l10n.settingsDataClearCacheFailed,
+      succeeded: l10n.settingsDataCacheCleared,
     );
   }
 
@@ -56,9 +41,7 @@ class DataStorageSettingsPage extends ConsumerWidget {
     await DiskAttachmentCache.instance.clear();
     await purgeMapTileCache();
     PaintingBinding.instance.imageCache.clear();
-    messenger.showSnackBar(
-      SnackBar(content: Text(l10n.settingsDataMediaCacheCleared)),
-    );
+    messenger.say(l10n.settingsDataMediaCacheCleared);
   }
 
   @override

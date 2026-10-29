@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/zuno_motion.dart';
+import '../../../core/ui/zuno_theme.dart';
 
 enum HomeTab {
   chats(Icons.chat_bubble_outline, Icons.chat_bubble),
@@ -54,15 +55,16 @@ class HomeBottomBar extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: colors.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(28),
+                      borderRadius: BorderRadius.circular(ZunoRadius.sheet),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(6),
                       child: TweenAnimationBuilder<double>(
                         tween: Tween(end: selected.index.toDouble()),
-                        duration: MediaQuery.disableAnimationsOf(context)
-                            ? Duration.zero
-                            : ZunoDurations.standard,
+                        duration: ZunoDurations.motion(
+                          context,
+                          ZunoDurations.standard,
+                        ),
                         curve: Curves.fastOutSlowIn,
                         builder: (context, position, _) => LayoutBuilder(
                           builder: (context, constraints) {

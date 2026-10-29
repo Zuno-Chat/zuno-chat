@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_quality.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/ui/media_pill.dart';
 import '../../../core/ui/zuno_colors.dart';
 
 class ConnectionQualityPill extends StatelessWidget {
@@ -60,29 +61,20 @@ class CallBadge extends StatelessWidget {
       liveRegion: liveRegion,
       label: semanticLabel ?? label,
       child: ExcludeSemantics(
-        child: Material(
-          color: mediaScrimColor,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (icon != null) ...[
-                  Icon(icon, size: 14, color: onMediaColor),
-                  const SizedBox(width: 5),
-                ],
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: maxLines,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.labelMedium!
-                        .copyWith(color: onMediaColor),
-                  ),
+        child: MediaPill(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: MediaPillSize.regular.gap,
+            children: [
+              if (icon != null) Icon(icon),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: maxLines,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -179,7 +171,7 @@ class ReconnectingNotice extends StatelessWidget {
 
 class EncryptingLabel extends StatefulWidget {
   final Duration hintAfter;
-  final TextStyle style;
+  final TextStyle? style;
   final TextStyle? hintStyle;
   final CrossAxisAlignment alignment;
   final int? hintMaxLines;
@@ -187,7 +179,7 @@ class EncryptingLabel extends StatefulWidget {
 
   const EncryptingLabel({
     this.hintAfter = const Duration(seconds: 8),
-    this.style = const TextStyle(color: onMediaColor, fontSize: 11),
+    this.style,
     this.hintStyle,
     this.alignment = CrossAxisAlignment.end,
     this.hintMaxLines = 3,
@@ -227,7 +219,7 @@ class _EncryptingLabelState extends State<EncryptingLabel> {
 
   @override
   Widget build(BuildContext context) {
-    final style = widget.style;
+    final style = widget.style ?? DefaultTextStyle.of(context).style;
     final l10n = context.l10n;
     return Semantics(
       container: true,

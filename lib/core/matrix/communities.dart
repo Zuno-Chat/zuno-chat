@@ -6,6 +6,7 @@ import '../l10n/l10n.dart';
 import 'optimistic_room_state.dart';
 import 'room_access.dart';
 import 'room_history.dart';
+import 'room_mute.dart';
 import 'room_permission.dart';
 import 'room_title.dart';
 
@@ -94,8 +95,7 @@ class HomeLayout {
 }
 
 bool _hasUnread(Room room, Map<String, int> corrections) =>
-    room.pushRuleState != PushRuleState.dontNotify &&
-    displayedUnreadCount(corrections, room) > 0;
+    !isRoomMuted(room) && displayedUnreadCount(corrections, room) > 0;
 
 HomeLayout arrangeHome(
   List<Room> rooms, {

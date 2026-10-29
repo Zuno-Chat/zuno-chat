@@ -44,30 +44,38 @@ class MxcAvatar extends StatelessWidget {
     final diameter = radius * 2;
     final corners = BorderRadius.circular(radius * 0.6);
     final tone = avatarToneFor(toneSeed);
-    final letter = Text(
-      _initial(fallbackText),
-      style: TextStyle(
-        fontSize: radius * 0.76,
-        fontWeight: FontWeight.w500,
-        height: 1,
-        color: zunoInk,
-      ),
-    );
-    final initial = switch (shape) {
-      AvatarShape.circle => CircleAvatar(
-        radius: radius,
-        backgroundColor: tone,
-        foregroundColor: zunoInk,
-        child: letter,
-      ),
-      AvatarShape.roundedSquare => SizedBox.square(
-        dimension: diameter,
-        child: DecoratedBox(
-          decoration: BoxDecoration(color: tone, borderRadius: corners),
-          child: Center(child: letter),
+    final initial = SizedBox.square(
+      dimension: diameter,
+      child: DecoratedBox(
+        decoration: switch (shape) {
+          AvatarShape.circle => BoxDecoration(
+            color: tone,
+            shape: BoxShape.circle,
+          ),
+          AvatarShape.roundedSquare => BoxDecoration(
+            color: tone,
+            borderRadius: corners,
+          ),
+        },
+        child: Center(
+          child: MediaQuery.withNoTextScaling(
+            child: DefaultTextStyle(
+              style: Theme.of(context).textTheme.titleMedium!
+                  .copyWith(color: zunoInk),
+              child: Text(
+                _initial(fallbackText),
+                style: TextStyle(
+                  fontSize: radius * 0.76,
+                  fontWeight: FontWeight.w500,
+                  height: 1,
+                  color: zunoInk,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
-    };
+    );
     final avatarUrl = this.avatarUrl;
     if (avatarUrl == null) return initial;
 

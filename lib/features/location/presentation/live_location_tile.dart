@@ -4,14 +4,12 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/live_location_viewing.dart';
 import 'live_location_clock.dart';
+import 'live_location_stop.dart';
 import 'live_location_text.dart';
 import 'location_map_view.dart';
 import 'map_parts.dart';
-
-const _previewAspectRatio = 16 / 10;
 
 class LiveLocationTile extends ConsumerWidget {
   final Room room;
@@ -44,54 +42,36 @@ class LiveLocationTile extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onOpen,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(radius),
-            child: AspectRatio(
-              aspectRatio: _previewAspectRatio,
-              child: position == null
-                  ? const _Waiting()
-                  : LocationMapView(
-                      geo: position.geo,
-                      interactive: false,
-                      persistTiles: false,
-                    ),
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(7, 6, 7, 3),
-          child: Row(
-            children: [
-              const Icon(Icons.share_location_outlined, size: 16),
-              const SizedBox(width: 4),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(context.l10n.locationLiveLocation),
-                    Text(
-                      status,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodySmall?.copyWith(color: muted),
-                    ),
-                  ],
+        MapPreviewFrame(
+          preview: position == null
+              ? const _Waiting()
+              : LocationMapView(
+                  geo: position.geo,
+                  interactive: false,
+                  persistTiles: false,
                 ),
+          radius: radius,
+          onTap: onOpen,
+          icon: Icons.share_location_outlined,
+          caption: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(context.l10n.locationLiveLocation),
+              Text(
+                status,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(color: muted),
               ),
-              const SizedBox(width: 8),
-              trailing,
             ],
           ),
+          trailing: trailing,
         ),
         if (share.userId == room.client.userID)
           Align(
             alignment: AlignmentDirectional.centerEnd,
             child: TextButton(
-              onPressed: () =>
-                  ref.read(liveLocationSharingProvider).stopIn(room.id),
+              onPressed: () => stopLiveSharingIn(context, ref, room),
               child: Text(context.l10n.locationStopSharing),
             ),
           ),
@@ -104,20 +84,13 @@ class _Waiting extends StatelessWidget {
   const _Waiting();
 
   @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return CustomPaint(
-      painter: MapGridPainter(
-        background: colors.surfaceContainerHighest,
-        line: colors.outlineVariant,
+  Widget build(BuildContext context) => MapGrid(
+    child: Center(
+      child: Icon(
+        Icons.share_location_outlined,
+        size: 32,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
       ),
-      child: Center(
-        child: Icon(
-          Icons.share_location_outlined,
-          size: 32,
-          color: colors.onSurfaceVariant,
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }

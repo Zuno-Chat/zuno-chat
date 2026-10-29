@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/attachment_cache.dart';
+import 'package:zuno/core/matrix/blurhash_image.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_photo.dart';
@@ -38,6 +39,21 @@ void main() {
     ),
   );
 
+  final photoImage = find.descendant(
+    of: find.byType(InteractiveViewer),
+    matching: find.byWidgetPredicate(
+      (widget) => widget is Image && widget.image is! BlurhashImage,
+    ),
+  );
+
+  ImageProvider shownImage(WidgetTester tester) =>
+      tester.widget<Image>(photoImage).image;
+
+  void cacheFull(Event event) => AttachmentCache.instance.put(
+    attachmentCacheKey(event, thumbnail: false),
+    server.served,
+  );
+
   double scale(WidgetTester tester) => tester
       .widget<InteractiveViewer>(find.byType(InteractiveViewer))
       .transformationController!
@@ -53,24 +69,70 @@ void main() {
     await tester.pump(ZunoDurations.standard);
   }
 
-  testWidgets('shows the full photo, zoomable, filling the screen', (
-    tester,
-  ) async {
+  testWidgets('shows the photo, zoomable, filling the screen', (tester) async {
     final event = server.attachment();
-    AttachmentCache.instance.put(
-      attachmentCacheKey(event, thumbnail: false),
-      server.served,
-    );
+    cacheFull(event);
 
     await pumpPhoto(tester, event);
 
-    final image = find.descendant(
-      of: find.byType(InteractiveViewer),
-      matching: find.byType(Image),
+    expect(photoImage, findsOneWidget);
+    expect(tester.widget<Image>(photoImage).fit, BoxFit.contain);
+    expect(tester.getSize(photoImage), const Size(800, 600));
+  });
+
+  testWidgets('decodes the photo no larger than the screen until zoomed', (
+    tester,
+  ) async {
+    final event = server.attachment();
+    cacheFull(event);
+
+    await pumpPhoto(tester, event);
+
+    final decoded = shownImage(tester) as ResizeImage;
+    final screen = tester.view.physicalSize;
+    expect(
+      (decoded.width, decoded.height, decoded.policy),
+      (screen.width.round(), screen.height.round(), ResizeImagePolicy.fit),
     );
-    expect(image, findsOneWidget);
-    expect(tester.widget<Image>(image).fit, BoxFit.contain);
-    expect(tester.getSize(image), const Size(800, 600));
+  });
+
+  testWidgets('zooming in swaps to the full photo, keeping the shown one '
+      'with no blurhash or spinner until it is ready', (tester) async {
+    final event = server.attachment(
+      eventId: r'$sharp',
+      info: photoWithBlurhash,
+    );
+    cacheFull(event);
+    await pumpPhoto(tester, event);
+    await pumpUntilImageLoads(tester, shownImage(tester));
+
+    await doubleTap(tester);
+
+    expect(shownImage(tester), isNot(isA<ResizeImage>()));
+    expect(blurhashStandIn, findsNothing);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    final painted = find.descendant(
+      of: find.byType(InteractiveViewer),
+      matching: find.byType(RawImage),
+    );
+    expect(tester.widget<RawImage>(painted).image, isNotNull);
+
+    await pumpUntilImageLoads(tester, shownImage(tester));
+
+    expect(blurhashStandIn, findsNothing);
+    expect(tester.widget<RawImage>(painted).image, isNotNull);
+  });
+
+  testWidgets('zooming back out keeps the full photo', (tester) async {
+    final event = server.attachment(eventId: r'$kept');
+    cacheFull(event);
+    await pumpPhoto(tester, event);
+
+    await doubleTap(tester);
+    await doubleTap(tester);
+
+    expect(scale(tester), closeTo(1, 0.001));
+    expect(shownImage(tester), isNot(isA<ResizeImage>()));
   });
 
   testWidgets('while it loads, its blurhash shows under a spinner', (

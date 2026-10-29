@@ -19,6 +19,8 @@ import '../../../core/security/secret_text.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/sensitive_clipboard.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
+import '../../../core/ui/status_message.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
 import '../../../core/ui/zuno_theme.dart';
@@ -28,23 +30,14 @@ import 'uia_password_prompt.dart';
 
 enum SecureBackupMode { recoveryCode, key, phrase }
 
-typedef BootstrapFactory = Bootstrap Function(
-  Client client,
-  void Function(Bootstrap) onUpdate,
-);
+typedef BootstrapFactory = Bootstrap Function(Client client);
 
-Bootstrap _sdkBootstrap(Client client, void Function(Bootstrap) onUpdate) =>
-    Bootstrap(encryption: client.encryption!, onUpdate: onUpdate);
+Bootstrap _sdkBootstrap(Client client) =>
+    Bootstrap(encryption: client.encryption!);
 
 bool _wrongRecoveryInput(Object error) =>
     error is InvalidPassphraseException ||
     (error is FormatException && error.message.contains('Base58'));
-
-const _buttonSpinner = SizedBox(
-  width: 20,
-  height: 20,
-  child: CircularProgressIndicator(strokeWidth: 2),
-);
 
 class SecureBackupPage extends ConsumerStatefulWidget {
   final SecureBackupMode mode;
@@ -63,7 +56,7 @@ class SecureBackupPage extends ConsumerStatefulWidget {
 }
 
 class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
-  Bootstrap? _bootstrap;
+  late Bootstrap _bootstrap;
   StreamSubscription<UiaRequest>? _uiaSub;
 
   bool _wipeExisting = true;
@@ -80,7 +73,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     super.initState();
     final client = ref.read(matrixClientProvider);
     _uiaSub = client.onUiaRequest.stream.listen(_handleUia);
-    _bootstrap = widget.createBootstrap(client, _onBootstrapUpdate);
+    _bootstrap = _newBootstrap();
     _maybeAutoAdvance();
   }
 
@@ -91,6 +84,10 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     _recoveryKeyInputController.dispose();
     super.dispose();
   }
+
+  Bootstrap _newBootstrap() =>
+      widget.createBootstrap(ref.read(matrixClientProvider))
+        ..onUpdate = _onBootstrapUpdate;
 
   void _releaseIdentityResetHold() {
     unawaited(_identityResetHold?.release());
@@ -132,7 +129,6 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
   void _maybeAutoAdvance() {
     final b = _bootstrap;
-    if (b == null) return;
     switch (b.state) {
       case BootstrapState.askWipeSsss:
         final autoRestore = widget.autoRestoreExisting;
@@ -195,10 +191,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       _preparedUiaPassword.clear();
       _recoveryKeyInputController.clear();
       _recoveryKeyInputError = null;
-      _bootstrap = widget.createBootstrap(
-        ref.read(matrixClientProvider),
-        _onBootstrapUpdate,
-      );
+      _bootstrap = _newBootstrap();
     });
   }
 
@@ -207,19 +200,15 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     ref.read(recoveryWordlistProvider).value,
   );
 
-  Future<void> _unlockWithEnteredKey() async {
-    final key = _bootstrap?.newSsssKey;
-    if (key == null) return;
+  Future<void> _unlock(String label, Future<void> Function() unlock) async {
     setState(() {
       _busy = true;
       _recoveryKeyInputError = null;
     });
     try {
-      await key.unlock(keyOrPassphrase: _unlockInput());
-      if (!mounted) return;
-      await _bootstrap!.openExistingSsss();
+      await unlock();
     } catch (e, s) {
-      if (!_wrongRecoveryInput(e)) reportCaught('unlock recovery', e, s);
+      if (!_wrongRecoveryInput(e)) reportCaught(label, e, s);
       if (!mounted) return;
       setState(
         () => _recoveryKeyInputError =
@@ -230,36 +219,31 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     }
   }
 
+  Future<void> _unlockWithEnteredKey() async {
+    final key = _bootstrap.newSsssKey;
+    if (key == null) return;
+    await _unlock('unlock recovery', () async {
+      await key.unlock(keyOrPassphrase: _unlockInput());
+      if (!mounted) return;
+      await _bootstrap.openExistingSsss();
+    });
+  }
+
   OpenSSSS? _nextLockedOldKey() =>
-      _bootstrap?.oldSsssKeys?.values.where((k) => !k.isUnlocked).firstOrNull;
+      _bootstrap.oldSsssKeys?.values.where((k) => !k.isUnlocked).firstOrNull;
 
   Future<void> _unlockNextOldKey() async {
     final key = _nextLockedOldKey();
     if (key == null) {
-      _bootstrap?.unlockedSsss();
+      _bootstrap.unlockedSsss();
       return;
     }
-    setState(() {
-      _busy = true;
-      _recoveryKeyInputError = null;
-    });
-    try {
+    await _unlock('unlock older recovery', () async {
       await key.unlock(keyOrPassphrase: _unlockInput());
       if (!mounted) return;
       _recoveryKeyInputController.clear();
-      if (_nextLockedOldKey() == null) {
-        _bootstrap?.unlockedSsss();
-      }
-    } catch (e, s) {
-      if (!_wrongRecoveryInput(e)) reportCaught('unlock older recovery', e, s);
-      if (!mounted) return;
-      setState(
-        () => _recoveryKeyInputError =
-            context.l10n.settingsSecureBackupUnlockFailed,
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+      if (_nextLockedOldKey() == null) _bootstrap.unlockedSsss();
+    });
   }
 
   Future<void> _newSsss(Bootstrap bootstrap, [String? passphrase]) async {
@@ -273,17 +257,15 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
 
   @override
   Widget build(BuildContext context) {
-    final bootstrap = _bootstrap;
     return Scaffold(
       appBar: AppBar(title: Text(context.l10n.settingsSecureBackupTitle)),
-      body: bootstrap == null
-          ? const Center(child: CircularProgressIndicator())
-          : SafeArea(child: _body(context, bootstrap)),
+      body: SafeArea(child: _body(context)),
     );
   }
 
-  Widget _body(BuildContext context, Bootstrap bootstrap) {
+  Widget _body(BuildContext context) {
     final l10n = context.l10n;
+    final bootstrap = _bootstrap;
     switch (bootstrap.state) {
       case BootstrapState.loading:
       case BootstrapState.askUseExistingSsss:
@@ -291,7 +273,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
       case BootstrapState.askSetupCrossSigning:
       case BootstrapState.askWipeOnlineKeyBackup:
       case BootstrapState.askSetupOnlineKeyBackup:
-        return _StatusScreen(message: l10n.settingsSecureBackupSettingUp);
+        return StatusMessage.busy(title: l10n.settingsSecureBackupSettingUp);
 
       case BootstrapState.askWipeSsss:
         return _ChoiceScreen(
@@ -362,8 +344,9 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
         );
 
       case BootstrapState.error:
-        return _StatusScreen(
-          message: l10n.settingsSecureBackupFailed,
+        return StatusMessage(
+          icon: Icons.error_outline,
+          title: l10n.settingsSecureBackupFailed,
           action: FilledButton(
             onPressed: _restart,
             child: Text(l10n.commonTryAgain),
@@ -378,30 +361,6 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
           wasRestore: !_wipeExisting,
         );
     }
-  }
-}
-
-class _StatusScreen extends StatelessWidget {
-  final String message;
-  final Widget? action;
-  const _StatusScreen({required this.message, this.action});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const CircularProgressIndicator(),
-            const SizedBox(height: 24),
-            Text(message, textAlign: TextAlign.center),
-            if (action != null) ...[const SizedBox(height: 24), action!],
-          ],
-        ),
-      ),
-    );
   }
 }
 
@@ -435,7 +394,7 @@ class _ChoiceScreen extends StatelessWidget {
       actions: [
         FilledButton(
           onPressed: busy ? null : onPrimary,
-          child: busy ? _buttonSpinner : Text(primaryLabel),
+          child: busy ? const InlineSpinner() : Text(primaryLabel),
         ),
         if (secondaryLabel != null)
           TextButton(
@@ -476,7 +435,7 @@ class _RecoveryKeyInputScreen extends StatelessWidget {
           builder: (context, value, _) => FilledButton(
             onPressed: busy || value.text.trim().isEmpty ? null : onSubmit,
             child: busy
-                ? _buttonSpinner
+                ? const InlineSpinner()
                 : Text(context.l10n.settingsSecureBackupUnlock),
           ),
         ),
@@ -539,7 +498,9 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
       actions: [
         FilledButton(
           onPressed: widget.busy ? null : _submit,
-          child: widget.busy ? _buttonSpinner : Text(l10n.commonContinue),
+          child: widget.busy
+              ? const InlineSpinner()
+              : Text(l10n.commonContinue),
         ),
       ],
       children: [
@@ -548,7 +509,6 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
           controller: _phraseController,
           autofocus: true,
           obscureText: true,
-          onChanged: (_) => setState(() {}),
           decoration: InputDecoration(
             labelText: l10n.settingsSecureBackupPhraseLabel,
           ),
@@ -564,7 +524,11 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
           ),
           onSubmitted: (_) => widget.busy ? null : _submit(),
         ),
-        PasswordStrengthBar(password: _phraseController.text),
+        ListenableBuilder(
+          listenable: _phraseController,
+          builder: (context, _) =>
+              PasswordStrengthBar(password: _phraseController.text),
+        ),
       ],
     );
   }
@@ -637,12 +601,11 @@ class _DoneScreenState extends State<_DoneScreen> {
               IconButton(
                 icon: const Icon(Icons.copy_outlined),
                 tooltip: l10n.commonCopy,
-                onPressed: () {
-                  SensitiveClipboard.instance.copy(recoveryKey);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(l10n.settingsSecureBackupKeyCopied)),
-                  );
-                },
+                onPressed: () => SensitiveClipboard.instance.copyWithNotice(
+                  ScaffoldMessenger.of(context),
+                  l10n,
+                  recoveryKey,
+                ),
               ),
             ],
           ),

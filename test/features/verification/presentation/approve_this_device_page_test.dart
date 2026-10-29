@@ -393,6 +393,13 @@ void main() {
 
         expect(find.text('Start over with a new code?'), findsOneWidget);
         expect(find.textContaining('Nobody can undo this.'), findsOneWidget);
+        final startOver = tester.widget<TextButton>(
+          find.widgetWithText(TextButton, 'Start over'),
+        );
+        expect(
+          startOver.style?.foregroundColor?.resolve({}),
+          Theme.of(tester.element(page)).colorScheme.error,
+        );
 
         await tap(tester, 'Cancel');
 

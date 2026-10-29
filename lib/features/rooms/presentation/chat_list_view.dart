@@ -20,40 +20,38 @@ import 'last_message_preview.dart';
 
 class ChatListView extends StatefulWidget {
   final Client client;
-  final List<Room> invitations;
-  final List<Room> rows;
-  final Map<String, List<Room>> communityRooms;
+  final HomeLayout layout;
   final HomeTab section;
   final bool loading;
   final Map<String, int> unreadCorrections;
   final void Function(Room room) onOpen;
   final void Function(Room room) onActions;
 
-  ChatListView.chats({
+  const ChatListView({
     required this.client,
-    required HomeLayout layout,
+    required this.layout,
+    required this.section,
     required this.unreadCorrections,
     required this.onOpen,
     required this.onActions,
     this.loading = false,
     super.key,
-  }) : invitations = layout.chatInvitations,
-       rows = layout.chats,
-       communityRooms = const {},
-       section = HomeTab.chats;
+  });
 
-  ChatListView.communities({
-    required this.client,
-    required HomeLayout layout,
-    required this.unreadCorrections,
-    required this.onOpen,
-    required this.onActions,
-    this.loading = false,
-    super.key,
-  }) : invitations = layout.communityInvitations,
-       rows = layout.communities,
-       communityRooms = layout.communityRooms,
-       section = HomeTab.communities;
+  List<Room> get invitations => switch (section) {
+    HomeTab.chats => layout.chatInvitations,
+    HomeTab.communities => layout.communityInvitations,
+  };
+
+  List<Room> get rows => switch (section) {
+    HomeTab.chats => layout.chats,
+    HomeTab.communities => layout.communities,
+  };
+
+  Map<String, List<Room>> get communityRooms => switch (section) {
+    HomeTab.chats => const {},
+    HomeTab.communities => layout.communityRooms,
+  };
 
   @override
   State<ChatListView> createState() => _ChatListViewState();
@@ -61,12 +59,25 @@ class ChatListView extends StatefulWidget {
 
 class _ChatListViewState extends State<ChatListView> {
   final _memo = RowMemo<ChatRowData>();
+  ChatRow? _prototype;
 
-  ChatRow get _prototype => ChatRow(
+  ChatRow get _rowPrototype => _prototype ??= ChatRow(
     data: ChatRowData.prototype,
     client: widget.client,
     preview: Text(context.l10n.roomsPreviewSample),
   );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _prototype = null;
+  }
+
+  @override
+  void didUpdateWidget(ChatListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.client != widget.client) _prototype = null;
+  }
 
   EmptyState _emptyState(AppLocalizations l10n) => switch (widget.section) {
     HomeTab.chats => EmptyState(
@@ -128,7 +139,7 @@ class _ChatListViewState extends State<ChatListView> {
             SliverToBoxAdapter(child: SectionLabel(widget.section.label(l10n))),
         ],
         SliverPrototypeExtentList(
-          prototypeItem: _prototype,
+          prototypeItem: _rowPrototype,
           delegate: SliverChildBuilderDelegate(
             (context, index) {
               final room = rows[index];
@@ -156,8 +167,16 @@ class _ChatListViewState extends State<ChatListView> {
                   data: data,
                   client: widget.client,
                   preview: inside == null
-                      ? LastMessagePreview(room: room, event: room.lastEvent)
-                      : CommunityPreview(room: inside.firstOrNull),
+                      ? LastMessagePreview(
+                          room: room,
+                          event: room.lastEvent,
+                          summary: data.preview,
+                        )
+                      : CommunityPreview(
+                          room: inside.firstOrNull,
+                          source: data.previewSource,
+                          summary: data.preview,
+                        ),
                   onTap: () => widget.onOpen(room),
                   onLongPress: () => widget.onActions(room),
                 ),

@@ -35,6 +35,16 @@ class MessageSummary {
   final CallSummary? call;
 
   const MessageSummary({required this.kind, required this.text, this.call});
+
+  @override
+  bool operator ==(Object other) =>
+      other is MessageSummary &&
+      other.kind == kind &&
+      other.text == text &&
+      other.call == call;
+
+  @override
+  int get hashCode => Object.hash(kind, text, call);
 }
 
 bool isTimelineMessage(Event event) =>
@@ -46,8 +56,11 @@ bool isTimelineMessage(Event event) =>
 bool isDisplayableTimelineEvent(
   Event event, {
   required bool showHiddenMessages,
+  bool? direct,
 }) {
-  if (isTimelineMessage(event) || isRoomUpdate(event)) return true;
+  if (isTimelineMessage(event) || isRoomUpdate(event, direct: direct)) {
+    return true;
+  }
   if (!showHiddenMessages) return false;
   if (event.relationshipType == RelationshipTypes.edit) return false;
   if (_isRealMessage(event)) {
@@ -93,6 +106,9 @@ MessageSummary summarize(AppLocalizations l10n, Event event) {
 }
 
 ({MessageKind kind, Event event}) _classify(Event event) {
+  if (!_isRealMessage(event)) {
+    return (kind: MessageKind.nonMessage, event: event);
+  }
   if (event.redacted) return (kind: MessageKind.deleted, event: event);
   if (isUndecryptableEvent(event)) {
     return (kind: MessageKind.undecryptable, event: event);
@@ -103,9 +119,6 @@ MessageSummary summarize(AppLocalizations l10n, Event event) {
 }
 
 MessageKind _contentKind(Event event) {
-  if (event.type != EventTypes.Message && event.type != EventTypes.Sticker) {
-    return MessageKind.nonMessage;
-  }
   final msgtype = event.messageType;
   if (isCallSignalingMessage(msgtype) ||
       isVerificationSignalingMessage(msgtype)) {

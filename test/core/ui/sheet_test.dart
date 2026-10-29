@@ -101,4 +101,74 @@ void main() {
     expect(route.useSafeArea, isTrue);
     expect(route.showDragHandle, isTrue);
   });
+
+  testWidgets('an action sheet answers with the tapped action and paints a '
+      'destructive one red', (tester) async {
+    final context = await pumpHost(tester);
+    final error = Theme.of(context).colorScheme.error;
+
+    final chosen = showActionSheet<String>(
+      context,
+      title: 'Alice',
+      actions: const [
+        SheetAction('mute', icon: Icons.mic_off_outlined, label: 'Mute'),
+        SheetAction(
+          'remove',
+          icon: Icons.person_remove_outlined,
+          label: 'Remove',
+          destructive: true,
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Alice'), findsOneWidget);
+    expect(
+      IconTheme.of(tester.element(find.byIcon(Icons.person_remove_outlined)))
+          .color,
+      error,
+    );
+    expect(
+      IconTheme.of(tester.element(find.byIcon(Icons.mic_off_outlined))).color,
+      isNot(error),
+    );
+
+    await tester.tap(find.text('Remove'));
+    await tester.pumpAndSettle();
+    expect(await chosen, 'remove');
+  });
+
+  testWidgets('a choice sheet ticks the current choice and answers with the '
+      'tapped one', (tester) async {
+    final context = await pumpHost(tester);
+    String? chosen = 'unset';
+
+    unawaited(
+      showChoiceSheet<String>(
+        context,
+        current: 'b',
+        header: 'Applies from now on',
+        choices: const [
+          SheetChoice('a', label: 'Anyone'),
+          SheetChoice('b', label: 'Members', subtitle: 'Only people here'),
+        ],
+      ).then((value) => chosen = value),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Applies from now on'), findsOneWidget);
+    expect(find.text('Only people here'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.widgetWithText(ListTile, 'Members'),
+        matching: find.byIcon(Icons.check_outlined),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.check_outlined), findsOneWidget);
+
+    await tester.tap(find.text('Anyone'));
+    await tester.pumpAndSettle();
+    expect(chosen, 'a');
+  });
 }

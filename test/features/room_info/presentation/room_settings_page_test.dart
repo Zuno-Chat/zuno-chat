@@ -932,4 +932,49 @@ void main() {
       );
     }
   });
+
+  group('canEditRoomSettings', () {
+    test('a member can edit nothing', () {
+      setOwnLevel(0);
+
+      expect(canEditRoomSettings(room), isFalse);
+    });
+
+    test('a moderator who may only change history can still open settings', () {
+      setRoomState(EventTypes.RoomPowerLevels, {
+        'users': {'@me:example.org': 50},
+        'events': {
+          EventTypes.RoomName: 100,
+          EventTypes.RoomTopic: 100,
+          EventTypes.RoomAvatar: 100,
+          EventTypes.RoomCanonicalAlias: 100,
+          EventTypes.HistoryVisibility: 50,
+        },
+      });
+
+      expect(canEditRoomSettings(room), isTrue);
+    });
+
+    test('a direct chat has no settings to open, whatever the level', () {
+      setOwnLevel(100);
+      setDirectChatWith('@bob:example.org');
+
+      expect(canEditRoomSettings(room), isFalse);
+    });
+
+    test('a community never offers history, so it alone does not count', () {
+      setRoomState(EventTypes.RoomCreate, {'type': RoomCreationTypes.mSpace});
+      setRoomState(EventTypes.RoomPowerLevels, {
+        'users': {'@me:example.org': 50},
+        'events': {
+          EventTypes.RoomName: 100,
+          EventTypes.RoomTopic: 100,
+          EventTypes.RoomAvatar: 100,
+          EventTypes.HistoryVisibility: 50,
+        },
+      });
+
+      expect(canEditRoomSettings(room), isFalse);
+    });
+  });
 }

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/calls/models/voip_participant_id.dart';
+import '../../../core/calls/show_over_lockscreen.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/navigation/chat_route.dart';
@@ -14,6 +15,7 @@ import '../../../core/navigation/launch_route.dart';
 import '../../../core/security/alerts/security_alerts_provider.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/corner_snap.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/zuno_theme.dart';
 import '../../chat/presentation/room_page.dart';
 import '../../verification/presentation/confirm_person.dart';
@@ -25,6 +27,17 @@ import 'call_view.dart';
 final _screens = Expando<Route<void>>('call screen route');
 
 final _selfCorners = Expando<SnapCorner>('self view corner');
+
+void showAnsweredCallScreen(
+  NavigatorState navigator,
+  ActiveCallController call, {
+  bool instant = false,
+  bool replace = false,
+}) {
+  if (call.screenOpen || call.finished) return;
+  ShowOverLockscreen.instance.claim(call);
+  showCallScreen(navigator, call, instant: instant, replace: replace);
+}
 
 void showCallScreen(
   NavigatorState navigator,
@@ -111,39 +124,21 @@ Future<T?> pushOverCallScreen<T>(
   return navigator.pushReplacement<T, Object?>(route);
 }
 
-class CallPage extends ConsumerStatefulWidget {
+class CallPage extends StatefulWidget {
   final ActiveCallController call;
 
   const CallPage({required this.call, super.key});
 
   @override
-  ConsumerState<CallPage> createState() => _CallPageState();
+  State<CallPage> createState() => _CallPageState();
 }
 
-class _CallPageState extends ConsumerState<CallPage> {
+class _CallPageState extends State<CallPage> {
   ActiveCallController get call => widget.call;
-
-  @override
-  void initState() {
-    super.initState();
-    if (!call.finished) call.addListener(_onCall);
-  }
-
-  void _onCall() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    call.removeListener(_onCall);
-    super.dispose();
-  }
 
   Future<void> _toggleCamera() async {
     if (await call.toggleCamera() || !mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.callsCameraDidNotTurnOn)),
-    );
+    ScaffoldMessenger.of(context).say(context.l10n.callsCameraDidNotTurnOn);
   }
 
   CallViewParticipant _viewOf(
@@ -160,18 +155,19 @@ class _CallPageState extends ConsumerState<CallPage> {
   );
 
   @override
-  Widget build(BuildContext context) {
-    final confirmUserId = _confirmPromptUserId();
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Theme(
-        data: zunoDarkTheme,
-        child: _buildCall(context, confirmUserId),
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: SystemUiOverlayStyle.light,
+    child: Theme(
+      data: zunoDarkTheme,
+      child: ListenableBuilder(
+        listenable: call,
+        builder: (context, _) =>
+            Consumer(builder: (context, ref, _) => _buildCall(context, ref)),
       ),
-    );
-  }
+    ),
+  );
 
-  String? _confirmPromptUserId() {
+  String? _confirmPromptUserId(WidgetRef ref) {
     if (!call.session.room.isDirectChat) return null;
     final remotes = call.remotes;
     if (remotes.length != 1) return null;
@@ -195,7 +191,7 @@ class _CallPageState extends ConsumerState<CallPage> {
     return wanted ? userId : null;
   }
 
-  String? _unvouchedDeviceWarning(BuildContext context) {
+  String? _unvouchedDeviceWarning(BuildContext context, WidgetRef ref) {
     final people = {
       for (final remote in call.remotes)
         if (ref.watch(
@@ -213,7 +209,11 @@ class _CallPageState extends ConsumerState<CallPage> {
     );
   }
 
-  Future<void> _explainConfirming(BuildContext context, String userId) async {
+  Future<void> _explainConfirming(
+    BuildContext context,
+    WidgetRef ref,
+    String userId,
+  ) async {
     final confirm = await showWhyConfirmSheet(
       context,
       name: withoutServer(userId),
@@ -227,7 +227,8 @@ class _CallPageState extends ConsumerState<CallPage> {
     await confirmPerson(context, ref, userId, picturesFirst: true);
   }
 
-  Widget _buildCall(BuildContext context, String? confirmUserId) {
+  Widget _buildCall(BuildContext context, WidgetRef ref) {
+    final confirmUserId = _confirmPromptUserId(ref);
     final local = call.local;
     final canModerate = call.moderationGate();
     return CallView(
@@ -256,8 +257,8 @@ class _CallPageState extends ConsumerState<CallPage> {
       confirmName: confirmUserId == null ? null : withoutServer(confirmUserId),
       onConfirmPerson: confirmUserId == null
           ? null
-          : () => _explainConfirming(context, confirmUserId),
-      unvouchedDeviceWarning: _unvouchedDeviceWarning(context),
+          : () => _explainConfirming(context, ref, confirmUserId),
+      unvouchedDeviceWarning: _unvouchedDeviceWarning(context, ref),
       mutedBy: call.mutedBy?.calcDisplayname(),
     );
   }

@@ -38,10 +38,7 @@ class ViewerFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = mediaSize(
-      event.infoMap.tryGet<int>('w'),
-      event.infoMap.tryGet<int>('h'),
-    );
+    final size = mediaSize(event.mediaWidth, event.mediaHeight);
     if (size == null) return SizedBox.expand(child: child);
     return Center(
       child: AspectRatio(aspectRatio: size.$1 / size.$2, child: child),

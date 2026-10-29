@@ -18,6 +18,7 @@ import '../../../../core/matrix/playable_media_file.dart';
 import '../../../../core/matrix/voice_message.dart';
 import '../../../../core/matrix/voice_recording.dart';
 import '../../../../core/platform/platform_capabilities.dart';
+import '../../../../core/ui/notice.dart';
 import '../message_bubble.dart';
 
 class VoiceMessage extends ConsumerStatefulWidget {
@@ -49,10 +50,7 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
   @override
   MediaSound get sound => MediaSound.voice;
 
-  final _player = AudioPlayer(
-    handleInterruptions: false,
-    handleAudioSessionActivation: false,
-  );
+  AudioPlayer? _player;
   final _subscriptions = <StreamSubscription<Object?>>[];
   late final MediaAudioSession _audio;
   bool _playing = false;
@@ -61,7 +59,7 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
   bool _loading = false;
   bool _starting = false;
   Future<bool>? _loadingFile;
-  Duration _position = Duration.zero;
+  final _position = ValueNotifier(Duration.zero);
   Duration? _duration;
   List<int>? _waveform;
 
@@ -73,21 +71,31 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     _audio = ref.read(mediaAudioSessionProvider);
     _duration = voiceMessageDuration(widget.event);
     _waveform = _drawnBars(widget.event);
+  }
+
+  AudioPlayer get _activePlayer => _player ??= _newPlayer();
+
+  AudioPlayer _newPlayer() {
+    final player = AudioPlayer(
+      handleInterruptions: false,
+      handleAudioSessionActivation: false,
+    );
     _subscriptions.addAll([
-      _player.playerStateStream.listen(_onPlayerState),
-      _player
+      player.playerStateStream.listen(_onPlayerState),
+      player
           .createPositionStream(
             minPeriod: const Duration(milliseconds: 100),
             maxPeriod: const Duration(milliseconds: 200),
           )
           .listen((position) {
-            if (mounted && _playing) setState(() => _position = position);
+            if (mounted && _playing) _position.value = position;
           }),
-      _player.durationStream.listen((duration) {
+      player.durationStream.listen((duration) {
         if (mounted && duration != null) setState(() => _duration = duration);
       }),
-      _player.errorStream.listen(_playerFailed),
+      player.errorStream.listen(_playerFailed),
     ]);
+    return player;
   }
 
   void _onPlayerState(PlayerState state) {
@@ -101,15 +109,14 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     }
     final playing = state.playing && !finished;
     if (!mounted) return;
-    setState(() {
-      _playing = playing;
-      if (finished) _position = Duration.zero;
-    });
+    if (finished) _position.value = Duration.zero;
+    if (playing != _playing) setState(() => _playing = playing);
   }
 
   Future<void> _rewind() async {
-    await _player.pause();
-    await _player.seek(Duration.zero);
+    final player = _activePlayer;
+    await player.pause();
+    await player.seek(Duration.zero);
   }
 
   void _playerFailed(PlayerException error) {
@@ -133,12 +140,19 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     for (final subscription in _subscriptions) {
       unawaited(subscription.cancel());
     }
+    _position.dispose();
     unawaited(_release());
     super.dispose();
   }
 
   Future<void> _release() async {
-    await runBestEffort(_player.dispose, label: 'release voice message player');
+    final player = _player;
+    if (player != null) {
+      await runBestEffort(
+        player.dispose,
+        label: 'release voice message player',
+      );
+    }
     await _audio.endPlayback(this);
   }
 
@@ -152,8 +166,12 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
 
   @override
   Future<void> pause() async {
-    await _player.pause();
-    if (!_player.playing) await _audio.endPlayback(this);
+    final player = _player;
+    if (player != null) {
+      await player.pause();
+      if (player.playing) return;
+    }
+    await _audio.endPlayback(this);
   }
 
   Future<void> _start({Duration? at}) async {
@@ -162,7 +180,7 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     if (!mounted) return;
     await _audio.beginPlayback(this);
     _inProgress = true;
-    unawaited(_player.play());
+    unawaited(_activePlayer.play());
   }
 
   Future<bool> _load() =>
@@ -176,7 +194,7 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
       cached = await cachedAttachmentFile(widget.event);
     } catch (e, s) {
       reportCaught('load voice message', e, s);
-      _didNotLoad();
+      _didNotLoad(e);
       return false;
     } finally {
       if (downloads && mounted) setState(() => _loading = false);
@@ -193,13 +211,13 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
         capabilities: ambientCapabilities,
       );
       if (!mounted) return false;
-      await _player.setFilePath(file.path);
+      await _activePlayer.setFilePath(file.path);
       _loaded = true;
       return mounted;
     } catch (e, s) {
       if (!mounted) return false;
       reportCaught('play voice message', e, s);
-      _didNotLoad();
+      _didNotLoad(e);
       return false;
     } finally {
       _starting = false;
@@ -212,16 +230,16 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     ),
   );
 
-  void _didNotLoad() {
+  void _didNotLoad(Object error) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.chatVoiceMessageDidNotLoad)),
-    );
+    final l10n = context.l10n;
+    ScaffoldMessenger.of(context)
+        .sayFailed(l10n, error, failed: l10n.chatVoiceMessageDidNotLoad);
   }
 
   Future<void> _seek(Duration position) async {
-    await _player.seek(position);
-    if (mounted) setState(() => _position = position);
+    await _activePlayer.seek(position);
+    if (mounted) _position.value = position;
   }
 
   Future<void> _seekTo(double ratio) async {
@@ -237,12 +255,16 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     }
   }
 
+  double _progressAt(Duration position) {
+    final total = _duration ?? Duration.zero;
+    return total.inMilliseconds == 0
+        ? 0.0
+        : (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final total = _duration ?? Duration.zero;
-    final progress = total.inMilliseconds == 0
-        ? 0.0
-        : (_position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
     final waveform = _waveform;
 
     final theme = Theme.of(context);
@@ -282,33 +304,37 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              waveform == null
-                  ? Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 4,
+              ValueListenableBuilder<Duration>(
+                valueListenable: _position,
+                builder: (context, position, _) => waveform == null
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: LinearProgressIndicator(
+                            value: _progressAt(position),
+                            minHeight: 4,
+                          ),
                         ),
+                      )
+                    : _WaveformBars(
+                        samples: waveform,
+                        progress: _progressAt(position),
+                        onSeek: _seekTo,
                       ),
-                    )
-                  : _WaveformBars(
-                      samples: waveform,
-                      progress: progress,
-                      onSeek: _seekTo,
-                    ),
+              ),
               const SizedBox(height: 2),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    formatDuration(
-                      _playing || _position > Duration.zero
-                          ? _position
-                          : total,
+                  ValueListenableBuilder<Duration>(
+                    valueListenable: _position,
+                    builder: (context, position, _) => Text(
+                      formatDuration(
+                        _playing || position > Duration.zero ? position : total,
+                      ),
+                      style: theme.textTheme.labelSmall!.copyWith(color: muted),
                     ),
-                    style: theme.textTheme.labelSmall!.copyWith(color: muted),
                   ),
                   widget.meta,
                 ],

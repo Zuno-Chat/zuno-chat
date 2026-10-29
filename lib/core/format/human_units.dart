@@ -18,3 +18,7 @@ String formatDuration(Duration duration) {
   final minutes = shown.inMinutes.remainder(60).toString().padLeft(2, '0');
   return '${shown.inHours}:$minutes:$seconds';
 }
+
+const detailSeparator = ' · ';
+
+String joinDetails(Iterable<String> parts) => parts.join(detailSeparator);

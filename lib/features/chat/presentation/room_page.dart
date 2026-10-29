@@ -12,16 +12,14 @@ import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/connectivity_provider.dart';
-import '../../../core/matrix/currently_open_room_provider.dart';
 import '../../../core/matrix/media_audio_session.dart';
 import '../../../core/matrix/read_receipts.dart';
-import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/room_changes.dart';
 import '../../../core/matrix/room_permission.dart';
-import '../../../core/matrix/room_state_rebuild.dart';
 import '../../../core/matrix/room_timeline_reload.dart';
+import '../../../core/matrix/room_title.dart';
 import '../../../core/matrix/sync_coordinator_provider.dart';
 import '../../../core/matrix/voice_recording.dart';
 import '../../../core/navigation/chat_route.dart';
@@ -33,8 +31,11 @@ import '../../../core/security/security_providers.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/share/inbound_share.dart';
 import '../../../core/ui/close_own_route.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keep_clear.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/route_settled.dart';
+import '../../../core/ui/zuno_motion.dart';
 import '../../calls/presentation/active_call_banner.dart';
 import '../../calls/presentation/room_calls.dart';
 import '../../communities/presentation/join_requests_view.dart';
@@ -45,7 +46,6 @@ import '../data/chat_timeline.dart';
 import '../data/discarded_sends.dart';
 import '../data/message_kinds.dart';
 import '../data/room_sender.dart';
-import '../data/sync_filter.dart';
 import '../data/typing_announcer.dart';
 import 'attachment_menu.dart';
 import 'chat_wallpaper.dart';
@@ -58,7 +58,6 @@ import 'pending_invite_banner.dart';
 import 'recovery_code_warning.dart';
 import 'reply_target_cache.dart';
 import 'room_app_bar.dart';
-import 'room_lifecycle.dart';
 import 'room_menu.dart';
 import 'voice_recorder.dart';
 
@@ -76,10 +75,7 @@ class RoomPage extends ConsumerStatefulWidget {
 }
 
 class _RoomPageState extends ConsumerState<RoomPage>
-    with
-        WidgetsBindingObserver,
-        RouteSettled<RoomPage>,
-        RoomStateRebuild<RoomPage> {
+    with WidgetsBindingObserver, RouteSettled<RoomPage> {
   final _input = TextEditingController();
   final _scrollController = ScrollController();
   final _showScrollToBottom = ValueNotifier(false);
@@ -98,23 +94,16 @@ class _RoomPageState extends ConsumerState<RoomPage>
   bool _historyStalled = false;
 
   late var _replyTargets = _newReplyTargets();
-  bool _activeCallBannerShown = false;
   bool _gettingFile = false;
-
-  late final CurrentlyOpenRoomIdNotifier _currentlyOpenRoomNotifier;
 
   bool _isForeground = true;
 
   RoomSender get _sender => ref.read(roomSenderProvider(widget.room));
 
   @override
-  Client get roomStateClient => widget.room.client;
-
-  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _currentlyOpenRoomNotifier = ref.read(currentlyOpenRoomIdProvider.notifier);
     _typing = TypingAnnouncer(
       room: widget.room,
       input: _input,
@@ -130,23 +119,20 @@ class _RoomPageState extends ConsumerState<RoomPage>
       ),
       onProblem: _onRecordingProblem,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _currentlyOpenRoomNotifier.set(widget.room.id);
-      final share = widget.pendingShare;
-      if (share != null) _applyPendingShare(share);
-    });
+    final share = widget.pendingShare;
+    if (share != null) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _applyPendingShare(share),
+      );
+    }
     unawaited(
       MessageNotifications.instance.cancelMessageNotification(widget.room.id),
     );
     _scrollController.addListener(_maybeLoadMoreHistory);
     _scrollController.addListener(_updateScrollToBottomVisibility);
     unawaited(_loadTimeline());
-    _syncSub = widget.room.client.onSync.stream.listen((update) {
-      if (!mounted) return;
-      if (_historyStalled) _resumeHistory();
-      if (_activeCallBannerShown || syncTouchesRoom(update, widget.room.id)) {
-        setState(() {});
-      }
+    _syncSub = widget.room.client.onSync.stream.listen((_) {
+      if (mounted && _historyStalled) _resumeHistory();
     });
   }
 
@@ -158,26 +144,18 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final isForeground = isRoomForeground(state);
+    final isForeground = chatInFront(state);
     if (isForeground == _isForeground) return;
     _isForeground = isForeground;
-    if (isForeground) {
-      _currentlyOpenRoomNotifier.set(widget.room.id);
-      unawaited(
-        MessageNotifications.instance.cancelMessageNotification(widget.room.id),
-      );
-      _markLatestRead();
-    } else {
-      if (_currentlyOpenRoomNotifier.current == widget.room.id) {
-        _currentlyOpenRoomNotifier.set(null);
-      }
-    }
+    if (!isForeground) return;
+    unawaited(
+      MessageNotifications.instance.cancelMessageNotification(widget.room.id),
+    );
+    _markLatestRead();
   }
 
-  ReplyTargetCache _newReplyTargets() => ReplyTargetCache(
-    widget.room.getEventById,
-    keysArrived: widget.room.onSessionKeyReceived.stream,
-  );
+  ReplyTargetCache _newReplyTargets() =>
+      ReplyTargetCache(widget.room.getEventById);
 
   @override
   void dispose() {
@@ -194,11 +172,6 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _typing.dispose();
     _input.dispose();
     _recorder.dispose();
-    final notifier = _currentlyOpenRoomNotifier;
-    final roomId = widget.room.id;
-    scheduleMicrotask(() {
-      if (notifier.current == roomId) notifier.set(null);
-    });
     super.dispose();
   }
 
@@ -262,7 +235,6 @@ class _RoomPageState extends ConsumerState<RoomPage>
       onUpdate: () {
         if (!mounted || _timeline == null) return;
         _timelineNotifier.changed();
-        setState(() {});
         _markLatestRead();
         WidgetsBinding.instance.addPostFrameCallback(
           (_) => _maybeLoadMoreHistory(),
@@ -295,24 +267,29 @@ class _RoomPageState extends ConsumerState<RoomPage>
       );
     } catch (e, s) {
       reportCaught('reload messages', e, s);
-      if (mounted) _snack(context.l10n.chatMessagesNotReloaded);
+      if (mounted) {
+        ScaffoldMessenger.of(context).sayFailed(
+          context.l10n,
+          e,
+          failed: context.l10n.chatMessagesNotReloaded,
+        );
+      }
     }
     await _loadTimeline();
-  }
-
-  void _snack(@displayText String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _onRecordingProblem(VoiceRecordingProblem problem) {
     if (!mounted) return;
     final l10n = context.l10n;
-    _snack(switch (problem) {
-      VoiceRecordingProblem.microphoneDenied => l10n.chatMicrophoneAccessNeeded,
-      VoiceRecordingProblem.didNotStart => l10n.chatRecordingDidNotStart,
-      VoiceRecordingProblem.notSent => l10n.chatVoiceMessageNotSent,
-    });
+    final messenger = ScaffoldMessenger.of(context);
+    switch (problem) {
+      case VoiceRecordingProblem.microphoneDenied:
+        messenger.say(l10n.chatMicrophoneAccessNeeded);
+      case VoiceRecordingProblem.didNotStart:
+        messenger.say(l10n.chatRecordingDidNotStart);
+      case VoiceRecordingProblem.notSent:
+        messenger.sayFailed(l10n, null, failed: l10n.chatVoiceMessageNotSent);
+    }
   }
 
   void _markLatestRead() {
@@ -374,11 +351,12 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   void _scrollToBottom() {
     if (!_scrollController.hasClients) return;
-    _scrollController.animateTo(
-      0,
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOut,
-    );
+    final duration = ZunoDurations.motion(context, ZunoDurations.page);
+    if (duration == Duration.zero) {
+      _scrollController.jumpTo(0);
+      return;
+    }
+    _scrollController.animateTo(0, duration: duration, curve: Curves.easeOut);
   }
 
   void _send() {
@@ -445,9 +423,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
     start(event);
   }
 
-  void _openMedia(Event event) => unawaited(
-    openMediaViewer(context, chat: _viewerChat, opened: event),
-  );
+  void _openMedia(Event event) =>
+      unawaited(openMediaViewer(context, chat: _viewerChat, opened: event));
 
   void _startReply(Event event) {
     setState(() {
@@ -479,21 +456,20 @@ class _RoomPageState extends ConsumerState<RoomPage>
     ref.listen<AsyncValue<bool>>(isOfflineProvider, (previous, next) {
       if (becameOnline(previous, next)) _retryAfterReconnect();
     });
-    final timeline = _timeline;
-    final ownUserId = widget.room.client.userID;
-    final canCall =
-        canPublishCallMemberState(widget.room) && hasSomeoneToCall(widget.room);
-    final activeRoomCall = ownUserId == null
-        ? null
-        : findActiveRoomCall(widget.room, excludeUserId: ownUserId);
-    final showActiveCallBanner =
-        canCall &&
-        activeRoomCall != null &&
-        ref.watch(activeCallProvider)?.callId != activeRoomCall.callId;
-    _activeCallBannerShown = showActiveCallBanner;
+    return RoomChangesBuilder(
+      changes: RoomChanges.state(widget.room),
+      builder: (context) => _page(context, sender, showHiddenMessages),
+    );
+  }
 
+  Widget _page(
+    BuildContext context,
+    RoomSender sender,
+    bool showHiddenMessages,
+  ) {
+    final timeline = _timeline;
+    final canCall = canStartCall(widget.room);
     final l10n = context.l10n;
-    final inviteDisplay = roomInviteDisplay(widget.room, l10n);
     final canPost = canPostInRoom(widget.room);
 
     return Scaffold(
@@ -520,16 +496,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                   SecurityAlertBanners.room(widget.room),
                   PendingInviteBanner(room: widget.room),
                   JoinRequestsBanner(room: widget.room),
-                  if (showActiveCallBanner)
-                    ActiveCallBanner(
-                      call: activeRoomCall,
-                      onJoin: () => joinRoomCall(
-                        context,
-                        ref,
-                        widget.room,
-                        activeRoomCall,
-                      ),
-                    ),
+                  if (canCall) _RoomCallBanner(room: widget.room),
                   LiveLocationBanner(room: widget.room),
                   Expanded(
                     child: timeline == null
@@ -540,7 +507,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                                 listenable: sender,
                                 builder: (_, _) => MessageListView(
                                   room: widget.room,
-                                  timeline: timeline,
+                                  timeline: _timelineNotifier,
                                   controller: _scrollController,
                                   showHiddenMessages: showHiddenMessages,
                                   canRespond: canPost,
@@ -587,19 +554,23 @@ class _RoomPageState extends ConsumerState<RoomPage>
                       children: [
                         if (timeline != null &&
                             (_editingEvent != null || _replyingToEvent != null))
-                          ComposeBar(
-                            title: _editingEvent != null
-                                ? l10n.chatEditingMessage
-                                : l10n.chatReplyingTo(
-                                    _replyingToEvent!.senderFromMemoryOrFallback
-                                        .calcDisplayname(),
-                                  ),
-                            snippet: previewSnippet(
-                              l10n,
-                              _editingEvent ?? _replyingToEvent!,
-                              timeline,
+                          ListenableBuilder(
+                            listenable: _timelineNotifier,
+                            builder: (context, _) => ComposeBar(
+                              title: _editingEvent != null
+                                  ? l10n.chatEditingMessage
+                                  : l10n.chatReplyingTo(
+                                      _replyingToEvent!
+                                          .senderFromMemoryOrFallback
+                                          .calcDisplayname(),
+                                    ),
+                              snippet: previewSnippet(
+                                l10n,
+                                _editingEvent ?? _replyingToEvent!,
+                                timeline,
+                              ),
+                              onCancel: _cancelCompose,
                             ),
-                            onCancel: _cancelCompose,
                           ),
                         if (!widget.room.isDirectChat && canPost)
                           MentionSuggestions(
@@ -623,7 +594,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
                             child: Center(
                               child: Text(
                                 widget.room.isAbandonedDMRoom
-                                    ? l10n.chatPartnerLeft(inviteDisplay.title)
+                                    ? l10n.chatPartnerLeft(
+                                        roomTitle(widget.room, l10n),
+                                      )
                                     : l10n.chatCannotSend,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
@@ -647,6 +620,42 @@ class _RoomPageState extends ConsumerState<RoomPage>
   }
 }
 
+class _RoomCallBanner extends ConsumerStatefulWidget {
+  final Room room;
+
+  const _RoomCallBanner({required this.room});
+
+  @override
+  ConsumerState<_RoomCallBanner> createState() => _RoomCallBannerState();
+}
+
+class _RoomCallBannerState extends ConsumerState<_RoomCallBanner> {
+  bool _shown = false;
+
+  bool _whileShown(SyncUpdate _) => _shown;
+
+  @override
+  Widget build(BuildContext context) {
+    final ownCall = ref.watch(activeCallProvider)?.callId;
+    return RoomChangesBuilder(
+      changes: RoomChanges.where(widget.room.client, syncs: _whileShown),
+      builder: (context) {
+        final room = widget.room;
+        final ownUserId = room.client.userID;
+        final call = ownUserId == null
+            ? null
+            : findActiveRoomCall(room, excludeUserId: ownUserId);
+        _shown = call != null && ownCall != call.callId;
+        if (call == null || !_shown) return const SizedBox.shrink();
+        return ActiveCallBanner(
+          call: call,
+          onJoin: () => joinRoomCall(context, ref, room, call),
+        );
+      },
+    );
+  }
+}
+
 class _TimelinePlaceholder extends StatelessWidget {
   final bool loading;
 
@@ -655,13 +664,7 @@ class _TimelinePlaceholder extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!loading) return const SizedBox.expand();
-    return const Center(
-      child: SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(strokeWidth: 2),
-      ),
-    );
+    return const Center(child: InlineSpinner(size: 24));
   }
 }
 

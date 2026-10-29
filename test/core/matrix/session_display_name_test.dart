@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/matrix/session_display_name.dart';
 
@@ -14,5 +16,12 @@ void main() {
 
   test('falls back to "Unknown" for an empty OS name', () {
     expect(sessionDisplayName(''), 'Zuno on Unknown');
+  });
+
+  test('this session is named after the OS it runs on', () {
+    expect(
+      thisSessionDisplayName(),
+      sessionDisplayName(Platform.operatingSystem),
+    );
   });
 }

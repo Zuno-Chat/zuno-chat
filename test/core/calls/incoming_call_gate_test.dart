@@ -43,7 +43,6 @@ void main() {
 
   setUp(() async {
     memberPuts = [];
-    RingingCall.instance.callId = null;
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
     declines = SentCallDeclines();

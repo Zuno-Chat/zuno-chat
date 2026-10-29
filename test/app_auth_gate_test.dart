@@ -17,14 +17,12 @@ import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/l10n/app_language.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/cached_attachment_image.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
-import 'package:zuno/core/matrix/currently_open_room_provider.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
@@ -56,6 +54,7 @@ import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 import 'package:zuno/features/settings/presentation/active_sessions_page.dart';
 import 'package:zuno/features/share/presentation/share_picker_page.dart';
 
+import 'features/verification/presentation/verification_harness.dart';
 import 'helpers/app_lifecycle.dart';
 import 'helpers/call_channel_mocks.dart';
 import 'helpers/fake_call_session.dart';
@@ -69,6 +68,7 @@ import 'helpers/fake_unified_push.dart';
 import 'helpers/fixed_homeserver.dart';
 import 'helpers/fixed_notifications_allowed.dart';
 import 'helpers/native_method_calls.dart';
+import 'helpers/open_chat_route.dart';
 
 class _IdleSyncClient extends Client {
   _IdleSyncClient()
@@ -176,8 +176,6 @@ void main() {
     }
     client.rooms.add(room);
   });
-
-  tearDown(() => RingingCall.instance.callId = null);
 
   Future<ProviderContainer> pumpApp(
     WidgetTester tester, {
@@ -405,6 +403,17 @@ void main() {
       expect(find.byType(IncomingCallPage), findsNothing);
       expect(find.byType(RoomListPage), findsOneWidget);
     });
+  });
+
+  testWidgets('a verification request from someone is offered over the chat '
+      'list', (tester) async {
+    await pumpApp(tester);
+    await settle(tester);
+
+    client.onKeyVerificationRequest.add(FakeKeyVerification());
+    await settle(tester);
+
+    expect(find.text('@bob wants to verify with you.'), findsOneWidget);
   });
 
   group('notification taps while running', () {
@@ -857,12 +866,12 @@ void main() {
     testWidgets('push delivery sees the open chat and whether the app syncs', (
       tester,
     ) async {
-      final container = await pumpApp(tester);
+      await pumpApp(tester);
       await settle(tester);
       final runner = fcmDeliveryProvider.runner;
 
       moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
-      container.read(currentlyOpenRoomIdProvider.notifier).set(room.id);
+      await openChatRoute(tester, globalNavigatorKey.currentState!, room.id);
 
       expect(runner.isAppSyncing(), isTrue);
       expect(runner.currentlyOpenRoomId(), room.id);
@@ -875,10 +884,11 @@ void main() {
     testWidgets('once the app is gone, push delivery sees no open chat', (
       tester,
     ) async {
-      final container = await pumpApp(tester);
+      await pumpApp(tester);
       await settle(tester);
       moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
-      container.read(currentlyOpenRoomIdProvider.notifier).set(room.id);
+      await openChatRoute(tester, globalNavigatorKey.currentState!, room.id);
+      expect(fcmDeliveryProvider.runner.currentlyOpenRoomId(), room.id);
 
       await tester.pumpWidget(const SizedBox());
 

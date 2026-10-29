@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/matrix/room_roles.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/notice.dart';
 import 'role_picker.dart';
 
 class RoomPermissionsPage extends StatefulWidget {
@@ -32,15 +32,13 @@ class _RoomPermissionsPageState extends State<RoomPermissionsPage> {
     );
     if (chosen == null || chosen == current || !mounted) return;
 
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      await setRoomPermissionLevel(widget.room, permission, chosen.powerLevel);
-      if (mounted) setState(() {});
-    } catch (e, s) {
-      reportCaught('update permissions', e, s);
-      messenger.showSnackBar(SnackBar(content: Text(l10n.roomInfoNotSaved)));
-    }
+    final saved = await attempt(
+      context,
+      () => setRoomPermissionLevel(widget.room, permission, chosen.powerLevel),
+      label: 'update permissions',
+      failed: context.l10n.roomInfoNotSaved,
+    );
+    if (saved && mounted) setState(() {});
   }
 
   @override

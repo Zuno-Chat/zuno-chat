@@ -15,7 +15,7 @@ The layer every screen sits on: one Matrix client per process, startup, navigati
 | `firstSyncProvider` | Done once a first sync has finished, or at once for a restored session. Onboarding and the chat list's empty state wait on it, because `client.login` can give up waiting for that sync. |
 | `connectionStatusProvider`, `isOfflineProvider` | Connectivity (below). |
 
-**Late decryptions are announced app-wide** (`LateDecryptions`, one per client). The SDK re-decrypts a timeline event whose key arrives late but announces it only on a deprecated stream, so this watcher re-announces it for every reader outside a `Timeline`: the ring, call signals, the unread correction and the media feed read its stream (every timeline event, late ones included) instead of `onTimelineEvent`, and the in-app notifier reads its late ones. It watches a locked event for a bounded time and drops one deleted before its key arrived.
+**Late decryptions are announced app-wide** (`LateDecryptions`, one per client). The SDK re-decrypts a timeline event whose key arrives late but announces it only on a deprecated stream, so this watcher re-announces it for every reader outside a `Timeline`: the ring, call signals, the unread correction and the media feed read its stream (every timeline event, late ones included) instead of `onTimelineEvent`, and the in-app notifier reads its late ones. A reader can also hand it a locked event no sync carried, as reply quotes do, or have it try one once, as the chat list preview does (`security-verification.md`). It watches a locked timeline event for a bounded time and a handed-over one until its key arrives (within a cap on how many it holds), drops one deleted before its key arrived, and an event it opens replaces its room's last message while that is still the locked copy.
 
 **The HTTP stack** has four deliberate quirks.
 - **Dart refuses cleartext HTTP.** The process-wide `HttpOverrides` (`app_http_overrides.dart`) set the User-Agent and refuse any connection that is not https, because Android's network security config and iOS ATS govern only the platform's own network stacks, never `dart:io`. A refused connection throws its own exception, so callers can tell it from an unreachable server.
@@ -57,7 +57,9 @@ flowchart TD
 
 ### Navigation
 
-**`_AuthGate` (`lib/app.dart`) is the only routing decision.** It swaps the root between `SignedOutEntry` and `RoomListPage`, and keeps the signed-out screens while a sign-in is in flight. Everything else is `Navigator.push`, and code without a `BuildContext` uses `globalNavigatorKey` and `globalScaffoldMessengerKey`. `_AuthGate` also runs the launch checks, starts and stops notification delivery, and owns the sign-out wipe.
+**`_AuthGate` (`lib/app.dart`) is the only routing decision.** It swaps the root between `SignedOutEntry` and `RoomListPage`, and keeps the signed-out screens while a sign-in is in flight. Everything else is `Navigator.push`, and code without a `BuildContext` uses `globalNavigatorKey` and `globalScaffoldMessengerKey`. `_AuthGate` also runs the launch checks, starts and stops notification delivery, owns the sign-out wipe, keeps every app-wide service running (rings, notifications, security alerts, push upkeep; the account-bound ones only while signed in) and answers incoming verification requests, so none of them depends on which screen is up.
+
+**The open chat is read from the navigator**, never set by a screen: it is the topmost chat route while the app is in front, so a page pushed over the chat keeps it open, and every push, pop, replace or trip to the background updates it. Notifications skip that chat, and a send that fails there shows only its retry tile.
 
 **Launch targets hold the splash.** On a logged-in cold start, `_AuthGate` keeps the splash while it runs every launch check concurrently under a time cap: a pending ring, a launch shortcut, a notification tap, a call action and a launch share. The root swaps to `RoomListPage` only afterwards, so a target is already on top and the room list never flashes alone.
 
@@ -97,22 +99,27 @@ Shared pieces:
 | `RowMemo` | Returns the identical widget for an equal record from the same SDK object, so a list row rebuilds only when its value-equal record changes, and never keeps a `Room` the SDK has replaced. |
 | `RouteSettled` | `onRouteSettled()` fires once the push slide has finished, for work that would otherwise land mid-slide. |
 | `AlertBanner` | Every in-screen warning banner: the security alerts and the delivery failure. An attention or notice tone, at most one action and an optional ✕. |
+| `InfoStrip` | A notice strip at the top of a chat or the chat list: a call in progress, your live share, an invitation still awaiting acceptance. At most one action. |
+| `MediaPill` | Short labels on a scrim over media and call tiles, such as a video's length, a photo's time and a call's status, in two sizes. |
 | `FailureNotice` | A message that something did not load, with Try again when it can be retried; Retry is only for compact controls such as tiles and list rows. |
 | `FrostedSurface` | Controls floating over media: a translucent dark fill over a blurred backdrop, so they read on a white photo and on black. |
 | `hideSystemBars`, `showSystemBars` | Hiding the status and navigation bars, and bringing them back edge to edge. |
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
 | `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
 
+**Every yes/no question is one dialog, and its confirm button is red for a destructive answer** (delete, remove, ban, block, sign out, start over, sending what looks like the recovery code), so a destructive choice looks the same on every screen.
+
 **Performance rules**, binding on every screen. The floor is a mid-range phone from about 2021.
 
 | Rule | Why |
 |---|---|
-| No blur, shader masks or soft shadows, except `FrostedSurface` | They stall mid-range GPUs. Controls over media must read on any photo, so frosted surfaces keep both and share one backdrop read per frame (`BackdropGroup`). |
+| No blur, shader masks or soft shadows, except `FrostedSurface` and the small shadow under a map marker | They stall mid-range GPUs. Controls over media must read on any photo, so frosted surfaces keep both and share one backdrop read per frame (`BackdropGroup`), and a marker must stand out on any map tile. |
 | No `Opacity` around list rows; dim with color instead | `Opacity` renders the row off-screen, then blends it. |
 | Animate position, never size or padding | Size and padding changes re-lay-out every frame. |
 | Fixed-height rows where the design allows | The list skips measuring while it scrolls. |
 | Decode images at display size | An avatar never holds a full-size bitmap. |
 | A sync rebuilds only the rows that changed, without animation | Wholesale rebuilds and reorder animations stutter on every sync. |
+| A screen hears that a room changed from one owner, which passes only that room's state changes (and the account's direct-chat list), folds a burst into one rebuild, and holds it while a page covers the screen or the app is in the background, then rebuilds once | Synapse attaches an empty summary to every room a sync mentions, loading members fires a state event per member, and a covered screen's rebuilds are never seen. |
 
 **Request rules**:
 1. Draw from what the SDK holds in memory; never fetch inside `build`.
@@ -345,7 +352,8 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **Release builds write nothing below warning to the device log**, because bug reports and debugging tools can read it, and the SDK and plugins log IDs and content. Every Dart entry point and every background isolate (the app's and the SDK's, all started through `runInBackground`) run in a zone that drops `print`, and on Android the process also raises the native log floor for every library in it.
 - A caught failure goes to `reportCaught` (`core/errors/caught_errors.dart`) with its stack, and an expected outcome narrows its catch instead; `crash-reporting.md` has what is sent.
 - A caught error the user sees gets a plain sentence, never the exception's text. The one deliberate exception is the push diagnostics page, which shows the last pusher error as is (`notifications.md`).
-- `isConnectionError` is the one test for a network failure, native ones from the error journal included, and `failureMessage` adds a check-your-connection hint for one.
+- `isConnectionError` is the one test for a network failure, native ones from the error journal included.
+- **A failed action's notice says only what failed, and one formatter adds the ending**: "Check your connection and try again." for a network failure, "Try again." for anything else, so every failure reads alike and no translation repeats the retry wording.
 
 ## Decisions
 

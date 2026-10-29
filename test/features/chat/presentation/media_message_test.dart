@@ -10,8 +10,9 @@ import 'package:zuno/core/matrix/cached_attachment_image.dart';
 import 'package:zuno/core/matrix/cover_image.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
+import 'package:zuno/core/ui/media_pill.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
-import 'package:zuno/features/chat/data/composed_image.dart';
+import 'package:zuno/features/chat/data/composed_media.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/pending_attachment_tile.dart';
@@ -296,6 +297,12 @@ void main() {
       expect(find.text('0:42'), findsOneWidget);
       expect(find.text('09:41'), findsOneWidget);
       expect(find.byType(Image), findsOneWidget);
+      for (final label in ['0:42', '09:41']) {
+        expect(
+          find.ancestor(of: find.text(label), matching: find.byType(MediaPill)),
+          findsOneWidget,
+        );
+      }
     });
 
     testWidgets('a video sent without a thumbnail shows the play button '
@@ -530,9 +537,9 @@ void main() {
     ) async {
       final saved = File('${server.root.path}/photo.png')
         ..writeAsBytesSync(onePixelPng);
-      final failure = FailedMediaSend(
+      final failure = FailedComposedSend(
+        ComposedImage(path: saved.path, name: 'photo.png', caption: ''),
         gallery: const GalleryGroupRef(id: 'g', index: 1, count: 3),
-        photo: ComposedImage(path: saved.path, name: 'photo.png', caption: ''),
       );
       await pumpIn(
         tester,
@@ -555,7 +562,8 @@ void main() {
     testWidgets('a failed item without a preview is a plain tile', (
       tester,
     ) async {
-      const failure = FailedMediaSend(
+      const failure = FailedComposedSend(
+        ComposedVideo(path: '/cache/clip.mp4', name: 'clip.mp4', caption: ''),
         gallery: GalleryGroupRef(id: 'g', index: 1, count: 2),
       );
       await pumpIn(

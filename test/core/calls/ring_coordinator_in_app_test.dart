@@ -16,20 +16,25 @@ import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
+import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
+import 'package:zuno/core/calls/ring_coordinator.dart';
+import 'package:zuno/core/errors/global_error_handler.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
-import '../../../helpers/fake_calls_channel.dart';
-import '../../../helpers/fake_http.dart';
-import '../../../helpers/fake_local_notifications.dart';
-import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/native_method_calls.dart';
-import '../../../helpers/platform_capabilities.dart';
-import '../../../helpers/room_list_page_harness.dart';
-import '../../../helpers/sent_call_declines.dart';
+import '../../helpers/fake_calls_channel.dart';
+import '../../helpers/fake_http.dart';
+import '../../helpers/fake_local_notifications.dart';
+import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
+import '../../helpers/platform_capabilities.dart';
+import '../../helpers/preferences_container.dart';
+import '../../helpers/sent_call_declines.dart';
 
 class _PendingRingPresenter extends NoopIncomingCallPresenter {
   final shownCallIds = <String>[];
@@ -80,6 +85,7 @@ void main() {
   Object? ringReply;
 
   setUp(() {
+    ambientCapabilities = androidCapabilities;
     ringRateLimiter.clear();
     ringReply = null;
     installFakeLocalNotifications();
@@ -102,14 +108,26 @@ void main() {
     room = buildTestRoom(client);
   });
 
-  Future<ProviderContainer> pumpRoomList(
+  Future<ProviderContainer> pumpApp(
     WidgetTester tester, {
     List<Override> overrides = const [],
   }) async {
-    final container = await pumpRoomListPage(
-      tester,
-      client,
-      overrides: [firstSyncProvider.overrideWith((ref) async {}), ...overrides],
+    final container = await containerWithPreferences(
+      {},
+      overrides: [matrixClientProvider.overrideWithValue(client), ...overrides],
+    );
+    container.listen(ringCoordinatorProvider, (_, _) {});
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          navigatorKey: globalNavigatorKey,
+          scaffoldMessengerKey: globalScaffoldMessengerKey,
+          home: const Scaffold(body: Text('chats')),
+        ),
+      ),
     );
     await tester.pumpAndSettle();
     return container;
@@ -118,7 +136,7 @@ void main() {
   Future<({ProviderContainer container, _PendingRingPresenter presenter})>
   pumpWithPendingRings(WidgetTester tester) async {
     final presenter = _PendingRingPresenter();
-    final container = await pumpRoomList(
+    final container = await pumpApp(
       tester,
       overrides: [incomingCallPresenterProvider.overrideWithValue(presenter)],
     );
@@ -207,25 +225,10 @@ void main() {
     expect(presenter.shownWaiting, [false]);
   });
 
-  testWidgets('with VoIP rings on iOS the room list leaves an invite to the '
-      'ring coordinator', (tester) async {
-    ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
-    ringReply = 'shown';
-    await pumpRoomList(tester);
-
-    await deliverAndSettle(tester, invite(callId: 'call1'));
-
-    expect(native.argsOf('reportIncomingCall'), isEmpty);
-    expect(find.byType(IncomingCallPage), findsNothing);
-    expect(SystemRing.instance.ringing.value, isNull);
-  });
-
   group('android', () {
-    setUp(() => ambientCapabilities = androidCapabilities);
-
     testWidgets('the invite for a call answered from its ring before the first '
         'sync is neither declined nor announced as missed', (tester) async {
-      final container = await pumpRoomList(tester);
+      final container = await pumpApp(tester);
       final answered = container
           .read(activeCallProvider.notifier)
           .answer(
@@ -308,6 +311,92 @@ void main() {
       expect(presenter.shownCallIds, ['call1', 'call2']);
       expect(ringScreenCallIds(tester), ['call2']);
       expect(SystemRing.instance.ringing.value?.callId, 'call2');
+    });
+  });
+
+  group('the ring screen', () {
+    IncomingCall bobsCall([String callId = 'call1']) => IncomingCall(
+      room: room,
+      callId: callId,
+      callerId: '@bob:example.org',
+      kind: CallKind.voice,
+    );
+
+    bool present(ProviderContainer container, IncomingCall call) =>
+        container.read(ringScreenProvider.notifier).present(call);
+
+    testWidgets('opens for a call still ringing and marks it ringing until it '
+        'closes', (tester) async {
+      final container = await pumpApp(tester);
+
+      expect(present(container, bobsCall()), isTrue);
+      expect(RingingCall.instance.callId, 'call1');
+      await tester.pumpAndSettle();
+      expect(ringScreenCallIds(tester), ['call1']);
+
+      container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
+      await tester.pumpAndSettle();
+
+      expect(ringScreenCallIds(tester), isEmpty);
+      expect(RingingCall.instance.callId, isNull);
+    });
+
+    testWidgets('opens once, however many times it is asked before it builds', (
+      tester,
+    ) async {
+      final container = await pumpApp(tester);
+
+      expect(present(container, bobsCall()), isTrue);
+      expect(present(container, bobsCall()), isTrue);
+      await tester.pumpAndSettle();
+
+      expect(ringScreenCallIds(tester), ['call1']);
+    });
+
+    testWidgets('never opens for a call already over', (tester) async {
+      final container = await pumpApp(tester);
+      container.read(resolvedCallIdsProvider.notifier).markResolved('call1');
+
+      expect(present(container, bobsCall()), isFalse);
+      await tester.pumpAndSettle();
+
+      expect(ringScreenCallIds(tester), isEmpty);
+      expect(RingingCall.instance.callId, isNull);
+    });
+
+    testWidgets('never opens for the call already on the line', (tester) async {
+      final container = await pumpApp(tester);
+      final session = CallSession.forIncoming(
+        room: room,
+        callId: 'call1',
+        kind: CallKind.voice,
+      );
+      addTearDown(session.dispose);
+      container.read(activeCallProvider.notifier).set(session);
+
+      expect(present(container, bobsCall()), isFalse);
+      await tester.pumpAndSettle();
+
+      expect(ringScreenCallIds(tester), isEmpty);
+    });
+
+    testWidgets('never opens while CallKit shows the ring', (tester) async {
+      ambientCapabilities = iosCapabilities;
+      final container = await pumpApp(
+        tester,
+        overrides: [
+          platformCapabilitiesProvider.overrideWithValue(
+            capabilitiesLike(iosCapabilities, voipRing: false),
+          ),
+        ],
+      );
+      SystemRing.instance.set(roomId: room.id, callId: 'call1');
+
+      expect(present(container, bobsCall()), isFalse);
+      await tester.pumpAndSettle();
+
+      expect(ringScreenCallIds(tester), isEmpty);
+      SystemRing.instance.clear('call1');
     });
   });
 }

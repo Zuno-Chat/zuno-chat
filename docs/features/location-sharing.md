@@ -167,6 +167,11 @@ so another client cannot claim a longer share.
   share without a write, deleting the start message stops it first, and
   sign-out and account deletion clear every share while the token still
   works (`authentication.md`).
+- **A Stop pressed in the app says when the server refused it** ("Live
+  location did not stop"), because the room's state then still shows the
+  share as live until its end time; this device stops sending either way.
+  The end time, lost capture, the notification's Stop, a deleted start
+  message and sign-out stop on a best-effort basis.
 - **Viewers trust only what checks out**: a position counts only from a
   device in its sender's own device list that the room's state names for
   that share, from a joined member who is not ignored, with a valid

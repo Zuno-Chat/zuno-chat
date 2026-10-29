@@ -24,6 +24,9 @@ void main() {
     Widget? progress,
     Widget Function(VoidCallback? retry)? failure,
     BoxFit? fit,
+    ImageProvider Function(BuildContext context, ImageProvider attachment)?
+    image,
+    bool gaplessPlayback = false,
   }) => tester.pumpWidget(
     MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -38,6 +41,8 @@ void main() {
             progress: progress,
             failure: failure,
             fit: fit,
+            image: image,
+            gaplessPlayback: gaplessPlayback,
           ),
         ),
       ),
@@ -276,6 +281,78 @@ void main() {
 
       expect(find.text('…'), findsNothing);
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('swapped for a sharper decode', () {
+    ImageProvider small(BuildContext _, ImageProvider attachment) =>
+        ResizeImage(attachment, width: 1);
+
+    ImageProvider full(BuildContext _, ImageProvider attachment) => attachment;
+
+    bool picturePainted(WidgetTester tester) =>
+        tester.widget<RawImage>(find.byType(RawImage)).image != null;
+
+    testWidgets('with gapless playback the shown picture stays, with no '
+        'placeholder or progress, until the sharper one is ready', (
+      tester,
+    ) async {
+      final event = server.attachment();
+      cache(event);
+      await pumpImage(
+        tester,
+        event,
+        image: small,
+        progress: const Text('…'),
+        gaplessPlayback: true,
+      );
+      await pumpUntilShown(tester);
+
+      await pumpImage(
+        tester,
+        event,
+        image: full,
+        progress: const Text('…'),
+        gaplessPlayback: true,
+      );
+
+      expect(tester.widget<Image>(picture).image, isNot(isA<ResizeImage>()));
+      expect(find.text('loading'), findsNothing);
+      expect(find.text('…'), findsNothing);
+      expect(picturePainted(tester), isTrue);
+
+      await pumpUntilShown(tester);
+
+      expect(picturePainted(tester), isTrue);
+    });
+
+    testWidgets('without it, the sharper one waits behind the placeholder', (
+      tester,
+    ) async {
+      final event = server.attachment();
+      cache(event);
+      await pumpImage(tester, event, image: small);
+      await pumpUntilShown(tester);
+
+      await pumpImage(tester, event, image: full);
+
+      expect(find.text('loading'), findsOneWidget);
+    });
+
+    testWidgets('with gapless playback, another picture still waits behind '
+        'the placeholder', (tester) async {
+      final first = server.attachment();
+      cache(first);
+      await pumpImage(tester, first, gaplessPlayback: true);
+      await pumpUntilShown(tester);
+
+      await pumpImage(
+        tester,
+        server.attachment(eventId: r'$other'),
+        gaplessPlayback: true,
+      );
+
+      expect(find.text('loading'), findsOneWidget);
     });
   });
 

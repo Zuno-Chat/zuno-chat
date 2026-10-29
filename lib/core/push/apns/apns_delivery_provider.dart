@@ -1,14 +1,19 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
+import '../../matrix/matrix_client_provider.dart';
 import '../../matrix/session_display_name.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../../notifications/settings/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';
+import '../../settings/app_preferences_provider.dart';
 import '../delivery/notification_delivery_provider.dart';
 import '../delivery/pusher_failure.dart';
 import '../delivery/registration_retry.dart';
@@ -322,7 +327,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         appId: appId,
         pushkey: pushkey,
         gatewayUrl: gatewayUrl,
-        deviceDisplayName: sessionDisplayName('ios'),
+        deviceDisplayName: thisSessionDisplayName(),
         sound: sound,
       ),
     );
@@ -460,3 +465,12 @@ void _reportTokenFailure(String label, Object error, StackTrace stack) {
 }
 
 final apnsDeliveryProvider = ApnsDeliveryProvider();
+
+final apnsMessageToneProvider = Provider<void>((ref) {
+  if (!ref.watch(platformCapabilitiesProvider).apnsRegistration) return;
+  final client = ref.watch(matrixClientProvider);
+  ref.listen(
+    messageToneEnabledProvider,
+    (_, _) => unawaited(apnsDeliveryProvider.messageToneChanged(client)),
+  );
+});

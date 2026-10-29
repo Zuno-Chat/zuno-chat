@@ -5,14 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
-import '../../../core/errors/caught_errors.dart';
-import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/notifications/room_invite_notification_provider.dart';
+import '../../../core/ui/notice.dart';
 import '../../blocking/presentation/block_person.dart';
 import '../../communities/presentation/community_page.dart';
 import '../../reports/presentation/report_sheet.dart';
@@ -43,32 +42,30 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
     required bool join,
   }) async {
     final navigator = Navigator.of(context);
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     setState(() => _busy = true);
     unawaited(cancelInviteNotification(widget.room));
-    try {
-      await action();
-      if (!mounted) return;
-      navigator.pop();
-      if (join) {
-        navigator.push(
-          MaterialPageRoute(builder: (_) => pageForRoom(widget.room)),
-        );
-      }
-    } catch (e, s) {
-      reportCaught('answer invitation', e, s);
-      if (mounted) setState(() => _busy = false);
-      final failed = join ? l10n.roomsCouldNotJoin : l10n.roomsCouldNotDecline;
-      messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
+    final answered = await attempt(
+      context,
+      action,
+      label: 'answer invitation',
+      failed: join ? l10n.roomsCouldNotJoin : l10n.roomsCouldNotDecline,
+    );
+    if (!mounted) return;
+    if (!answered) {
+      setState(() => _busy = false);
+      return;
+    }
+    navigator.pop();
+    if (join) {
+      navigator.push(
+        MaterialPageRoute(builder: (_) => pageForRoom(widget.room)),
       );
     }
   }
 
   Future<void> _reportAndDecline(String inviter) async {
     final room = widget.room;
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     final sent = await showReportSheet(
       context,
@@ -84,7 +81,6 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
       ),
     );
     if (!sent || !mounted) return;
-    messenger.showSnackBar(SnackBar(content: Text(l10n.commonReportSent)));
     await _answer(() => declineInvite(room), join: false);
   }
 
@@ -107,16 +103,8 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
   Widget build(BuildContext context) {
     final room = widget.room;
     final l10n = context.l10n;
-    final client = room.client;
-    final inviter = inviterId(room);
-    final inviterUser = inviter == null
-        ? null
-        : room.unsafeGetUserFromMemoryOrFallback(inviter);
-    final inviterName =
-        inviterUser?.calcDisplayname() ??
-        (inviter == null ? l10n.roomsSomeone : withoutServer(inviter));
-    final isGroup = room.name.isNotEmpty;
-    final isCommunity = room.isSpace;
+    final view = incomingInviteView(room, l10n);
+    final inviter = view.inviterId;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.roomsInvitation)),
@@ -129,9 +117,9 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
             children: [
               Center(
                 child: MxcAvatar(
-                  client: client,
-                  avatarUrl: isGroup ? room.avatar : inviterUser?.avatarUrl,
-                  fallbackText: isGroup ? room.name : inviterName,
+                  client: room.client,
+                  avatarUrl: view.avatarUrl,
+                  fallbackText: view.name,
                   toneSeed: roomToneSeed(room),
                   radius: 40,
                   shape: AvatarShape.forRoom(room),
@@ -139,23 +127,23 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
               ),
               const SizedBox(height: 20),
               Text(
-                isGroup ? room.name : inviterName,
+                view.name,
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
               const SizedBox(height: 8),
               Text(
-                isCommunity
-                    ? l10n.roomsInvitedToCommunity(inviterName)
-                    : isGroup
-                    ? l10n.roomsInvitedToRoom(inviterName)
-                    : l10n.roomsWantsToChat(inviterName),
+                view.community
+                    ? l10n.roomsInvitedToCommunity(view.inviterName)
+                    : view.group
+                    ? l10n.roomsInvitedToRoom(view.inviterName)
+                    : l10n.roomsWantsToChat(view.inviterName),
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ),
-              if (inviter != null && inviterUser?.displayName != null) ...[
+              if (inviter != null && view.inviterNamed) ...[
                 const SizedBox(height: 4),
                 Text(
                   withoutServer(inviter),
@@ -170,7 +158,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
                 onPressed: _busy
                     ? null
                     : () => _answer(
-                        () => room.join(waitForSync: true),
+                        () => acceptInvite(room, waitForSync: true),
                         join: true,
                       ),
                 child: Text(l10n.commonJoin),
@@ -192,7 +180,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
                   TextButton(
                     onPressed: _busy
                         ? null
-                        : () => _blockAndDecline(inviter, inviterName),
+                        : () => _blockAndDecline(inviter, view.inviterName),
                     child: Text(l10n.roomsBlockAndDecline),
                   ),
               ],

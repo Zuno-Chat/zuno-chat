@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/models/call_status.dart';
+import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/zuno_colors.dart';
@@ -149,7 +150,7 @@ class CallTitleStatus extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(' · ', style: style),
+                  Text(detailSeparator, style: style),
                   Text(label, style: style),
                 ],
               ),

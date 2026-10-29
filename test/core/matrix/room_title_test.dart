@@ -100,6 +100,40 @@ void main() {
 
       expect(roomTitle(room, englishLocalizations), 'Empty chat');
     });
+
+    test('an unnamed chat still waiting on its invitee is titled by their '
+        'Matrix ID, never their profile', () {
+      setMember('@me:example.org', 'join');
+      setMember('@bob:example.org', 'invite', displayName: 'Bob Bobson');
+
+      expect(roomTitle(room, englishLocalizations), '@bob');
+    });
+
+    test('an unnamed chat waiting on several invitees counts them', () {
+      setMember('@me:example.org', 'join');
+      setMember('@bob:example.org', 'invite');
+      setMember('@carol:example.org', 'invite');
+
+      expect(roomTitle(room, englishLocalizations), '2 people invited');
+    });
+
+    test('a named chat waiting on its invitee keeps its name', () {
+      setMember('@me:example.org', 'join');
+      setMember('@bob:example.org', 'invite', displayName: 'Bob Bobson');
+      nameRoom('Weekend plans');
+
+      expect(roomTitle(room, englishLocalizations), 'Weekend plans');
+    });
+
+    test('the chat list title and the room title are the same', () {
+      setMember('@me:example.org', 'join');
+      setMember('@bob:example.org', 'invite', displayName: 'Bob Bobson');
+
+      expect(
+        roomInviteDisplay(room, englishLocalizations).title,
+        roomTitle(room, englishLocalizations),
+      );
+    });
   });
 
   group('loadRoomNameMembers', () {

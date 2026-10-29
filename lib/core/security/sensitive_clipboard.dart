@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/material.dart' show ScaffoldMessengerState;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 
 import '../errors/caught_errors.dart';
+import '../l10n/l10n.dart';
 import '../platform/platform_capabilities.dart';
+import '../ui/notice.dart';
 import 'privacy_channel.dart';
 
 const sensitiveClipboardLifetime = Duration(seconds: 90);
@@ -42,6 +45,19 @@ class SensitiveClipboard {
     _clearTimer = Timer(sensitiveClipboardLifetime, () {
       unawaited(_clearIfMatches(text));
     });
+  }
+
+  Future<void> copyWithNotice(
+    ScaffoldMessengerState messenger,
+    AppLocalizations l10n,
+    String text,
+  ) async {
+    await copy(text);
+    messenger.say(
+      _capabilities.sensitiveClipboard
+          ? l10n.settingsCopiedSensitive
+          : l10n.settingsCopiedStays,
+    );
   }
 
   Future<void> _clearIfMatches(String text) async {

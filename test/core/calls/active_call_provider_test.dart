@@ -117,7 +117,6 @@ void main() {
       );
       addTearDown(answering.dispose);
       RingingCall.instance.set('c1');
-      addTearDown(() => RingingCall.instance.callId = null);
     });
 
     IncomingCall ringing(String callId) => IncomingCall(

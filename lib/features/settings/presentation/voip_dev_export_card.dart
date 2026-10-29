@@ -22,13 +22,12 @@ class VoipDevExportCard extends StatefulWidget {
 class _VoipDevExportCardState extends State<VoipDevExportCard> {
   late final Future<VoipDevExport?> _export = widget.channel.devExport();
 
-  Future<void> _copy(VoipDevExport export) async {
-    await SensitiveClipboard.instance.copy(voipDevExportJson(export));
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(context.l10n.settingsCopiedSensitive)),
-    );
-  }
+  Future<void> _copy(VoipDevExport export) =>
+      SensitiveClipboard.instance.copyWithNotice(
+        ScaffoldMessenger.of(context),
+        context.l10n,
+        voipDevExportJson(export),
+      );
 
   @override
   Widget build(BuildContext context) {

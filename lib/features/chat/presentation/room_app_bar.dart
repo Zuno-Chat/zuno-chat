@@ -5,6 +5,8 @@ import '../../../core/calls/models/call_kind.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/official_room.dart';
+import '../../../core/matrix/room_changes.dart';
+import '../../../core/matrix/room_encryption.dart';
 import '../../../core/matrix/room_invite.dart';
 import '../../../core/matrix/typing_indicator_text.dart';
 import '../../../core/security/security_emphasis.dart';
@@ -37,22 +39,6 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final colors = theme.colorScheme;
     final l10n = context.l10n;
     final display = roomInviteDisplay(room, l10n);
-    final ownUserId = room.client.userID;
-    final typingText = typingIndicatorText(
-      l10n,
-      room.typingUsers.where((u) => u.id != ownUserId).toList(),
-    );
-
-    Widget statusLine(String text, Color color) {
-      final style = theme.textTheme.bodySmall!.copyWith(color: color);
-      return Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: style,
-        strutStyle: lineStrut(style),
-      );
-    }
 
     return AppBar(
       leadingWidth: 48,
@@ -88,23 +74,37 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         const SizedBox(width: 6),
                         const OfficialBadge(),
                       ],
-                      if (!room.encrypted) ...[
+                      if (!sendsEncrypted(room)) ...[
                         const SizedBox(width: 6),
-                        Icon(
-                          notEncryptedIcon,
-                          size: 18,
-                          color: notEncryptedColor(context),
-                        ),
+                        const NotEncryptedMark(size: 18),
                       ],
                       ConfirmedPersonCheck(room: room),
                     ],
                   ),
-                  if (typingText != null)
-                    statusLine(typingText, colors.primary)
-                  else if (display.partnerLeft)
-                    statusLine(l10n.chatLeftTheChat, colors.onSurfaceVariant)
-                  else if (!room.isDirectChat)
-                    RoomAccessLabel.of(room, l10n, iconSize: 14),
+                  RoomChangesBuilder(
+                    changes: RoomChanges.ephemeral(room, 'm.typing'),
+                    builder: (context) {
+                      final typingText = typingIndicatorText(
+                        l10n,
+                        room.typingUsers
+                            .where((u) => u.id != room.client.userID)
+                            .toList(),
+                      );
+                      if (typingText != null) {
+                        return _StatusLine(typingText, color: colors.primary);
+                      }
+                      if (display.partnerLeft) {
+                        return _StatusLine(
+                          l10n.chatLeftTheChat,
+                          color: colors.onSurfaceVariant,
+                        );
+                      }
+                      if (!room.isDirectChat) {
+                        return RoomAccessLabel.of(room, l10n, iconSize: 14);
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                 ],
               ),
             ),
@@ -126,6 +126,25 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
         ],
         PopupMenuButton<void>(itemBuilder: menuBuilder),
       ],
+    );
+  }
+}
+
+class _StatusLine extends StatelessWidget {
+  final String text;
+  final Color color;
+
+  const _StatusLine(this.text, {required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall!.copyWith(color: color);
+    return Text(
+      text,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: style,
+      strutStyle: lineStrut(style),
     );
   }
 }

@@ -4,14 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
-import '../../../core/errors/caught_errors.dart';
-import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/matrix/room_changes.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/ui/card_group.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/sheet.dart';
 import '../../../core/ui/zuno_theme.dart';
@@ -20,11 +20,6 @@ String _nameOf(User user) {
   final name = user.displayName?.trim();
   return name == null || name.isEmpty ? withoutServer(user.id) : name;
 }
-
-Stream<void> _changesIn(Room room) => room.client.onRoomState.stream.where(
-  (update) =>
-      update.roomId == room.id && update.state.type == EventTypes.RoomMember,
-);
 
 class JoinRequestsBanner extends StatefulWidget {
   final Room room;
@@ -37,22 +32,6 @@ class JoinRequestsBanner extends StatefulWidget {
 
 class _JoinRequestsBannerState extends State<JoinRequestsBanner>
     with RouteSettled {
-  StreamSubscription<void>? _changes;
-
-  @override
-  void initState() {
-    super.initState();
-    _changes = _changesIn(widget.room).listen((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _changes?.cancel();
-    super.dispose();
-  }
-
   @override
   void onRouteSettled() {
     final room = widget.room;
@@ -68,7 +47,12 @@ class _JoinRequestsBannerState extends State<JoinRequestsBanner>
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => RoomChangesBuilder(
+    changes: RoomChanges.state(widget.room),
+    builder: _banner,
+  );
+
+  Widget _banner(BuildContext context) {
     final room = widget.room;
     if (!canAnswerJoinRequests(room)) return const SizedBox.shrink();
     final requests = pendingJoinRequests(room);
@@ -149,33 +133,26 @@ class _JoinRequestsSheet extends StatefulWidget {
 }
 
 class _JoinRequestsSheetState extends State<_JoinRequestsSheet> {
-  StreamSubscription<void>? _changes;
-
-  @override
-  void initState() {
-    super.initState();
-    _changes = _changesIn(widget.room).listen((_) => _refresh());
-  }
-
-  @override
-  void dispose() {
-    _changes?.cancel();
-    super.dispose();
-  }
-
-  void _refresh() {
-    if (!mounted) return;
-    if (pendingJoinRequests(widget.room).isEmpty) {
-      if (ModalRoute.of(context)?.isCurrent ?? false) {
-        Navigator.of(context).pop();
-      }
-      return;
+  bool _closeIfAnswered() {
+    if (pendingJoinRequests(widget.room).isNotEmpty) return false;
+    if (ModalRoute.of(context)?.isCurrent ?? false) {
+      Navigator.of(context).pop();
     }
-    setState(() {});
+    return true;
+  }
+
+  void _answered() {
+    if (mounted && !_closeIfAnswered()) setState(() {});
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => RoomChangesBuilder(
+    changes: RoomChanges.state(widget.room),
+    onChange: _closeIfAnswered,
+    builder: _sheet,
+  );
+
+  Widget _sheet(BuildContext context) {
     final theme = Theme.of(context);
     final room = widget.room;
     final requests = pendingJoinRequests(room);
@@ -210,7 +187,7 @@ class _JoinRequestsSheetState extends State<_JoinRequestsSheet> {
               key: ValueKey(user.id),
               room: room,
               user: user,
-              onAnswered: _refresh,
+              onAnswered: _answered,
             ),
         ],
       ),
@@ -276,20 +253,15 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
     Future<void> Function(Room room, String userId) action, {
     required String failed,
   }) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
     setState(() => _busy = true);
-    try {
-      await action(widget.room, widget.user.id);
-      widget.onAnswered?.call();
-    } catch (e, s) {
-      reportCaught('answer join request', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
-      );
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
+    final answered = await attempt(
+      context,
+      () => action(widget.room, widget.user.id),
+      label: 'answer join request',
+      failed: failed,
+    );
+    if (answered) widget.onAnswered?.call();
+    if (mounted) setState(() => _busy = false);
   }
 
   @override

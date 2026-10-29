@@ -10,7 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
+import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
@@ -18,9 +20,11 @@ import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
+import 'package:zuno/features/chat/presentation/message_list_view.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
+import 'package:zuno/features/location/presentation/location_bubble.dart';
 
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/pump_until.dart';
@@ -30,11 +34,15 @@ void main() {
   late RoomPageHarness harness;
   late List<String?> copied;
   late bool refuse;
+  late bool refuseClear;
+  late bool offline;
 
   setUp(() {
     rootBundle.clear();
     copied = [];
     refuse = false;
+    refuseClear = false;
+    offline = false;
     final messenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
@@ -77,7 +85,15 @@ void main() {
     harness.respond = (request) {
       final path = request.url.path;
       if (path.contains('/state/$liveLocationStateType/')) {
-        return http.Response(jsonEncode({'event_id': r'$cleared'}), 200);
+        return refuseClear
+            ? http.Response(
+                jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'no'}),
+                403,
+              )
+            : http.Response(jsonEncode({'event_id': r'$cleared'}), 200);
+      }
+      if (offline && path.contains('/redact/')) {
+        throw http.ClientException('offline', request.url);
       }
       if (path.contains('/redact/') || path.contains('/send/m.reaction/')) {
         return refuse
@@ -520,9 +536,7 @@ void main() {
       );
     });
 
-    testWidgets('a live location ends its share before it is deleted', (
-      tester,
-    ) async {
+    Future<void> openOwnLiveLocation(WidgetTester tester) async {
       const me = '@me:example.org';
       final now = clock.now();
       await openRoom(
@@ -557,6 +571,12 @@ void main() {
           ).toContent(),
         ),
       );
+    }
+
+    testWidgets('a live location ends its share before it is deleted', (
+      tester,
+    ) async {
+      await openOwnLiveLocation(tester);
 
       await openActions(tester, 'Live location ended');
       await tapAction(tester, 'Delete');
@@ -570,6 +590,37 @@ void main() {
       final deleted = paths.indexWhere((path) => path.contains('/redact/'));
       expect(cleared, isNonNegative);
       expect(deleted, greaterThan(cleared));
+    });
+
+    testWidgets('a live location whose share will not end is still deleted', (
+      tester,
+    ) async {
+      refuseClear = true;
+      await openOwnLiveLocation(tester);
+
+      await openActions(tester, 'Live location ended');
+      await tapAction(tester, 'Delete');
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await harness.settle(tester);
+
+      expect(requestsTo('/state/$liveLocationStateType/'), isNotEmpty);
+      expect(requestsTo('/redact/'), hasLength(1));
+      expect(find.textContaining('Message not deleted'), findsNothing);
+    });
+
+    testWidgets('the confirm button is red', (tester) async {
+      await openRoom(tester, () => [own(r'$mine', 'oops')]);
+
+      await openActions(tester, 'oops');
+      await tapAction(tester, 'Delete');
+
+      final confirm = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Delete'),
+      );
+      expect(
+        confirm.style?.foregroundColor?.resolve({}),
+        Theme.of(tester.element(find.byType(AlertDialog))).colorScheme.error,
+      );
     });
 
     testWidgets('Cancel keeps it', (tester) async {
@@ -593,6 +644,23 @@ void main() {
       await harness.settle(tester);
 
       expect(find.text('Message not deleted. Try again.'), findsOneWidget);
+    });
+
+    testWidgets('offline, a failure says to check the connection', (
+      tester,
+    ) async {
+      offline = true;
+      await openRoom(tester, () => [own(r'$mine', 'oops')]);
+
+      await openActions(tester, 'oops');
+      await tapAction(tester, 'Delete');
+      await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+      await harness.settle(tester);
+
+      expect(
+        find.text('Message not deleted. Check your connection and try again.'),
+        findsOneWidget,
+      );
     });
 
     group('a gallery', () {
@@ -683,6 +751,59 @@ void main() {
     );
 
     await openActions(tester, 'Live location ended');
+
+    expect(find.widgetWithText(ListTile, 'Reply'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Copy'), findsNothing);
+  });
+
+  testWidgets('a location offers no Copy', (tester) async {
+    await openRoom(
+      tester,
+      () => [
+        buildTestEvent(
+          harness.room,
+          eventId: r'$here',
+          senderId: '@bob:example.org',
+          originServerTs: DateTime(2026, 9, 20, 12),
+          status: EventStatus.synced,
+          content: {
+            'msgtype': 'm.location',
+            'body': 'Here',
+            'geo_uri': 'geo:1,2',
+          },
+        ),
+      ],
+      overrides: [mapTilesProvider.overrideWith((ref) async => null)],
+    );
+
+    await tester.longPress(find.byType(LocationBubble));
+    await harness.settle(tester);
+
+    expect(find.widgetWithText(ListTile, 'Reply'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Copy'), findsNothing);
+  });
+
+  testWidgets('a call summary offers no Copy', (tester) async {
+    await openRoom(
+      tester,
+      () => [
+        buildTestEvent(
+          harness.room,
+          eventId: r'$call',
+          senderId: '@bob:example.org',
+          originServerTs: DateTime(2026, 9, 20, 12),
+          status: EventStatus.synced,
+          content: const CallSummary(
+            callId: 'c1',
+            kind: 'voice',
+            status: CallSummaryStatus.missed,
+            durationMs: 0,
+          ).toMessageContent(),
+        ),
+      ],
+    );
+
+    await openActions(tester, 'Missed Voice call');
 
     expect(find.widgetWithText(ListTile, 'Reply'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Copy'), findsNothing);
@@ -897,7 +1018,18 @@ void main() {
       expect(find.text('Not seen yet'), findsOneWidget);
 
       seenByBobAt(DateTime(2026, 9, 20, 12, 9));
-      harness.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+      harness.client.onSync.add(
+        SyncUpdate(
+          nextBatch: 'next',
+          rooms: RoomsUpdate(
+            join: {
+              harness.room.id: JoinedRoomUpdate(
+                ephemeral: [BasicEvent(type: 'm.receipt', content: const {})],
+              ),
+            },
+          ),
+        ),
+      );
       await harness.settle(tester);
 
       expect(
@@ -951,7 +1083,10 @@ void main() {
       content: {'msgtype': 'm.text', 'body': 'meet at the usual place'},
     );
 
-    Finder bubbleLock() => find.bySemanticsLabel(RegExp('Not encrypted'));
+    Finder bubbleLock() => find.descendant(
+      of: find.byType(MessageListView),
+      matching: find.bySemanticsLabel(RegExp('Not encrypted')),
+    );
 
     testWidgets('a message sent without encryption shows a lock and says so '
         'on its sheet', (tester) async {

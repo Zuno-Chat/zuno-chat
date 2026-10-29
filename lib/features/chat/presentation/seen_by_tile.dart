@@ -1,61 +1,39 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/read_receipts.dart';
-import '../../../core/matrix/room_state_rebuild.dart';
+import '../../../core/matrix/room_changes.dart';
 import 'message_actions_sheet.dart';
 
-class SeenByTile extends StatefulWidget {
+class SeenByTile extends StatelessWidget {
   final Room room;
   final Event event;
 
   const SeenByTile({super.key, required this.room, required this.event});
 
   @override
-  State<SeenByTile> createState() => _SeenByTileState();
-}
-
-class _SeenByTileState extends State<SeenByTile>
-    with RoomStateRebuild<SeenByTile> {
-  StreamSubscription<SyncUpdate>? _syncSub;
-
-  @override
-  Client get roomStateClient => widget.room.client;
-
-  @override
-  void initState() {
-    super.initState();
-    _syncSub = widget.room.client.onSync.stream.listen((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _syncSub?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final seen = seenByOthers(widget.room, widget.event);
-    final l10n = context.l10n;
-    final labels = DateLabels.of(context);
-    final seenBy = seen
-        .map(
-          (s) => l10n.chatSeenByEntry(
-            s.user.calcDisplayname(),
-            labels.dateTime(s.at),
-          ),
-        )
-        .join('\n');
-    return MessageFact(
-      icon: seen.isEmpty ? Icons.done : Icons.done_all,
-      child: Text(seen.isEmpty ? l10n.chatNotSeenYet : l10n.chatSeenBy(seenBy)),
-    );
-  }
+  Widget build(BuildContext context) => RoomChangesBuilder(
+    changes: RoomChanges.any(room),
+    builder: (context) {
+      final seen = seenByOthers(room, event);
+      final l10n = context.l10n;
+      final labels = DateLabels.of(context);
+      final seenBy = seen
+          .map(
+            (s) => l10n.chatSeenByEntry(
+              s.user.calcDisplayname(),
+              labels.dateTime(s.at),
+            ),
+          )
+          .join('\n');
+      return MessageFact(
+        icon: seen.isEmpty ? Icons.done : Icons.done_all,
+        child: Text(
+          seen.isEmpty ? l10n.chatNotSeenYet : l10n.chatSeenBy(seenBy),
+        ),
+      );
+    },
+  );
 }

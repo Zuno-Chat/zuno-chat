@@ -824,6 +824,32 @@ void main() {
       );
     });
 
+    test(
+      'a delivery status reads as working, waiting, in flight or broken',
+      () {
+        expect(fcmStatusLevel(FcmStatus.ready), DiagnosticStatus.ok);
+        expect(fcmStatusLevel(FcmStatus.idle), DiagnosticStatus.warning);
+        expect(fcmStatusLevel(FcmStatus.registering), DiagnosticStatus.info);
+        expect(fcmStatusLevel(FcmStatus.tokenFailed), DiagnosticStatus.problem);
+        expect(
+          unifiedPushStatusLevel(UnifiedPushStatus.ready),
+          DiagnosticStatus.ok,
+        );
+        expect(
+          unifiedPushStatusLevel(UnifiedPushStatus.distributorSelected),
+          DiagnosticStatus.warning,
+        );
+        expect(
+          unifiedPushStatusLevel(UnifiedPushStatus.findingDistributor),
+          DiagnosticStatus.info,
+        );
+        expect(
+          unifiedPushStatusLevel(UnifiedPushStatus.noDistributorFound),
+          DiagnosticStatus.problem,
+        );
+      },
+    );
+
     test('background sync has nothing registered to check', () {
       final rows = section(
         inputs(

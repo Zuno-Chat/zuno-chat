@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/abuse_report.dart';
-import '../../../core/security/zuno_text_field.dart';
-import '../../../core/ui/sheet.dart';
+import '../../../core/ui/form_sheet.dart';
 
 typedef SendReport = Future<void> Function(ReportReason reason, String note);
 
@@ -15,19 +13,16 @@ Future<bool> showReportSheet(
   @displayText required String explanation,
   required SendReport onSend,
   @displayText String? sendLabel,
-}) async {
-  final sent = await showSheet<bool>(
-    context: context,
-    isScrollControlled: true,
-    builder: (_) => _ReportSheet(
-      title: title,
-      explanation: explanation,
-      sendLabel: sendLabel,
-      onSend: onSend,
-    ),
-  );
-  return sent ?? false;
-}
+}) => showFormSheet(
+  context,
+  sent: context.l10n.commonReportSent,
+  builder: (_) => _ReportSheet(
+    title: title,
+    explanation: explanation,
+    sendLabel: sendLabel,
+    onSend: onSend,
+  ),
+);
 
 class _ReportSheet extends StatefulWidget {
   final String title;
@@ -47,110 +42,37 @@ class _ReportSheet extends StatefulWidget {
 }
 
 class _ReportSheetState extends State<_ReportSheet> {
-  final _note = TextEditingController();
   ReportReason? _reason;
-  bool _sending = false;
-  bool _failed = false;
-
-  @override
-  void dispose() {
-    _note.dispose();
-    super.dispose();
-  }
-
-  Future<void> _send() async {
-    final reason = _reason;
-    if (reason == null) return;
-    setState(() {
-      _sending = true;
-      _failed = false;
-    });
-    try {
-      await widget.onSend(reason, _note.text.trim());
-      if (mounted) Navigator.of(context).pop(true);
-    } catch (e, s) {
-      reportCaught('send abuse report', e, s);
-      if (mounted) {
-        setState(() {
-          _sending = false;
-          _failed = true;
-        });
-      }
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final canSend = !_sending && canSendReport(_reason, _note.text);
     final l10n = context.l10n;
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                child: Text(widget.title, style: theme.textTheme.titleLarge),
+    return FormSheet(
+      title: widget.title,
+      explanation: widget.explanation,
+      fieldLabel: _reason == ReportReason.other
+          ? l10n.reportsWhatHappened
+          : l10n.reportsWhatHappenedOptional,
+      maxLines: 4,
+      maxLength: 500,
+      sendLabel: widget.sendLabel ?? l10n.reportsSend,
+      failed: l10n.reportsNotSent,
+      debugLabel: 'send abuse report',
+      canSend: (note) => canSendReport(_reason, note),
+      send: (note) => widget.onSend(_reason!, note),
+      above: (context, sending) => RadioGroup<ReportReason>(
+        groupValue: _reason,
+        onChanged: (reason) {
+          if (!sending) setState(() => _reason = reason);
+        },
+        child: Column(
+          children: [
+            for (final reason in ReportReason.values)
+              RadioListTile<ReportReason>(
+                title: Text(reason.label(l10n)),
+                value: reason,
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                child: Text(
-                  widget.explanation,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ),
-              RadioGroup<ReportReason>(
-                groupValue: _reason,
-                onChanged: (reason) {
-                  if (!_sending) setState(() => _reason = reason);
-                },
-                child: Column(
-                  children: [
-                    for (final reason in ReportReason.values)
-                      RadioListTile<ReportReason>(
-                        title: Text(reason.label(l10n)),
-                        value: reason,
-                      ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: ZunoTextField(
-                  autofillHints: null,
-                  controller: _note,
-                  enabled: !_sending,
-                  minLines: 1,
-                  maxLines: 4,
-                  maxLength: 500,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    labelText: _reason == ReportReason.other
-                        ? l10n.reportsWhatHappened
-                        : l10n.reportsWhatHappenedOptional,
-                    errorText: _failed ? l10n.reportsNotSent : null,
-                  ),
-                  onChanged: (_) => setState(() {}),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: FilledButton(
-                  onPressed: canSend ? _send : null,
-                  child: Text(widget.sendLabel ?? l10n.reportsSend),
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );

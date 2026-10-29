@@ -1,6 +1,8 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -40,5 +42,37 @@ void main() {
     await harness.settle(tester);
 
     expect(find.byType(RoomInfoPage), findsOneWidget);
+  });
+
+  group('the not-encrypted mark beside the name', () {
+    Finder mark() => find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byType(NotEncryptedMark),
+    );
+
+    testWidgets('shows on a room that does not encrypt', (tester) async {
+      await harness.pumpRoomPage(tester);
+
+      expect(mark(), findsOneWidget);
+    });
+
+    testWidgets('is absent when messages here are sent encrypted', (
+      tester,
+    ) async {
+      harness = RoomPageHarness(encrypting: true);
+      encryptRoom(harness.room);
+      await harness.pumpRoomPage(tester);
+
+      expect(mark(), findsNothing);
+    });
+
+    testWidgets('shows on an encrypted room this device cannot encrypt for', (
+      tester,
+    ) async {
+      encryptRoom(harness.room);
+      await harness.pumpRoomPage(tester);
+
+      expect(mark(), findsOneWidget);
+    });
   });
 }

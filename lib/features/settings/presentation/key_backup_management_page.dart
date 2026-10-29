@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/inline_feedback.dart';
+import '../../../core/ui/notice.dart';
 
 class KeyBackupManagementPage extends ConsumerStatefulWidget {
   const KeyBackupManagementPage({super.key});
@@ -64,51 +66,33 @@ class _KeyBackupManagementPageState
   Future<void> _deleteBackup() async {
     final info = _info;
     if (info == null) return;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.settingsKeyBackupDeleteTitle),
-        content: Text(context.l10n.settingsKeyBackupDeleteBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.commonDelete),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
+    final confirmed = await confirm(
+      context,
+      title: l10n.settingsKeyBackupDeleteTitle,
+      body: l10n.settingsKeyBackupDeleteBody,
+      confirmLabel: l10n.commonDelete,
+      tone: ConfirmTone.destructive,
+    );
+    if (!confirmed || !mounted) return;
+
     setState(() => _deleting = true);
-    try {
-      await ref.read(matrixClientProvider).deleteRoomKeysVersion(info.version);
-    } catch (e, s) {
-      reportCaught('delete key backup', e, s);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(
-            failureMessage(l10n, e, failed: l10n.settingsKeyBackupDeleteFailed),
-          ),
-        ),
-      );
-      return;
-    } finally {
-      if (mounted) setState(() => _deleting = false);
-    }
-    if (mounted) await _refresh();
+    final deleted = await attempt(
+      context,
+      () => ref.read(matrixClientProvider).deleteRoomKeysVersion(info.version),
+      label: 'delete key backup',
+      failed: l10n.settingsKeyBackupDeleteFailed,
+    );
+    if (!mounted) return;
+    setState(() => _deleting = false);
+    if (deleted) await _refresh();
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final info = _info;
-    final errorColor = Theme.of(context).colorScheme.error;
+    final danger = Theme.of(context).colorScheme.error;
     Widget note(String text) => Padding(
       padding: const EdgeInsets.only(top: 96),
       child: Center(child: Text(text)),
@@ -153,18 +137,11 @@ class _KeyBackupManagementPageState
                     ),
                     const Divider(),
                     ListTile(
-                      leading: Icon(Icons.delete_outline, color: errorColor),
-                      title: Text(
-                        l10n.settingsKeyBackupDelete,
-                        style: TextStyle(color: errorColor),
-                      ),
-                      trailing: _deleting
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : null,
+                      iconColor: danger,
+                      textColor: danger,
+                      leading: const Icon(Icons.delete_outline),
+                      title: Text(l10n.settingsKeyBackupDelete),
+                      trailing: _deleting ? const InlineSpinner() : null,
                       onTap: _deleting ? null : _deleteBackup,
                     ),
                   ],

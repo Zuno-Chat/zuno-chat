@@ -7,7 +7,6 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/crash_reporting.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/own_profile.dart';
 import '../../../core/matrix/sign_out.dart';
@@ -17,6 +16,7 @@ import '../../../core/security/security_providers.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/circle_icon.dart';
+import '../../../core/ui/danger_tile.dart';
 import '../../feedback/presentation/feedback_sheet.dart';
 import 'about_page.dart';
 import 'account_settings_page.dart';
@@ -33,7 +33,6 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
-    final colors = Theme.of(context).colorScheme;
     final client = ref.watch(matrixClientProvider);
     final capabilities = ref.watch(platformCapabilitiesProvider);
     final screenshotBlocking = capabilities.screenshotBlocking;
@@ -96,12 +95,9 @@ class SettingsPage extends ConsumerWidget {
           ),
           CardGroup(
             children: [
-              ListTile(
-                leading: const CircleIcon(Icons.logout_outlined, danger: true),
-                title: Text(
-                  l10n.settingsSignOut,
-                  style: TextStyle(color: colors.error),
-                ),
+              DangerTile(
+                icon: Icons.logout_outlined,
+                label: l10n.settingsSignOut,
                 onTap: () => _confirmLogOut(context, ref),
               ),
               const DeleteAccountTile(),
@@ -274,7 +270,7 @@ class _ProfileRowState extends State<_ProfileRow> {
                   ),
                   Text(
                     context.l10n.settingsPageProfileSubtitle(
-                      withoutServer(userId).replaceFirst('@', ''),
+                      userId.localpart ?? userId,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

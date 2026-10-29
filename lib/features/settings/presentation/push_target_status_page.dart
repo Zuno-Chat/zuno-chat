@@ -18,6 +18,9 @@ import '../../../core/push/unified_push/unified_push_distributor_names.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/inline_feedback.dart';
+import '../../../core/ui/notice.dart';
 import 'voip_dev_export_card.dart';
 
 class PushTargetStatusPage extends ConsumerStatefulWidget {
@@ -61,10 +64,9 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     });
   }
 
-  void _showNotRemoved() {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(context.l10n.pushNotRemoved)));
-  }
+  void _showNotRemoved(Object error) =>
+      ScaffoldMessenger.of(context)
+          .sayFailed(context.l10n, error, failed: context.l10n.pushNotRemoved);
 
   Future<void> _removeTarget() async {
     final l10n = context.l10n;
@@ -75,20 +77,20 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       title: l10n.pushRemoveTargetTitle,
       message: l10n.pushRemoveTargetMessage(removal.detail),
     );
-    if (confirmed != true || !mounted || _mode != mode) return;
+    if (!confirmed || !mounted || _mode != mode) return;
     setState(() => _removing = true);
     final client = ref.read(matrixClientProvider);
-    var failed = false;
+    Object? failure;
     try {
       await removal.remove(client);
     } catch (e, s) {
       reportCaught('remove push target', e, s);
-      failed = true;
+      failure = e;
     }
     if (!mounted) return;
     setState(() => _removing = false);
-    if (failed) {
-      _showNotRemoved();
+    if (failure != null) {
+      _showNotRemoved(failure);
     } else {
       Navigator.of(context).pop();
     }
@@ -100,7 +102,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       title: context.l10n.pushRemoveOtherTitle,
       message: context.l10n.pushRemoveOtherMessage(name),
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await _deletePushers([pusher]);
   }
 
@@ -109,7 +111,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
       title: context.l10n.pushRemoveAllOthersTitle(pushers.length),
       message: context.l10n.pushRemoveAllOthersMessage,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     await _deletePushers(pushers);
   }
 
@@ -117,7 +119,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     if (!mounted) return;
     setState(() => _removing = true);
     final client = ref.read(matrixClientProvider);
-    var failed = false;
+    Object? failure;
     for (final pusher in pushers) {
       try {
         await client.deletePusher(
@@ -125,37 +127,25 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
         );
       } catch (e, s) {
         reportCaught('remove other push target', e, s);
-        failed = true;
+        failure = e;
       }
     }
     if (!mounted) return;
     setState(() => _removing = false);
-    if (failed) _showNotRemoved();
+    if (failure != null) _showNotRemoved(failure);
     await _refresh();
   }
 
-  Future<bool?> _confirm({
+  Future<bool> _confirm({
     @displayText required String title,
     @displayText required String message,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.commonRemove),
-          ),
-        ],
-      ),
-    );
-  }
+  }) => confirm(
+    context,
+    title: title,
+    body: message,
+    confirmLabel: context.l10n.commonRemove,
+    tone: ConfirmTone.destructive,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -233,21 +223,16 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
                   ),
                 if (removal != null)
                   ListTile(
+                    iconColor: colors.error,
+                    textColor: colors.error,
                     leading: _removing
-                        ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: Padding(
-                              padding: EdgeInsets.all(2),
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                          )
-                        : Icon(Icons.delete_outline, color: colors.error),
-                    title: Text(
-                      l10n.pushRemoveTarget,
-                      style: TextStyle(color: colors.error),
+                        ? const InlineSpinner.icon()
+                        : const Icon(Icons.delete_outline),
+                    title: Text(l10n.pushRemoveTarget),
+                    subtitle: Text(
+                      removal.subtitle,
+                      style: TextStyle(color: colors.onSurfaceVariant),
                     ),
-                    subtitle: Text(removal.subtitle),
                     onTap: _removing ? null : _removeTarget,
                   ),
               ],

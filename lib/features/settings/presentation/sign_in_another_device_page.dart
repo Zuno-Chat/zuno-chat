@@ -4,7 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart' show QrCode, QrErrorCorrectLevel;
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
@@ -12,6 +12,7 @@ import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/screen_security_service.dart';
+import '../../../core/ui/qr_image.dart';
 import 'uia_password_prompt.dart';
 
 class SignInAnotherDevicePage extends ConsumerStatefulWidget {
@@ -25,7 +26,7 @@ class SignInAnotherDevicePage extends ConsumerStatefulWidget {
 class _SignInAnotherDevicePageState
     extends ConsumerState<SignInAnotherDevicePage>
     with ScreenProtected<SignInAnotherDevicePage> {
-  IssuedSignInCode? _issued;
+  ({IssuedSignInCode issued, QrCode qr})? _shown;
   String? _error;
   bool _expired = false;
   StreamSubscription<UiaRequest>? _uiaSub;
@@ -52,7 +53,7 @@ class _SignInAnotherDevicePageState
 
   Future<void> _request() async {
     setState(() {
-      _issued = null;
+      _shown = null;
       _error = null;
       _expired = false;
     });
@@ -60,7 +61,11 @@ class _SignInAnotherDevicePageState
     try {
       final issued = await issueLinkedSignInCode(client);
       if (!mounted) return;
-      setState(() => _issued = issued);
+      final qr = QrCode.fromData(
+        data: issued.code.encode(),
+        errorCorrectLevel: QrErrorCorrectLevel.M,
+      );
+      setState(() => _shown = (issued: issued, qr: qr));
     } catch (e, s) {
       final unsupported =
           e is MatrixException && e.error == MatrixError.M_UNRECOGNIZED;
@@ -79,7 +84,7 @@ class _SignInAnotherDevicePageState
   List<Widget> _body(BuildContext context) {
     final l10n = context.l10n;
     final error = _error;
-    final issued = _issued;
+    final shown = _shown;
     if (error != null) {
       return [
         Text(error, textAlign: TextAlign.center),
@@ -87,7 +92,7 @@ class _SignInAnotherDevicePageState
         FilledButton(onPressed: _request, child: Text(l10n.commonTryAgain)),
       ];
     }
-    if (issued == null) {
+    if (shown == null) {
       return const [Center(child: CircularProgressIndicator())];
     }
     if (_expired) {
@@ -104,10 +109,10 @@ class _SignInAnotherDevicePageState
     return [
       Text(l10n.settingsSignInScan, textAlign: TextAlign.center),
       const SizedBox(height: 16),
-      Center(child: _QrImage(data: issued.code.encode())),
+      Center(child: QrImage(shown.qr)),
       const SizedBox(height: 16),
       Text(
-        issued.code.typed,
+        shown.issued.code.typed,
         textAlign: TextAlign.center,
         style: theme.textTheme.titleMedium?.copyWith(
           fontFeatures: const [FontFeature.tabularFigures()],
@@ -116,7 +121,7 @@ class _SignInAnotherDevicePageState
       ),
       const SizedBox(height: 8),
       _Countdown(
-        expiresAt: issued.expiresAt,
+        expiresAt: shown.issued.expiresAt,
         onExpired: () => setState(() => _expired = true),
       ),
       const SizedBox(height: 16),
@@ -198,42 +203,6 @@ class _CountdownState extends State<_Countdown> {
       textAlign: TextAlign.center,
       style: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurfaceVariant,
-      ),
-    );
-  }
-}
-
-class _QrImage extends StatelessWidget {
-  final String data;
-
-  const _QrImage({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final qr = QrCode.fromData(
-      data: data,
-      errorCorrectLevel: QrErrorCorrectLevel.M,
-    );
-    return Container(
-      padding: const EdgeInsets.all(12),
-      color: Colors.white,
-      child: SizedBox(
-        width: 240,
-        height: 240,
-        child: CustomPaint(
-          painter: QrPainter.withQr(
-            qr: qr,
-            gapless: true,
-            dataModuleStyle: const QrDataModuleStyle(
-              dataModuleShape: QrDataModuleShape.square,
-              color: Colors.black,
-            ),
-            eyeStyle: const QrEyeStyle(
-              eyeShape: QrEyeShape.square,
-              color: Colors.black,
-            ),
-          ),
-        ),
       ),
     );
   }

@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/currently_open_room_provider.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/upload_http_client.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -190,6 +191,7 @@ class RoomPageHarness {
         debugShowCheckedModeBanner: false,
         theme: zunoLightTheme,
         scaffoldMessengerKey: globalScaffoldMessengerKey,
+        navigatorObservers: [container.read(openChatObserverProvider)],
         home: home,
       ),
     );
@@ -216,10 +218,7 @@ class RoomPageHarness {
   Future<void> pumpRoomPageOverLauncher(WidgetTester tester) async {
     await tester.pumpWidget(
       await app(
-        home: routeLauncher(
-          (_) => RoomPage(room: room),
-          label: 'open chat',
-        ),
+        home: routeLauncher((_) => RoomPage(room: room), label: 'open chat'),
       ),
     );
     await tester.tap(find.text('open chat'));

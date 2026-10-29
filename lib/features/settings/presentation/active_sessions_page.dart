@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/format/date_labels.dart';
+import '../../../core/format/human_units.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
@@ -16,8 +17,10 @@ import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
-import '../../verification/presentation/verification_page.dart';
+import '../../verification/presentation/start_verification.dart';
 import 'session_info.dart';
 import 'sign_in_another_device_page.dart';
 import 'uia_password_prompt.dart';
@@ -92,8 +95,10 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
       if (_sessions.isEmpty) {
         setState(() => _loadFailed = true);
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.settingsSessionsRefreshFailed)),
+        ScaffoldMessenger.of(context).sayFailed(
+          context.l10n,
+          e,
+          failed: context.l10n.settingsSessionsRefreshFailed,
         );
       }
     } finally {
@@ -118,9 +123,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     } catch (e, s) {
       if (isUiaCancel(e)) return;
       reportCaught('sign out other devices', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.settingsSessionsSignOutFailed)),
-      );
+      messenger.sayFailed(l10n, e, failed: l10n.settingsSessionsSignOutFailed);
       return;
     }
     if (mounted) await _refresh();
@@ -131,7 +134,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
       title: context.l10n.settingsSessionsSignOutThisTitle,
       body: context.l10n.settingsSessionsSignOutThisBody,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     await signOutThisDeviceOrExplain(context, ref);
   }
 
@@ -162,7 +165,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
       title: context.l10n.settingsSessionsSignOutOthersTitle(otherIds.length),
       body: context.l10n.settingsSessionsSignOutOthersBody,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     await _signOut(
       (auth) =>
           ref.read(matrixClientProvider).deleteDevices(otherIds, auth: auth),
@@ -176,7 +179,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
       ),
       body: context.l10n.settingsSessionsSignOutOneBody,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     await _signOut(
       (auth) => ref
           .read(matrixClientProvider)
@@ -184,53 +187,29 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     );
   }
 
-  Future<bool?> _confirmSignOut({
+  Future<bool> _confirmSignOut({
     @displayText required String title,
     @displayText required String body,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(body),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonCancel),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.settingsSignOut),
-          ),
-        ],
-      ),
-    );
-  }
+  }) => confirm(
+    context,
+    title: title,
+    body: body,
+    confirmLabel: context.l10n.settingsSignOut,
+    tone: ConfirmTone.destructive,
+  );
 
   Future<void> _verify(String deviceId) async {
     final client = ref.read(matrixClientProvider);
     final device = client.userDeviceKeys[client.userID]?.deviceKeys[deviceId];
     if (device == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final l10n = context.l10n;
-    try {
-      final keyVerification = await device.startVerification();
-      if (!mounted) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => VerificationPage(
-            keyVerification: keyVerification,
-            isOwnDevice: true,
-          ),
-        ),
-      );
-      if (mounted) await _refresh();
-    } catch (e, s) {
-      reportCaught('start device approval', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.settingsSessionsApproveFailed)),
-      );
-    }
+    final verification = await startAndOpenVerification(
+      context,
+      device.startVerification,
+      label: 'start device approval',
+      failed: context.l10n.settingsSessionsApproveFailed,
+      isOwnDevice: true,
+    );
+    if (verification != null && mounted) await _refresh();
   }
 
   @override
@@ -440,7 +419,7 @@ class _SessionTile extends StatelessWidget {
           ],
         ],
       ),
-      subtitle: Text(subtitleParts.join(' · ')),
+      subtitle: Text(joinDetails(subtitleParts)),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

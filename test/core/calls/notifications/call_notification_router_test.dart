@@ -148,7 +148,6 @@ void main() {
     installFakeCallStyleChannel();
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();
-    RingingCall.instance.callId = null;
     teardownGate = null;
 
     client = buildTestClient(

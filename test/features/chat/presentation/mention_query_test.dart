@@ -77,7 +77,7 @@ void main() {
     ];
 
     test('an empty query lists everyone by name', () {
-      expect(mentionMatches(members, '').map((u) => u.id), [
+      expect(mentionMatches(mentionCandidates(members), '').map((u) => u.id), [
         '@alice:example.org',
         '@bob:example.org',
         '@carol:example.org',
@@ -85,13 +85,15 @@ void main() {
     });
 
     test('matches display name or username, ignoring case', () {
-      expect(mentionMatches(members, 'BO').map((u) => u.id), [
-        '@bob:example.org',
-      ]);
-      expect(mentionMatches(members, 'car').map((u) => u.id), [
-        '@carol:example.org',
-      ]);
-      expect(mentionMatches(members, 'zed'), isEmpty);
+      expect(
+        mentionMatches(mentionCandidates(members), 'BO').map((u) => u.id),
+        ['@bob:example.org'],
+      );
+      expect(
+        mentionMatches(mentionCandidates(members), 'car').map((u) => u.id),
+        ['@carol:example.org'],
+      );
+      expect(mentionMatches(mentionCandidates(members), 'zed'), isEmpty);
     });
 
     test('caps the list', () {
@@ -105,7 +107,28 @@ void main() {
           ),
       ];
 
-      expect(mentionMatches(many, '', limit: 30), hasLength(30));
+      expect(
+        mentionMatches(mentionCandidates(many), '', limit: 30),
+        hasLength(30),
+      );
+    });
+
+    test('candidates are sorted by name once, so a query keeps that order', () {
+      final candidates = mentionCandidates(members);
+
+      expect(candidates.map((c) => c.user.id), [
+        '@alice:example.org',
+        '@bob:example.org',
+        '@carol:example.org',
+      ]);
+      expect(mentionMatches(candidates, 'o').map((u) => u.id), [
+        '@bob:example.org',
+        '@carol:example.org',
+      ]);
+    });
+
+    test('no candidates match nothing', () {
+      expect(mentionMatches(mentionCandidates(const []), 'al'), isEmpty);
     });
   });
 

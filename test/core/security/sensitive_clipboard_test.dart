@@ -1,8 +1,9 @@
 import 'package:fake_async/fake_async.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 
 import '../../helpers/app_lifecycle.dart';
@@ -160,5 +161,42 @@ void main() {
 
       expect(native, isEmpty);
     });
+  });
+
+  testWidgets('the copy notice says the clipboard clears only where it '
+      'does', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: const Scaffold(body: Text('Backup')),
+      ),
+    );
+    final context = tester.element(find.text('Backup'));
+    final l10n = context.l10n;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final clearing = SensitiveClipboard(
+      capabilities: capabilitiesLike(
+        androidCapabilities,
+        sensitiveClipboard: true,
+      ),
+    );
+    await clearing.copyWithNotice(messenger, l10n, 'recovery code');
+    await tester.pump();
+    expect(find.text(l10n.settingsCopiedSensitive), findsOneWidget);
+
+    messenger.removeCurrentSnackBar();
+    await tester.pumpAndSettle();
+
+    await SensitiveClipboard(
+      capabilities: capabilitiesLike(
+        androidCapabilities,
+        sensitiveClipboard: false,
+      ),
+    ).copyWithNotice(messenger, l10n, 'recovery code');
+    await tester.pump();
+    expect(find.text(l10n.settingsCopiedStays), findsOneWidget);
+    clearing.cancelPendingClear();
   });
 }

@@ -1,7 +1,7 @@
 import 'dart:ui' show Color;
 
 import 'package:html/dom.dart';
-import 'package:html/parser.dart' show parseFragment;
+import 'package:html/parser.dart' show parse;
 
 import 'matrix_ids.dart';
 import 'mention_fragments.dart';
@@ -86,14 +86,18 @@ final _languageClass = RegExp(r'^language-[A-Za-z0-9_+-]{1,32}$');
 
 final _colorValue = RegExp(r'^(#[0-9A-Fa-f]{3,8}|[A-Za-z]{1,20})$');
 
-String sanitizeMessageHtml(String html, {required Color mentionColor}) {
+Element sanitizedMessageDocument(
+  DocumentFragment html, {
+  required Color mentionColor,
+}) {
   final hex = mentionColor.toARGB32().toRadixString(16).padLeft(8, '0');
   final mentionStyle = 'color: #${hex.substring(2)}; font-weight: bold;';
-  final out = DocumentFragment();
-  for (final node in List<Node>.from(parseFragment(html).nodes)) {
-    out.nodes.addAll(_sanitizeNode(node, mentionStyle));
+  final document = parse('');
+  final body = document.body!;
+  for (final node in html.nodes) {
+    body.nodes.addAll(_sanitizeNode(node, mentionStyle));
   }
-  return out.outerHtml;
+  return document.documentElement!;
 }
 
 List<Node> _sanitizeNode(Node node, String mentionStyle) {

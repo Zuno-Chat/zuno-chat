@@ -183,10 +183,20 @@ void main() {
     await tester.pumpWidget(host(null));
 
     expect(find.text('M'), findsOneWidget);
-    final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
-    expect(avatar.backgroundColor, avatarToneFor('@maya:zuno.chat'));
-    expect(avatar.foregroundColor, zunoInk);
-    expect(avatar.foregroundImage, isNull);
+    final circle =
+        tester
+                .widget<DecoratedBox>(
+                  find.ancestor(
+                    of: find.text('M'),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(circle.color, avatarToneFor('@maya:zuno.chat'));
+    expect(circle.shape, BoxShape.circle);
+    expect(tester.widget<Text>(find.text('M')).style?.color, zunoInk);
+    expect(find.byType(Image), findsNothing);
     expect(mediaRequests, isEmpty);
   });
 
@@ -212,6 +222,36 @@ void main() {
     expect(await initialSize(16), closeTo(12.16, 0.01));
     expect(await initialSize(56), closeTo(42.56, 0.01));
   });
+
+  for (final shape in AvatarShape.values) {
+    testWidgets('a ${shape.name} initial keeps its size under large text', (
+      tester,
+    ) async {
+      Future<Size> initial(double scale) async {
+        await tester.pumpWidget(
+          MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: MediaQuery(
+              data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+              child: Center(
+                child: MxcAvatar(
+                  client: client,
+                  avatarUrl: null,
+                  fallbackText: 'maya',
+                  toneSeed: '@maya:zuno.chat',
+                  shape: shape,
+                ),
+              ),
+            ),
+          ),
+        );
+        return tester.getSize(find.text('M'));
+      }
+
+      expect(await initial(3), await initial(1));
+    });
+  }
 
   testWidgets('bytes that do not decode keep the initial and throw nothing', (
     tester,
@@ -262,7 +302,6 @@ void main() {
 
     expect(find.byType(ClipRRect), findsOneWidget);
     expect(find.byType(ClipOval), findsNothing);
-    expect(find.byType(CircleAvatar), findsNothing);
   });
 
   testWidgets('blank text falls back to a question mark', (tester) async {

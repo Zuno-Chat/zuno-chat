@@ -11,7 +11,6 @@ import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/current_position.dart';
 import '../../../core/location/geo_uri.dart';
-import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/live_location_viewing.dart';
 import '../../../core/location/map_tiles_provider.dart';
 import '../../../core/location/own_location_tracker.dart';
@@ -19,7 +18,9 @@ import '../../../core/matrix/mxc_avatar.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/ui/visible_in_front.dart';
+import '../../../core/ui/zuno_colors.dart';
 import 'live_location_clock.dart';
+import 'live_location_stop.dart';
 import 'live_location_text.dart';
 import 'live_location_watch_scope.dart';
 import 'location_failure_text.dart';
@@ -360,14 +361,7 @@ class _LiveMapState extends ConsumerState<_LiveMap> with VisibleInFront {
         ? map
         : Stack(
             children: [
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: MapGridPainter(
-                    background: colors.surfaceContainerHighest,
-                    line: colors.outlineVariant,
-                  ),
-                ),
-              ),
+              const Positioned.fill(child: MapGrid()),
               Positioned.fill(child: map),
             ],
           );
@@ -407,7 +401,9 @@ class _OwnDot extends StatelessWidget {
         shape: BoxShape.circle,
         color: colors.primary,
         border: Border.all(color: colors.surface, width: 3),
-        boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
+        boxShadow: const [
+          BoxShadow(blurRadius: 4, color: mapMarkerShadowColor),
+        ],
       ),
     );
   }
@@ -419,11 +415,7 @@ class _WaitingForLocation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    return CustomPaint(
-      painter: MapGridPainter(
-        background: colors.surfaceContainerHighest,
-        line: colors.outlineVariant,
-      ),
+    return MapGrid(
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -527,8 +519,7 @@ class _Sharers extends ConsumerWidget {
                 mine: share.userId == me,
                 status: liveShareStatusText(share, now, labels),
                 onFocus: onFocus,
-                onStop: () =>
-                    ref.read(liveLocationSharingProvider).stopIn(room.id),
+                onStop: () => stopLiveSharingIn(context, ref, room),
                 onOpenInMaps: (geo) => openInMaps(
                   context,
                   geo,

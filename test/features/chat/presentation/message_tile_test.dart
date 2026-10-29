@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
@@ -23,6 +24,7 @@ import 'package:zuno/features/chat/data/message_row_data.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/forward_icon.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
+import 'package:zuno/features/chat/presentation/message_contents/call_summary_tile.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
@@ -94,6 +96,7 @@ void main() {
       older: older,
       newer: null,
       isLastOwn: false,
+      isDirect: room.isDirectChat,
       gallery: gallery,
       galleryFailureIndexes: const [],
       canRespond: canRespond,
@@ -165,6 +168,87 @@ void main() {
       expect(find.byType(Opacity), findsNothing);
       expect(find.byType(Dismissible), findsNothing);
     }
+  });
+
+  group('under Show hidden messages', () {
+    Finder hiddenRow() => find.byIcon(Icons.visibility_off_outlined);
+
+    testWidgets('room state reads as a hidden row', (tester) async {
+      await pumpTile(
+        tester,
+        buildTestEvent(
+          room,
+          eventId: r'$s',
+          senderId: bob,
+          type: EventTypes.HistoryVisibility,
+          stateKey: '',
+          originServerTs: noon,
+          content: {'history_visibility': 'shared'},
+        ),
+      );
+
+      expect(hiddenRow(), findsOneWidget);
+      expect(find.byType(MessageBubble), findsNothing);
+    });
+
+    testWidgets('removed room state stays a hidden row, never a deleted '
+        'message', (tester) async {
+      await pumpTile(
+        tester,
+        buildTestEvent(
+          room,
+          eventId: r'$s',
+          senderId: bob,
+          type: EventTypes.RoomName,
+          stateKey: '',
+          originServerTs: noon,
+          content: {'name': 'x'},
+        )..setRedactionEvent(
+          buildTestEvent(
+            room,
+            eventId: r'$r',
+            senderId: bob,
+            type: EventTypes.Redaction,
+            originServerTs: noon,
+          ),
+        ),
+      );
+
+      expect(hiddenRow(), findsOneWidget);
+      expect(find.text('Message deleted'), findsNothing);
+    });
+
+    testWidgets('a call ring reads as a hidden message', (tester) async {
+      await pumpTile(
+        tester,
+        text(
+          r'$ring',
+          body: 'Incoming voice call',
+          extra: {'msgtype': callInviteMsgtype},
+        ),
+      );
+
+      expect(hiddenRow(), findsOneWidget);
+      expect(find.text('Hidden message: Incoming voice call'), findsOneWidget);
+    });
+  });
+
+  testWidgets('a call summary draws its call bubble', (tester) async {
+    await pumpTile(
+      tester,
+      text(
+        r'$call',
+        extra: const CallSummary(
+          callId: 'c1',
+          kind: 'voice',
+          status: CallSummaryStatus.missed,
+          durationMs: 0,
+        ).toMessageContent(),
+      ),
+    );
+
+    expect(find.byType(CallSummaryTile), findsOneWidget);
+    expect(find.byIcon(Icons.call_missed_outlined), findsOneWidget);
   });
 
   testWidgets('a sending message shows the clock at full color', (

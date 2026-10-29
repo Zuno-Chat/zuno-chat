@@ -1,7 +1,17 @@
+import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:permission_handler/permission_handler.dart';
-
 import 'package:zuno/core/notifications/settings/notification_permission.dart';
+import 'package:zuno/core/notifications/settings/notifications_allowed_provider.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
+
+import '../../../helpers/fake_permissions.dart';
+import '../../../helpers/fixed_delivery_mode.dart';
+import '../../../helpers/native_method_calls.dart';
+import '../../../helpers/platform_capabilities.dart';
+import '../../../helpers/preferences_container.dart';
 
 void main() {
   group('notificationPermissionActionFor', () {
@@ -88,5 +98,96 @@ void main() {
         );
       });
     }
+  });
+
+  group('notificationPermissionChanged', () {
+    late RecordedMethodCalls backgroundSync;
+    late FakePermissions permissions;
+
+    setUp(() {
+      ambientCapabilities = androidCapabilities;
+      backgroundSync = recordMethodChannel('zuno/background_sync');
+      permissions = installFakePermissions();
+    });
+
+    Future<({WidgetRef ref, ProviderContainer container})> refOn(
+      WidgetTester tester,
+      NotificationDeliveryMode mode,
+    ) async {
+      final container = await containerWithPreferences(
+        {},
+        overrides: [fixedDeliveryMode(mode)],
+      );
+      late WidgetRef captured;
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: Consumer(
+            builder: (context, ref, _) {
+              captured = ref;
+              return const SizedBox();
+            },
+          ),
+        ),
+      );
+      container.read(notificationsAllowedProvider);
+      await tester.pump();
+      return (ref: captured, container: container);
+    }
+
+    testWidgets('granted under background sync restarts it and tells the '
+        'app notifications are allowed', (tester) async {
+      permissions.onCheck = permissionDenied;
+      final (:ref, :container) = await refOn(
+        tester,
+        NotificationDeliveryMode.backgroundService,
+      );
+      permissions.onCheck = permissionGranted;
+
+      await notificationPermissionChanged(
+        ref,
+        previous: PermissionStatus.denied,
+        current: PermissionStatus.granted,
+      );
+
+      expect(backgroundSync.methods, ['startBackgroundSyncService']);
+      expect(container.read(notificationsAllowedProvider), isTrue);
+    });
+
+    testWidgets('granted under push delivery leaves background sync alone', (
+      tester,
+    ) async {
+      final (:ref, container: _) = await refOn(
+        tester,
+        NotificationDeliveryMode.fcm,
+      );
+
+      await notificationPermissionChanged(
+        ref,
+        previous: PermissionStatus.denied,
+        current: PermissionStatus.granted,
+      );
+
+      expect(backgroundSync.methods, isEmpty);
+    });
+
+    testWidgets('still denied restarts nothing but checks again', (
+      tester,
+    ) async {
+      final (:ref, :container) = await refOn(
+        tester,
+        NotificationDeliveryMode.backgroundService,
+      );
+      permissions.onCheck = permissionDenied;
+
+      await notificationPermissionChanged(
+        ref,
+        previous: PermissionStatus.denied,
+        current: PermissionStatus.denied,
+      );
+
+      expect(backgroundSync.methods, isEmpty);
+      expect(container.read(notificationsAllowedProvider), isFalse);
+    });
   });
 }

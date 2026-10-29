@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/data/discarded_sends.dart';
 import 'package:zuno/features/chat/data/forward_uploads.dart';
+import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/data/room_sender.dart';
 
 import '../../../helpers/caught_reports.dart';
@@ -27,6 +29,7 @@ void main() {
   late List<String> said;
   late bool refuseSends;
   late bool refuseUploads;
+  late bool uploadsOffline;
   late Completer<void>? holdSends;
   late Room source;
   late Room target;
@@ -49,6 +52,7 @@ void main() {
     said = [];
     refuseSends = false;
     refuseUploads = false;
+    uploadsOffline = false;
     holdSends = null;
     silenceMethodChannels(['zuno/upload_service']);
     SharedPreferences.setMockInitialValues({});
@@ -57,6 +61,7 @@ void main() {
         requests.add(request);
         final path = request.url.path;
         if (path.endsWith('/upload')) {
+          if (uploadsOffline) throw const SocketException('offline');
           return refuseUploads
               ? http.Response(
                   jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'no'}),
@@ -146,9 +151,9 @@ void main() {
   test(
     'a forward reuses the file and sends the copy with the marker',
     () async {
-      final ok = await sender.forward([plain(r'$photo')]);
+      final failure = await sender.forward([plain(r'$photo')]);
 
-      expect(ok, isTrue);
+      expect(failure, isNull);
       expect(requestsTo('/upload'), isEmpty);
       expect(sentContents().single['url'], 'mxc://example.org/photo');
       expect(sentContents().single[forwardedKey], isTrue);
@@ -163,9 +168,9 @@ void main() {
       'decrypted bytes, and its key never appears', () async {
     final secret = secretPhoto();
 
-    final ok = await sender.forward([secret]);
+    final failure = await sender.forward([secret]);
 
-    expect(ok, isTrue);
+    expect(failure, isNull);
     final uploads = requestsTo('/upload').toList();
     expect(uploads.map((r) => r.bodyBytes), [
       [1, 2, 3],
@@ -207,9 +212,9 @@ void main() {
       Uint8List.fromList([4, 5]),
     );
 
-    final ok = await sender.forward([photo]);
+    final failure = await sender.forward([photo]);
 
-    expect(ok, isTrue);
+    expect(failure, isNull);
     expect(requestsTo('/upload').single.bodyBytes, [4, 5]);
     final sent = sentContents().single;
     expect(sent['url'], 'mxc://example.org/mixed');
@@ -229,12 +234,12 @@ void main() {
     final secret = secretPhoto();
     final uploads = ForwardUploads();
 
-    final delivered = await Future.wait([
+    final failures = await Future.wait([
       sender.forward([secret], uploads: uploads),
       otherSender.forward([secret], uploads: uploads),
     ]);
 
-    expect(delivered, [true, true]);
+    expect(failures, [null, null]);
     expect(requestsTo('/upload'), hasLength(2));
     expect(sentContents(), hasLength(2));
     expect(
@@ -247,9 +252,9 @@ void main() {
       'goes', () async {
     final secret = secretPhoto(thumbnailCached: false);
 
-    final ok = await sender.forward([secret]);
+    final failure = await sender.forward([secret]);
 
-    expect(ok, isTrue);
+    expect(failure, isNull);
     final info = sentContents().single['info']! as Map;
     expect(info.containsKey('thumbnail_url'), isFalse);
     expect(info.containsKey('thumbnail_file'), isFalse);
@@ -278,11 +283,11 @@ void main() {
     refuseUploads = true;
     final secret = secretPhoto();
 
-    expect(await sender.forward([secret]), isFalse);
+    expect(await sender.forward([secret]), isA<MatrixException>());
 
     expect(said, isEmpty);
     final failed = sender.failed.single;
-    expect(failed.forward, same(secret));
+    expect((failed as FailedForwardSend).event, same(secret));
     expect(sentContents(), isEmpty);
 
     refuseUploads = false;
@@ -290,6 +295,28 @@ void main() {
 
     expect(sender.failed, isEmpty);
     expect(sentContents().single['url'], 'mxc://example.org/reuploaded');
+  });
+
+  test('a retried forward that fails offline says so and to check the '
+      'connection, and waits for Retry again', () async {
+    refuseUploads = true;
+    await sender.forward([secretPhoto()]);
+
+    uploadsOffline = true;
+    await sender.retry(sender.failed.single);
+
+    expect(said, ['Not sent. Check your connection and try again.']);
+    expect(sender.failed, hasLength(1));
+  });
+
+  test('a retried forward the server refuses says only that it did not '
+      'send', () async {
+    refuseUploads = true;
+    await sender.forward([secretPhoto()]);
+
+    await sender.retry(sender.failed.single);
+
+    expect(said, ['Not sent. Try again.']);
   });
 
   test(
@@ -303,7 +330,7 @@ void main() {
       await sender.discardUnsent(shown.firstWhere((e) => e.status.isSending));
       holdSends!.complete();
 
-      expect(await forwarding, isTrue);
+      expect(await forwarding, isNull);
       await pumpEventQueue();
       expect(requestsTo('/redact/'), hasLength(1));
     },
@@ -335,9 +362,9 @@ void main() {
       plain(r'$g2', extra: galleryGroupContent(id: 'old', index: 2, count: 3)),
     ];
 
-    final ok = await sender.forward(items);
+    final failure = await sender.forward(items);
 
-    expect(ok, isTrue);
+    expect(failure, isNull);
     final groups = [
       for (final sent in sentContents()) sent[galleryGroupKey]! as Map,
     ];
@@ -352,14 +379,24 @@ void main() {
     ]);
   });
 
-  test('a send that does not go returns false, says nothing and reports '
-      'nothing', () async {
+  test('a forward whose upload fails offline returns the connection '
+      'error', () async {
+    uploadsOffline = true;
+
+    final failure = await sender.forward([secretPhoto()]);
+
+    expect(failure, isA<SocketException>());
+    expect(said, isEmpty);
+  });
+
+  test('a send that does not go returns that it did not, says nothing and '
+      'reports nothing', () async {
     refuseSends = true;
     final logs = recordDebugPrints();
 
-    final ok = await sender.forward([plain(r'$photo')]);
+    final failure = await sender.forward([plain(r'$photo')]);
 
-    expect(ok, isFalse);
+    expect(failure, isA<ForwardNotSent>());
     expect(said, isEmpty);
     expect(logs.where((line) => line.startsWith('zuno/caught:')), isEmpty);
   });

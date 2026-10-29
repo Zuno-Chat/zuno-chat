@@ -1,12 +1,16 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/forwarded_message.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/features/chat/data/discarded_sends.dart';
+import 'package:zuno/features/chat/data/forward_uploads.dart';
+import 'package:zuno/features/chat/data/room_sender.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/share/presentation/forward_picker_page.dart';
@@ -49,10 +53,12 @@ void main() {
     WidgetTester tester,
     List<Event> Function() events, {
     bool encrypting = false,
+    List<Override> overrides = const [],
   }) async {
     harness = RoomPageHarness(
       db: SendingFakeDatabaseApi(),
       encrypting: encrypting,
+      overrides: overrides,
     );
     harness.respond = (request) {
       final segments = request.url.pathSegments;
@@ -154,7 +160,42 @@ void main() {
     ]);
 
     expect(harness.sentTo(_alice), hasLength(1));
-    expect(find.text('Could not send to Cleo.'), findsOneWidget);
+    expect(find.text('Could not send to Cleo. Try again.'), findsOneWidget);
+  });
+
+  testWidgets('two failed chats are counted', (tester) async {
+    refusing.addAll([_alice, _cleo]);
+    await openRoom(tester, () => [photo('p1')]);
+
+    await forwardTo(tester, find.byType(ImageMessage), 'Forward', [
+      'Alice',
+      'Cleo',
+    ]);
+
+    expect(find.text('Could not send to 2 chats. Try again.'), findsOneWidget);
+  });
+
+  testWidgets('a chat that cannot be reached offline says to check the '
+      'connection', (tester) async {
+    await openRoom(
+      tester,
+      () => [photo('p1')],
+      overrides: [
+        roomSenderProvider.overrideWith(
+          (ref, room) =>
+              _OfflineSender(room, ref.watch(discardedSendsProvider)),
+        ),
+      ],
+    );
+
+    await forwardTo(tester, find.byType(ImageMessage), 'Forward', ['Alice']);
+
+    expect(
+      find.text(
+        'Could not send to Alice. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('an edited caption goes out as edited', (tester) async {
@@ -214,4 +255,19 @@ void main() {
       expect(find.text('This chat is not encrypted.'), findsOneWidget);
     },
   );
+}
+
+class _OfflineSender extends RoomSender {
+  _OfflineSender(Room room, DiscardedSends discarded)
+    : super(
+        room: room,
+        discarded: discarded,
+        reduceMediaSize: () => false,
+        chatOpen: () => false,
+        say: (_) {},
+      );
+
+  @override
+  Future<Object?> forward(List<Event> items, {ForwardUploads? uploads}) async =>
+      http.ClientException('offline');
 }

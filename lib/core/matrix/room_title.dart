@@ -1,9 +1,17 @@
 import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
+import 'matrix_ids.dart';
+import 'room_invite.dart';
 import 'room_name_localizations.dart';
 
 String roomTitle(Room room, AppLocalizations l10n) {
+  final invitees = unnamedAwaitedInvitees(room);
+  if (invitees != null) {
+    return invitees.length == 1
+        ? withoutServer(invitees.single)
+        : l10n.matrixInvitePeopleInvited(invitees.length);
+  }
   final names = RoomNameLocalizations(l10n);
   final partner = room.directChatMatrixID;
   if (room.isAbandonedDMRoom && partner != null) {

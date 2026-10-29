@@ -106,6 +106,7 @@ void main() {
       older: older,
       newer: newer,
       isLastOwn: isLastOwn,
+      isDirect: event.room.isDirectChat,
       gallery: gallery,
       galleryFailureIndexes: galleryFailureIndexes,
       canRespond: canRespond,

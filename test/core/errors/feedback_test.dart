@@ -1,10 +1,12 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:zuno/core/errors/feedback.dart';
 
+import '../../helpers/fake_http.dart';
 import '../../helpers/recording_sentry.dart';
 
 void main() {
@@ -65,6 +67,36 @@ void main() {
       sendFeedback('Idea', dsn: testSentryDsn, transport: transport),
       throwsA(isA<FeedbackNotSent>()),
     );
+  });
+
+  test('throws the connection error when Sentry cannot be reached', () async {
+    await expectLater(
+      sendFeedback(
+        'Idea',
+        dsn: testSentryDsn,
+        httpClient: FakeHttpClient(
+          (_) async => throw http.ClientException('offline'),
+        ),
+      ),
+      throwsA(isA<http.ClientException>()),
+    );
+  });
+
+  test('a server error is not a connection error', () async {
+    var sends = 0;
+
+    await expectLater(
+      sendFeedback(
+        'Idea',
+        dsn: testSentryDsn,
+        httpClient: FakeHttpClient((_) async {
+          sends++;
+          return http.Response('', 500);
+        }),
+      ),
+      throwsA(isA<FeedbackNotSent>()),
+    );
+    expect(sends, 1);
   });
 
   test('throws without sending when no DSN is compiled in', () async {

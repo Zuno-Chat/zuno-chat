@@ -261,4 +261,19 @@ void main() {
       expect(hasSomeoneToCall(room), isTrue);
     });
   });
+
+  group('canStartCall', () {
+    Room roomWith({required int joined, required int stateDefault}) {
+      final room = buildTestRoom(buildTestClient(userId: '@alice:example.org'));
+      room.summary = RoomSummary.fromJson({'m.joined_member_count': joined});
+      setPowerLevels(room, {'state_default': stateDefault, 'users_default': 0});
+      return room;
+    }
+
+    test('needs both the right to join a call and somebody to call', () {
+      expect(canStartCall(roomWith(joined: 2, stateDefault: 0)), isTrue);
+      expect(canStartCall(roomWith(joined: 1, stateDefault: 0)), isFalse);
+      expect(canStartCall(roomWith(joined: 2, stateDefault: 50)), isFalse);
+    });
+  });
 }

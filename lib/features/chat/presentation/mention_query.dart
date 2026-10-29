@@ -36,17 +36,32 @@ MentionQuery? mentionQueryAt(String text, int cursor) {
   return MentionQuery(start: at, text: query);
 }
 
-List<User> mentionMatches(List<User> members, String query, {int? limit}) {
-  final needle = query.toLowerCase();
-  String name(User user) => user.calcDisplayname().toLowerCase();
-  bool matches(User user) =>
-      needle.isEmpty ||
-      name(user).contains(needle) ||
-      (user.id.localpart ?? '').toLowerCase().contains(needle);
+typedef MentionCandidate = ({User user, String name, String username});
 
-  final found = members.where(matches).toList()
-    ..sort((a, b) => name(a).compareTo(name(b)));
-  return limit == null ? found : found.take(limit).toList();
+List<MentionCandidate> mentionCandidates(Iterable<User> users) => [
+  for (final user in users)
+    (
+      user: user,
+      name: user.calcDisplayname().toLowerCase(),
+      username: (user.id.localpart ?? '').toLowerCase(),
+    ),
+]..sort((a, b) => a.name.compareTo(b.name));
+
+List<User> mentionMatches(
+  List<MentionCandidate> candidates,
+  String query, {
+  int? limit,
+}) {
+  final needle = query.toLowerCase();
+  final found = candidates
+      .where(
+        (candidate) =>
+            needle.isEmpty ||
+            candidate.name.contains(needle) ||
+            candidate.username.contains(needle),
+      )
+      .map((candidate) => candidate.user);
+  return (limit == null ? found : found.take(limit)).toList();
 }
 
 String mentionInsertText(User user) {

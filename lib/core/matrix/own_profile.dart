@@ -1,7 +1,5 @@
 import 'package:matrix/matrix.dart';
 
-import 'matrix_ids.dart';
-
 typedef OwnProfile = ({String name, Uri? avatar});
 
 Room? roomWithOwnMember(Client client) {
@@ -19,7 +17,7 @@ OwnProfile ownProfileFromMemory(Client client) {
   if (userId == null) return (name: '', avatar: null);
   final room = roomWithOwnMember(client);
   if (room == null) {
-    return (name: withoutServer(userId).replaceFirst('@', ''), avatar: null);
+    return (name: userId.localpart ?? userId, avatar: null);
   }
   final user = room.unsafeGetUserFromMemoryOrFallback(userId);
   return (name: user.calcDisplayname(), avatar: user.avatarUrl);
@@ -42,3 +40,6 @@ Future<OwnProfile?> ownProfileFromStore(Client client) async {
   }
   return null;
 }
+
+Future<void> setOwnDisplayName(Client client, String name) => client
+    .setProfileField(client.userID!, 'displayname', {'displayname': name});

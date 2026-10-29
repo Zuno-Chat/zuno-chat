@@ -8,6 +8,7 @@ import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/homeserver_input.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
 import 'auth_scaffold.dart';
 
@@ -83,15 +84,11 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
             labelText: l10n.authServerLabel,
             hintText: l10n.authHomeserverHint,
             helperText: l10n.authServerHelper,
-            border: const OutlineInputBorder(),
           ),
         ),
-        if (_error != null) ...[
+        if (_error case final error?) ...[
           const SizedBox(height: 16),
-          Text(
-            _error!,
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
+          InlineError(error),
         ],
         const SizedBox(height: 24),
         FilledButton(

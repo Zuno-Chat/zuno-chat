@@ -11,8 +11,11 @@ import '../../../core/security/recovery_code_file.dart';
 import '../../../core/security/secret_text.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/sensitive_clipboard.dart';
+import '../../../core/ui/inline_feedback.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
+import '../../../core/ui/zuno_theme.dart';
 
 class RecoveryCodeCreateFlow extends ConsumerStatefulWidget {
   final bool busy;
@@ -29,11 +32,8 @@ class RecoveryCodeCreateFlow extends ConsumerStatefulWidget {
       _RecoveryCodeCreateFlowState();
 }
 
-enum _Step { reveal, confirm }
-
 class _RecoveryCodeCreateFlowState
     extends ConsumerState<RecoveryCodeCreateFlow> {
-  _Step _step = _Step.reveal;
   String? _code;
   List<int>? _confirmIndices;
 
@@ -50,25 +50,22 @@ class _RecoveryCodeCreateFlowState
       ),
       data: (list) {
         final code = _code ??= generateRecoveryCode(list);
-        switch (_step) {
-          case _Step.reveal:
-            return _RevealScreen(
-              code: code,
-              capabilities: ref.watch(platformCapabilitiesProvider),
-              onContinue: () => setState(() {
-                _confirmIndices = recoveryConfirmationIndices();
-                _step = _Step.confirm;
-              }),
-            );
-          case _Step.confirm:
-            return _ConfirmScreen(
-              code: code,
-              indices: _confirmIndices!,
-              busy: widget.busy,
-              onBack: () => setState(() => _step = _Step.reveal),
-              onConfirmed: () => widget.onComplete(code),
-            );
+        final indices = _confirmIndices;
+        if (indices == null) {
+          return _RevealScreen(
+            code: code,
+            capabilities: ref.watch(platformCapabilitiesProvider),
+            onContinue: () =>
+                setState(() => _confirmIndices = recoveryConfirmationIndices()),
+          );
         }
+        return _ConfirmScreen(
+          code: code,
+          indices: indices,
+          busy: widget.busy,
+          onBack: () => setState(() => _confirmIndices = null),
+          onConfirmed: () => widget.onComplete(code),
+        );
       },
     );
   }
@@ -104,18 +101,11 @@ class _RevealScreen extends StatelessWidget {
         _WideButton(
           icon: Icons.copy_outlined,
           label: l10n.commonCopy,
-          onPressed: () {
-            SensitiveClipboard.instance.copy(code);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  capabilities.sensitiveClipboard
-                      ? l10n.settingsCopiedSensitive
-                      : l10n.settingsRecoveryCopiedStays,
-                ),
-              ),
-            );
-          },
+          onPressed: () => SensitiveClipboard.instance.copyWithNotice(
+            ScaffoldMessenger.of(context),
+            l10n,
+            code,
+          ),
         ),
         const SizedBox(height: 24),
         FilledButton(onPressed: onContinue, child: Text(l10n.commonContinue)),
@@ -135,10 +125,10 @@ Future<void> _saveAsFile(
     if (!await saveRecoveryCodeFile(l10n, code, capabilities: capabilities)) {
       return;
     }
-    messenger.showSnackBar(SnackBar(content: Text(l10n.settingsRecoverySaved)));
+    messenger.say(l10n.settingsRecoverySaved);
   } catch (e, s) {
     reportCaught('save recovery code file', e, s);
-    messenger.showSnackBar(SnackBar(content: Text(l10n.commonSaveFailed)));
+    messenger.sayFailed(l10n, e, failed: l10n.commonSaveFailed);
   }
 }
 
@@ -159,13 +149,7 @@ class _WideButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return OutlinedButton.icon(
       onPressed: onPressed,
-      icon: busy
-          ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-          : Icon(icon),
+      icon: busy ? const InlineSpinner(size: 18) : Icon(icon),
       label: Align(alignment: Alignment.centerLeft, child: Text(label)),
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(48),
@@ -187,7 +171,7 @@ class _WordGrid extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         border: Border.all(color: colors.outlineVariant),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(ZunoRadius.compact),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -319,24 +303,14 @@ class _ConfirmScreenState extends State<_ConfirmScreen> {
       title: l10n.settingsRecoveryConfirmTitle,
       body: l10n.settingsRecoveryConfirmBody(positions[0], positions[1]),
       actions: [
-        if (_error != null)
+        if (_error case final error?)
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              _error!,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
+            child: InlineError(error, textAlign: TextAlign.center),
           ),
         FilledButton(
           onPressed: widget.busy ? null : _submit,
-          child: widget.busy
-              ? const SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(l10n.commonDone),
+          child: widget.busy ? const InlineSpinner() : Text(l10n.commonDone),
         ),
         TextButton(
           onPressed: widget.busy ? null : widget.onBack,
@@ -350,7 +324,6 @@ class _ConfirmScreenState extends State<_ConfirmScreen> {
             autofocus: i == 0,
             decoration: InputDecoration(
               labelText: l10n.settingsRecoveryWordLabel(positions[i]),
-              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 12),
@@ -402,9 +375,7 @@ class _RecoveryCodeEntryFieldState
       final code = await readPickedRecoveryCodeFile(file);
       if (!mounted) return;
       if (code == null) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(l10n.settingsRecoveryNotACode)),
-        );
+        messenger.say(l10n.settingsRecoveryNotACode);
         return;
       }
       widget.controller.value = TextEditingValue(
@@ -413,9 +384,7 @@ class _RecoveryCodeEntryFieldState
       );
     } catch (e, s) {
       reportCaught('open recovery code file', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.settingsRecoveryOpenFailed)),
-      );
+      messenger.sayFailed(l10n, e, failed: l10n.settingsRecoveryOpenFailed);
     } finally {
       if (mounted) setState(() => _opening = false);
     }
@@ -440,14 +409,16 @@ class _RecoveryCodeEntryFieldState
               hintText: context.l10n.settingsRecoveryCodeHint(
                 recoveryCodeWordCount,
               ),
-              border: const OutlineInputBorder(),
               errorText: widget.error,
             ),
-            onChanged: (_) => setState(() {}),
             onSubmitted: (_) => widget.busy ? null : widget.onSubmit(),
           ),
         ),
-        if (wordlist != null) _hint(context, wordlist),
+        if (wordlist != null)
+          ListenableBuilder(
+            listenable: widget.controller,
+            builder: (context, _) => _hint(context, wordlist),
+          ),
         const SizedBox(height: 16),
         _WideButton(
           icon: Icons.file_open_outlined,

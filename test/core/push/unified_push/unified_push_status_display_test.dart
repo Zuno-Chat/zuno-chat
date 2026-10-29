@@ -59,6 +59,31 @@ void main() {
     });
   });
 
+  group('unifiedPushStatusIsBusy', () {
+    test('holds while looking or registering', () {
+      for (final status in [
+        UnifiedPushStatus.findingDistributor,
+        UnifiedPushStatus.registering,
+        UnifiedPushStatus.postingPusher,
+      ]) {
+        expect(unifiedPushStatusIsBusy(status), isTrue, reason: '$status');
+      }
+    });
+
+    test('is free once settled, failed or waiting on the user', () {
+      for (final status in [
+        UnifiedPushStatus.idle,
+        UnifiedPushStatus.noDistributorFound,
+        UnifiedPushStatus.distributorSelected,
+        UnifiedPushStatus.ready,
+        UnifiedPushStatus.registrationFailed,
+        UnifiedPushStatus.pusherFailed,
+      ]) {
+        expect(unifiedPushStatusIsBusy(status), isFalse, reason: '$status');
+      }
+    });
+  });
+
   group('unifiedPushStatusLabel', () {
     test('says plain "Inactive" for every not-registered-yet state', () {
       for (final status in [

@@ -5,8 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
-import 'package:zuno/features/chat/data/composed_image.dart';
-import 'package:zuno/features/chat/data/composed_video.dart';
+import 'package:zuno/features/chat/data/composed_media.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 
 void main() {
@@ -88,13 +87,13 @@ void main() {
   });
 
   test('a failed send sits at its place in the gallery, or first alone', () {
-    const inGallery = FailedMediaSend(
+    const inGallery = FailedComposedSend(
+      ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
       gallery: GalleryGroupRef(id: 'g', index: 2, count: 3),
-      video: ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
     );
-    const single = FailedMediaSend(
+    const single = FailedComposedSend(
+      ComposedImage(path: '/p.jpg', name: 'p.jpg', caption: 'hi'),
       gallery: null,
-      photo: ComposedImage(path: '/p.jpg', name: 'p.jpg', caption: 'hi'),
     );
 
     expect(inGallery.index, 2);
@@ -102,13 +101,13 @@ void main() {
   });
 
   test('a failed send names the copy it needs for a retry', () {
-    const photo = FailedMediaSend(
+    const photo = FailedComposedSend(
+      ComposedImage(path: '/p.jpg', name: 'p.jpg', caption: ''),
       gallery: null,
-      photo: ComposedImage(path: '/p.jpg', name: 'p.jpg', caption: ''),
     );
-    const video = FailedMediaSend(
+    const video = FailedComposedSend(
+      ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
       gallery: null,
-      video: ComposedVideo(path: '/v.mp4', name: 'v.mp4', caption: ''),
     );
 
     expect(photo.path, '/p.jpg');

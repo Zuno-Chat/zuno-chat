@@ -108,4 +108,29 @@ void main() {
     );
     expect(find.textContaining('b">', findRichText: true), findsNothing);
   });
+
+  testWidgets('new formatting for the same message shows the new text', (
+    tester,
+  ) async {
+    await pumpFormatted(tester, '<b>first</b> draft', 'first draft');
+    expect(find.textContaining('first', findRichText: true), findsOneWidget);
+
+    await pumpFormatted(tester, '<b>second</b> draft', 'second draft');
+
+    expect(find.textContaining('second', findRichText: true), findsOneWidget);
+    expect(find.textContaining('first', findRichText: true), findsNothing);
+  });
+
+  testWidgets('a mention-only body that changes into rich text renders it', (
+    tester,
+  ) async {
+    const pill = '<a href="https://matrix.to/#/@alice:example.org">@alice</a>';
+    await pumpFormatted(tester, 'hi $pill', 'hi @alice');
+    expect(find.byType(RichText), findsOneWidget);
+
+    await pumpFormatted(tester, '<em>hi</em> $pill', 'hi @alice');
+
+    expect(find.textContaining('hi', findRichText: true), findsWidgets);
+    expect(find.textContaining('@alice', findRichText: true), findsOneWidget);
+  });
 }

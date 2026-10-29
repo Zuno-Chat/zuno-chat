@@ -4,28 +4,26 @@ import 'package:video_player/video_player.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/ui/page_dots.dart';
+import '../../../core/ui/zuno_colors.dart';
 import '../data/composed_media.dart';
 import 'caption_bar.dart';
-import 'image_caption_composer_page.dart' show ComposedImage;
 import 'preview_decode_width.dart';
-import 'video_caption_composer_page.dart'
-    show ComposerVideoPreview, composeVideo;
 
 export '../data/composed_media.dart';
 
 sealed class PickedMedia {
+  final String path;
   final String name;
-  const PickedMedia({required this.name});
+  const PickedMedia({required this.path, required this.name});
 }
 
 class PickedImage extends PickedMedia {
-  final String path;
-  const PickedImage({required super.name, required this.path});
+  const PickedImage({required super.path, required super.name});
 }
 
 class PickedVideo extends PickedMedia {
-  final String path;
-  const PickedVideo({required super.name, required this.path});
+  const PickedVideo({required super.path, required super.name});
 }
 
 class MediaCaptionComposerPage extends StatefulWidget {
@@ -117,17 +115,18 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     final caption = _captionControllers[i].text.trim();
     switch (_items[i]) {
       case PickedImage(:final path, :final name):
-        return ComposedImageResult(
-          ComposedImage(path: path, name: name, caption: caption),
-        );
+        return ComposedImage(path: path, name: name, caption: caption);
       case final PickedVideo video:
-        return ComposedVideoResult(
-          composeVideo(
-            path: video.path,
-            name: video.name,
-            caption: caption,
-            value: _valueOf(video),
-          ),
+        final value = _valueOf(video);
+        return ComposedVideo(
+          path: video.path,
+          name: video.name,
+          caption: caption,
+          width: value.size.width > 0 ? value.size.width.round() : null,
+          height: value.size.height > 0 ? value.size.height.round() : null,
+          durationMs: value.isInitialized
+              ? value.duration.inMilliseconds
+              : null,
         );
     }
   }
@@ -140,7 +139,6 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
   @override
   Widget build(BuildContext context) {
     final multiple = _items.length > 1;
-    final colors = Theme.of(context).colorScheme;
     final l10n = context.l10n;
 
     return Scaffold(
@@ -153,7 +151,9 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.delete_outline),
-            tooltip: l10n.chatRemoveItem,
+            tooltip: _items.every((item) => item is PickedImage)
+                ? l10n.chatRemovePhoto
+                : l10n.chatRemoveItem,
             onPressed: _removeCurrent,
           ),
         ],
@@ -175,23 +175,7 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
             if (multiple)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (var i = 0; i < _items.length; i++)
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 3),
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: i == _page
-                              ? colors.primary
-                              : colors.outlineVariant,
-                        ),
-                      ),
-                  ],
-                ),
+                child: PageDots(count: _items.length, current: _page),
               ),
             CaptionBar(
               controller: _captionControllers[_page],
@@ -222,6 +206,68 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     if (!identical(item, _shownVideo) || player == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return ComposerVideoPreview(controller: player, loading: _playerReady);
+    return _VideoPreview(controller: player, loading: _playerReady);
+  }
+}
+
+class _VideoPreview extends StatelessWidget {
+  final VideoPlayerController controller;
+  final Future<void>? loading;
+
+  const _VideoPreview({required this.controller, required this.loading});
+
+  void _togglePlay() {
+    if (controller.value.isPlaying) {
+      controller.pause();
+    } else {
+      controller.play();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: loading,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError || !controller.value.isInitialized) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                context.l10n.chatVideoNoPreview,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        }
+        return Center(
+          child: GestureDetector(
+            onTap: _togglePlay,
+            child: AspectRatio(
+              aspectRatio: controller.value.aspectRatio,
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  VideoPlayer(controller),
+                  AnimatedBuilder(
+                    animation: controller,
+                    builder: (context, _) => controller.value.isPlaying
+                        ? const SizedBox.shrink()
+                        : const Icon(
+                            Icons.play_arrow,
+                            size: 64,
+                            color: onMediaVariantColor,
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 }

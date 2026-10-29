@@ -9,7 +9,6 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/files/picked_file.dart';
-import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_availability.dart';
 import '../../../core/location/live_location_sharing.dart';
@@ -20,13 +19,12 @@ import '../../../core/matrix/picker_access.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/share/inbound_share.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/sheet.dart';
 import '../../location/presentation/live_location_text.dart';
 import '../../location/presentation/location_share_sheet.dart';
 import '../data/room_sender.dart';
-import 'image_caption_composer_page.dart';
 import 'media_caption_composer_page.dart';
-import 'video_caption_composer_page.dart';
 
 enum _Attachment { camera, gallery, videoCamera, file, location }
 
@@ -36,39 +34,36 @@ Future<void> showAttachmentMenu(
   Room room, {
   required void Function(bool fetching) onFetchingFile,
 }) async {
-  final choice = await showSheet<_Attachment>(
-    context: context,
-    builder: (context) => SafeArea(
-      child: Wrap(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.photo_camera_outlined),
-            title: Text(context.l10n.commonTakePhoto),
-            onTap: () => Navigator.of(context).pop(_Attachment.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined),
-            title: Text(context.l10n.commonChooseFromGallery),
-            onTap: () => Navigator.of(context).pop(_Attachment.gallery),
-          ),
-          ListTile(
-            leading: const Icon(Icons.videocam_outlined),
-            title: Text(context.l10n.chatRecordVideo),
-            onTap: () => Navigator.of(context).pop(_Attachment.videoCamera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.attach_file_outlined),
-            title: Text(context.l10n.chatChooseFile),
-            onTap: () => Navigator.of(context).pop(_Attachment.file),
-          ),
-          ListTile(
-            leading: const Icon(Icons.location_on_outlined),
-            title: Text(context.l10n.chatLocation),
-            onTap: () => Navigator.of(context).pop(_Attachment.location),
-          ),
-        ],
+  final l10n = context.l10n;
+  final choice = await showActionSheet<_Attachment>(
+    context,
+    actions: [
+      SheetAction(
+        _Attachment.camera,
+        icon: Icons.photo_camera_outlined,
+        label: l10n.commonTakePhoto,
       ),
-    ),
+      SheetAction(
+        _Attachment.gallery,
+        icon: Icons.photo_library_outlined,
+        label: l10n.commonChooseFromGallery,
+      ),
+      SheetAction(
+        _Attachment.videoCamera,
+        icon: Icons.videocam_outlined,
+        label: l10n.chatRecordVideo,
+      ),
+      SheetAction(
+        _Attachment.file,
+        icon: Icons.attach_file_outlined,
+        label: l10n.chatChooseFile,
+      ),
+      SheetAction(
+        _Attachment.location,
+        icon: Icons.location_on_outlined,
+        label: l10n.chatLocation,
+      ),
+    ],
   );
   if (choice == null || !context.mounted) return;
   final flow = _AttachmentFlow(context, ref, room);
@@ -86,13 +81,14 @@ Future<void> showAttachmentMenu(
         await _sendLocation(context, ref, room);
     }
   } catch (e, s) {
-    if (!isPickerAccessDenied(e)) reportCaught('attach ${choice.name}', e, s);
-    if (context.mounted) {
-      _say(
-        ScaffoldMessenger.of(context),
-        _attachmentFailure(context.l10n, choice, e),
-      );
+    if (!context.mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    if (isPickerAccessDenied(e)) {
+      messenger.say(_accessDenied(l10n, e));
+      return;
     }
+    reportCaught('attach ${choice.name}', e, s);
+    messenger.sayFailed(l10n, e, failed: _didNotOpen(l10n, choice));
   }
 }
 
@@ -103,25 +99,19 @@ Future<void> sendSharedFiles(
   List<SharedFile> files,
 ) => _AttachmentFlow(context, ref, room).sendShared(files);
 
-String _attachmentFailure(
-  AppLocalizations l10n,
-  _Attachment choice,
-  Object error,
-) {
-  final code = error is PlatformException ? error.code : null;
-  return switch (choice) {
-    _Attachment.camera || _Attachment.videoCamera =>
-      code == 'camera_access_denied'
-          ? l10n.chatCameraAccessDenied
-          : l10n.chatCameraDidNotOpen,
-    _Attachment.gallery =>
-      code == 'photo_access_denied'
-          ? l10n.chatPhotoAccessDenied
-          : l10n.chatPhotosDidNotOpen,
-    _Attachment.file => l10n.chatFilesDidNotOpen,
-    _Attachment.location => l10n.chatLocationNotSent,
-  };
-}
+String _accessDenied(AppLocalizations l10n, Object error) =>
+    error is PlatformException && error.code == 'camera_access_denied'
+    ? l10n.chatCameraAccessDenied
+    : l10n.chatPhotoAccessDenied;
+
+String _didNotOpen(AppLocalizations l10n, _Attachment choice) =>
+    switch (choice) {
+      _Attachment.camera ||
+      _Attachment.videoCamera => l10n.chatCameraDidNotOpen,
+      _Attachment.gallery => l10n.chatPhotosDidNotOpen,
+      _Attachment.file => l10n.chatFilesDidNotOpen,
+      _Attachment.location => l10n.chatLocationNotSent,
+    };
 
 Future<void> _sendLocation(
   BuildContext context,
@@ -148,19 +138,21 @@ Future<void> _sendLocation(
         await sendLocationPin(room, geo, at: clock.now());
       } catch (e, s) {
         reportCaughtType('send location pin', e, s);
-        _say(messenger, l10n.chatLocationNotSent);
+        messenger.sayFailed(l10n, e, failed: l10n.chatLocationNotSent);
       }
     case ShareLive(:final first, :final duration):
       try {
         await sharing.start(room, duration, first);
       } on LiveShareStartException catch (error) {
-        _say(messenger, liveShareStartFailureText(l10n, error.reason));
+        final text = liveShareStartFailureText(l10n, error.reason);
+        if (error.reason == LiveShareStartFailure.failed) {
+          messenger.sayFailed(l10n, error.cause, failed: text);
+        } else {
+          messenger.say(text);
+        }
       }
   }
 }
-
-void _say(ScaffoldMessengerState messenger, @displayText String message) =>
-    messenger.showSnackBar(SnackBar(content: Text(message)));
 
 class _AttachmentFlow {
   _AttachmentFlow(BuildContext context, WidgetRef ref, Room room)
@@ -227,7 +219,7 @@ class _AttachmentFlow {
     await _sender.holdCopies([for (final copy in copies) copy.path], () async {
       if (!_chat.mounted) return;
       final unopened = files.length - copies.length;
-      if (unopened > 0) _say(_messenger, _l10n.chatUnopenedShares(unopened));
+      if (unopened > 0) _messenger.say(_l10n.chatUnopenedShares(unopened));
       final (:media, :others) = await partitionSharedFiles(copies);
       if (media.isNotEmpty) await _composeAndSend(media);
       for (final file in others) {
@@ -245,40 +237,7 @@ class _AttachmentFlow {
     bool Function(XFile file) isVideo = looksLikeVideo,
   }) => _sender.holdCopies([for (final file in picked) file.path], () async {
     if (picked.isEmpty || !_chat.mounted) return;
-    final composed = await _compose(picked, isVideo);
-    if (composed == null) return;
-    await _sender.sendComposed(composed);
-  });
-
-  Future<List<ComposedMedia>?> _compose(
-    List<XFile> picked,
-    bool Function(XFile file) isVideo,
-  ) async {
-    final videos = picked.where(isVideo).toList();
-    if (videos.isEmpty) {
-      final images = await _navigator.push<List<ComposedImage>>(
-        MaterialPageRoute(
-          builder: (_) => ImageCaptionComposerPage(
-            images: [
-              for (final file in picked) (path: file.path, name: file.name),
-            ],
-          ),
-        ),
-      );
-      return images?.map(ComposedImageResult.new).toList();
-    }
-    if (picked.length == 1) {
-      final video = await _navigator.push<ComposedVideo>(
-        MaterialPageRoute(
-          builder: (_) => VideoCaptionComposerPage(
-            path: videos.single.path,
-            name: videos.single.name,
-          ),
-        ),
-      );
-      return video == null ? null : [ComposedVideoResult(video)];
-    }
-    return _navigator.push<List<ComposedMedia>>(
+    final composed = await _navigator.push<List<ComposedMedia>>(
       MaterialPageRoute(
         builder: (_) => MediaCaptionComposerPage(
           items: [
@@ -290,5 +249,7 @@ class _AttachmentFlow {
         ),
       ),
     );
-  }
+    if (composed == null) return;
+    await _sender.sendComposed(composed);
+  });
 }

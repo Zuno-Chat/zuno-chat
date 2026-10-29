@@ -167,7 +167,7 @@
       }
     }
   },
-  "blockingFailed": "Not blocked. Try again.",
+  "blockingFailed": "Not blocked.",
   "blockingInProgress": "Blocking…",
   "@blockingInProgress": {
     "description": "Button label while blocking someone"
@@ -198,7 +198,7 @@
   "@blockingUnblock": {
     "description": "Button next to a blocked person: stop blocking them"
   },
-  "blockingUnblockFailed": "Not unblocked. Try again.",
+  "blockingUnblockFailed": "Not unblocked.",
   "blockingUnblocked": "{name} unblocked",
   "@blockingUnblocked": {
     "description": "Snack bar after unblocking someone; name is the person",
@@ -585,7 +585,7 @@
     }
   },
   "chatCameraAccessDenied": "Allow camera access to take photos and videos",
-  "chatCameraDidNotOpen": "Camera did not open. Try again.",
+  "chatCameraDidNotOpen": "Camera did not open.",
   "chatCancelRecording": "Cancel recording",
   "@chatCancelRecording": {
     "description": "Tooltip in the message composer: discard the voice message being recorded"
@@ -644,9 +644,9 @@
     }
   },
   "chatDeleteManyBody": "Deletes them for everyone. Nobody can undo this.",
-  "chatDeleteManyFailed": "Some items not deleted. Try again.",
+  "chatDeleteManyFailed": "Some items not deleted.",
   "chatDeleteOneBody": "Deletes it for everyone. Nobody can undo this.",
-  "chatDeleteOneFailed": "Message not deleted. Try again.",
+  "chatDeleteOneFailed": "Message not deleted.",
   "chatDeleteTitle": "{count, plural, one{Delete message?} other{Delete {count} items?}}",
   "@chatDeleteTitle": {
     "placeholders": {
@@ -687,7 +687,7 @@
       }
     }
   },
-  "chatFilesDidNotOpen": "Files did not open. Try again.",
+  "chatFilesDidNotOpen": "Files did not open.",
   "chatForward": "Forward",
   "@chatForward": {
     "description": "Action in the message actions and the media viewer: send this photo, video or file to other chats"
@@ -771,7 +771,7 @@
   "@chatLocation": {
     "description": "Attachment menu item: share your location"
   },
-  "chatLocationNotSent": "Location not sent. Try again.",
+  "chatLocationNotSent": "Location not sent.",
   "chatMediaMute": "Mute",
   "@chatMediaMute": {
     "description": "Tooltip on the button that turns a video's sound off in the viewer"
@@ -796,7 +796,7 @@
   "@chatMessageNotEncryptedHint": {
     "description": "Line on a message's long-press sheet: in an encrypted chat, this message was sent without end-to-end encryption"
   },
-  "chatMessagesNotReloaded": "Messages not reloaded. Try again.",
+  "chatMessagesNotReloaded": "Messages not reloaded.",
   "chatMicrophoneAccessNeeded": "Allow microphone access to record voice messages",
   "chatMoreReactions": "More reactions",
   "@chatMoreReactions": {
@@ -813,7 +813,7 @@
     "description": "Message status: it failed to send"
   },
   "chatNotSentRetry": "Not sent · Tap to retry",
-  "chatNotSentTryAgain": "Not sent. Try again.",
+  "chatNotSentFailed": "Not sent.",
   "chatOriginalUnavailable": "Original message not available",
   "chatPartnerLeft": "{name} left this chat",
   "@chatPartnerLeft": {
@@ -825,7 +825,7 @@
   },
   "chatPendingInviteHint": "Your messages will be here when they join.",
   "chatPhotoAccessDenied": "Allow photo access to send photos and videos",
-  "chatPhotosDidNotOpen": "Photos did not open. Try again.",
+  "chatPhotosDidNotOpen": "Photos did not open.",
   "chatProgressLabel": "{label} {percent}%",
   "@chatProgressLabel": {
     "description": "Upload progress of an attachment; label is its name",
@@ -843,7 +843,7 @@
   "@chatReact": {
     "description": "Button in the photo and video viewer: react to the photo or video with an emoji"
   },
-  "chatReactionNotSent": "Reaction not sent. Try again.",
+  "chatReactionNotSent": "Reaction not sent.",
   "chatRecordVideo": "Record video",
   "@chatRecordVideo": {
     "description": "Attachment menu item: record a video to send"
@@ -953,7 +953,7 @@
       }
     }
   },
-  "chatShortcutFailed": "Shortcut not added. Try again.",
+  "chatShortcutFailed": "Shortcut not added.",
   "chatShortcutRequested": "Confirm on your home screen to finish adding it",
   "chatShortcutUnsupported": "This launcher does not support home screen shortcuts",
   "chatSlideToCancel": "Slide up to cancel",
@@ -972,8 +972,8 @@
   "chatVideoCallInProgress": "Video call in progress",
   "chatVideoNoPreview": "This video cannot be previewed.",
   "chatVoiceCallInProgress": "Voice call in progress",
-  "chatVoiceMessageDidNotLoad": "Voice message did not load. Try again.",
-  "chatVoiceMessageNotSent": "Voice message not sent. Try again.",
+  "chatVoiceMessageDidNotLoad": "Voice message did not load.",
+  "chatVoiceMessageNotSent": "Voice message not sent.",
   "chatWhyConfirm": "Why confirm",
   "@chatWhyConfirm": {
     "description": "Button in an empty chat: explain why to confirm the person"
@@ -1081,8 +1081,8 @@
       "ios"
     ]
   },
-  "commonMemberNotBanned": "Not banned. Try again.",
-  "commonMemberNotRemoved": "Not removed. Try again.",
+  "commonMemberNotBanned": "Not banned.",
+  "commonMemberNotRemoved": "Not removed.",
   "commonMessageHint": "Message",
   "@commonMessageHint": {
     "description": "Placeholder in the field where you type a message or a reply",
@@ -1106,7 +1106,7 @@
   "@commonPassword": {
     "description": "Field label: your account password"
   },
-  "commonPhotoNotSaved": "Photo not saved. Try again.",
+  "commonPhotoNotSaved": "Photo not saved.",
   "commonPhotoUpdated": "Photo updated",
   "@commonPhotoUpdated": {
     "description": "Snack bar after a profile or room photo changed"
@@ -1150,12 +1150,12 @@
   "@commonReview": {
     "description": "Button: look at a pending request or sign-in"
   },
-  "commonRoleNotChanged": "Role not changed. Try again.",
+  "commonRoleNotChanged": "Role not changed.",
   "commonSave": "Save",
   "@commonSave": {
     "description": "Button and tooltip: save"
   },
-  "commonSaveFailed": "Could not save. Try again.",
+  "commonSaveFailed": "Could not save.",
   "commonSend": "Send",
   "@commonSend": {
     "description": "Button and tooltip: send the message or reply",
@@ -1856,12 +1856,20 @@
       }
     }
   },
+  "errorsFailedTryAgain": "{failed} Try again.",
+  "@errorsFailedTryAgain": {
+    "placeholders": {
+      "failed": {
+        "type": "String"
+      }
+    }
+  },
   "feedbackExplanation": "Your feedback goes to a reporting service with your app version and system version. Names and addresses are removed. Nothing identifies you, so there is no reply.",
   "feedbackLabel": "Your feedback",
   "@feedbackLabel": {
     "description": "Field label on the feedback sheet"
   },
-  "feedbackNotSent": "Feedback not sent. Check your connection and try again.",
+  "feedbackNotSent": "Feedback not sent.",
   "feedbackSent": "Feedback sent.",
   "@feedbackSent": {
     "description": "Snack bar after sending feedback"
@@ -1953,6 +1961,10 @@
   "locationNoMapsApp": "No maps app found",
   "locationNobodySharing": "Nobody is sharing live location here right now.",
   "locationNotFound": "Could not find your location.",
+  "locationNotStopped": "Live location did not stop.",
+  "@locationNotStopped": {
+    "description": "Snack bar when your live location share could not be stopped"
+  },
   "locationNoticeChats": "In {chats, plural, one{{chats} chat} other{{chats} chats}}",
   "@locationNoticeChats": {
     "placeholders": {
@@ -2063,7 +2075,7 @@
   },
   "locationShowYours": "Show your location",
   "locationStartCaptureUnavailable": "Live location could not start. Check that location is on, then try again.",
-  "locationStartFailed": "Live location did not start. Try again.",
+  "locationStartFailed": "Live location did not start.",
   "locationStartNotAllowed": "You cannot share live location here.",
   "locationStartSharing": "Start sharing",
   "@locationStartSharing": {
@@ -2614,7 +2626,7 @@
   },
   "matrixSavedToPhotos": "Saved to Photos",
   "matrixSavedToVideos": "Saved to Videos",
-  "matrixShareFailed": "Could not share. Try again.",
+  "matrixShareFailed": "Could not share.",
   "matrixSharePreparing": "Preparing to share…",
   "@matrixSharePreparing": {
     "x-native": [
@@ -3841,7 +3853,7 @@
     "description": "Recent pushes screen: no pushes received yet"
   },
   "pushNotRegisteredYet": "Not registered yet",
-  "pushNotRemoved": "Not removed. Try again.",
+  "pushNotRemoved": "Not removed.",
   "pushOtherRegistrations": "Other push registrations",
   "pushOutcomeAlreadyShown": "Already shown",
   "@pushOutcomeAlreadyShown": {
@@ -4020,7 +4032,7 @@
   "@pushTargetTitle": {
     "description": "Screen title and row: where the server sends pushes for this device"
   },
-  "reportsNotSent": "The report was not sent. Try again.",
+  "reportsNotSent": "The report was not sent.",
   "reportsSend": "Send report",
   "@reportsSend": {
     "description": "Button on the report sheet: send the report"
@@ -4094,7 +4106,7 @@
   "@roomInfoCommunityAccess": {
     "description": "Row label: who can join the community"
   },
-  "roomInfoCommunityAccessNotSaved": "Community access not saved. Try again.",
+  "roomInfoCommunityAccessNotSaved": "Community access not saved.",
   "roomInfoCommunityAccessUpdated": "Community access updated",
   "roomInfoCommunityDefaults": "Community defaults",
   "@roomInfoCommunityDefaults": {
@@ -4104,7 +4116,7 @@
   "@roomInfoCommunityInfo": {
     "description": "Section heading on community settings: basic details"
   },
-  "roomInfoCommunityNameNotSaved": "Community name not saved. Try again.",
+  "roomInfoCommunityNameNotSaved": "Community name not saved.",
   "roomInfoCommunityNameUpdated": "Community name updated",
   "roomInfoCommunityPhoto": "Community photo",
   "@roomInfoCommunityPhoto": {
@@ -4138,14 +4150,13 @@
     }
   },
   "roomInfoCouldNotLoadMedia": "Could not load media.",
-  "roomInfoCouldNotStartChat": "Could not start the chat. Try again.",
   "roomInfoCoversLater": "Covers any device they add later. You will not need to do this again.",
   "roomInfoDefaultRoleHint": "The role everyone starts with when they join.",
   "roomInfoDescription": "Description",
   "@roomInfoDescription": {
     "description": "Row and field label: the community description"
   },
-  "roomInfoDescriptionNotSaved": "Description not saved. Try again.",
+  "roomInfoDescriptionNotSaved": "Description not saved.",
   "roomInfoDescriptionUpdated": "Description updated",
   "@roomInfoDescriptionUpdated": {
     "description": "Snack bar after the community description changed"
@@ -4163,7 +4174,7 @@
   "@roomInfoEncrypted": {
     "description": "Status on room info: messages here are encrypted"
   },
-  "roomInfoEncryptionNotEnabled": "Encryption not enabled. Try again.",
+  "roomInfoEncryptionNotEnabled": "Encryption not enabled.",
   "roomInfoFiles": "Files",
   "@roomInfoFiles": {
     "description": "Tab on the room media screen: shared files"
@@ -4190,7 +4201,7 @@
   },
   "roomInfoHistoryInvited": "Members, from when they were invited",
   "roomInfoHistoryJoined": "Members, from when they joined",
-  "roomInfoHistorySettingNotSaved": "History setting not saved. Try again.",
+  "roomInfoHistorySettingNotSaved": "History setting not saved.",
   "roomInfoHistorySettingUpdated": "History setting updated",
   "roomInfoHistoryShared": "Members, including history before they joined",
   "roomInfoIdentityChangedHint": "Usually a new device or a reinstall. Confirm them again.",
@@ -4213,7 +4224,7 @@
   "@roomInfoMainAddress": {
     "description": "Row, dialog title and field label: the main address of the room"
   },
-  "roomInfoMainAddressNotSaved": "Main address not saved. Try again.",
+  "roomInfoMainAddressNotSaved": "Main address not saved.",
   "roomInfoMainAddressUpdated": "Main address updated",
   "roomInfoMakeCommunityPrivateTitle": "Make community private?",
   "roomInfoMakeCommunityPublicTitle": "Make community public?",
@@ -4256,14 +4267,12 @@
     "description": "Status on room info: messages here are not encrypted"
   },
   "roomInfoNotEncryptedHint": "Messages in this chat reach the server unencrypted",
-  "roomInfoNotMuted": "Not muted. Try again.",
-  "roomInfoNotSaved": "Not saved. Try again.",
+  "roomInfoNotSaved": "Not saved.",
   "roomInfoNotSet": "Not set",
   "@roomInfoNotSet": {
     "description": "Value of a room setting with nothing entered yet (name, topic, address)"
   },
-  "roomInfoNotUnbanned": "Not unbanned. Try again.",
-  "roomInfoNotUnmuted": "Not unmuted. Try again.",
+  "roomInfoNotUnbanned": "Not unbanned.",
   "roomInfoNothingRecent": "Nothing in recent messages.",
   "roomInfoOpenToCommunityTitle": "Open to community members?",
   "roomInfoOpenToMembers": "Open to members",
@@ -4318,7 +4327,7 @@
   "@roomInfoRoomAccess": {
     "description": "Row label: who can join the room"
   },
-  "roomInfoRoomAccessNotSaved": "Room access not saved. Try again.",
+  "roomInfoRoomAccessNotSaved": "Room access not saved.",
   "roomInfoRoomAccessUpdated": "Room access updated",
   "roomInfoRoomAlias": "Room alias",
   "@roomInfoRoomAlias": {
@@ -4338,7 +4347,7 @@
   "@roomInfoRoomInfo": {
     "description": "Screen title and section heading: room details"
   },
-  "roomInfoRoomNameNotSaved": "Room name not saved. Try again.",
+  "roomInfoRoomNameNotSaved": "Room name not saved.",
   "roomInfoRoomNameUpdated": "Room name updated",
   "roomInfoRoomPhoto": "Room photo",
   "@roomInfoRoomPhoto": {
@@ -4363,7 +4372,7 @@
   "@roomInfoTopic": {
     "description": "Row and field label: the room topic"
   },
-  "roomInfoTopicNotSaved": "Topic not saved. Try again.",
+  "roomInfoTopicNotSaved": "Topic not saved.",
   "roomInfoTopicUpdated": "Topic updated",
   "@roomInfoTopicUpdated": {
     "description": "Snack bar after the room topic changed"
@@ -4769,7 +4778,7 @@
   "@settingsAccountDisplayName": {
     "description": "Row, dialog title and field label: your display name"
   },
-  "settingsAccountDisplayNameNotSaved": "Display name not saved. Try again.",
+  "settingsAccountDisplayNameNotSaved": "Display name not saved.",
   "settingsAccountDisplayNameNotSet": "Not set",
   "@settingsAccountDisplayNameNotSet": {
     "description": "Row value: you have not set a display name"
@@ -4923,7 +4932,7 @@
     "description": "Row and dialog button: clear cached files"
   },
   "settingsDataClearCacheBody": "Clears the messages and room details saved on this device, then downloads them again. Nothing is deleted on the server.",
-  "settingsDataClearCacheFailed": "Cache not cleared. Try again.",
+  "settingsDataClearCacheFailed": "Cache not cleared.",
   "settingsDataClearCacheSubtitle": "Messages and room details saved on this device. They download again.",
   "settingsDataClearCacheTitle": "Clear cache?",
   "@settingsDataClearCacheTitle": {
@@ -5062,7 +5071,7 @@
     }
   },
   "settingsRecoveryConfirmTitle": "Check your saved copy",
-  "settingsRecoveryCopiedStays": "Copied. It stays on the clipboard until you copy something else.",
+  "settingsCopiedStays": "Copied. It stays on the clipboard until you copy something else.",
   "settingsRecoveryLooksRight": "Looks right.",
   "@settingsRecoveryLooksRight": {
     "description": "Check under the recovery code field: the code looks valid"
@@ -5070,7 +5079,7 @@
   "settingsRecoveryMismatch": "That does not match. Check your saved copy.",
   "settingsRecoveryNotACode": "That file does not hold a recovery code.",
   "settingsRecoveryOpenDialogTitle": "Open your recovery code",
-  "settingsRecoveryOpenFailed": "Could not open that file. Try again.",
+  "settingsRecoveryOpenFailed": "Could not open that file.",
   "settingsRecoveryOpenSavedFile": "Open a saved file",
   "settingsRecoveryPrepareFailed": "Could not prepare a recovery code. Go back and try again.",
   "settingsRecoveryRevealBody": "If you lose this device and every other signed-in device, this code is the only way back to your messages. Nobody can restore them for you. Write it down, save it as a file, or copy it into a password manager.",
@@ -5163,7 +5172,6 @@
   "settingsSecureBackupExistingTitle": "This account already has recovery set up",
   "settingsSecureBackupFailed": "That did not work. Try again.",
   "settingsSecureBackupGenerateKey": "Generate security key",
-  "settingsSecureBackupKeyCopied": "Copied — clears in 90 seconds",
   "settingsSecureBackupOlderSubtitle": "This account has more than one old recovery secret on file. Enter each one to migrate it.",
   "settingsSecureBackupOlderTitle": "Enter an older recovery code",
   "settingsSecureBackupPhraseBody": "Pick a secret phrase only you know — you'll need it to unlock encrypted history on a new device. This also generates a backup security key, shown once right after, in case you forget the phrase.",
@@ -5243,7 +5251,7 @@
   "@settingsSessionsApprove": {
     "description": "Button next to a device: approve it"
   },
-  "settingsSessionsApproveFailed": "Could not start approving that device. Try again.",
+  "settingsSessionsApproveFailed": "Could not start approving that device.",
   "settingsSessionsApproveThisDevice": "Approve this device",
   "settingsSessionsApproved": "Approved",
   "@settingsSessionsApproved": {
@@ -5274,7 +5282,7 @@
   "settingsSessionsSignInOnAnother": "Sign in on another device",
   "settingsSessionsSignInOnAnotherSubtitle": "The new device scans a code instead of typing the password.",
   "settingsSessionsSignOutEverywhereElse": "Sign out everywhere else",
-  "settingsSessionsSignOutFailed": "Not signed out. Try again.",
+  "settingsSessionsSignOutFailed": "Not signed out.",
   "settingsSessionsSignOutOneBody": "That device will need to sign in again.",
   "settingsSessionsSignOutOneTitle": "Sign out of \"{name}\"?",
   "@settingsSessionsSignOutOneTitle": {
@@ -5538,8 +5546,8 @@
       }
     }
   },
-  "verificationCouldNotSend": "Could not send that. Try again.",
-  "verificationCouldNotStart": "Could not start. Try again.",
+  "verificationCouldNotSend": "Could not send that.",
+  "verificationCouldNotStart": "Could not start.",
   "verificationLostCode": "Lost the code? Start over",
   "verificationNoOtherDevices": "Could not find your other devices yet.",
   "verificationNoStop": "No, stop",

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/event_display.dart';
+import 'package:zuno/core/matrix/room_mute.dart';
 import 'package:zuno/features/rooms/data/chat_row_data.dart';
 
 import '../../../helpers/date_labels.dart';
@@ -82,8 +85,8 @@ void main() {
     expect(data.title, 'Bob');
     expect(data.isDirect, isTrue);
     expect(data.toneSeed, '@bob:example.org');
-    expect(data.previewText, 'Sure, talk soon');
-    expect(data.previewKind, MessageKind.text);
+    expect(data.preview?.text, 'Sure, talk soon');
+    expect(data.preview?.kind, MessageKind.text);
     expect(data.timeLabel, '09:41');
     expect(data.unread, 3);
     expect(data.muted, isFalse);
@@ -193,14 +196,35 @@ void main() {
   });
 
   test('turning encryption on makes the record unequal', () {
+    client = buildTestClient(userId: '@me:example.org', encrypting: true);
+    room = buildTestRoom(client)..partial = false;
     final before = read();
-    expect(before.encrypted, isFalse);
+    expect(before.notEncrypted, isTrue);
 
     encryptRoom(room);
     final after = read();
 
-    expect(after.encrypted, isTrue);
+    expect(after.notEncrypted, isFalse);
     expect(after, isNot(before));
+  });
+
+  test('an encrypted room on a client that cannot encrypt is marked as not '
+      'encrypted', () {
+    encryptRoom(room);
+
+    expect(client.encryptionEnabled, isFalse);
+    expect(read().notEncrypted, isTrue);
+  });
+
+  test('a mute asked of the server shows at once', () async {
+    client
+      ..homeserver = Uri.parse('https://example.org')
+      ..accessToken = 'token';
+
+    unawaited(setRoomMuted(room, true));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(read().muted, isTrue);
   });
 
   test('a room without a last event has no time and no preview', () {
@@ -209,7 +233,7 @@ void main() {
     final data = read();
 
     expect(data.timeLabel, isEmpty);
-    expect(data.previewText, isNull);
+    expect(data.preview?.text, isNull);
     expect(data.lastEventId, isNull);
   });
 
@@ -274,12 +298,12 @@ void main() {
       expect(data.isDirect, isFalse);
       expect(data.title, 'Climbing club');
       expect(data.previewSource, 'Gear swap');
-      expect(data.previewText, 'Spare shoes in 41');
+      expect(data.preview?.text, 'Spare shoes in 41');
       expect(data.lastEventId, gear.lastEvent!.eventId);
       expect(data.timeLabel, '12:00');
       expect(data.unread, 4);
       expect(data.dimmed, isFalse);
-      expect(data.encrypted, isTrue);
+      expect(data.notEncrypted, isFalse);
     });
 
     test('a muted room adds nothing to the unread count', () {
@@ -308,7 +332,7 @@ void main() {
       final data = readCommunity(const []);
 
       expect(data.previewSource, isNull);
-      expect(data.previewText, isNull);
+      expect(data.preview?.text, isNull);
       expect(data.timeLabel, isEmpty);
       expect(data.unread, 0);
     });

@@ -41,4 +41,29 @@ void main() {
     final customPadding = await measure(tester, 'hello', padding: 100);
     expect(customPadding - defaultPadding, 100 - 24);
   });
+
+  testWidgets('larger text measures wider than the same text at '
+      'normal size', (tester) async {
+    Future<double> at(double scale) async {
+      late double result;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            child: Builder(
+              builder: (context) {
+                result = estimateTextWidth(context, 'hello there');
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+      return result;
+    }
+
+    final normal = await at(1);
+    expect(await at(2), greaterThan(normal));
+    expect(await at(1), normal);
+  });
 }

@@ -119,11 +119,11 @@ files, and the media viewer pages through it (`chats-messaging.md`).
 - **Only the rare unencrypted room is marked**, never every encrypted one (attention rules: `security-verification.md`).
 - **An abandoned direct chat is read-only, not broken.** `roomTitle()` names the partner instead of the SDK's "Empty chat (was …)" on every surface, and `canPostInRoom()` removes everything that would communicate.
 - **The official chat is known by its creator.** Its badge requires both the server-notice tag and `@notices:zuno.chat` as the creator, because anyone can tag a room but nobody can forge a creator. Room names containing "Zuno" are also refused, but only as a client-side courtesy.
-- **Server isolation.** The server part of a Matrix ID is never shown or asked for: lookups take a local username, and displays show `@user`. The server the dialogs append is `ownServerName`, never `client.homeserver.host`, which is the delegated API host and would make every local invitation look federated.
+- **Server isolation.** The server part of a Matrix ID is never shown or asked for: lookups take a local username, and displays show `@user`. The server the dialogs append is `ownServerName`, never `client.homeserver.host`, which is the delegated API host and would make every local invitation look federated. Room info's Advanced section shows the room ID and address the same way but copies them whole, since a copy without the server names no room.
 
 **Invitations**
 - **An invitation is nothing but `m.room.member` state**, with no separate entity behind it.
-- **Sender and receiver views are deliberately asymmetric.** The sender sees no profile for an invitee who has not accepted, because the server hands over their member state before they have agreed to anything, so the room is titled with the typed username until then. The receiver sees the inviter's name and avatar in full, because "who is this?" is the whole question.
+- **Sender and receiver views are deliberately asymmetric.** The sender sees no profile for an invitee who has not accepted, because the server hands over their member state before they have agreed to anything, so `roomTitle()` names an unnamed room by the typed username, or a count of invitees, until then, on every surface, search included. The receiver sees the inviter's name and avatar in full, because "who is this?" is the whole question.
 - **One notification per invitation.** Two paths can announce it: the live path listens to `client.onNotification`, since an invitation is stripped state and not a timeline event, and the push path uses `inviteNotificationFor`, since the default push handler drops `m.room.member`. Each claims the room before posting, and a sync that shows the room joined or left releases the claim.
 - **Sending an invitation looks the person up first**, because the SDK's invite silently skips anyone already joined or invited and reports nothing, so only the lookup can say "already a member" or "invitation already sent". Every invite path shares it, and a sent invitation shows the person as invited before sync confirms it.
 - **An invitation to an encrypted room returns only once sync shows it**, because the SDK waits so the next message's keys reach the invitee; that wait has no timeout.
@@ -142,7 +142,7 @@ files, and the media viewer pages through it (`chats-messaging.md`).
 - **Member state is not loaded at cold start**, so invitation checks after a restart read the `RoomSummary` counts and heroes, and `loadInviteMembers` restores the member state before an accept or decline.
 - **A member event whose sender is its own subject is an SDK-made substitute**, since nobody invites themselves, so it is treated as not loaded rather than allowed to overwrite real invite data.
 - **Never reload members right after changing one**, because `requestParticipants` would re-read the database and restore the old membership, so room info edits its list in place.
-- **Mute waits for the push-rules sync**, because `setPushRuleState` compares against a value that changes only when sync delivers `m.push_rules`, so room info locks the switch until then.
+- **Mute shows as asked on every surface at once, and the next change waits, briefly at most, until sync delivers `m.push_rules`**, because `setPushRuleState` compares against a value only that sync updates; the asked state stays shown until it lands.
 - **A field missing from `ChatRowData` is a stale row**: the record must hold everything the row or its preview shows.
 - **The list delegate needs `findChildIndexCallback` keyed on the room ID**, or a chat jumping to the top remounts every row in between.
 - **Every text line in a row is strut-locked** (`core/ui/line_strut.dart`), because the list is fixed-extent and fallback fonts would otherwise grow a row.
@@ -151,7 +151,6 @@ files, and the media viewer pages through it (`chats-messaging.md`).
 - **Blocking clears the local cache**, which makes every open `Room` stale, so every Block entry point returns to the chat list.
 - **Blocked people show as usernames**, because servers refuse profile lookups for people you share no room with.
 - **End-to-end encryption rules out server-side spam filtering**, so every available signal is metadata.
-- **`RoomListPage` tests need an `UncontrolledProviderScope` whose container outlives the tree**, because `RoomPage.dispose` reads a provider in a microtask.
 
 ## Designed, not built
 

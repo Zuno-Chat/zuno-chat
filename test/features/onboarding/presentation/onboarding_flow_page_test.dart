@@ -33,6 +33,7 @@ import 'package:zuno/features/settings/presentation/screen_protection_tile.dart'
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_http.dart';
@@ -1094,6 +1095,38 @@ void main() {
       );
       expect(find.bySemanticsLabel('Add a photo'), findsOneWidget);
       expect(find.text('What should people call you?'), findsOneWidget);
+    });
+
+    testWidgets('a photo that cannot be read is reported and says so, and '
+        'access refused is not', (tester) async {
+      picker.answer = [
+        XFile.fromData(
+          Uint8List.fromList([1, 2, 3]),
+          path: 'broken.jpg',
+          mimeType: 'image/jpeg',
+        ),
+      ];
+      await pumpFlow(tester, [OnboardingStep.profile]);
+
+      final reports = await reportsDuring(() async {
+        await tester.tap(find.byType(StepHero));
+        await tester.pumpAndSettle();
+      });
+
+      expect(reports, ['pick onboarding photo']);
+      expect(
+        find.text('Photo not added. You can add one later in Settings.'),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel('Add a photo'), findsOneWidget);
+
+      picker.error = PlatformException(code: 'photo_access_denied');
+      final deniedReports = await reportsDuring(() async {
+        await tester.tap(find.byType(StepHero));
+        await tester.pumpAndSettle();
+      });
+
+      expect(deniedReports, isEmpty);
     });
 
     testWidgets('a cancelled pick changes nothing', (tester) async {

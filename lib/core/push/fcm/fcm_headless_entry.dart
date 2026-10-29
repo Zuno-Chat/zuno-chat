@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart' show debugPrint, visibleForTesting;
 import 'package:matrix/matrix.dart' show Client;
@@ -184,7 +183,7 @@ Future<bool> _moveFcmPusher(
     buildFcmPusher(
       token: to,
       gatewayUrl: gatewayUrl,
-      deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
+      deviceDisplayName: thisSessionDisplayName(),
     ),
   );
   await saveFcmRegistration(prefs, token: to);

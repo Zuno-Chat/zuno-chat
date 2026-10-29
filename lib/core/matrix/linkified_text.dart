@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
@@ -8,7 +9,7 @@ import 'urls.dart';
 
 typedef _Hit = ({int start, int end, String shown, Uri? link});
 
-class LinkifiedText extends StatelessWidget {
+class LinkifiedText extends StatefulWidget {
   final String text;
   final TextStyle? style;
   final int? maxLines;
@@ -26,12 +27,44 @@ class LinkifiedText extends StatelessWidget {
     super.key,
   });
 
+  @override
+  State<LinkifiedText> createState() => _LinkifiedTextState();
+}
+
+class _LinkifiedTextState extends State<LinkifiedText> {
+  List<_Hit>? _hits;
+  final _recognizers = <Uri, TapGestureRecognizer>{};
+
   TextOverflow get _overflow =>
-      maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis;
+      widget.maxLines == null ? TextOverflow.clip : TextOverflow.ellipsis;
 
   @override
-  Widget build(BuildContext context) {
-    final hits = <_Hit>[
+  void didUpdateWidget(LinkifiedText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.text != widget.text ||
+        !setEquals(oldWidget.mentionable, widget.mentionable)) {
+      _hits = null;
+      _disposeRecognizers();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposeRecognizers();
+    super.dispose();
+  }
+
+  void _disposeRecognizers() {
+    for (final recognizer in _recognizers.values) {
+      recognizer.dispose();
+    }
+    _recognizers.clear();
+  }
+
+  List<_Hit> _findHits() {
+    final text = widget.text;
+    final mentionable = widget.mentionable;
+    return <_Hit>[
       for (final link in linksIn(text))
         (
           start: link.start,
@@ -46,14 +79,27 @@ class LinkifiedText extends StatelessWidget {
           if (mentionable.contains(m.group(1)!.toLowerCase()))
             (start: m.start, end: m.end, shown: m.group(1)!, link: null),
     ]..sort((a, b) => a.start.compareTo(b.start));
-    final trailing = this.trailing;
+  }
+
+  TapGestureRecognizer _recognizerFor(Uri link) =>
+      _recognizers[link] ??= TapGestureRecognizer()
+        ..onTap = () {
+          if (mounted) openLink(context, link, openUrl: openExternally);
+        };
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.text;
+    final style = widget.style;
+    final hits = _hits ??= _findHits();
+    final trailing = widget.trailing;
     if (hits.isEmpty && trailing == null) {
       return Text(
         text,
         style: style,
-        maxLines: maxLines,
+        maxLines: widget.maxLines,
         overflow: _overflow,
-        textAlign: textAlign,
+        textAlign: widget.textAlign,
       );
     }
 
@@ -79,8 +125,7 @@ class LinkifiedText extends StatelessWidget {
           TextSpan(
             text: hit.shown,
             style: linkStyle,
-            recognizer: TapGestureRecognizer()
-              ..onTap = () => openLink(context, link, openUrl: openExternally),
+            recognizer: _recognizerFor(link),
           ),
         );
       }
@@ -91,9 +136,9 @@ class LinkifiedText extends StatelessWidget {
 
     return Text.rich(
       TextSpan(style: baseStyle, children: spans),
-      maxLines: maxLines,
+      maxLines: widget.maxLines,
       overflow: _overflow,
-      textAlign: textAlign,
+      textAlign: widget.textAlign,
     );
   }
 }

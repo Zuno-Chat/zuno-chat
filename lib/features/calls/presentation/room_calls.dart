@@ -8,11 +8,12 @@ import '../../../core/calls/matrixrtc/active_room_call.dart';
 import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/matrixrtc/call_session.dart';
 import '../../../core/calls/models/call_kind.dart';
-import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/connectivity_provider.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/settings/app_preferences_provider.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 import 'call_page.dart';
 
 Future<void> startRoomCall(
@@ -23,16 +24,17 @@ Future<void> startRoomCall(
 ) async {
   if (_busyWithCall(context, ref, room)) return;
   final l10n = context.l10n;
+  final messenger = ScaffoldMessenger.of(context);
   if (!canPublishCallMemberState(room)) {
-    _say(context, l10n.callsFailureNoPermission);
+    messenger.say(l10n.callsFailureNoPermission);
     return;
   }
   if (!hasSomeoneToCall(room)) {
-    _say(context, l10n.chatNobodyJoined);
+    messenger.say(l10n.chatNobodyJoined);
     return;
   }
   if (ref.read(isOfflineProvider).value ?? false) {
-    _say(context, l10n.chatNoConnection);
+    messenger.say(l10n.chatNoConnection);
     return;
   }
   if (ref.read(confirmBeforeCallingProvider)) {
@@ -59,12 +61,13 @@ void joinRoomCall(
 ) {
   if (_busyWithCall(context, ref, room)) return;
   final l10n = context.l10n;
+  final messenger = ScaffoldMessenger.of(context);
   if (!canPublishCallMemberState(room)) {
-    _say(context, l10n.chatNoJoinCallPermission);
+    messenger.say(l10n.chatNoJoinCallPermission);
     return;
   }
   if (ref.read(isOfflineProvider).value ?? false) {
-    _say(context, l10n.chatNoConnection);
+    messenger.say(l10n.chatNoConnection);
     return;
   }
   final session = ref
@@ -86,7 +89,7 @@ bool _busyWithCall(BuildContext context, WidgetRef ref, Room room) {
   if (call != null) {
     showCallScreen(Navigator.of(context), call);
   } else {
-    _say(context, context.l10n.chatAlreadyInCall);
+    ScaffoldMessenger.of(context).say(context.l10n.chatAlreadyInCall);
   }
   return true;
 }
@@ -106,36 +109,14 @@ CallSession? _openCall(
   return session;
 }
 
-Future<bool> _confirmCall(
-  BuildContext context,
-  Room room,
-  CallKind kind,
-) async {
-  final name = roomTitle(room, context.l10n);
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(context.l10n.chatCallTitle(name)),
-      content: Text(
-        kind == CallKind.video
-            ? context.l10n.chatStartVideoCall
-            : context.l10n.chatStartVoiceCall,
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(context.l10n.commonCancel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(context.l10n.callsStartCall),
-        ),
-      ],
-    ),
+Future<bool> _confirmCall(BuildContext context, Room room, CallKind kind) {
+  final l10n = context.l10n;
+  return confirm(
+    context,
+    title: l10n.chatCallTitle(roomTitle(room, l10n)),
+    body: kind == CallKind.video
+        ? l10n.chatStartVideoCall
+        : l10n.chatStartVoiceCall,
+    confirmLabel: l10n.callsStartCall,
   );
-  return confirmed ?? false;
 }
-
-void _say(BuildContext context, @displayText String message) =>
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));

@@ -88,4 +88,67 @@ void main() {
     );
     expect(material.color, scheme.secondaryContainer);
   });
+
+  group('the info strip', () {
+    Color background(WidgetTester tester) => tester
+        .widget<Material>(
+          find
+              .ancestor(of: find.text('Title'), matching: find.byType(Material))
+              .first,
+        )
+        .color!;
+
+    testWidgets('sits on the notice colour with its action in line', (
+      tester,
+    ) async {
+      var acted = 0;
+      var tapped = 0;
+      await pump(
+        tester,
+        InfoStrip(
+          icon: Icons.call_outlined,
+          title: 'Title',
+          actionLabel: 'Join',
+          onAction: () => acted++,
+          onTap: () => tapped++,
+        ),
+      );
+
+      expect(background(tester), scheme.secondaryContainer);
+      expect(
+        tester.getCenter(find.text('Join')).dy,
+        moreOrLessEquals(tester.getCenter(find.text('Title')).dy, epsilon: 1),
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+      expect(acted, 1);
+      expect(tapped, 0);
+
+      await tester.tap(find.text('Title'));
+      expect(tapped, 1);
+    });
+
+    testWidgets('a body goes under the title', (tester) async {
+      await pump(
+        tester,
+        const InfoStrip(icon: Icons.schedule, title: 'Title', body: 'Body'),
+      );
+
+      expect(
+        tester.getTopLeft(find.text('Body')).dy,
+        greaterThanOrEqualTo(tester.getBottomLeft(find.text('Title')).dy),
+      );
+    });
+
+    testWidgets('without an action or a tap it is only words', (tester) async {
+      await pump(tester, const InfoStrip(icon: Icons.schedule, title: 'Title'));
+
+      expect(find.byType(FilledButton), findsNothing);
+      expect(
+        tester.getSemantics(find.text('Title')),
+        isNot(matchesSemantics(isButton: true)),
+      );
+      expect(find.byType(AttentionStripe), findsNothing);
+    });
+  });
 }

@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/matrix/room_changes.dart';
 import 'mention_query.dart';
 
 const _maxSuggestions = 30;
@@ -28,6 +29,7 @@ class MentionSuggestions extends StatefulWidget {
 class _MentionSuggestionsState extends State<MentionSuggestions> {
   List<User>? _everyone;
   Future<void>? _fetching;
+  List<MentionCandidate>? _candidates;
 
   @override
   void initState() {
@@ -63,7 +65,11 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
     }
     _fetching = (widget.loadMembers ?? _fetchEveryone)().then(
       (users) {
-        if (mounted) setState(() => _everyone = users);
+        if (!mounted) return;
+        setState(() {
+          _everyone = users;
+          _candidates = null;
+        });
       },
       onError: (Object e, StackTrace s) {
         reportCaught('load mention members', e, s);
@@ -91,7 +97,9 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
     return members;
   }
 
-  List<User> _candidates() {
+  void _membersChanged() => _candidates = null;
+
+  List<MentionCandidate> _findCandidates() {
     final ownId = widget.room.client.userID;
     final byId = <String, User>{
       for (final user in widget.room.getParticipants([Membership.join]))
@@ -100,7 +108,7 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
         if (user.membership == Membership.join) user.id: user,
     };
     byId.remove(ownId);
-    return byId.values.toList();
+    return mentionCandidates(byId.values);
   }
 
   void _pick(User user, MentionQuery query) {
@@ -117,11 +125,17 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => RoomChangesBuilder(
+    changes: RoomChanges.state(widget.room),
+    onChange: _membersChanged,
+    builder: _suggestions,
+  );
+
+  Widget _suggestions(BuildContext context) {
     final query = _query;
     if (query == null) return const SizedBox.shrink();
     final matches = mentionMatches(
-      _candidates(),
+      _candidates ??= _findCandidates(),
       query.text,
       limit: _maxSuggestions,
     );

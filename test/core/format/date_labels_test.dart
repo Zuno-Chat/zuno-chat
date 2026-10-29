@@ -30,6 +30,44 @@ void main() {
     });
   });
 
+  group('DateLabels.of', () {
+    Widget probe(bool use24Hour, void Function(DateLabels) seen) =>
+        Localizations(
+          locale: const Locale('en'),
+          delegates: AppLocalizations.localizationsDelegates,
+          child: MediaQuery(
+            data: MediaQueryData(alwaysUse24HourFormat: use24Hour),
+            child: Builder(
+              builder: (context) {
+                seen(DateLabels.of(context));
+                return const SizedBox();
+              },
+            ),
+          ),
+        );
+
+    testWidgets('a rebuild gets the same instance back', (tester) async {
+      final seen = <DateLabels>[];
+      await tester.pumpWidget(probe(false, seen.add));
+      await tester.pumpWidget(probe(false, seen.add));
+
+      expect(seen, hasLength(2));
+      expect(identical(seen.first, seen.last), isTrue);
+    });
+
+    testWidgets('switching to 24-hour time gets labels that use it', (
+      tester,
+    ) async {
+      final seen = <DateLabels>[];
+      await tester.pumpWidget(probe(false, seen.add));
+      await tester.pumpWidget(probe(true, seen.add));
+
+      expect(seen.first.use24Hour, isFalse);
+      expect(seen.last.use24Hour, isTrue);
+      expect(seen.last.clock(DateTime(2026, 10, 14, 21, 30)), '21:30');
+    });
+  });
+
   test('one instance formats several dates in a row', () {
     final reused = labels('en', use24Hour: true);
     expect(reused.clock(DateTime(2026, 10, 14, 9, 5)), '09:05');

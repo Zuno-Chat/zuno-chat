@@ -6,14 +6,10 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/calls/notifications/call_notification_service.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/notifications/messages/message_notifications.dart';
 import '../../../core/notifications/settings/notification_permission.dart';
-import '../../../core/notifications/settings/notifications_allowed_provider.dart';
 import '../../../core/notifications/settings/notify_me.dart';
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/push/apns/apns_delivery_provider.dart';
-import '../../../core/push/background_sync/background_sync_service.dart';
 import '../../../core/push/delivery/delivery_failure.dart';
 import '../../../core/push/delivery/delivery_failure_provider.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
@@ -78,12 +74,7 @@ class _NotificationsSettingsPageState
   }
 
   Future<void> _refreshStatus() async {
-    final previous = _status;
-    final status = await Permission.notification.status;
-    if (!mounted) return;
-    setState(() => _status = status);
-    unawaited(ref.read(notificationsAllowedProvider.notifier).refresh());
-    _maybeRefreshBackgroundSync(previous, status);
+    _statusChanged(await Permission.notification.status);
   }
 
   Future<void> _onToggle(bool turningOn) async {
@@ -92,12 +83,7 @@ class _NotificationsSettingsPageState
       currentStatus: _status,
     )) {
       case NotificationPermissionAction.request:
-        final previous = _status;
-        final result = await Permission.notification.request();
-        if (!mounted) return;
-        setState(() => _status = result);
-        unawaited(ref.read(notificationsAllowedProvider.notifier).refresh());
-        _maybeRefreshBackgroundSync(previous, result);
+        _statusChanged(await Permission.notification.request());
       case NotificationPermissionAction.openSettings:
         await CallNotificationService.instance.openNotificationSettings();
       case NotificationPermissionAction.none:
@@ -105,27 +91,13 @@ class _NotificationsSettingsPageState
     }
   }
 
-  Future<void> _setMessageTone(bool on) async {
-    final applePush = ref.read(platformCapabilitiesProvider).apnsRegistration;
-    final client = applePush ? ref.read(matrixClientProvider) : null;
-    await ref.read(messageToneEnabledProvider.notifier).set(on);
-    if (client != null) await apnsDeliveryProvider.messageToneChanged(client);
-  }
-
-  void _maybeRefreshBackgroundSync(
-    PermissionStatus previous,
-    PermissionStatus current,
-  ) {
-    if (ref.read(notificationDeliveryModeProvider) !=
-        NotificationDeliveryMode.backgroundService) {
-      return;
-    }
-    if (shouldRefreshBackgroundSync(
-      previousStatus: previous,
-      newStatus: current,
-    )) {
-      BackgroundSyncService.instance.start();
-    }
+  void _statusChanged(PermissionStatus status) {
+    if (!mounted) return;
+    final previous = _status;
+    setState(() => _status = status);
+    unawaited(
+      notificationPermissionChanged(ref, previous: previous, current: status),
+    );
   }
 
   @override
@@ -299,7 +271,8 @@ class _NotificationsSettingsPageState
                 title: Text(l10n.notificationsMessageTone),
                 subtitle: Text(l10n.notificationsMessageToneHint),
                 value: messageTone,
-                onChanged: _setMessageTone,
+                onChanged: (value) =>
+                    ref.read(messageToneEnabledProvider.notifier).set(value),
               ),
               if (capabilities.vibrationPatterns)
                 SwitchListTile(

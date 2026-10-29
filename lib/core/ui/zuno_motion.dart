@@ -4,6 +4,9 @@ abstract final class ZunoDurations {
   static const fast = Duration(milliseconds: 150);
   static const standard = Duration(milliseconds: 250);
   static const page = Duration(milliseconds: 300);
+
+  static Duration motion(BuildContext context, Duration duration) =>
+      MediaQuery.disableAnimationsOf(context) ? Duration.zero : duration;
 }
 
 class ZunoSlideTransitionsBuilder extends PageTransitionsBuilder {

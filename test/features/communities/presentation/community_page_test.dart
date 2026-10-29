@@ -302,7 +302,7 @@ void main() {
     expect(loads, 1);
     expect(find.text('More rooms'), findsOneWidget);
     expect(find.text('Beginners'), findsOneWidget);
-    expect(find.text('8 members • Start here if you are new'), findsOneWidget);
+    expect(find.text('8 members · Start here if you are new'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Join'), findsOneWidget);
   });
 
@@ -708,7 +708,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Ask to join • 8 members • Start here if you are new'),
+        find.text('Ask to join · 8 members · Start here if you are new'),
         findsOneWidget,
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
@@ -839,7 +839,10 @@ void main() {
       await tester.tap(find.text('Moderator').last);
       await tester.pumpAndSettle();
 
-      expect(find.text('Role not changed. Try again.'), findsOneWidget);
+      expect(
+        find.text('Role not changed. Check your connection and try again.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('a removal that fails says so', (tester) async {
@@ -856,7 +859,10 @@ void main() {
       await tester.tap(find.text('Remove'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Not removed. Try again.'), findsOneWidget);
+      expect(
+        find.text('Not removed. Check your connection and try again.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('an admin gives someone a role', (tester) async {

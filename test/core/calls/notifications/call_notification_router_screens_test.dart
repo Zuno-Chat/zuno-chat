@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -10,12 +11,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
+import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_router.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
+import 'package:zuno/core/calls/ring_coordinator.dart';
+import 'package:zuno/core/calls/show_over_lockscreen.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
@@ -34,10 +38,13 @@ import '../../../helpers/native_method_calls.dart';
 
 class _PushedRoutes extends NavigatorObserver {
   final routes = <Route<Object?>>[];
+  final overLockscreen = <bool>[];
 
   @override
-  void didPush(Route<Object?> route, Route<Object?>? previousRoute) =>
-      routes.add(route);
+  void didPush(Route<Object?> route, Route<Object?>? previousRoute) {
+    routes.add(route);
+    overLockscreen.add(ShowOverLockscreen.instance.claimed);
+  }
 }
 
 void main() {
@@ -52,8 +59,12 @@ void main() {
   late RecordedMethodCalls callStyle;
   late RecordedNotifications notifications;
   late _PushedRoutes pushed;
+  Completer<void>? sendGate;
+  http.Response? sendReply;
 
   setUp(() async {
+    sendGate = null;
+    sendReply = null;
     pushed = _PushedRoutes();
     notifications = installFakeLocalNotifications();
     native = installFakeCallsChannel();
@@ -79,16 +90,18 @@ void main() {
     client = buildTestClient(
       userId: '@me:example.org',
       database: SendCapableFakeDatabaseApi(),
-      httpClient: FakeHttpClient(
-        (request) async =>
-            http.Response(jsonEncode({'event_id': r'$evt'}), 200),
-      ),
+      httpClient: FakeHttpClient((request) async {
+        if (request.method == 'PUT' && request.url.path.contains('/send/')) {
+          await sendGate?.future;
+          if (sendReply case final reply?) return reply;
+        }
+        return http.Response(jsonEncode({'event_id': r'$evt'}), 200);
+      }),
     );
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
     room = buildTestRoom(client);
     client.rooms.add(room);
-    RingingCall.instance.callId = null;
   });
 
   Future<ProviderContainer> pumpApp(
@@ -153,6 +166,17 @@ void main() {
 
   CallNotificationRouter router(ProviderContainer container) =>
       container.read(callNotificationRouterProvider.notifier);
+
+  void showRingScreen(ProviderContainer container) => container
+      .read(ringScreenProvider.notifier)
+      .present(
+        IncomingCall(
+          room: room,
+          callId: 'call1',
+          callerId: '@bob:example.org',
+          kind: CallKind.voice,
+        ),
+      );
 
   group('answering from the notification', () {
     testWidgets('opens the call screen for that call, stops the ring and '
@@ -247,16 +271,56 @@ void main() {
       expect(lockscreenShown(), isFalse);
     });
 
-    testWidgets('while the ring screen owns the call leaves it to that '
-        'screen', (tester) async {
+    testWidgets('with the ring screen open, the call screen takes its '
+        'place', (tester) async {
       final container = await pumpApp(tester);
-      RingingCall.instance.set('call1');
+      final handedOver = <CallSession>[];
+      container.listen(activeCallProvider, (_, session) {
+        if (session != null) handedOver.add(session);
+      });
+      showRingScreen(container);
+      await tester.pumpAndSettle();
+      final ringRoute = ModalRoute.of(
+        tester.element(find.byType(IncomingCallPage)),
+      )!;
 
       await router(container).handle(response(CallNotificationAction.accept));
       await tester.pump();
 
-      expect([...native.calls, ...callStyle.calls], isEmpty);
-      expect(container.read(activeCallProvider), isNull);
+      final session = handedOver.single;
+      addTearDown(session.dispose);
+      expect(session.callId, 'call1');
+      expect(ringRoute.isActive, isFalse);
+      final opened = (pushed.routes.last as MaterialPageRoute<Object?>).builder(
+        tester.element(find.text('room list')),
+      );
+      expect((opened as CallPage).call.session, same(session));
+      expect(RingingCall.instance.callId, isNull);
+
+      await tester.pump(const Duration(seconds: 6));
+    });
+
+    testWidgets('keeps Zuno over the lock screen from the moment the call '
+        'screen shows', (tester) async {
+      final container = await pumpApp(tester);
+      final handedOver = <CallSession>[];
+      container.listen(activeCallProvider, (_, session) {
+        if (session != null) handedOver.add(session);
+      });
+      expect(ShowOverLockscreen.instance.claimed, isFalse);
+
+      await router(container).handle(response(CallNotificationAction.accept));
+      await tester.pump();
+      addTearDown(handedOver.single.dispose);
+
+      final opened = (pushed.routes.last as MaterialPageRoute<Object?>).builder(
+        tester.element(find.text('room list')),
+      );
+      expect(opened, isA<CallPage>());
+      expect(pushed.overLockscreen.last, isTrue);
+      expect(native.argsOf('setShowOverLockscreen').first, {'show': true});
+
+      await tester.pump(const Duration(seconds: 6));
     });
 
     testWidgets('for a room that never arrives says so', (tester) async {
@@ -292,6 +356,44 @@ void main() {
       expect(started, isEmpty);
       expect(container.read(activeCallProvider), isNull);
       expect(RingingCall.instance.callId, isNull);
+    });
+  });
+
+  group('declining from the notification', () {
+    testWidgets('with the ring screen open, closes it before the decline is '
+        'sent', (tester) async {
+      final container = await pumpApp(tester);
+      showRingScreen(container);
+      await tester.pumpAndSettle();
+      final sending = Completer<void>();
+      sendGate = sending;
+
+      final declining = router(container)
+          .handle(response(CallNotificationAction.decline));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(container.read(resolvedCallIdsProvider), contains('call1'));
+      sending.complete();
+      await declining;
+    });
+
+    testWidgets('a decline the server refuses still marks the call over', (
+      tester,
+    ) async {
+      final container = await pumpApp(tester);
+      sendReply = http.Response(
+        jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'no'}),
+        403,
+      );
+
+      await tester.runAsync(
+        () =>
+            router(container).handle(response(CallNotificationAction.decline)),
+      );
+      await tester.pump();
+
+      expect(container.read(resolvedCallIdsProvider), contains('call1'));
     });
   });
 

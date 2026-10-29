@@ -3,8 +3,12 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
 import '../../../core/errors/caught_errors.dart';
+import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/official_room.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/inline_feedback.dart';
+import '../../../core/ui/notice.dart';
 
 typedef BlockPerson = Future<void> Function(String userId);
 
@@ -45,7 +49,7 @@ Future<bool> confirmAndBlockPerson(
     ),
   );
   if (blocked != true) return false;
-  messenger.showSnackBar(SnackBar(content: Text(l10n.blockingBlocked(name))));
+  messenger.say(l10n.blockingBlocked(name));
   return true;
 }
 
@@ -68,13 +72,13 @@ class _BlockDialog extends StatefulWidget {
 
 class _BlockDialogState extends State<_BlockDialog> {
   bool _blocking = false;
-  bool _failed = false;
+  Object? _error;
 
   Future<void> _block() async {
     final navigator = Navigator.of(context);
     setState(() {
       _blocking = true;
-      _failed = false;
+      _error = null;
     });
     try {
       await widget.block(widget.userId);
@@ -83,7 +87,7 @@ class _BlockDialogState extends State<_BlockDialog> {
       if (mounted) {
         setState(() {
           _blocking = false;
-          _failed = true;
+          _error = e;
         });
       }
       return;
@@ -108,11 +112,10 @@ class _BlockDialogState extends State<_BlockDialog> {
               const SizedBox(height: 12),
               Text(l10n.blockingLeavesChat(name)),
             ],
-            if (_failed) ...[
+            if (_error case final error?) ...[
               const SizedBox(height: 12),
-              Text(
-                l10n.blockingFailed,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              InlineError(
+                failureMessage(l10n, error, failed: l10n.blockingFailed),
               ),
             ],
           ],
@@ -124,8 +127,9 @@ class _BlockDialogState extends State<_BlockDialog> {
                 : () => Navigator.of(context).pop(false),
             child: Text(l10n.commonCancel),
           ),
-          FilledButton(
+          TextButton(
             onPressed: _blocking ? null : _block,
+            style: destructiveButtonStyle(context),
             child: Text(_blocking ? l10n.blockingInProgress : l10n.commonBlock),
           ),
         ],

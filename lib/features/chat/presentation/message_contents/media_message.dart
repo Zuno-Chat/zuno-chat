@@ -6,14 +6,17 @@ import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/cover_image.dart';
 import '../../../../core/matrix/media_gallery_group.dart';
 import '../../../../core/matrix/media_size.dart';
+import '../../../../core/ui/media_pill.dart';
 import '../../../../core/ui/zuno_colors.dart';
+import '../../../../core/ui/zuno_theme.dart';
+import '../../data/composed_media.dart';
 import '../../data/pending_attachment_send.dart';
 import '../media_viewer/media_hero.dart';
 import 'pending_attachment_tile.dart';
 
 const mediaInset = 4.0;
 
-const mediaRadius = 16.0;
+const mediaRadius = ZunoRadius.medium;
 
 const _tallestMediaRatio = 9 / 16;
 
@@ -23,20 +26,6 @@ double? mediaAspectRatio(int? width, int? height) {
   final size = mediaSize(width, height);
   if (size == null) return null;
   return (size.$1 / size.$2).clamp(_tallestMediaRatio, _widestMediaRatio);
-}
-
-Widget _mediaOverlayBadge(String text) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(
-      color: mediaScrimColor,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: Text(
-      text,
-      style: const TextStyle(color: onMediaColor, fontSize: 11),
-    ),
-  );
 }
 
 Widget _videoBubbleMedia(Event event, PendingAttachmentSend? pending) {
@@ -51,16 +40,11 @@ Widget _videoBubbleMedia(Event event, PendingAttachmentSend? pending) {
   );
 }
 
-Widget _mediaMetaBadge(Widget meta) {
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-    decoration: BoxDecoration(
-      color: mediaScrimColor,
-      borderRadius: BorderRadius.circular(10),
-    ),
-    child: meta,
-  );
-}
+Widget _metaOverMedia(Widget meta) => Positioned(
+  right: 6,
+  bottom: 6,
+  child: MediaPill(size: MediaPillSize.small, child: meta),
+);
 
 class GalleryMessage extends StatelessWidget {
   final List<Event> events;
@@ -82,9 +66,8 @@ class GalleryMessage extends StatelessWidget {
 
   List<_GalleryEntry> get _entries {
     final entries = <_GalleryEntry>[
-      for (final event in events)
-        _GalleryEntry(event: event, index: galleryGroupOf(event)?.index ?? 0),
-      for (final item in failed) _GalleryEntry(failed: item, index: item.index),
+      for (final event in events) _SentEntry(event),
+      for (final item in failed) _FailedEntry(item),
     ];
     entries.sort((a, b) => a.index.compareTo(b.index));
     return entries;
@@ -97,17 +80,20 @@ class GalleryMessage extends StatelessWidget {
     const gap = 2.0;
     final screenWidth = MediaQuery.sizeOf(context).width;
 
-    Widget tileAt(int i, {required double shownAt}) => _GalleryThumbnail(
-      entry: entries[i],
-      overflow: i == layout.visible - 1 ? layout.overflow : 0,
-      shownAt: shownAt,
-      pendingSend: pendingSend,
-      onRetry: onRetry,
-      onOpen: () {
-        final event = entries[i].event;
-        if (event != null) onOpen(event);
-      },
-    );
+    Widget tileAt(int i, {required double shownAt}) => switch (entries[i]) {
+      _FailedEntry(:final failed) => GalleryFailedThumbnail(
+        failed: failed,
+        onRetry: onRetry,
+        shownAt: shownAt,
+      ),
+      _SentEntry(:final event) => _GalleryThumbnail(
+        event: event,
+        overflow: i == layout.visible - 1 ? layout.overflow : 0,
+        shownAt: shownAt,
+        pendingSend: pendingSend,
+        onOpen: () => onOpen(event),
+      ),
+    };
 
     final rows = <Widget>[];
     var i = 0;
@@ -155,51 +141,49 @@ class GalleryMessage extends StatelessWidget {
               ],
             ],
           ),
-          Positioned(right: 6, bottom: 6, child: _mediaMetaBadge(mediaMeta)),
+          _metaOverMedia(mediaMeta),
         ],
       ),
     );
   }
 }
 
-class _GalleryEntry {
-  final Event? event;
-  final FailedMediaSend? failed;
+sealed class _GalleryEntry {
   final int index;
 
-  const _GalleryEntry({this.event, this.failed, required this.index});
+  const _GalleryEntry(this.index);
+}
+
+class _SentEntry extends _GalleryEntry {
+  final Event event;
+
+  _SentEntry(this.event) : super(galleryGroupOf(event)?.index ?? 0);
+}
+
+class _FailedEntry extends _GalleryEntry {
+  final FailedMediaSend failed;
+
+  _FailedEntry(this.failed) : super(failed.index);
 }
 
 class _GalleryThumbnail extends StatelessWidget {
-  final _GalleryEntry entry;
+  final Event event;
   final int overflow;
   final double shownAt;
   final PendingAttachmentSend? pendingSend;
-  final void Function(FailedMediaSend) onRetry;
   final VoidCallback onOpen;
 
   const _GalleryThumbnail({
-    required this.entry,
+    required this.event,
     required this.overflow,
     required this.shownAt,
     required this.pendingSend,
-    required this.onRetry,
     required this.onOpen,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final failed = entry.failed;
-    if (failed != null) {
-      return GalleryFailedThumbnail(
-        failed: failed,
-        onRetry: onRetry,
-        shownAt: shownAt,
-      );
-    }
-
-    final event = entry.event!;
     final pending = pendingSend?.eventId == event.eventId ? pendingSend : null;
     return GestureDetector(
       onTap: pending != null ? null : onOpen,
@@ -276,14 +260,17 @@ class GalleryFailedThumbnail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final photo = failed.photo;
+    final photo = switch (failed) {
+      FailedComposedSend(media: ComposedImage(:final path)) => path,
+      _ => null,
+    };
     return GestureDetector(
       onTap: () => onRetry(failed),
       child: Stack(
         fit: StackFit.expand,
         children: [
           if (photo != null)
-            MediaImage.file(photo.path, shownAt: shownAt)
+            MediaImage.file(photo, shownAt: shownAt)
           else
             ColoredBox(color: colors.surfaceContainerHighest),
           ColoredBox(
@@ -326,31 +313,25 @@ class ImageMessage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pending = pendingSend;
-    final aspectRatio = mediaAspectRatio(
-      event.infoMap.tryGet<int>('w'),
-      event.infoMap.tryGet<int>('h'),
-    );
+    final aspectRatio = mediaAspectRatio(event.mediaWidth, event.mediaHeight);
     return _MediaBubbleBody(
       aspectRatio: aspectRatio,
       pending: pending,
-      onTap: pending != null
-          ? null
-          : () => onOpen(event),
+      onTap: pending != null ? null : () => onOpen(event),
       media: Stack(
         children: [
           Positioned.fill(
             child: pending?.previewBytes != null
                 ? MediaImage.memory(pending!.previewBytes!)
                 : ThumbnailHero(
-                  event: event,
-                  child: attachmentThumbnail(
+                    event: event,
+                    child: attachmentThumbnail(
                       event,
                       placeholder: const AspectRatioPlaceholder(),
                     ),
                   ),
           ),
-          if (showTimeOverlay)
-            Positioned(right: 6, bottom: 6, child: _mediaMetaBadge(mediaMeta)),
+          if (showTimeOverlay) _metaOverMedia(mediaMeta),
         ],
       ),
     );
@@ -377,18 +358,16 @@ class VideoMessage extends StatelessWidget {
   Widget build(BuildContext context) {
     final pending = pendingSend;
     final aspectRatio = mediaAspectRatio(
-      pending?.width ?? event.infoMap.tryGet<int>('w'),
-      pending?.height ?? event.infoMap.tryGet<int>('h'),
+      pending?.width ?? event.mediaWidth,
+      pending?.height ?? event.mediaHeight,
     );
-    final durationMs = (pending == null && showTimeOverlay)
-        ? event.infoMap.tryGet<int>('duration')
+    final duration = (pending == null && showTimeOverlay)
+        ? event.mediaDuration
         : null;
     return _MediaBubbleBody(
       aspectRatio: aspectRatio,
       pending: pending,
-      onTap: pending != null
-          ? null
-          : () => onOpen(event),
+      onTap: pending != null ? null : () => onOpen(event),
       media: Stack(
         alignment: Alignment.center,
         children: [
@@ -412,16 +391,16 @@ class VideoMessage extends StatelessWidget {
                 size: 32,
               ),
             ),
-          if (durationMs != null)
+          if (duration != null)
             Positioned(
               left: 6,
               bottom: 6,
-              child: _mediaOverlayBadge(
-                formatDuration(Duration(milliseconds: durationMs)),
+              child: MediaPill(
+                size: MediaPillSize.small,
+                child: Text(formatDuration(duration)),
               ),
             ),
-          if (showTimeOverlay)
-            Positioned(right: 6, bottom: 6, child: _mediaMetaBadge(mediaMeta)),
+          if (showTimeOverlay) _metaOverMedia(mediaMeta),
         ],
       ),
     );

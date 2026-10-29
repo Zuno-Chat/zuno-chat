@@ -18,7 +18,6 @@ import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
-import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/launch_channel.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/calls/ring_coordinator.dart';
@@ -143,7 +142,6 @@ void main() {
     ambientCapabilities = capabilitiesLike(iosCapabilities, voipRing: true);
     declines = SentCallDeclines();
     ringRateLimiter.clear();
-    RingingCall.instance.callId = null;
     SystemRing.instance.reset();
     ringReply = 'shown';
     stateReply = (_) => http.Response(
@@ -574,20 +572,17 @@ void main() {
   });
 
   group('with VoIP rings off', () {
-    test(
-      'nothing is taken from native code and invites are left alone',
-      () async {
-        await startCoordinator(
-          capabilities: capabilitiesLike(iosCapabilities, voipRing: false),
-        );
+    test('an invite rings the app\'s own way, with no wake reason taken from '
+        'native code', () async {
+      await startCoordinator(
+        capabilities: capabilitiesLike(iosCapabilities, voipRing: false),
+      );
 
-        await deliver(invite('call1'));
+      await deliver(invite('call1'));
 
-        expect(native.methods, isNot(contains('takeCallEvents')));
-        expect(native.argsOf('reportIncomingCall'), isEmpty);
-        expect(launchCalls, isEmpty);
-      },
-    );
+      expect(native.callIdsOf('reportIncomingCall'), ['call1']);
+      expect(launchCalls, isEmpty);
+    });
   });
 
   group('starting the push ring services', () {
@@ -611,7 +606,8 @@ void main() {
       expect(container.exists(ringLifecycleProvider), isTrue);
     });
 
-    test('on Android, starts only the server ring registration', () async {
+    test('on Android, starts the coordinator and the server ring '
+        'registration, not the read model', () async {
       final container = ProviderContainer(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
@@ -623,7 +619,7 @@ void main() {
 
       container.listen(pushRingServicesProvider, (_, _) {});
 
-      expect(container.exists(ringCoordinatorProvider), isFalse);
+      expect(container.exists(ringCoordinatorProvider), isTrue);
       expect(container.exists(readModelPublisherProvider), isFalse);
       expect(container.exists(ringLifecycleProvider), isTrue);
     });

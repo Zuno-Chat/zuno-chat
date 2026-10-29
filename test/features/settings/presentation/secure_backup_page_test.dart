@@ -213,10 +213,10 @@ void main() {
       mode: mode,
       autoRestoreExisting: autoRestoreExisting,
       keyboard: keyboard,
-      createBootstrap: (client, onUpdate) {
+      createBootstrap: (client) {
         final bootstrap = _FakeBootstrap(
           created.isEmpty ? state : BootstrapState.loading,
-        )..onUpdate = onUpdate;
+        );
         if (created.isEmpty) prepare?.call(bootstrap);
         created.add(bootstrap);
         return bootstrap;
@@ -664,6 +664,8 @@ void main() {
     await pump(tester, BootstrapState.error);
 
     expect(find.text('That did not work. Try again.'), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(find.byType(CircularProgressIndicator), findsNothing);
     await tester.tap(filled('Try again'));
     await tester.pump();
 
@@ -678,10 +680,8 @@ void main() {
     ) => pumpPage(
       tester,
       mode: SecureBackupMode.key,
-      createBootstrap: (client, onUpdate) => Bootstrap(
-        encryption: _SetupEncryption(client, createKey),
-        onUpdate: onUpdate,
-      ),
+      createBootstrap: (client) =>
+          Bootstrap(encryption: _SetupEncryption(client, createKey)),
     );
 
     testWidgets('because the password it asked for was backed out of is no '

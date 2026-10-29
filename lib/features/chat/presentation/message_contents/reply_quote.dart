@@ -3,9 +3,10 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/cover_image.dart';
+import '../../../../core/matrix/event_display.dart';
+import '../../../../core/matrix/message_icons.dart';
 import '../../../../core/matrix/quoted_message_box.dart';
 import '../../../../core/ui/zuno_theme.dart';
-import '../../data/message_kinds.dart';
 import '../message_bubble.dart';
 import '../reply_target_cache.dart';
 
@@ -87,24 +88,27 @@ class _ReplyQuoteState extends State<ReplyQuote> {
     }
 
     final displayEvent = original.getDisplayEvent(widget.timeline);
-    final kind = classifyAttachment(displayEvent);
+    final summary = summarize(context.l10n, displayEvent);
     return QuotedMessageBox(
       senderName: original.senderFromMemoryOrFallback.calcDisplayname(),
-      snippet: previewSnippet(context.l10n, original, widget.timeline),
-      icon: switch (kind) {
-        AttachmentKind.image => Icons.photo_outlined,
-        AttachmentKind.video => Icons.videocam_outlined,
-        AttachmentKind.location => Icons.location_on_outlined,
-        AttachmentKind.liveLocation => Icons.share_location_outlined,
-        _ => null,
-      },
-      thumbnail: switch (kind) {
-        AttachmentKind.image || AttachmentKind.video => attachmentThumbnail(
+      snippet: summary.text,
+      icon: messageIcon(summary),
+      thumbnail: switch (summary.kind) {
+        MessageKind.photo || MessageKind.video => attachmentThumbnail(
           displayEvent,
           placeholder: ColoredBox(color: theme.colorScheme.surfaceContainer),
           shownAt: quotedThumbnailSize,
         ),
-        _ => null,
+        MessageKind.text ||
+        MessageKind.voice ||
+        MessageKind.file ||
+        MessageKind.location ||
+        MessageKind.liveLocation ||
+        MessageKind.callSummary ||
+        MessageKind.deleted ||
+        MessageKind.undecryptable ||
+        MessageKind.nonMessage ||
+        MessageKind.hiddenSignaling => null,
       },
       borderRadius: ZunoRadius.small,
       fill: fill,

@@ -3,8 +3,9 @@ import 'package:matrix/matrix.dart';
 
 import '../calls/end_call.dart';
 import '../errors/caught_errors.dart';
-import '../errors/connection_error.dart';
 import '../l10n/l10n.dart';
+import '../ui/confirm_dialog.dart';
+import '../ui/notice.dart';
 import 'communities.dart';
 import 'room_roles.dart';
 import 'room_title.dart';
@@ -103,24 +104,14 @@ Future<bool> confirmAndExitRoom(
   final l10n = context.l10n;
   final message = await roomExitMessage(room, l10n);
   if (!context.mounted) return false;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(roomExitTitle(room, l10n)),
-      content: Text(message),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(l10n.commonCancel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(roomExitConfirmLabel(room, l10n)),
-        ),
-      ],
-    ),
+  final confirmed = await confirm(
+    context,
+    title: roomExitTitle(room, l10n),
+    body: message,
+    confirmLabel: roomExitConfirmLabel(room, l10n),
+    tone: ConfirmTone.destructive,
   );
-  if (confirmed != true) return false;
+  if (!confirmed) return false;
 
   try {
     await endCallsIn(_roomIdsLeftBy(room));
@@ -128,16 +119,14 @@ Future<bool> confirmAndExitRoom(
     return true;
   } catch (e, s) {
     reportCaught('exit room', e, s);
-    final String failed;
-    if (isDirect) {
-      failed = l10n.matrixRoomExitDeleteChatFailed;
-    } else if (room.isSpace) {
-      failed = l10n.matrixRoomExitLeaveCommunityFailed;
-    } else {
-      failed = l10n.matrixRoomExitLeaveRoomFailed;
-    }
-    messenger.showSnackBar(
-      SnackBar(content: Text(failureMessage(l10n, e, failed: failed))),
+    messenger.sayFailed(
+      l10n,
+      e,
+      failed: isDirect
+          ? l10n.matrixRoomExitDeleteChatFailed
+          : room.isSpace
+          ? l10n.matrixRoomExitLeaveCommunityFailed
+          : l10n.matrixRoomExitLeaveRoomFailed,
     );
     return false;
   }

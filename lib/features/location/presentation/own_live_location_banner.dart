@@ -6,6 +6,8 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_notice.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/ui/alert_banner.dart';
+import 'live_location_stop.dart';
 
 class OwnLiveLocationBanner extends ConsumerWidget {
   final ValueChanged<Room> onOpen;
@@ -27,41 +29,13 @@ class OwnLiveLocationBanner extends ConsumerWidget {
         if (entries.isEmpty) return const SizedBox.shrink();
         final notice = liveLocationNotice(context.l10n, entries);
         final only = entries.length == 1 ? entries.single.room : null;
-        final scheme = Theme.of(context).colorScheme;
-        final text = TextStyle(color: scheme.onSecondaryContainer);
-        return Material(
-          color: scheme.secondaryContainer,
-          child: InkWell(
-            onTap: only == null ? null : () => onOpen(only),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.share_location_outlined,
-                    color: scheme.onSecondaryContainer,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          notice.title,
-                          style: text.copyWith(fontWeight: FontWeight.w500),
-                        ),
-                        Text(notice.text, style: text),
-                      ],
-                    ),
-                  ),
-                  FilledButton.tonal(
-                    onPressed: sharing.stopAll,
-                    child: Text(context.l10n.locationStop),
-                  ),
-                ],
-              ),
-            ),
-          ),
+        return InfoStrip(
+          icon: Icons.share_location_outlined,
+          title: notice.title,
+          body: notice.text,
+          actionLabel: context.l10n.locationStop,
+          onAction: () => stopAllLiveSharing(context, ref),
+          onTap: only == null ? null : () => onOpen(only),
         );
       },
     );

@@ -1,12 +1,11 @@
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/format/date_labels.dart';
-import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_sharing.dart';
 import '../../../core/matrix/abuse_report.dart';
@@ -15,6 +14,8 @@ import '../../../core/matrix/event_display.dart';
 import '../../../core/matrix/room_encryption.dart';
 import '../../../core/matrix/room_permission.dart';
 import '../../../core/security/security_emphasis.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/sheet.dart';
 import '../../reports/presentation/report_sheet.dart';
 import '../data/discarded_sends.dart';
@@ -49,18 +50,21 @@ Future<void> showMessageActions(
       isOwn &&
       !event.hasAttachment &&
       displayEvent.messageType == MessageTypes.Text;
-  final attachmentKind = classifyAttachment(displayEvent);
-  final isAttachment = switch (attachmentKind) {
-    AttachmentKind.none ||
-    AttachmentKind.location ||
-    AttachmentKind.liveLocation => false,
-    AttachmentKind.image ||
-    AttachmentKind.video ||
-    AttachmentKind.voice ||
-    AttachmentKind.file => true,
+  final kind = messageKindOf(displayEvent);
+  final isAttachment = switch (kind) {
+    MessageKind.photo ||
+    MessageKind.video ||
+    MessageKind.voice ||
+    MessageKind.file => true,
+    MessageKind.text ||
+    MessageKind.location ||
+    MessageKind.liveLocation ||
+    MessageKind.callSummary ||
+    MessageKind.deleted ||
+    MessageKind.undecryptable ||
+    MessageKind.nonMessage ||
+    MessageKind.hiddenSignaling => false,
   };
-  final isTextMessage =
-      !isAttachment && attachmentKind != AttachmentKind.liveLocation;
   final canDelete =
       (isOwn || room.canRedact) &&
       (sent ||
@@ -82,7 +86,7 @@ Future<void> showMessageActions(
     canEdit: canEdit,
     canDelete: canDelete,
     isOwn: isOwn,
-    isTextMessage: isTextMessage,
+    canCopy: kind == MessageKind.text,
     isAttachment: isAttachment,
     galleryCount: gallery?.length ?? 0,
     forwardCount: forwardable.length,
@@ -90,7 +94,7 @@ Future<void> showMessageActions(
       if (isAttachment)
         MessageFact(
           icon: Icons.info_outline,
-          child: Text(attachmentInfoText(l10n, shown, attachmentKind)),
+          child: Text(attachmentInfoText(l10n, shown, kind)),
         ),
       MessageFact(
         icon: Icons.schedule_outlined,
@@ -135,10 +139,10 @@ Future<void> showMessageActions(
     case MessageAction.save:
       await saveAttachmentsWithFeedback(messenger, l10n, media);
     case MessageAction.copy:
-      await Clipboard.setData(
-        ClipboardData(text: displayBody(event, timeline)),
+      await messenger.copy(
+        displayBody(event, timeline),
+        copied: l10n.chatCopied,
       );
-      _say(messenger, l10n.chatCopied);
     case MessageAction.report:
       await _reportMessage(context, room, event);
     case null:
@@ -179,14 +183,9 @@ Future<void> pickReaction(
   await reactToMessage(context, event, timeline, key);
 }
 
-Future<void> _reportMessage(
-  BuildContext context,
-  Room room,
-  Event event,
-) async {
-  final messenger = ScaffoldMessenger.of(context);
+Future<void> _reportMessage(BuildContext context, Room room, Event event) {
   final l10n = context.l10n;
-  final sent = await showReportSheet(
+  return showReportSheet(
     context,
     title: l10n.chatReportTitle,
     explanation: room.isDirectChat
@@ -194,7 +193,6 @@ Future<void> _reportMessage(
         : l10n.chatReportExplainGroup,
     onSend: (reason, note) => reportMessage(event, reason, note: note),
   );
-  if (sent) _say(messenger, l10n.commonReportSent);
 }
 
 Future<void> _deleteMessages(
@@ -206,41 +204,31 @@ Future<void> _deleteMessages(
   required bool gallery,
 }) async {
   final many = events.length > 1;
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(context.l10n.chatDeleteTitle(events.length)),
-      content: Text(switch (many) {
-        true => context.l10n.chatDeleteManyBody,
-        false when isNotSent(events.single) =>
-          context.l10n.chatDeleteUnsentBody,
-        false => context.l10n.chatDeleteOneBody,
-      }),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(context.l10n.commonCancel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(
-            many ? context.l10n.chatDeleteAll : context.l10n.commonDelete,
-          ),
-        ),
-      ],
-    ),
+  final l10n = context.l10n;
+  final confirmed = await confirm(
+    context,
+    title: l10n.chatDeleteTitle(events.length),
+    body: switch (many) {
+      true => l10n.chatDeleteManyBody,
+      false when isNotSent(events.single) => l10n.chatDeleteUnsentBody,
+      false => l10n.chatDeleteOneBody,
+    },
+    confirmLabel: many ? l10n.chatDeleteAll : l10n.commonDelete,
+    tone: ConfirmTone.destructive,
   );
-  if (confirmed != true || !context.mounted) return;
+  if (!confirmed || !context.mounted) return;
 
   final messenger = ScaffoldMessenger.of(context);
-  final l10n = context.l10n;
   final sharing = ref.read(liveLocationSharingProvider);
   final sender = ref.read(roomSenderProvider(room));
   if (gallery) await sender.dropGalleries(events);
-  var failed = false;
+  Object? failure;
   for (final event in events.map((event) => _current(event, timeline))) {
+    await runBestEffort(
+      () => sharing.stopShareStartedBy(event),
+      label: 'live location stop',
+    );
     try {
-      await sharing.stopShareStartedBy(event);
       if (event.status.isSent) {
         await room.redactEvent(event.eventId);
       } else {
@@ -248,11 +236,15 @@ Future<void> _deleteMessages(
       }
     } catch (e, s) {
       reportCaught('delete message', e, s);
-      failed = true;
+      failure = e;
     }
   }
-  if (!failed) return;
-  _say(messenger, many ? l10n.chatDeleteManyFailed : l10n.chatDeleteOneFailed);
+  if (failure == null) return;
+  messenger.sayFailed(
+    l10n,
+    failure,
+    failed: many ? l10n.chatDeleteManyFailed : l10n.chatDeleteOneFailed,
+  );
 }
 
 Event _current(Event event, Timeline timeline) {
@@ -262,6 +254,3 @@ Event _current(Event event, Timeline timeline) {
           .firstOrNull ??
       event;
 }
-
-void _say(ScaffoldMessengerState messenger, @displayText String message) =>
-    messenger.showSnackBar(SnackBar(content: Text(message)));

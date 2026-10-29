@@ -94,9 +94,7 @@ class _CallWindowState extends State<CallWindow> {
     );
     return TweenAnimationBuilder<Size?>(
       tween: SizeTween(begin: size, end: size),
-      duration: MediaQuery.disableAnimationsOf(context)
-          ? Duration.zero
-          : ZunoDurations.standard,
+      duration: ZunoDurations.motion(context, ZunoDurations.standard),
       curve: Curves.fastOutSlowIn,
       builder: (context, shape, window) {
         final spot = CornerSpots(bounds: bounds, size: shape!).of(_corner);

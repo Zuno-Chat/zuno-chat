@@ -246,8 +246,38 @@ void main() {
       expect(scope.read(activeCallProvider)!.callId, 'call-1');
     });
 
-    testWidgets('the call you are in gets no banner', (tester) async {
+    testWidgets('a call that starts while the chat is open gets a banner', (
+      tester,
+    ) async {
+      await openRoom(tester);
+      expect(find.text('Voice call in progress'), findsNothing);
+
+      joinCall(
+        harness.room,
+        userId: '@bob:example.org',
+        deviceId: 'BOBPHONE',
+        callId: 'c-bob',
+      );
+      await harness.settle(tester);
+
+      expect(find.text('Voice call in progress'), findsOneWidget);
+    });
+
+    testWidgets('its banner goes once the call has expired', (tester) async {
+      await openRoom(tester, callInProgress: 'c-bob');
+      expect(find.text('Voice call in progress'), findsOneWidget);
+
+      await tester.pump(const Duration(minutes: 6));
+      harness.client.onSync.add(SyncUpdate(nextBatch: 's2'));
+      await harness.settle(tester);
+
+      expect(find.text('Voice call in progress'), findsNothing);
+    });
+
+    testWidgets('the call you are in loses its banner', (tester) async {
       await openRoom(tester, callInProgress: 'call-1');
+      expect(find.text('Voice call in progress'), findsOneWidget);
+
       alreadyInCall(tester);
       await harness.settle(tester);
 

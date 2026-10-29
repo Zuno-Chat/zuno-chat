@@ -14,6 +14,9 @@ bool hasSomeoneToCall(Room room) {
       .any((user) => user.id != room.client.userID);
 }
 
+bool canStartCall(Room room) =>
+    canPublishCallMemberState(room) && hasSomeoneToCall(room);
+
 class RtcMembership {
   final String callId;
   final String deviceId;

@@ -366,4 +366,53 @@ void main() {
       );
     });
   });
+
+  group('a send remembers why its requests failed', () {
+    final sendUrl = Uri.parse(
+      'https://example.org/_matrix/client/v3/rooms/!r/send/m.room.message/t1',
+    );
+
+    test('a request that never reaches the server', () async {
+      final scope = SendScope();
+      final client = UploadHttpClient(
+        FakeHttpClient((_) async => throw const SocketException('offline')),
+      );
+
+      await expectLater(
+        scope.run(() => client.put(sendUrl, body: '{}')),
+        throwsA(isA<SocketException>()),
+      );
+
+      expect(scope.failure, isA<SocketException>());
+    });
+
+    test('an upload that never reaches the server', () async {
+      final scope = SendScope();
+      final client = UploadHttpClient(
+        FakeHttpClient((_) async => throw const SocketException('offline')),
+      );
+
+      await expectLater(
+        scope.run(() => client.send(_upload(10))),
+        throwsA(isA<SocketException>()),
+      );
+
+      expect(scope.failure, isA<SocketException>());
+    });
+
+    test('an answer from the server, even a refusal, is not a failure to '
+        'remember', () async {
+      final scope = SendScope();
+      final client = UploadHttpClient(
+        FakeHttpClient(
+          (_) async => http.Response('{"errcode":"M_UNKNOWN"}', 400),
+        ),
+      );
+
+      final response = await scope.run(() => client.put(sendUrl, body: '{}'));
+
+      expect(response.statusCode, 400);
+      expect(scope.failure, isNull);
+    });
+  });
 }

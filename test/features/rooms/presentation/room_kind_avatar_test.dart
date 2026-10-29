@@ -53,8 +53,18 @@ void main() {
     await pump(tester, isDirect: true);
 
     expect(find.text('B'), findsOneWidget);
-    final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
-    expect(avatar.backgroundColor, avatarToneFor('@bob:example.org'));
+    final circle =
+        tester
+                .widget<DecoratedBox>(
+                  find.ancestor(
+                    of: find.text('B'),
+                    matching: find.byType(DecoratedBox),
+                  ),
+                )
+                .decoration
+            as BoxDecoration;
+    expect(circle.color, avatarToneFor('@bob:example.org'));
+    expect(circle.shape, BoxShape.circle);
   });
 
   testWidgets('a community is a rounded square with no badge', (tester) async {
@@ -66,7 +76,6 @@ void main() {
       toneSeed: '!club:example.org',
     );
 
-    expect(find.byType(CircleAvatar), findsNothing);
     expect(find.byIcon(Icons.groups), findsNothing);
     expect(find.text('C'), findsOneWidget);
     final box = tester.widget<DecoratedBox>(

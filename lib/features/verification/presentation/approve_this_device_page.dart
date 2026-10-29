@@ -1,18 +1,16 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 
-import '../../../core/errors/best_effort.dart';
-import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 import '../../../core/ui/step_hero.dart';
 import '../../../core/ui/step_layout.dart';
 import '../../settings/presentation/secure_backup_page.dart';
-import 'verification_page.dart';
+import 'start_verification.dart';
 
 typedef RecoveryOpener = Future<void> Function(
   BuildContext context, {
@@ -59,67 +57,35 @@ class _ApproveThisDevicePageState extends ConsumerState<ApproveThisDevicePage> {
 
   Future<void> _approveFromOtherDevice() async {
     final client = ref.read(matrixClientProvider);
-    final messenger = ScaffoldMessenger.of(context);
     final l10n = context.l10n;
     final ownKeys = client.userDeviceKeys[client.userID];
     if (ownKeys == null) {
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.verificationNoOtherDevices)),
-      );
+      ScaffoldMessenger.of(context).say(l10n.verificationNoOtherDevices);
       return;
     }
     setState(() => _starting = true);
-    try {
-      final keyVerification = await ownKeys.startVerification();
-      if (!mounted) {
-        unawaited(
-          runBestEffort(
-            () => keyVerification.cancel('m.user'),
-            label: 'cancel unattended device approval',
-          ),
-        );
-        return;
-      }
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => VerificationPage(
-            keyVerification: keyVerification,
-            isOwnDevice: true,
-          ),
-        ),
-      );
-      if (mounted && keyVerification.state == KeyVerificationState.done) {
-        _finish();
-      }
-    } catch (e, s) {
-      reportCaught('start device approval', e, s);
-      messenger.showSnackBar(
-        SnackBar(content: Text(l10n.verificationCouldNotStart)),
-      );
-    } finally {
-      if (mounted) setState(() => _starting = false);
-    }
+    final verification = await startAndOpenVerification(
+      context,
+      ownKeys.startVerification,
+      label: 'start device approval',
+      failed: l10n.verificationCouldNotStart,
+      isOwnDevice: true,
+    );
+    if (!mounted) return;
+    setState(() => _starting = false);
+    if (verification?.state == KeyVerificationState.done) _finish();
   }
 
   Future<void> _startOver() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(context.l10n.verificationStartOverTitle),
-        content: Text(context.l10n.verificationStartOverBody),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: Text(context.l10n.commonCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: Text(context.l10n.verificationStartOver),
-          ),
-        ],
-      ),
+    final l10n = context.l10n;
+    final confirmed = await confirm(
+      context,
+      title: l10n.verificationStartOverTitle,
+      body: l10n.verificationStartOverBody,
+      confirmLabel: l10n.verificationStartOver,
+      tone: ConfirmTone.destructive,
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
     await _openRecovery(restoreExisting: false);
   }
 

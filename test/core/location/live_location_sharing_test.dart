@@ -757,6 +757,30 @@ void main() {
       },
     );
 
+    clockedTest('a refused clear at the end is reported, not thrown', () {
+      fakeAsync((async) {
+        sharing.dispose();
+        sharing = build();
+        unawaited(
+          sharing.start(room, LiveLocationDuration.quarterHour, at(here)),
+        );
+        async.flushMicrotasks();
+        client.stateWriteError = MatrixException.fromJson({
+          'errcode': 'M_FORBIDDEN',
+          'error': 'no',
+        });
+        final printed = recordDebugPrints();
+
+        async.elapse(const Duration(minutes: 15));
+
+        expect(sharing.shares.value, isEmpty);
+        expect(
+          printed,
+          contains(startsWith('zuno/caught: live location stop:')),
+        );
+      });
+    });
+
     clockedTest('ends when its time is up', () {
       fakeAsync((async) {
         sharing.dispose();
@@ -913,6 +937,45 @@ void main() {
       expect(sharing.shares.value, isEmpty);
       expect(client.stateWrites.last.content, isEmpty);
     });
+
+    clockedTest(
+      'a refused clear is passed on, and capture still stops',
+      () async {
+        await startSharing();
+        client.stateWriteError = MatrixException.fromJson({
+          'errcode': 'M_FORBIDDEN',
+          'error': 'no',
+        });
+
+        await expectLater(
+          sharing.stop('!family:x'),
+          throwsA(isA<MatrixException>()),
+        );
+
+        expect(sharing.shares.value, isEmpty);
+        expect(capture.running, false);
+      },
+    );
+
+    clockedTest(
+      'a refused clear after location is lost is reported, not thrown',
+      () async {
+        await startSharing();
+        client.stateWriteError = MatrixException.fromJson({
+          'errcode': 'M_FORBIDDEN',
+          'error': 'no',
+        });
+
+        final reports = await reportsDuring(() async {
+          capture.lose(LiveCaptureFailure.denied);
+          await pumpEventQueue();
+        });
+
+        expect(reports, ['live location stop']);
+        expect(sharing.shares.value, isEmpty);
+        expect(capture.running, false);
+      },
+    );
 
     clockedTest('stopping everything is bounded when the server hangs', () {
       fakeAsync((async) {

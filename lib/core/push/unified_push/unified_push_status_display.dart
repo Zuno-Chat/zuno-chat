@@ -7,48 +7,46 @@ enum UnifiedPushStatusAction { none, register, retry }
 UnifiedPushStatusAction unifiedPushStatusAction(
   UnifiedPushStatus status, {
   bool removed = false,
-}) {
-  switch (status) {
-    case UnifiedPushStatus.idle:
-      return removed
-          ? UnifiedPushStatusAction.register
-          : UnifiedPushStatusAction.none;
-    case UnifiedPushStatus.findingDistributor:
-    case UnifiedPushStatus.noDistributorFound:
-    case UnifiedPushStatus.registering:
-    case UnifiedPushStatus.postingPusher:
-      return UnifiedPushStatusAction.none;
-    case UnifiedPushStatus.distributorSelected:
-      return UnifiedPushStatusAction.register;
-    case UnifiedPushStatus.registrationFailed:
-    case UnifiedPushStatus.pusherFailed:
-      return UnifiedPushStatusAction.retry;
-    case UnifiedPushStatus.ready:
-      return UnifiedPushStatusAction.none;
-  }
-}
+}) => switch (status) {
+  UnifiedPushStatus.idle =>
+    removed ? UnifiedPushStatusAction.register : UnifiedPushStatusAction.none,
+  UnifiedPushStatus.distributorSelected => UnifiedPushStatusAction.register,
+  UnifiedPushStatus.registrationFailed ||
+  UnifiedPushStatus.pusherFailed => UnifiedPushStatusAction.retry,
+  UnifiedPushStatus.findingDistributor ||
+  UnifiedPushStatus.noDistributorFound ||
+  UnifiedPushStatus.registering ||
+  UnifiedPushStatus.postingPusher ||
+  UnifiedPushStatus.ready => UnifiedPushStatusAction.none,
+};
 
-String unifiedPushStatusLabel(AppLocalizations l10n, UnifiedPushStatus status) {
-  switch (status) {
-    case UnifiedPushStatus.idle:
-    case UnifiedPushStatus.noDistributorFound:
-      return l10n.pushInactive;
-    case UnifiedPushStatus.findingDistributor:
-      return l10n.pushSearching;
-    case UnifiedPushStatus.distributorSelected:
-      return l10n.pushNotRegisteredYet;
-    case UnifiedPushStatus.registering:
-      return l10n.pushRegistering;
-    case UnifiedPushStatus.postingPusher:
-      return l10n.pushFinishingRegistration;
-    case UnifiedPushStatus.ready:
-      return l10n.pushActive;
-    case UnifiedPushStatus.registrationFailed:
-      return l10n.pushDistributorRefusedRegistration;
-    case UnifiedPushStatus.pusherFailed:
-      return l10n.pushCouldNotFinishRegistration;
-  }
-}
+bool unifiedPushStatusIsBusy(UnifiedPushStatus status) => switch (status) {
+  UnifiedPushStatus.findingDistributor ||
+  UnifiedPushStatus.registering ||
+  UnifiedPushStatus.postingPusher => true,
+  UnifiedPushStatus.idle ||
+  UnifiedPushStatus.noDistributorFound ||
+  UnifiedPushStatus.distributorSelected ||
+  UnifiedPushStatus.ready ||
+  UnifiedPushStatus.registrationFailed ||
+  UnifiedPushStatus.pusherFailed => false,
+};
+
+String unifiedPushStatusLabel(
+  AppLocalizations l10n,
+  UnifiedPushStatus status,
+) => switch (status) {
+  UnifiedPushStatus.idle ||
+  UnifiedPushStatus.noDistributorFound => l10n.pushInactive,
+  UnifiedPushStatus.findingDistributor => l10n.pushSearching,
+  UnifiedPushStatus.distributorSelected => l10n.pushNotRegisteredYet,
+  UnifiedPushStatus.registering => l10n.pushRegistering,
+  UnifiedPushStatus.postingPusher => l10n.pushFinishingRegistration,
+  UnifiedPushStatus.ready => l10n.pushActive,
+  UnifiedPushStatus.registrationFailed =>
+    l10n.pushDistributorRefusedRegistration,
+  UnifiedPushStatus.pusherFailed => l10n.pushCouldNotFinishRegistration,
+};
 
 String unifiedPushDistributorLabel(
   AppLocalizations l10n, {

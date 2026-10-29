@@ -9,11 +9,13 @@ import '../../../core/matrix/room_roles.dart';
 class MemberTile extends StatelessWidget {
   final Room room;
   final User user;
+  final Widget? trailing;
   final VoidCallback? onTap;
 
   const MemberTile({
     required this.room,
     required this.user,
+    this.trailing,
     this.onTap,
     super.key,
   });
@@ -31,7 +33,7 @@ class MemberTile extends StatelessWidget {
       ),
       title: Text(user.calcDisplayname()),
       subtitle: Text(withoutServer(user.id)),
-      trailing: badge == null ? null : Text(badge),
+      trailing: trailing ?? (badge == null ? null : Text(badge)),
       onTap: onTap,
     );
   }

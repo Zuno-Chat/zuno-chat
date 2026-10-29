@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'line_strut.dart';
+import 'zuno_theme.dart';
 
 class TimelinePill extends StatelessWidget {
   final String text;
@@ -17,7 +18,7 @@ class TimelinePill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
       decoration: BoxDecoration(
         color: theme.colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(ZunoRadius.compact),
       ),
       child: Text(
         text,

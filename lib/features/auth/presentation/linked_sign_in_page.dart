@@ -1,5 +1,4 @@
 import 'dart:convert' show utf8;
-import 'dart:io' show Platform;
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -12,6 +11,7 @@ import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/session_display_name.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
 import '../../verification/presentation/qr_scanner_page.dart';
 import 'auth_scaffold.dart';
@@ -104,7 +104,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
               server: server,
               token: token,
               chosenServer: chosen,
-              deviceDisplayName: sessionDisplayName(Platform.operatingSystem),
+              deviceDisplayName: thisSessionDisplayName(),
             ),
           );
       if (!mounted) return;
@@ -153,14 +153,11 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
             maxLines: 2,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submitTyped(),
-            decoration: InputDecoration(
-              labelText: l10n.authCodeLabel,
-              border: const OutlineInputBorder(),
-            ),
+            decoration: InputDecoration(labelText: l10n.authCodeLabel),
           ),
-          if (_error != null) ...[
+          if (_error case final error?) ...[
             const SizedBox(height: 16),
-            Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+            InlineError(error),
           ],
           const SizedBox(height: 24),
           OutlinedButton(

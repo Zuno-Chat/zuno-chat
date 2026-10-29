@@ -171,6 +171,247 @@ void main() {
     });
   });
 
+  group('an event a reader asks it to watch', () {
+    test('opens at once when its key is already here, announced as '
+        'decrypted but not as new on the timeline', () async {
+      final late = LateDecryptions.of(client);
+      final timeline = collect(late.timeline);
+      final decrypted = collect(late.decrypted);
+      decryption.decrypted.add(opened());
+
+      late.watch(locked());
+      await pumpEventQueue();
+
+      expect(decrypted.single.body, 'hi');
+      expect(timeline, isEmpty);
+      expect(late.watches(r'$1'), isFalse);
+    });
+
+    test('opens once its key arrives', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+      late.watch(locked());
+      await pumpEventQueue();
+      expect(decrypted, isEmpty);
+
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(decrypted.single.body, 'hi');
+      expect(decryption.attempts, 2);
+    });
+
+    test('a key for another conversation leaves it locked', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+      late.watch(locked());
+      await pumpEventQueue();
+
+      decryption.keyArrives(room, opens: opened(), sessionId: 'another');
+      await pumpEventQueue();
+
+      expect(decrypted, isEmpty);
+      expect(decryption.attempts, 1);
+    });
+
+    clockedTest('still opens when its key arrives after five minutes, while '
+        'a message only seen on the timeline is forgotten', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+      late.watch(locked(eventId: r'$1'));
+      client.onTimelineEvent.add(locked(eventId: r'$2'));
+      await pumpEventQueue();
+
+      now = now.add(const Duration(minutes: 6));
+      expect(late.watches(r'$2'), isFalse);
+      decryption.keyArrives(room, opens: opened(eventId: r'$1'));
+      await pumpEventQueue();
+
+      expect(decrypted.map((e) => e.eventId), [r'$1']);
+    });
+
+    clockedTest('a timeline message a reader then watches outlasts five '
+        'minutes too', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+      client.onTimelineEvent.add(locked());
+      await pumpEventQueue();
+      late.watch(locked());
+      await pumpEventQueue();
+
+      now = now.add(const Duration(minutes: 6));
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(decrypted.single.body, 'hi');
+    });
+
+    test('is forgotten once deleted', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+      late.watch(locked());
+      await pumpEventQueue();
+
+      client.onTimelineEvent.add(
+        buildTestEvent(
+          room,
+          eventId: r'$redaction',
+          senderId: '@a:x',
+          type: EventTypes.Redaction,
+          content: {'redacts': r'$1'},
+        ),
+      );
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(decrypted, isEmpty);
+    });
+
+    test('ignores a message it can already read', () async {
+      final late = LateDecryptions.of(client);
+
+      late.watch(opened());
+      await pumpEventQueue();
+
+      expect(decryption.attempts, 0);
+      expect(late.watches(r'$1'), isFalse);
+    });
+
+    test('is announced on the timeline too once it arrives there', () async {
+      final late = LateDecryptions.of(client);
+      final timeline = collect(late.timeline);
+      late.watch(locked());
+      client.onTimelineEvent.add(locked());
+      await pumpEventQueue();
+
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(timeline.map((e) => e.type), [
+        EventTypes.Encrypted,
+        EventTypes.Message,
+      ]);
+    });
+  });
+
+  group('an event a reader tries to open once', () {
+    test('opens when its key is already here, mends the room\'s last '
+        'message and holds no slot', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+      room.lastEvent = locked();
+      decryption.decrypted.add(opened());
+
+      await late.tryOpen(room.lastEvent!);
+
+      expect(decrypted.single.body, 'hi');
+      expect(room.lastEvent?.body, 'hi');
+      expect(late.watches(r'$1'), isFalse);
+    });
+
+    test('stays locked without waiting for its key', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+
+      await late.tryOpen(locked());
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(decrypted, isEmpty);
+      expect(decryption.attempts, 1);
+      expect(late.watches(r'$1'), isFalse);
+    });
+
+    test('a timeline message it opens is announced on the timeline and no '
+        'longer waited on', () async {
+      final late = LateDecryptions.of(client);
+      final timeline = collect(late.timeline);
+      client.onTimelineEvent.add(locked());
+      await pumpEventQueue();
+      decryption.decrypted.add(opened());
+
+      await late.tryOpen(locked());
+
+      expect(timeline.map((e) => e.type), [
+        EventTypes.Encrypted,
+        EventTypes.Message,
+      ]);
+      expect(late.watches(r'$1'), isFalse);
+    });
+
+    test('a deleted message stays deleted', () async {
+      final late = LateDecryptions.of(client);
+      final decrypted = collect(late.decrypted);
+      room.lastEvent = locked()
+        ..setRedactionEvent(
+          buildTestEvent(
+            room,
+            eventId: r'$redaction',
+            senderId: '@a:x',
+            type: EventTypes.Redaction,
+            content: {'redacts': r'$1'},
+          ),
+        );
+      decryption.decrypted.add(opened());
+
+      await late.tryOpen(room.lastEvent!);
+
+      expect(decrypted, isEmpty);
+      expect(room.lastEvent?.body, isNot('hi'));
+    });
+
+    test('ignores a message it can already read', () async {
+      await LateDecryptions.of(client).tryOpen(opened());
+
+      expect(decryption.attempts, 0);
+    });
+  });
+
+  group("the room's last message", () {
+    test('becomes the opened message while it is still that locked '
+        'one', () async {
+      final late = LateDecryptions.of(client);
+      room.lastEvent = locked();
+      late.watch(room.lastEvent!);
+      await pumpEventQueue();
+
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(room.lastEvent?.body, 'hi');
+    });
+
+    test('is mended for a locked message seen on the timeline', () async {
+      LateDecryptions.of(client);
+      room.lastEvent = locked();
+      client.onTimelineEvent.add(room.lastEvent!);
+      await pumpEventQueue();
+
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(room.lastEvent?.body, 'hi');
+    });
+
+    test('is left alone once a newer message replaced it', () async {
+      final late = LateDecryptions.of(client);
+      late.watch(locked());
+      await pumpEventQueue();
+      final newer = buildTestEvent(
+        room,
+        eventId: r'$2',
+        senderId: '@a:x',
+        content: {'msgtype': MessageTypes.Text, 'body': 'newer'},
+      );
+      room.lastEvent = newer;
+
+      decryption.keyArrives(room, opens: opened());
+      await pumpEventQueue();
+
+      expect(room.lastEvent, same(newer));
+    });
+  });
+
   test('there is one per client', () {
     expect(LateDecryptions.of(client), same(LateDecryptions.of(client)));
     expect(

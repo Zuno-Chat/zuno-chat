@@ -4,9 +4,9 @@ import '../format/date_labels.dart';
 import '../l10n/l10n.dart';
 import 'room_roles.dart';
 
-bool isRoomUpdate(Event event) {
+bool isRoomUpdate(Event event, {bool? direct}) {
   if (event.redacted || event.stateKey == null) return false;
-  final direct = event.room.isDirectChat;
+  bool isDirect() => direct ?? event.room.isDirectChat;
   if (event.type == EventTypes.RoomMember) {
     return switch (event.roomMemberChangeType) {
       RoomMemberChangeType.leave ||
@@ -18,17 +18,17 @@ bool isRoomUpdate(Event event) {
       RoomMemberChangeType.withdrawInvitation ||
       RoomMemberChangeType.invite ||
       RoomMemberChangeType.unban ||
-      RoomMemberChangeType.knock => !direct,
+      RoomMemberChangeType.knock => !isDirect(),
       RoomMemberChangeType.avatar ||
       RoomMemberChangeType.displayname ||
       RoomMemberChangeType.other => false,
     };
   }
-  if (direct || event.stateKey != '') return false;
-  if (event.type == EventTypes.RoomPowerLevels) {
-    return _roleChanges(event).isNotEmpty;
-  }
-  return _details.contains(event.type);
+  if (event.stateKey != '') return false;
+  final shown = event.type == EventTypes.RoomPowerLevels
+      ? _roleChanges(event).isNotEmpty
+      : _details.contains(event.type);
+  return shown && !isDirect();
 }
 
 const _details = {
@@ -45,7 +45,7 @@ class RoomUpdateGrouping {
   const RoomUpdateGrouping({required this.messages, required this.bursts});
 }
 
-RoomUpdateGrouping groupRoomUpdates(List<Event> newestFirst) {
+RoomUpdateGrouping groupRoomUpdates(List<Event> newestFirst, {bool? direct}) {
   final messages = <Event>[];
   final bursts = <String, List<Event>>{};
   var run = <Event>[];
@@ -58,7 +58,7 @@ RoomUpdateGrouping groupRoomUpdates(List<Event> newestFirst) {
   }
 
   for (final event in newestFirst) {
-    if (!isRoomUpdate(event)) {
+    if (!isRoomUpdate(event, direct: direct)) {
       closeRun();
       messages.add(event);
       continue;

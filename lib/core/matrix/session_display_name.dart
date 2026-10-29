@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import '../brand.dart';
 
 const _osDisplayNames = {'ios': 'iOS', 'macos': 'macOS'};
@@ -9,3 +11,5 @@ String sessionDisplayName(String operatingSystem) {
       operatingSystem[0].toUpperCase() + operatingSystem.substring(1);
   return '$zunoName on $os';
 }
+
+String thisSessionDisplayName() => sessionDisplayName(Platform.operatingSystem);

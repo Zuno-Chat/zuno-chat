@@ -1,4 +1,4 @@
-import 'package:flutter/painting.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -114,5 +114,79 @@ void main() {
     test('a map not laid out yet keeps city level', () {
       expect(zoomToFit(neighbourhoodBounds([_munich]), Size.zero), 12);
     });
+  });
+
+  group('MapPreviewFrame', () {
+    Future<void> pump(WidgetTester tester, Widget frame) => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(body: SizedBox(width: 320, child: frame)),
+      ),
+    );
+
+    testWidgets('keeps the preview 16:10 in rounded corners and opens it', (
+      tester,
+    ) async {
+      var opened = 0;
+      await pump(
+        tester,
+        MapPreviewFrame(
+          preview: const MapGrid(),
+          radius: 12,
+          onTap: () => opened++,
+          icon: Icons.location_on_outlined,
+          caption: const Text('Location'),
+          trailing: const Text('14:02'),
+        ),
+      );
+
+      final size = tester.getSize(find.byType(MapGrid));
+      expect(size.width / size.height, moreOrLessEquals(16 / 10));
+      final clip = tester.widget<ClipRRect>(
+        find.ancestor(
+          of: find.byType(MapGrid),
+          matching: find.byType(ClipRRect),
+        ),
+      );
+      expect(clip.borderRadius, BorderRadius.circular(12));
+
+      await tester.tap(find.byType(MapGrid));
+      expect(opened, 1);
+      expect(find.text('Location'), findsOneWidget);
+      expect(find.text('14:02'), findsOneWidget);
+    });
+
+    testWidgets('without a preview it is only the caption row', (tester) async {
+      await pump(
+        tester,
+        const MapPreviewFrame(
+          radius: 12,
+          icon: Icons.location_on_outlined,
+          caption: Text('Location'),
+          trailing: Text('14:02'),
+        ),
+      );
+
+      expect(find.byType(ClipRRect), findsNothing);
+      expect(find.byType(AspectRatio), findsNothing);
+      expect(find.text('Location'), findsOneWidget);
+    });
+  });
+
+  testWidgets('the map grid draws behind what it holds', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: MapGrid(child: Text('pin'))),
+    );
+
+    expect(
+      find.descendant(of: find.byType(MapGrid), matching: find.text('pin')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(MapGrid),
+        matching: find.byType(CustomPaint),
+      ),
+      findsOneWidget,
+    );
   });
 }

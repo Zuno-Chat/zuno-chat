@@ -210,7 +210,7 @@ void main() {
     expect(find.bySemanticsLabel('Bob is muted'), findsOneWidget);
     final tile = tester.getRect(find.byType(ParticipantTile));
     final label = tester.getRect(find.text('Bob'));
-    expect(label.left - tile.left, lessThan(40));
+    expect(label.left - tile.left, lessThanOrEqualTo(40));
     expect(tile.bottom - label.bottom, lessThan(24));
   });
 

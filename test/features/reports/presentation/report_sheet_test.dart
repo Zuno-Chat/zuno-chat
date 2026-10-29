@@ -1,9 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/abuse_report.dart';
 import 'package:zuno/features/reports/presentation/report_sheet.dart';
+
+import '../../../helpers/caught_reports.dart';
 
 void main() {
   bool? result;
@@ -77,7 +81,8 @@ void main() {
     expect(sendButton(tester).onPressed, isNotNull);
   });
 
-  testWidgets('sends the chosen reason and note, then closes', (tester) async {
+  testWidgets('sends the chosen reason and note, closes and says it was '
+      'sent', (tester) async {
     ReportReason? sentReason;
     String? sentNote;
     await openSheet(
@@ -98,19 +103,51 @@ void main() {
     expect(sentNote, 'threats');
     expect(result, isTrue);
     expect(find.text('Report message'), findsNothing);
+    expect(find.text('Report sent'), findsOneWidget);
   });
 
-  testWidgets('a failed send stays open and says so', (tester) async {
-    await openSheet(tester, onSend: (_, _) async => throw Exception('offline'));
+  Future<List<String>> sendFailing(WidgetTester tester) =>
+      reportsDuring(() async {
+        await tester.tap(find.text('Spam'));
+        await tester.pump();
+        await tester.tap(find.text('Send report'));
+        await tester.pumpAndSettle();
+      });
 
-    await tester.tap(find.text('Spam'));
-    await tester.pump();
-    await tester.tap(find.text('Send report'));
-    await tester.pumpAndSettle();
+  testWidgets('a refused send stays open, says to try again and reports it', (
+    tester,
+  ) async {
+    await openSheet(
+      tester,
+      onSend: (_, _) async => throw StateError('server said no'),
+    );
+
+    final reports = await sendFailing(tester);
 
     expect(find.text('The report was not sent. Try again.'), findsOneWidget);
     expect(find.text('Report message'), findsOneWidget);
     expect(sendButton(tester).onPressed, isNotNull);
+    expect(result, isNull);
+    expect(find.text('Report sent'), findsNothing);
+    expect(reports, ['send abuse report']);
+  });
+
+  testWidgets('a send that fails offline asks to check the connection', (
+    tester,
+  ) async {
+    await openSheet(
+      tester,
+      onSend: (_, _) async => throw const SocketException('offline'),
+    );
+
+    await sendFailing(tester);
+
+    expect(
+      find.text(
+        'The report was not sent. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
     expect(result, isNull);
   });
 

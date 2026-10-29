@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/room_invite.dart';
+import '../../../core/ui/alert_banner.dart';
 
 class PendingInviteBanner extends StatelessWidget {
   final Room room;
@@ -13,41 +14,10 @@ class PendingInviteBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!isAwaitingInviteAcceptance(room)) return const SizedBox.shrink();
 
-    final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: colors.surfaceContainerHighest,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
-        child: Row(
-          children: [
-            Icon(
-              Icons.schedule_outlined,
-              size: 20,
-              color: colors.onSurfaceVariant,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    pendingInviteSubtitle(room, context.l10n),
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurface,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  Text(
-                    context.l10n.chatPendingInviteHint,
-                    style: Theme.of(context).textTheme.bodySmall
-                        ?.copyWith(color: colors.onSurfaceVariant),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return InfoStrip(
+      icon: Icons.schedule_outlined,
+      title: pendingInviteSubtitle(room, context.l10n),
+      body: context.l10n.chatPendingInviteHint,
     );
   }
 }

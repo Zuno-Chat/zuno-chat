@@ -6,8 +6,8 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/matrix/send_progress.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
-import 'package:zuno/features/chat/data/composed_image.dart';
-import 'package:zuno/features/chat/data/composed_video.dart';
+import 'package:zuno/features/chat/data/chat_timeline.dart';
+import 'package:zuno/features/chat/data/composed_media.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 import 'package:zuno/features/chat/presentation/date_divider.dart';
 import 'package:zuno/features/chat/presentation/empty_room_notice.dart';
@@ -68,6 +68,11 @@ void main() {
     final cache = ReplyTargetCache((id) async => null);
     final controller = ScrollController();
     addTearDown(controller.dispose);
+    final chat = ChatTimeline()..value = timeline();
+    addTearDown(chat.dispose);
+    rebuild = () => chat
+      ..value = timeline()
+      ..changed();
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
@@ -75,26 +80,21 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
           home: Scaffold(
-            body: StatefulBuilder(
-              builder: (context, setState) {
-                rebuild = () => setState(() {});
-                return MessageListView(
-                  room: room,
-                  timeline: timeline(),
-                  controller: controller,
-                  showHiddenMessages: false,
-                  canRespond: true,
-                  failedSends: failedSends,
-                  pendingSend: pendingSend,
-                  replyTargets: cache,
-                  onLongPress: (_, _) {},
-                  onDoubleTap: (_) {},
-                  onSwipeReply: (_) {},
-                  onResend: (_) {},
-                  onRetryFailedSend: onRetry ?? (_) {},
-                  onOpenMedia: (_) {},
-                );
-              },
+            body: MessageListView(
+              room: room,
+              timeline: chat,
+              controller: controller,
+              showHiddenMessages: false,
+              canRespond: true,
+              failedSends: failedSends,
+              pendingSend: pendingSend,
+              replyTargets: cache,
+              onLongPress: (_, _) {},
+              onDoubleTap: (_) {},
+              onSwipeReply: (_) {},
+              onResend: (_) {},
+              onRetryFailedSend: onRetry ?? (_) {},
+              onOpenMedia: (_) {},
             ),
           ),
         ),
@@ -119,6 +119,122 @@ void main() {
       expect(identical(tile(tester, r'$m1'), before), isTrue);
     },
   );
+
+  testWidgets('a receipt from someone else rebuilds only your last '
+      'message', (tester) async {
+    Event own(String id, DateTime at) => buildTestEvent(
+      room,
+      eventId: id,
+      senderId: me,
+      originServerTs: at,
+      status: EventStatus.synced,
+      content: {'msgtype': 'm.text', 'body': 'body of $id'},
+    );
+    final timeline = await timelineOf(tester, [
+      own(r'$m2', noon.add(const Duration(minutes: 1))),
+      text(r'$m1'),
+    ]);
+    await pumpList(tester, () => timeline);
+    final other = tile(tester, r'$m1');
+    expect(tile(tester, r'$m2').data.isRead, isFalse);
+
+    room.receiptState = LatestReceiptState(
+      global: LatestReceiptStateForTimeline(
+        ownPrivate: null,
+        ownPublic: null,
+        latestOwnReceipt: null,
+        otherUsers: {
+          bob: LatestReceiptStateData(
+            r'$m2',
+            noon.add(const Duration(hours: 1)).millisecondsSinceEpoch,
+          ),
+        },
+      ),
+    );
+    room.client.onSync.add(
+      SyncUpdate(
+        nextBatch: 's2',
+        rooms: RoomsUpdate(
+          join: {
+            room.id: JoinedRoomUpdate(
+              ephemeral: [BasicEvent(type: 'm.receipt', content: const {})],
+            ),
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(tile(tester, r'$m2').data.isRead, isTrue);
+    expect(identical(tile(tester, r'$m1'), other), isTrue);
+  });
+
+  testWidgets('a new display name reaches the rows without a timeline '
+      'update', (tester) async {
+    final timeline = await timelineOf(tester, [text(r'$m1')]);
+    await pumpList(tester, () => timeline);
+    expect(tile(tester, r'$m1').data.senderName, 'Bob');
+
+    room.setState(
+      User(bob, membership: 'join', displayName: 'Robert', room: room),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(tile(tester, r'$m1').data.senderName, 'Robert');
+  });
+
+  testWidgets('a parent rebuild reuses every row', (tester) async {
+    final timeline = await timelineOf(tester, [text(r'$m2'), text(r'$m1')]);
+    final cache = ReplyTargetCache((id) async => null);
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    final chat = ChatTimeline()..value = timeline;
+    addTearDown(chat.dispose);
+    late StateSetter setParent;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          theme: zunoLightTheme,
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                setParent = setState;
+                return MessageListView(
+                  room: room,
+                  timeline: chat,
+                  controller: controller,
+                  showHiddenMessages: false,
+                  canRespond: true,
+                  failedSends: const [],
+                  pendingSend: pendingSend,
+                  replyTargets: cache,
+                  onLongPress: (_, _) {},
+                  onDoubleTap: (_) {},
+                  onSwipeReply: (_) {},
+                  onResend: (_) {},
+                  onRetryFailedSend: (_) {},
+                  onOpenMedia: (_) {},
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    final first = tile(tester, r'$m1');
+    final second = tile(tester, r'$m2');
+
+    setParent(() {});
+    await tester.pump();
+
+    expect(identical(tile(tester, r'$m1'), first), isTrue);
+    expect(identical(tile(tester, r'$m2'), second), isTrue);
+  });
 
   testWidgets('only a delivered message can be swiped to reply', (
     tester,
@@ -328,9 +444,9 @@ void main() {
       tester,
       () => timeline,
       failedSends: const [
-        FailedMediaSend(
+        FailedComposedSend(
+          ComposedImage(path: '/p.png', name: 'p.png', caption: ''),
           gallery: null,
-          photo: ComposedImage(path: '/p.png', name: 'p.png', caption: ''),
         ),
       ],
     );
@@ -371,7 +487,10 @@ void main() {
       tester,
       () => timeline,
       failedSends: const [
-        FailedMediaSend(gallery: GalleryGroupRef(id: 'g1', index: 0, count: 2)),
+        FailedComposedSend(
+          ComposedImage(path: '/p.png', name: 'p.png', caption: ''),
+          gallery: GalleryGroupRef(id: 'g1', index: 0, count: 2),
+        ),
       ],
     );
 
@@ -402,13 +521,9 @@ void main() {
       tester,
       () => timeline,
       failedSends: const [
-        FailedMediaSend(
+        FailedComposedSend(
+          ComposedVideo(path: '/tmp/clip.mp4', name: 'clip.mp4', caption: ''),
           gallery: GalleryGroupRef(id: 'g1', index: 1, count: 3),
-          video: ComposedVideo(
-            path: '/tmp/clip.mp4',
-            name: 'clip.mp4',
-            caption: '',
-          ),
         ),
       ],
     );
@@ -434,17 +549,13 @@ void main() {
   testWidgets('a failed single photo or video gets its own tile, and a tap '
       'retries just that one', (tester) async {
     final timeline = await timelineOf(tester, [text(r'$m1')]);
-    const photo = FailedMediaSend(
+    const photo = FailedComposedSend(
+      ComposedImage(path: '/p.png', name: 'p.png', caption: ''),
       gallery: null,
-      photo: ComposedImage(path: '/p.png', name: 'p.png', caption: ''),
     );
-    const video = FailedMediaSend(
+    const video = FailedComposedSend(
+      ComposedVideo(path: '/tmp/clip.mp4', name: 'clip.mp4', caption: ''),
       gallery: null,
-      video: ComposedVideo(
-        path: '/tmp/clip.mp4',
-        name: 'clip.mp4',
-        caption: '',
-      ),
     );
     final retried = <FailedMediaSend>[];
     await pumpList(

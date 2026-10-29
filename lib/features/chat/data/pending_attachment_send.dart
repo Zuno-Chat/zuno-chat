@@ -4,8 +4,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/send_progress.dart';
-import 'composed_image.dart';
-import 'composed_video.dart';
+import 'composed_media.dart';
 
 class PendingAttachmentSend {
   final String eventId;
@@ -86,22 +85,32 @@ class PendingAttachmentSend {
   );
 }
 
-class FailedMediaSend {
+sealed class FailedMediaSend {
   final GalleryGroupRef? gallery;
-  final ComposedImage? photo;
-  final ComposedVideo? video;
-  final Event? forward;
 
-  const FailedMediaSend({
-    required this.gallery,
-    this.photo,
-    this.video,
-    this.forward,
-  });
+  const FailedMediaSend({required this.gallery});
 
   int get index => gallery?.index ?? 0;
 
-  String? get path => photo?.path ?? video?.path;
+  String? get path;
+}
+
+class FailedComposedSend extends FailedMediaSend {
+  final ComposedMedia media;
+
+  const FailedComposedSend(this.media, {required super.gallery});
+
+  @override
+  String get path => media.path;
+}
+
+class FailedForwardSend extends FailedMediaSend {
+  final Event event;
+
+  const FailedForwardSend(this.event, {required super.gallery});
+
+  @override
+  String? get path => null;
 }
 
 bool pendingSendNeedsSyntheticTile({

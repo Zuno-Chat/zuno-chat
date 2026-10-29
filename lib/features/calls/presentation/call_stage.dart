@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/calls/models/call_status.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/ui/media_pill.dart';
 import '../../../core/ui/zuno_colors.dart';
 import 'call_status_line.dart';
 import 'call_status_widgets.dart';
@@ -151,8 +152,8 @@ class VideoCallHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final label = theme.textTheme.labelLarge!.copyWith(color: onMediaColor);
+    const pill = MediaPillSize.regular;
+    final label = pill.textStyle(context);
     final talking = status == CallStatus.talking;
     final since = talkingSince;
     final l10n = context.l10n;
@@ -160,34 +161,21 @@ class VideoCallHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _Pill(
-          radius: 20,
+        MediaPill(
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               if (talking) ...[
-                Icon(
-                  Icons.lock_outline,
-                  size: 15,
-                  color: onMediaColor,
-                  semanticLabel: l10n.callsEncrypted,
-                ),
-                const SizedBox(width: 6),
+                Icon(Icons.lock_outline, semanticLabel: l10n.callsEncrypted),
+                SizedBox(width: pill.gap),
               ],
               Flexible(
-                child: Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: label,
-                ),
+                child: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
               if (remoteMuted) ...[
-                const SizedBox(width: 6),
+                SizedBox(width: pill.gap),
                 Icon(
                   Icons.mic_off_outlined,
-                  size: 16,
-                  color: onMediaColor,
                   semanticLabel: l10n.callsNameMuted(name),
                 ),
               ],
@@ -200,15 +188,13 @@ class VideoCallHeader extends StatelessWidget {
         ),
         if (!talking) ...[
           const SizedBox(height: 6),
-          _Pill(
-            radius: 14,
+          MediaPill(
             child: CallStatusLine(
               status: status,
               encryptingSince: encryptingSince,
               style: label,
-              hintStyle: theme.textTheme.bodySmall!.copyWith(
-                color: onMediaColor,
-              ),
+              hintStyle: Theme.of(context).textTheme.bodySmall!
+                  .copyWith(color: onMediaColor),
               alignment: CrossAxisAlignment.start,
             ),
           ),
@@ -220,23 +206,6 @@ class VideoCallHeader extends StatelessWidget {
       ],
     );
   }
-}
-
-class _Pill extends StatelessWidget {
-  final double radius;
-  final Widget child;
-
-  const _Pill({required this.radius, required this.child});
-
-  @override
-  Widget build(BuildContext context) => Material(
-    color: mediaScrimColor,
-    borderRadius: BorderRadius.circular(radius),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-      child: child,
-    ),
-  );
 }
 
 class CallGrid extends StatelessWidget {

@@ -83,6 +83,26 @@ void main() {
     );
   });
 
+  testWidgets('the encrypting label takes the text style it sits in', (
+    tester,
+  ) async {
+    const ambient = TextStyle(fontSize: 13, color: Color(0xFF123456));
+    await tester.pumpWidget(
+      inZunoApp(
+        const DefaultTextStyle(
+          style: ambient,
+          child: EncryptingLabel(hintAfter: Duration(seconds: 8)),
+        ),
+      ),
+    );
+
+    final label = tester.widget<Text>(find.text('Encrypting…'));
+    expect(label.style, ambient);
+    final lock = tester.widget<Icon>(find.byIcon(Icons.lock_outline));
+    expect(lock.color, ambient.color);
+    expect(lock.size, 15);
+  });
+
   testWidgets('the encrypting hint stays inside a narrow local tile', (
     tester,
   ) async {

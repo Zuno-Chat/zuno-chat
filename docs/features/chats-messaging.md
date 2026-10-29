@@ -46,8 +46,11 @@ in `features/chat/presentation/`.
 - **A message rebuilds only when its record changes.** Each row gets a
   value-equal `MessageRowData`, and `RowMemo` (`app-foundation.md`) hands
   back the identical widget for an equal record, so Flutter skips it.
-- **The page is quiet.** It rebuilds for timeline updates, coalesced
-  room-state bursts and syncs that touch this room. Values that change
+- **The page is quiet.** It rebuilds only when this room's state
+  changes; timeline updates rebuild only the message list, and typing and
+  read receipts only the parts that show them. Room changes wait while
+  another page covers the chat or the app is in the background, then
+  catch up with one rebuild (`app-foundation.md`). Values that change
   often, such as recording time and upload progress, are `ValueNotifier`s
   read by their own small widgets, and recording state redraws only the
   composer.
@@ -111,8 +114,10 @@ own.
   send state and retry use the edit itself.
 - **Live location starts** are `m.room.message` events with a Zuno
   msgtype too. Their tile draws the live share while it runs and reads like
-  a deleted message once it ended; they offer no copy, and deleting your
-  own stops its share first (`location-sharing.md`).
+  a deleted message once it ended, and deleting your own stops its share
+  first (`location-sharing.md`).
+- **Copy is offered on text messages only**, because any other kind's
+  text is a fallback for other clients, not what its bubble shows.
 
 ## Room updates
 
@@ -181,8 +186,9 @@ one rule for what counts.
   anyone else changes nothing.
 - **Images decode at display size.** A bubble, gallery tile, reply quote
   or media grid cell decodes so the shorter side fills its box and the
-  longer side stays bounded, never enlarged; the media viewer decodes
-  full size for zoom.
+  longer side stays bounded, never enlarged. The media viewer decodes a
+  photo to the screen's size and switches to full size once it is zoomed,
+  showing the screen-size picture until the full one is ready.
 - **A blurhash stands in until the picture is on screen.** A received
   photo or video thumbnail shows the event's `xyz.amorgan.blurhash`, laid
   out at the media's own size, until its first frame paints, so there is
@@ -201,9 +207,9 @@ one rule for what counts.
   clear: `security-verification.md`.
 - **Reply quotes** fetch their target once per room visit through
   `getEventById`, which decrypts a stored event with the keys held now. A
-  target still encrypted is fetched again once the room's late keys arrive
-  (`security-verification.md`), so its quote fills in without reopening
-  the room.
+  target still encrypted goes to the app-wide late-key watcher, which opens
+  it when its own key arrives (`security-verification.md`), so its quote
+  fills in without reopening the room.
 
 ## Composer and sending
 
@@ -319,6 +325,9 @@ named the Android way.
 - **A stuck send fails instead of hanging.** An upload, media-limits
   fetch or message post with no progress for 30 s is aborted
   (`app-foundation.md`), then shows as a retry tile or as not sent.
+- **A send remembers the network error it hit**, because the SDK swallows
+  it once its retry window ends and reports only that the send failed, so
+  a failed send or forward can still say to check the connection.
 - **The pending tile.** A synthetic tile, matched later by `txid`,
   stands in until the real row exists. Both draw the preview from memory
   until the upload finishes, because the SDK has no thumbnail for a
@@ -543,7 +552,8 @@ flowchart TD
 ```
 
 - **The picker** lists the chats the person can post in, through the same
-  chat list as forwarding. Picking one
+  chat list as forwarding, whose search matches the name each row shows
+  (`rooms-membership.md`). Picking one
   opens `RoomPage(pendingShare:)`, which prefills the text, never sending
   it automatically, and then copies and sends the files. One share goes
   to one chat.

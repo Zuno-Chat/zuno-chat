@@ -10,6 +10,7 @@ import '../../../../core/matrix/media_gallery_group.dart';
 import '../../../../core/matrix/mxc_avatar.dart';
 import '../../../../core/matrix/reactions.dart';
 import '../../../../core/ui/frosted_surface.dart';
+import '../../../../core/ui/page_dots.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_motion.dart';
 import '../forward_icon.dart';
@@ -67,7 +68,7 @@ class ViewerChrome extends StatelessWidget {
         behavior: HitTestBehavior.translucent,
         child: AnimatedOpacity(
           opacity: visible ? 1 : 0,
-          duration: ZunoDurations.fast,
+          duration: ZunoDurations.motion(context, ZunoDurations.fast),
           child: Stack(
             children: [
               Positioned(
@@ -274,7 +275,7 @@ class _CaptionState extends State<_Caption> {
     return GestureDetector(
       onTap: () => setState(() => _expanded = !_expanded),
       child: AnimatedSize(
-        duration: ZunoDurations.fast,
+        duration: ZunoDurations.motion(context, ZunoDurations.fast),
         alignment: Alignment.bottomCenter,
         child: _expanded
             ? ConstrainedBox(
@@ -310,21 +311,10 @@ class _GalleryPosition extends StatelessWidget {
     return Semantics(
       label: label,
       excludeSemantics: true,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: 5,
-        children: [
-          for (var i = 0; i < gallery.count; i++)
-            AnimatedContainer(
-              duration: ZunoDurations.fast,
-              width: i == gallery.index ? 16 : 6,
-              height: 6,
-              decoration: BoxDecoration(
-                color: i == gallery.index ? onMediaColor : onMediaFaintColor,
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-        ],
+      child: PageDots(
+        count: gallery.count,
+        current: gallery.index,
+        overMedia: true,
       ),
     );
   }

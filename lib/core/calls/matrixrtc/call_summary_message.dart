@@ -36,6 +36,17 @@ class CallSummary {
     required this.durationMs,
   });
 
+  @override
+  bool operator ==(Object other) =>
+      other is CallSummary &&
+      other.callId == callId &&
+      other.kind == kind &&
+      other.status == status &&
+      other.durationMs == durationMs;
+
+  @override
+  int get hashCode => Object.hash(callId, kind, status, durationMs);
+
   bool get isVideo => kind == 'video';
 
   String get _duration => formatDuration(Duration(milliseconds: durationMs));

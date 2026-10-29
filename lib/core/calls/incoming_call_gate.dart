@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/calls/presentation/call_page.dart';
@@ -8,6 +7,7 @@ import '../errors/best_effort.dart';
 import '../errors/global_error_handler.dart';
 import '../l10n/l10n.dart';
 import '../navigation/global_navigator.dart';
+import '../ui/notice.dart';
 import 'active_call_controller.dart';
 import 'active_call_provider.dart';
 import 'matrixrtc/call_decline.dart';
@@ -102,10 +102,8 @@ class IncomingCallGate extends Notifier<void> {
     final callerName = call.room
         .unsafeGetUserFromMemoryOrFallback(call.callerId)
         .calcDisplayname();
-    globalScaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(
-        content: Text(deviceLocalizations().callsMissedCallFrom(callerName)),
-      ),
+    globalScaffoldMessengerKey.currentState?.say(
+      deviceLocalizations().callsMissedCallFrom(callerName),
     );
   }
 }

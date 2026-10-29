@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/room_title.dart';
+import '../../../core/ui/notice.dart';
 import '../../share/presentation/forward_picker_page.dart';
 import '../data/forward_uploads.dart';
 import '../data/room_sender.dart';
@@ -23,23 +24,28 @@ Future<void> forwardMedia(
   );
   if (rooms == null || !context.mounted) return;
   final uploads = ForwardUploads();
-  final sent = await Future.wait([
+  final failures = await Future.wait([
     for (final room in rooms)
       ref.read(roomSenderProvider(room)).forward(items, uploads: uploads),
   ]);
   final failed = [
     for (final (i, room) in rooms.indexed)
-      if (!sent[i]) room,
+      if (failures[i] case final error?) (room: room, error: error),
   ];
-  messenger.showSnackBar(
-    SnackBar(
-      content: Text(switch (failed) {
-        [] => l10n.chatForwardSent(rooms.length),
-        [final room] => l10n.chatForwardFailedOne(
-          roomInviteDisplay(room, l10n).title,
-        ),
-        _ => l10n.chatForwardFailedMany(failed.length),
-      }),
-    ),
-  );
+  switch (failed) {
+    case []:
+      messenger.say(l10n.chatForwardSent(rooms.length));
+    case [(:final room, :final error)]:
+      messenger.sayFailed(
+        l10n,
+        error,
+        failed: l10n.chatForwardFailedOne(roomTitle(room, l10n)),
+      );
+    case [final first, ...]:
+      messenger.sayFailed(
+        l10n,
+        first.error,
+        failed: l10n.chatForwardFailedMany(failed.length),
+      );
+  }
 }

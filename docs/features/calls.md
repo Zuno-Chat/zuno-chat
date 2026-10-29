@@ -32,7 +32,7 @@ flowchart LR
 | Calls module client | `lib/core/calls/module/` | Every request to the `zuno_calls` module goes through one function: the Matrix bearer, the deadline, retries and the module's refusals. The Cloudflare client speaks Cloudflare's own API through it, and the module adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
 | `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, call tones, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
 | `CallPage` → `CallView`, `CallLayer` | `lib/features/calls/presentation/` | `CallPage` is the call screen and only draws. `CallLayer` sits above the Navigator and shows a minimized call and Android picture-in-picture. `CallView` only lays out plain values |
-| Ring routing | `IncomingCallGate`, `lib/core/calls/notifications/`; iOS `RingCoordinator` | Deciding whether an invite rings, then presenting, cancelling, answering and declining rings |
+| Ring routing | `IncomingCallGate`, `RingCoordinator`, `lib/core/calls/notifications/` | Deciding whether an invite rings, ringing a running app from sync on both platforms, then presenting, cancelling, answering and declining rings |
 
 **Platform seams** (`lib/core/calls/platform/`). Whatever the OS shows or
 plays for a call goes through one of six interfaces, each built by a
@@ -469,6 +469,8 @@ group alone.
 |---|---|
 | The ringing-call store is written before a ring is presented | Written after, a decline in the gap misses the cancel and the ring sounds on |
 | A ring is idempotent per call id across the server push, the message push and sync, and every cancel names its call | They often deliver the same call, and one call's end must never take down another's ring |
+| The ring screen has one opener for sync, a notification tap and a ring launch, which never opens it twice for one call, for a settled call or for a ring CallKit shows | Those paths often reach the same call at once |
+| Every Accept or Decline on a ring notification goes to the notification router, even while the ring screen shows, and the ring screen closes once its call is resolved, whoever resolved it | One owner per tap, so a call is never answered or declined twice |
 | A resolved call (summary, decline, answer elsewhere or unanswered ring) never rings again | A late push would otherwise ring a finished call |
 | A ring ends when another of my devices joins or declines | Nothing about an answer elsewhere pushes, so only sync tells, and sync keeps running during a ring (`app-foundation.md`) |
 | A ring ends when the call's other memberships, once seen, are all gone | A caller that crashes or loses its connection sends no end notice |
@@ -488,7 +490,9 @@ group alone.
   `ShowOverLockscreen`: a mounted ring screen, or a call whose screen is
   open. Native hears only the first claim and the last release, so no
   owner can undo another, and no other launch can show chats over the
-  lock screen.
+  lock screen. Answering, on the ring screen or its notification, claims
+  it for the call before the ring screen lets go, so the phone never drops
+  back to the lock screen between the two.
 - **The ring and the ongoing-call notification follow the preview level**
   (`notifications.md`): at Nothing both name the call "Zuno call" and the
   ring shows no picture and no caller line, the same rule as the CallKit

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:qr_flutter/qr_flutter.dart' show QrCode, QrErrorCorrectLevel;
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
@@ -15,6 +15,9 @@ import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/verification_cancel_message.dart';
+import '../../../core/ui/notice.dart';
+import '../../../core/ui/qr_image.dart';
+import '../../../core/ui/status_message.dart';
 import 'qr_scanner_page.dart';
 
 class VerificationPage extends ConsumerStatefulWidget {
@@ -36,6 +39,8 @@ class VerificationPage extends ConsumerStatefulWidget {
 class _VerificationPageState extends ConsumerState<VerificationPage> {
   bool _methodChosen = false;
   bool _sending = false;
+  QRCode? _qrSource;
+  QrCode? _qr;
 
   @override
   void initState() {
@@ -90,12 +95,11 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
     if (_sending) return;
     _sending = true;
     try {
-      await request();
-    } catch (e, s) {
-      reportCaught(label, e, s);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(context.l10n.verificationCouldNotSend)),
+      await attempt(
+        context,
+        request,
+        label: label,
+        failed: context.l10n.verificationCouldNotSend,
       );
     } finally {
       _sending = false;
@@ -123,11 +127,19 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
     }
   }
 
-  Uint8List? get _ownCode {
+  QrCode? get _ownCode {
     final kv = widget.keyVerification;
     if (!kv.possibleMethods.contains(EventTypes.QRShow)) return null;
-    final buffer = kv.qrCode?.qrDataRawBytes;
-    return buffer == null ? null : Uint8List.fromList(buffer);
+    final source = kv.qrCode;
+    if (source == null) return null;
+    if (!identical(source, _qrSource)) {
+      _qrSource = source;
+      _qr = QrCode.fromUint8List(
+        data: Uint8List.fromList(source.qrDataRawBytes),
+        errorCorrectLevel: QrErrorCorrectLevel.L,
+      );
+    }
+    return _qr;
   }
 
   bool get _canScan =>
@@ -193,13 +205,10 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
     switch (kv.state) {
       case KeyVerificationState.askChoice:
         if (!_offersQr) {
-          return _StatusMessage(
-            spinner: true,
-            title: l10n.verificationWaitingForOther,
-          );
+          return StatusMessage.busy(title: l10n.verificationWaitingForOther);
         }
         return _QrChoiceScreen(
-          qrData: _ownCode,
+          qr: _ownCode,
           canScan: _canScan,
           isOwnDevice: widget.isOwnDevice,
           onScan: _scan,
@@ -215,10 +224,10 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
         );
 
       case KeyVerificationState.showQRSuccess:
-        return _StatusMessage(
+        return StatusMessage(
           icon: Icons.check_circle_outline,
           title: l10n.verificationScanned,
-          subtitle: widget.isOwnDevice
+          body: widget.isOwnDevice
               ? l10n.verificationScannedOwn
               : l10n.verificationScannedOther,
         );
@@ -232,12 +241,12 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
         );
 
       case KeyVerificationState.done:
-        return _StatusMessage(
+        return StatusMessage(
           icon: Icons.check_circle_outline,
           title: widget.isOwnDevice
               ? l10n.verificationApproved
               : l10n.verificationConfirmed,
-          subtitle: widget.isOwnDevice
+          body: widget.isOwnDevice
               ? l10n.verificationApprovedBody
               : l10n.verificationConfirmedBody(_subject),
           action: FilledButton(
@@ -254,19 +263,16 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
         return _stoppedMessage(kv, Icons.error_outline);
 
       case KeyVerificationState.askSSSS:
-        return _StatusMessage(
+        return StatusMessage(
           icon: Icons.lock_outline,
           title: l10n.verificationUnlockFirst,
-          subtitle: l10n.verificationUnlockFirstBody,
+          body: l10n.verificationUnlockFirstBody,
         );
 
       case KeyVerificationState.waitingAccept:
       case KeyVerificationState.waitingSas:
       case KeyVerificationState.askAccept:
-        return _StatusMessage(
-          spinner: true,
-          title: l10n.verificationWaitingForOther,
-        );
+        return StatusMessage.busy(title: l10n.verificationWaitingForOther);
     }
   }
 
@@ -276,23 +282,23 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
       code: kv.canceledCode,
       isOwnDevice: widget.isOwnDevice,
     );
-    return _StatusMessage(
+    return StatusMessage(
       icon: message.isAlarming ? attentionIcon : fallbackIcon,
       title: message.title,
-      subtitle: message.body,
+      body: message.body,
     );
   }
 }
 
 class _QrChoiceScreen extends StatelessWidget {
-  final Uint8List? qrData;
+  final QrCode? qr;
   final bool canScan;
   final bool isOwnDevice;
   final VoidCallback onScan;
   final VoidCallback onUseEmoji;
 
   const _QrChoiceScreen({
-    required this.qrData,
+    required this.qr,
     required this.canScan,
     required this.isOwnDevice,
     required this.onScan,
@@ -300,7 +306,7 @@ class _QrChoiceScreen extends StatelessWidget {
   });
 
   String _title(AppLocalizations l10n) {
-    if (qrData != null) {
+    if (qr != null) {
       return isOwnDevice
           ? l10n.verificationQrOwnTitle
           : l10n.verificationQrOtherTitle;
@@ -321,8 +327,8 @@ class _QrChoiceScreen extends StatelessWidget {
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 24),
-        if (qrData case final data?) ...[
-          Center(child: _QrImage(data: data)),
+        if (qr case final qr?) ...[
+          Center(child: QrImage(qr)),
           const SizedBox(height: 24),
         ],
         if (canScan) ...[
@@ -342,42 +348,6 @@ class _QrChoiceScreen extends StatelessWidget {
           child: Text(context.l10n.verificationComparePictures),
         ),
       ],
-    );
-  }
-}
-
-class _QrImage extends StatelessWidget {
-  final Uint8List data;
-
-  const _QrImage({required this.data});
-
-  @override
-  Widget build(BuildContext context) {
-    final qr = QrCode.fromUint8List(
-      data: data,
-      errorCorrectLevel: QrErrorCorrectLevel.L,
-    );
-    return Container(
-      padding: const EdgeInsets.all(12),
-      color: Colors.white,
-      child: SizedBox(
-        width: 240,
-        height: 240,
-        child: CustomPaint(
-          painter: QrPainter.withQr(
-            qr: qr,
-            gapless: true,
-            dataModuleStyle: const QrDataModuleStyle(
-              dataModuleShape: QrDataModuleShape.square,
-              color: Colors.black,
-            ),
-            eyeStyle: const QrEyeStyle(
-              eyeShape: QrEyeShape.square,
-              color: Colors.black,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -427,51 +397,6 @@ class _ConfirmScanScreen extends StatelessWidget {
           const SizedBox(height: 8),
           TextButton(onPressed: onReject, child: Text(l10n.verificationNoStop)),
         ],
-      ),
-    );
-  }
-}
-
-class _StatusMessage extends StatelessWidget {
-  final IconData? icon;
-  final bool spinner;
-  final String title;
-  final String? subtitle;
-  final Widget? action;
-
-  const _StatusMessage({
-    this.icon,
-    this.spinner = false,
-    required this.title,
-    this.subtitle,
-    this.action,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (spinner)
-              const CircularProgressIndicator()
-            else if (icon != null)
-              Icon(icon, size: 48),
-            const SizedBox(height: 16),
-            Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium,
-              textAlign: TextAlign.center,
-            ),
-            if (subtitle != null) ...[
-              const SizedBox(height: 8),
-              Text(subtitle!, textAlign: TextAlign.center),
-            ],
-            if (action != null) ...[const SizedBox(height: 32), action!],
-          ],
-        ),
       ),
     );
   }

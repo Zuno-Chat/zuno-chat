@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
@@ -9,16 +11,55 @@ import '../../helpers/fake_matrix.dart';
 void main() {
   late Client client;
   late int requests;
+  late List<http.Request> sent;
+  late int status;
 
   setUp(() {
     requests = 0;
+    sent = [];
+    status = 200;
     client = buildTestClient(
       userId: '@alex:example.org',
-      httpClient: FakeHttpClient((_) async {
+      httpClient: FakeHttpClient((request) async {
         requests++;
-        return http.Response('{}', 200);
+        sent.add(request);
+        return http.Response(
+          status == 200 ? '{}' : '{"errcode": "M_FORBIDDEN", "error": "No"}',
+          status,
+        );
       }),
     );
+  });
+
+  group('setOwnDisplayName', () {
+    setUp(() {
+      client
+        ..homeserver = Uri.parse('https://example.org')
+        ..accessToken = 'token';
+    });
+
+    test('saves the name as your display name', () async {
+      await setOwnDisplayName(client, 'Alex');
+
+      final request = sent.single;
+      expect(request.method, 'PUT');
+      expect(
+        request.url.path,
+        endsWith(
+          '/profile/${Uri.encodeComponent('@alex:example.org')}/displayname',
+        ),
+      );
+      expect(jsonDecode(request.body), {'displayname': 'Alex'});
+    });
+
+    test('passes a server refusal on', () async {
+      status = 403;
+
+      await expectLater(
+        setOwnDisplayName(client, 'Alex'),
+        throwsA(isA<MatrixException>()),
+      );
+    });
   });
 
   test('reads the name and photo from a joined room, with no request', () {

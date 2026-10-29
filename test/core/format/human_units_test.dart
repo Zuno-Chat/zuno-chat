@@ -30,4 +30,10 @@ void main() {
       expect(formatDuration(const Duration(hours: -2)), '0:00');
     });
   });
+
+  test('joinDetails puts the same separator between every detail', () {
+    expect(joinDetails(['Photo', '2.1 MB']), 'Photo · 2.1 MB');
+    expect(joinDetails(['Photo']), 'Photo');
+    expect(joinDetails(const []), '');
+  });
 }

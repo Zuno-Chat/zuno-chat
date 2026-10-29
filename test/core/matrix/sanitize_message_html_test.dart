@@ -6,10 +6,13 @@ import 'package:zuno/core/matrix/sanitize_message_html.dart';
 const _blue = Color(0xFF0000FF);
 const _mention = '<span style="color: #0000ff; font-weight: bold;">';
 
-String sanitize(String html) => sanitizeMessageHtml(html, mentionColor: _blue);
+String sanitize(String html) => sanitizedMessageDocument(
+  parseFragment(html),
+  mentionColor: _blue,
+).querySelector('body')!.innerHtml;
 
 void main() {
-  group('sanitizeMessageHtml', () {
+  group('sanitizedMessageDocument', () {
     test('keeps ordinary formatting untouched', () {
       expect(
         sanitize('<p>hello <strong>there</strong></p>'),

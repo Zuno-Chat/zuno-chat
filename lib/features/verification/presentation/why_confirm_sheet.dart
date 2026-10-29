@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/ui/sheet.dart';
+import '../../../core/ui/zuno_theme.dart';
 
 Future<bool?> showWhyConfirmSheet(
   BuildContext context, {
@@ -119,7 +120,7 @@ class _ConfirmDiagram extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(ZunoRadius.medium),
       ),
       child: SizedBox(
         height: height,

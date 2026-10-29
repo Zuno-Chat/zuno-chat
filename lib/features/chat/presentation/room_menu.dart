@@ -15,6 +15,8 @@ import '../../../core/matrix/room_timeline_reload.dart';
 import '../../../core/matrix/room_title.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/shortcuts/home_screen_shortcut.dart';
+import '../../../core/ui/confirm_dialog.dart';
+import '../../../core/ui/notice.dart';
 
 List<PopupMenuEntry<void>> roomMenuItems(
   BuildContext context,
@@ -63,16 +65,12 @@ Future<void> _addToHomeScreen(BuildContext context, Room room) async {
       label: roomTitle(room, l10n),
       iconBytes: iconBytes,
     );
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          requested ? l10n.chatShortcutRequested : l10n.chatShortcutUnsupported,
-        ),
-      ),
+    messenger.say(
+      requested ? l10n.chatShortcutRequested : l10n.chatShortcutUnsupported,
     );
   } catch (e, s) {
     reportCaught('add shortcut', e, s);
-    messenger.showSnackBar(SnackBar(content: Text(l10n.chatShortcutFailed)));
+    messenger.sayFailed(l10n, e, failed: l10n.chatShortcutFailed);
   }
 }
 
@@ -98,24 +96,14 @@ Future<Uint8List?> _roomAvatarBytes(Room room) async {
 }
 
 Future<void> _confirmReload(BuildContext context, VoidCallback reload) async {
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: Text(context.l10n.chatReloadTitle),
-      content: Text(context.l10n.chatReloadBody),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
-          child: Text(context.l10n.commonCancel),
-        ),
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: Text(context.l10n.chatReload),
-        ),
-      ],
-    ),
+  final l10n = context.l10n;
+  final confirmed = await confirm(
+    context,
+    title: l10n.chatReloadTitle,
+    body: l10n.chatReloadBody,
+    confirmLabel: l10n.chatReload,
   );
-  if (confirmed == true && context.mounted) reload();
+  if (confirmed && context.mounted) reload();
 }
 
 Future<void> _exit(BuildContext context, WidgetRef ref, Room room) async {

@@ -4,14 +4,20 @@ import 'package:clock/clock.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/best_effort.dart';
+import 'decrypt_again.dart';
 import 'redactions.dart';
-import 'retry_decrypt_last_event.dart';
 import 'undecryptable_event.dart';
 
 const _lateKeyWindow = Duration(minutes: 5);
 const _mostWatched = 256;
 
-typedef _Locked = ({Event event, String sessionId, DateTime since});
+typedef _Locked = ({
+  Event event,
+  String sessionId,
+  DateTime since,
+  bool onTimeline,
+  bool watched,
+});
 
 typedef _KeyWatch = ({Room room, StreamSubscription<String> sub});
 
@@ -40,26 +46,56 @@ class LateDecryptions {
     return _locked.containsKey(eventId);
   }
 
+  void watch(Event event) {
+    if (!_lock(event, watched: true)) return;
+    unawaited(_open(event.eventId));
+  }
+
+  Future<void> tryOpen(Event event) => runBestEffort(() async {
+    if (!isUndecryptableEvent(event)) return;
+    final opened = await decryptAgain(_client, event);
+    if (opened == null || event.redacted) return;
+    final onTimeline = _locked[event.eventId]?.onTimeline ?? false;
+    _forget(event.eventId);
+    _announce(opened, onTimeline: onTimeline);
+  }, label: 'late key decrypt');
+
   void _onTimelineEvent(Event event) {
     _timeline.add(event);
     if (event.type == EventTypes.Redaction) {
       if (redactionTarget(event) case final target?) _forget(target);
       return;
     }
-    _watch(event);
+    _lock(event, onTimeline: true);
   }
 
-  void _watch(Event event) {
-    if (!isUndecryptableEvent(event) || _client.encryption == null) return;
+  bool _lock(Event event, {bool onTimeline = false, bool watched = false}) {
+    if (!isUndecryptableEvent(event) || _client.encryption == null) {
+      return false;
+    }
     final sessionId = event.content.tryGet<String>('session_id');
-    if (sessionId == null) return;
+    if (sessionId == null) return false;
     _forgetExpired();
-    _locked.putIfAbsent(
+    _locked.update(
       event.eventId,
-      () => (event: event, sessionId: sessionId, since: clock.now()),
+      (locked) => (
+        event: locked.event,
+        sessionId: locked.sessionId,
+        since: locked.since,
+        onTimeline: locked.onTimeline || onTimeline,
+        watched: locked.watched || watched,
+      ),
+      ifAbsent: () => (
+        event: event,
+        sessionId: sessionId,
+        since: clock.now(),
+        onTimeline: onTimeline,
+        watched: watched,
+      ),
     );
     if (_locked.length > _mostWatched) _forget(_locked.keys.first);
     _listenForKeys(event.room);
+    return true;
   }
 
   void _listenForKeys(Room room) {
@@ -91,19 +127,39 @@ class LateDecryptions {
     final locked = _locked[eventId];
     if (locked == null) return;
     final opened = await decryptAgain(_client, locked.event);
-    if (opened == null || !_locked.containsKey(eventId)) return;
+    if (opened == null) return;
+    final onTimeline = _locked[eventId]?.onTimeline;
+    if (onTimeline == null) return;
     _forget(eventId);
-    _decrypted.add(opened);
-    _timeline.add(opened);
+    _announce(opened, onTimeline: onTimeline);
   }, label: 'late key decrypt');
+
+  void _announce(Event opened, {required bool onTimeline}) {
+    _mendLastEvent(opened);
+    _decrypted.add(opened);
+    if (onTimeline) _timeline.add(opened);
+  }
+
+  void _mendLastEvent(Event opened) {
+    final room = opened.room;
+    final last = room.lastEvent;
+    if (last == null ||
+        last.eventId != opened.eventId ||
+        !isUndecryptableEvent(last)) {
+      return;
+    }
+    room.lastEvent = opened;
+  }
 
   void _forgetExpired() {
     final now = clock.now();
-    while (_locked.isNotEmpty) {
-      final MapEntry(key: eventId, value: oldest) = _locked.entries.first;
-      if (now.difference(oldest.since) <= _lateKeyWindow) return;
-      _forget(eventId);
+    final expired = <String>[];
+    for (final MapEntry(key: eventId, value: locked) in _locked.entries) {
+      if (locked.watched) continue;
+      if (now.difference(locked.since) <= _lateKeyWindow) break;
+      expired.add(eventId);
     }
+    expired.forEach(_forget);
   }
 
   void _forget(String eventId) {

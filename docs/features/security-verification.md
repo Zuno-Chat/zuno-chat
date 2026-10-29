@@ -128,9 +128,12 @@ only in the directions both sides support, and comparing emoji ("pictures" in
 the UI) is the fallback.
 
 A check request from another device of your own account opens as approving
-a device, and one from anyone else as confirming a person.
+a device, and one from anyone else as confirming a person, over whatever
+screen is up (`app-foundation.md`).
 If the request stops before an answer, its prompt closes itself, even under
-another screen, and says why with the check screen's cancel copy.
+another screen, and says why with the check screen's cancel copy. A check
+this device starts is cancelled at once if its screen closed while it was
+starting, so the other side never waits on a check nobody here will see.
 
 `ApproveThisDevicePage` offers another device before the recovery code, since
 most people still have the old phone. It closes only once this device is
@@ -396,9 +399,13 @@ the commonest words of ordinary prose break any run.
   locked state.
 - **Late keys arrive per room** (`Room.onSessionKeyReceived`), not on sync,
   and only the `Timeline` re-decrypts on them where the app can hear it, so
-  the room list preview (`Room.lastEvent` is decrypted once and cached) and
-  reply quotes retry themselves, and readers outside a `Timeline` use the
-  app-wide late-decryption stream (`app-foundation.md`).
+  readers outside a `Timeline` use the app-wide late-decryption watcher
+  (`app-foundation.md`), and reply quotes hand it their locked target to
+  wait for its key.
+- **The SDK mends `Room.lastEvent` itself when that event's key arrives**,
+  so the chat list preview only tries a locked last message once more when
+  it shows, in case its key is already here, and takes no place among the
+  events the watcher waits on.
 - **Starting over mints a new identity**, so it must clear both the
   confirmed-identity store and the SDK's `directVerified` flags, or a stale
   confirmation or a false `identityChanged` follows. Restoring clears nothing.
@@ -426,6 +433,9 @@ the commonest words of ordinary prose break any run.
   the next resume.
 - **Replacing a code asks for the password first**, because `Bootstrap`
   reaches the password checkpoint only after the old code is gone.
+- **`Bootstrap` reports its first state from inside its constructor**,
+  before the caller holds it, so the recovery screen attaches its listener
+  after construction and reads that first state itself.
 - **Two `onUiaRequest` listeners open two dialogs**, so a listening page
   unsubscribes before pushing another listener.
 - **Never edit `normalizeRecoveryPhrase` or the shipped wordlist.** A

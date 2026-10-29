@@ -243,4 +243,47 @@ void main() {
     expect((span.children!.first as TextSpan).text, 'just text');
     expect(span.children!.last, same(trailing));
   });
+
+  TapGestureRecognizer recognizerOf(WidgetTester tester, String shown) =>
+      _spans(tester).firstWhere((s) => s.text == shown).recognizer!
+          as TapGestureRecognizer;
+
+  testWidgets('a rebuild keeps the same link recognizer', (tester) async {
+    final rebuild = ValueNotifier(0);
+    addTearDown(rebuild.dispose);
+    await tester.pumpWidget(
+      inZunoApp(
+        ValueListenableBuilder<int>(
+          valueListenable: rebuild,
+          builder: (_, _, _) =>
+              const LinkifiedText('see https://example.com/a now'),
+        ),
+      ),
+    );
+    final before = recognizerOf(tester, 'https://example.com/a');
+
+    rebuild.value++;
+    await tester.pump();
+
+    expect(recognizerOf(tester, 'https://example.com/a'), same(before));
+  });
+
+  testWidgets('new text gets a new recognizer for its own link', (
+    tester,
+  ) async {
+    final launched = mockUrlLauncher(tester);
+    await tester.pumpWidget(
+      inZunoApp(const LinkifiedText('see https://example.com/a now')),
+    );
+    final first = recognizerOf(tester, 'https://example.com/a');
+
+    await tester.pumpWidget(
+      inZunoApp(const LinkifiedText('see https://example.com/b now')),
+    );
+    final second = recognizerOf(tester, 'https://example.com/b');
+    expect(second, isNot(same(first)));
+
+    await tapLink(tester, 'https://example.com/b');
+    expect(launched, ['https://example.com/b']);
+  });
 }

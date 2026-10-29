@@ -5,6 +5,7 @@ import 'zuno_motion.dart';
 
 abstract final class ZunoRadius {
   static const small = 8.0;
+  static const compact = 12.0;
   static const medium = 16.0;
   static const large = 20.0;
   static const sheet = 28.0;
@@ -192,7 +193,7 @@ ThemeData _theme(ColorScheme scheme, ZunoColors zuno) {
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,
       elevation: 0,
-      shape: RoundedRectangleBorder(borderRadius: _rounded(12)),
+      shape: RoundedRectangleBorder(borderRadius: _rounded(ZunoRadius.compact)),
     ),
     dividerTheme: DividerThemeData(color: scheme.outlineVariant, thickness: 1),
     listTileTheme: ListTileThemeData(

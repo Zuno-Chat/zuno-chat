@@ -5,6 +5,8 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/event_display.dart';
+import 'package:zuno/core/matrix/late_decryptions.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/undecryptable_message.dart';
@@ -39,7 +41,13 @@ void main() {
           home: Scaffold(
             body: DefaultTextStyle.merge(
               style: zunoLightTheme.textTheme.bodyMedium,
-              child: LastMessagePreview(room: room, event: event),
+              child: LastMessagePreview(
+                room: room,
+                event: event,
+                summary: event != null && isPreviewableLastEvent(event)
+                    ? summarize(englishLocalizations, event)
+                    : null,
+              ),
             ),
           ),
         ),
@@ -85,12 +93,14 @@ void main() {
     expect(text.strutStyle?.forceStrutHeight, isTrue);
   });
 
-  Event encrypted() => buildTestEvent(
+  Event encrypted() =>
+      lockedTestEvent(room, eventId: r'$enc', senderId: '@bob:example.org');
+
+  Event opened() => buildTestEvent(
     room,
     eventId: r'$enc',
     senderId: '@bob:example.org',
-    type: EventTypes.Encrypted,
-    content: {'algorithm': 'm.megolm.v1.aes-sha2', 'ciphertext': 'x'},
+    content: {'msgtype': 'm.text', 'body': 'See you at 8'},
   );
 
   Color? iconColor(WidgetTester tester) =>
@@ -221,55 +231,66 @@ void main() {
   });
 
   group('a message that cannot be read yet', () {
-    testWidgets('says so while it stays locked', (tester) async {
+    testWidgets('says so while it stays locked, after one try and without '
+        'waiting on its key', (tester) async {
       await pump(tester, encrypted());
 
       expect(find.byType(UndecryptablePreviewText), findsOneWidget);
       expect(encryption.attempts, 1);
+      expect(LateDecryptions.of(room.client).watches(r'$enc'), isFalse);
     });
 
-    testWidgets('shows the text as soon as it can be decrypted', (
-      tester,
-    ) async {
-      encryption.decrypted.add(
-        message({'msgtype': 'm.text', 'body': 'See you at 8'}),
-      );
-      await pump(tester, encrypted());
+    testWidgets('shows the text at once when its key is already here, and '
+        'mends the room\'s last message', (tester) async {
+      room.lastEvent = encrypted();
+      encryption.decrypted.add(opened());
+      await pump(tester, room.lastEvent);
       await tester.pump();
 
       expect(find.text('See you at 8'), findsOneWidget);
       expect(room.lastEvent?.body, 'See you at 8');
     });
 
-    testWidgets('tries again once a key arrives, after a short pause', (
+    testWidgets('shows the text once the row hands it the opened message', (
       tester,
     ) async {
       await pump(tester, encrypted());
-      expect(encryption.attempts, 1);
 
-      encryption.decrypted.add(
-        message({'msgtype': 'm.text', 'body': 'See you at 8'}),
-      );
-      room.onSessionKeyReceived.add('s1');
-      room.onSessionKeyReceived.add('s2');
-      await tester.pump(const Duration(milliseconds: 200));
-      expect(encryption.attempts, 1);
+      await pump(tester, opened());
 
-      await tester.pump(const Duration(milliseconds: 200));
-      await tester.pump();
-
-      expect(encryption.attempts, 2);
       expect(find.text('See you at 8'), findsOneWidget);
     });
 
-    testWidgets('stops waiting for keys once it is gone', (tester) async {
+    testWidgets('a message opened elsewhere shows at once', (tester) async {
       await pump(tester, encrypted());
-      await tester.pumpWidget(const SizedBox());
 
-      room.onSessionKeyReceived.add('s1');
-      await tester.pump(const Duration(seconds: 1));
+      encryption.decrypted.add(opened());
+      await LateDecryptions.of(room.client).tryOpen(encrypted());
+      await tester.pump();
 
-      expect(encryption.attempts, 1);
+      expect(find.text('See you at 8'), findsOneWidget);
     });
+  });
+
+  testWidgets('shows the summary the row already made', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: LastMessagePreview(
+            room: room,
+            event: message({'msgtype': 'm.text', 'body': 'raw body'}),
+            summary: const MessageSummary(
+              kind: MessageKind.text,
+              text: 'From the row',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('From the row'), findsOneWidget);
+    expect(find.text('raw body'), findsNothing);
   });
 }

@@ -451,6 +451,18 @@ void main() {
         'Invited',
       );
     });
+
+    test('a banned person has no role to show', () {
+      final room = roomSeenBy('@me:example.org', level: 100);
+      setPowerLevels(room, {
+        'users': {'@me:example.org': 100, '@gone:example.org': 50},
+      });
+
+      expect(
+        badge(room, member(room, '@gone:example.org', membership: 'ban')),
+        isNull,
+      );
+    });
   });
 
   group('setUserRoomRole', () {

@@ -11,4 +11,4 @@ New
 • Forward photos, videos and files.
 • Spot unencrypted messages.
 
-Fixed 168 bugs.
+Fixed 182 bugs.

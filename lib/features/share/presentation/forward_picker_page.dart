@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/room_encryption.dart';
 import '../../../core/security/security_emphasis.dart';
+import '../../../core/ui/notice.dart';
 import 'share_target_list.dart';
 
 const maxForwardTargets = 5;
@@ -50,11 +52,7 @@ class _ForwardPickerPageState extends State<ForwardPickerPage> {
     if (ticked.length >= maxForwardTargets) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text(context.l10n.shareForwardLimit(maxForwardTargets)),
-          ),
-        );
+        ..say(context.l10n.shareForwardLimit(maxForwardTargets));
       return;
     }
     setState(() => _ticked.add(room.id));
@@ -62,7 +60,7 @@ class _ForwardPickerPageState extends State<ForwardPickerPage> {
 
   String? _note(AppLocalizations l10n, List<Room> ticked) {
     if (!widget.fromEncrypted) return null;
-    final open = ticked.where((room) => !room.encrypted).length;
+    final open = ticked.where((room) => !sendsEncrypted(room)).length;
     if (open == 0) return null;
     return ticked.length == 1
         ? l10n.shareForwardOneNotEncrypted
@@ -104,10 +102,8 @@ class _ForwardPickerPageState extends State<ForwardPickerPage> {
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Row(
                             children: [
-                              Icon(
-                                notEncryptedIcon,
-                                size: 18,
-                                color: notEncryptedColor(context),
+                              const ExcludeSemantics(
+                                child: NotEncryptedMark(size: 18),
                               ),
                               const SizedBox(width: 8),
                               Expanded(child: Text(note)),

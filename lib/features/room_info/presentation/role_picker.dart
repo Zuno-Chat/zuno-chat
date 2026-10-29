@@ -8,25 +8,13 @@ Future<RoomRole?> showRolePicker(
   BuildContext context, {
   required RoomRole current,
   required List<RoomRole> options,
-}) {
-  final sortedOptions = [...options]
-    ..sort((a, b) => b.powerLevel.compareTo(a.powerLevel));
-
-  return showSheet<RoomRole>(
-    context: context,
-    builder: (context) => SafeArea(
-      child: Wrap(
-        children: [
-          for (final role in sortedOptions)
-            ListTile(
-              leading: role == current
-                  ? const Icon(Icons.check_outlined)
-                  : const SizedBox(width: 24),
-              title: Text(role.label(context.l10n)),
-              onTap: () => Navigator.of(context).pop(role),
-            ),
-        ],
-      ),
-    ),
-  );
-}
+}) => showChoiceSheet(
+  context,
+  current: current,
+  choices: [
+    for (final role in [
+      ...options,
+    ]..sort((a, b) => b.powerLevel.compareTo(a.powerLevel)))
+      SheetChoice(role, label: role.label(context.l10n)),
+  ],
+);

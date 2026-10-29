@@ -4,11 +4,13 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/format/date_labels.dart';
+import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/geo_uri.dart';
 import '../../../core/location/maps_link.dart';
 import '../../../core/navigation/zuno_links.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/ui/notice.dart';
 import 'location_map_view.dart';
 
 String? accuracyLabel(AppLocalizations l10n, double? meters) {
@@ -30,9 +32,7 @@ Future<void> openInMaps(BuildContext context, GeoUri geo, MapsApp app) async {
   } catch (e, s) {
     if (!noAppOpensLink(e)) reportCaughtType('open in maps', e, s);
   }
-  if (!opened) {
-    messenger.showSnackBar(SnackBar(content: Text(l10n.locationNoMapsApp)));
-  }
+  if (!opened) messenger.say(l10n.locationNoMapsApp);
 }
 
 class LocationMapPage extends ConsumerWidget {
@@ -57,9 +57,7 @@ class LocationMapPage extends ConsumerWidget {
       geo,
       ref.read(platformCapabilitiesProvider).mapsApp,
     );
-    final labels = DateLabels.of(context);
-    final sent = labels.date(sentAt);
-    final time = labels.clock(sentAt);
+    final sent = DateLabels.of(context).dateTime(sentAt);
     return Scaffold(
       appBar: AppBar(
         title: Text(senderName),
@@ -95,7 +93,7 @@ class LocationMapPage extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        [?accuracy, '$sent · $time'].join(' · '),
+                        joinDetails([?accuracy, sent]),
                         style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

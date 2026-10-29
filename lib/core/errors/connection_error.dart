@@ -43,8 +43,8 @@ bool _isNativeConnectionError(NativeCaughtError error) =>
 
 String failureMessage(
   AppLocalizations l10n,
-  Object error, {
+  Object? error, {
   @displayText required String failed,
-}) => isConnectionError(error)
+}) => error != null && isConnectionError(error)
     ? l10n.errorsFailedCheckConnection(failed)
-    : failed;
+    : l10n.errorsFailedTryAgain(failed);

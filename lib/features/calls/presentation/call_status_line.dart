@@ -84,7 +84,7 @@ class CallTimerSuffix extends StatelessWidget {
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(' · ', style: style),
+        Text(detailSeparator, style: style),
         CallTimer(since: since, style: style),
       ],
     ),

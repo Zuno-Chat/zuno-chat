@@ -4,9 +4,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/location/live_location_sharing.dart';
 import '../../../core/location/live_location_viewing.dart';
+import '../../../core/ui/alert_banner.dart';
 import 'live_location_map_page.dart';
+import 'live_location_stop.dart';
 import 'live_location_text.dart';
 import 'live_location_watch_scope.dart';
 
@@ -31,40 +32,13 @@ class LiveLocationBanner extends ConsumerWidget {
       for (final userId in sharers.others)
         room.unsafeGetUserFromMemoryOrFallback(userId).calcDisplayname(),
     ];
-    final scheme = Theme.of(context).colorScheme;
-    return Material(
-      color: scheme.secondaryContainer,
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => LiveLocationMapPage(room: room)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          child: Row(
-            children: [
-              Icon(
-                Icons.share_location_outlined,
-                color: scheme.onSecondaryContainer,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  liveSharersText(context.l10n, others, includesYou: mine),
-                  style: TextStyle(
-                    color: scheme.onSecondaryContainer,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-              if (mine)
-                FilledButton.tonal(
-                  onPressed: () =>
-                      ref.read(liveLocationSharingProvider).stopIn(room.id),
-                  child: Text(context.l10n.locationStop),
-                ),
-            ],
-          ),
-        ),
+    return InfoStrip(
+      icon: Icons.share_location_outlined,
+      title: liveSharersText(context.l10n, others, includesYou: mine),
+      actionLabel: mine ? context.l10n.locationStop : null,
+      onAction: () => stopLiveSharingIn(context, ref, room),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => LiveLocationMapPage(room: room)),
       ),
     );
   }

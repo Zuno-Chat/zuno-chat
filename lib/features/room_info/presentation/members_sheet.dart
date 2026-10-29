@@ -3,7 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/search_field.dart';
 import '../../../core/ui/sheet.dart';
 import 'member_tile.dart';
 
@@ -37,18 +37,27 @@ class _MembersSheet extends StatefulWidget {
 }
 
 class _MembersSheetState extends State<_MembersSheet> {
-  var _query = '';
+  late final _searchable = [
+    for (final user in widget.members)
+      (
+        user: user,
+        name: user.calcDisplayname().toLowerCase(),
+        id: withoutServer(user.id).toLowerCase(),
+      ),
+  ];
+  late List<User> _matches = widget.members;
 
-  List<User> get _matches {
-    final needle = _query.trim().toLowerCase();
-    if (needle.isEmpty) return widget.members;
-    return widget.members
-        .where(
-          (u) =>
-              u.calcDisplayname().toLowerCase().contains(needle) ||
-              withoutServer(u.id).toLowerCase().contains(needle),
-        )
-        .toList();
+  void _search(String query) {
+    final needle = query.trim().toLowerCase();
+    setState(() {
+      _matches = needle.isEmpty
+          ? widget.members
+          : [
+              for (final entry in _searchable)
+                if (entry.name.contains(needle) || entry.id.contains(needle))
+                  entry.user,
+            ];
+    });
   }
 
   @override
@@ -60,24 +69,13 @@ class _MembersSheetState extends State<_MembersSheet> {
         heightFactor: 0.9,
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: Text(
-                context.l10n.roomInfoMembers,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-            ),
+            SheetTitle(context.l10n.roomInfoMembers),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: ZunoTextField(
-                autofillHints: null,
+              child: SearchField(
+                hint: context.l10n.roomInfoSearchMembers,
                 autofocus: true,
-                onChanged: (value) => setState(() => _query = value),
-                decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
-                  hintText: context.l10n.roomInfoSearchMembers,
-                  border: const OutlineInputBorder(),
-                ),
+                onChanged: _search,
               ),
             ),
             Expanded(

@@ -10,7 +10,7 @@ import '../../calls/notifications/ring_from_push.dart';
 import '../../calls/notifications/ring_over_lines.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
 import '../../errors/caught_errors.dart';
-import '../../matrix/retry_decrypt_last_event.dart';
+import '../../matrix/decrypt_again.dart';
 import '../../matrix/room_title.dart';
 import '../../matrix/undecryptable_event.dart';
 import '../../matrix/zuno_client.dart';

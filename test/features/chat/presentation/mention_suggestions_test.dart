@@ -159,4 +159,32 @@ void main() {
     final delegate = list.childrenDelegate as SliverChildBuilderDelegate;
     expect(delegate.childCount, 30);
   });
+
+  testWidgets('someone who joins while you type is offered', (tester) async {
+    await pump(tester);
+    type('@ca');
+    await tester.pump();
+    expect(find.byType(ListTile), findsNothing);
+
+    join('@carol:example.org', 'Carol');
+    completeSummary();
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Carol'), findsOneWidget);
+  });
+
+  testWidgets('someone who leaves is no longer offered', (tester) async {
+    await pump(tester);
+    type('@al');
+    await tester.pump();
+    expect(find.text('Alice'), findsOneWidget);
+
+    room.setState(User('@alice:example.org', membership: 'leave', room: room));
+    type('@ali');
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Alice'), findsNothing);
+  });
 }

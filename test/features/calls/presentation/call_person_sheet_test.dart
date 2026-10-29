@@ -162,7 +162,7 @@ void main() {
     await tester.tap(find.text('Remove'));
     await harness.settle();
 
-    expect(find.text('Ann was not removed.'), findsOneWidget);
+    expect(find.text('Ann was not removed. Try again.'), findsOneWidget);
     await harness.close();
   });
 

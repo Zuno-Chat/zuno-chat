@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
-import '../errors/connection_error.dart';
 import '../l10n/l10n.dart';
+import '../ui/notice.dart';
 import 'local_username_dialog.dart';
 import 'matrix_ids.dart';
 import 'optimistic_room_state.dart';
@@ -30,24 +30,15 @@ Future<String?> inviteFromDialog(
   final messenger = ScaffoldMessenger.of(context);
   try {
     final outcome = await inviteToRoom(room, userId);
-    messenger.showSnackBar(
-      SnackBar(content: Text(_inviteOutcomeText(l10n, outcome))),
-    );
+    messenger.say(_inviteOutcomeText(l10n, outcome));
     return outcome == InviteOutcome.sent ? userId : null;
   } catch (e, s) {
-    final noAccount =
-        e is MatrixException && e.error == MatrixError.M_NOT_FOUND;
-    if (!noAccount) reportCaught('invite', e, s);
-    final failed = l10n.commonInvitationNotSent;
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          noAccount
-              ? l10n.commonInviteeNoAccount
-              : failureMessage(l10n, e, failed: failed),
-        ),
-      ),
-    );
+    if (e is MatrixException && e.error == MatrixError.M_NOT_FOUND) {
+      messenger.say(l10n.commonInviteeNoAccount);
+      return null;
+    }
+    reportCaught('invite', e, s);
+    messenger.sayFailed(l10n, e, failed: l10n.commonInvitationNotSent);
     return null;
   }
 }
@@ -118,9 +109,9 @@ Future<StrippedStateEvent?> _restoreMember(Room room, String userId) async {
   }
 }
 
-Future<void> acceptInvite(Room room) async {
+Future<void> acceptInvite(Room room, {bool waitForSync = false}) async {
   await loadInviteMembers(room);
-  await room.join();
+  await room.join(waitForSync: waitForSync);
 }
 
 Future<void> declineInvite(Room room) async {
@@ -168,26 +159,47 @@ class RoomInviteDisplay {
   });
 }
 
+List<String>? unnamedAwaitedInvitees(Room room) {
+  if (room.name.isNotEmpty || !isAwaitingInviteAcceptance(room)) return null;
+  final invitees = pendingInviteeIds(room);
+  return invitees.isEmpty ? null : invitees;
+}
+
 RoomInviteDisplay roomInviteDisplay(Room room, AppLocalizations l10n) {
-  final awaiting = isAwaitingInviteAcceptance(room);
-  if (awaiting && room.name.isEmpty) {
-    final invitees = pendingInviteeIds(room);
-    if (invitees.isNotEmpty) {
-      return RoomInviteDisplay(
-        title: invitees.length == 1
-            ? withoutServer(invitees.single)
-            : l10n.matrixInvitePeopleInvited(invitees.length),
-        avatarUrl: null,
-        awaitingAcceptance: true,
-        partnerLeft: false,
-      );
-    }
-  }
+  final unnamedAwaiting = unnamedAwaitedInvitees(room) != null;
   return RoomInviteDisplay(
     title: roomTitle(room, l10n),
-    avatarUrl: room.avatar,
-    awaitingAcceptance: awaiting,
-    partnerLeft: room.isAbandonedDMRoom,
+    avatarUrl: unnamedAwaiting ? null : room.avatar,
+    awaitingAcceptance: isAwaitingInviteAcceptance(room),
+    partnerLeft: !unnamedAwaiting && room.isAbandonedDMRoom,
+  );
+}
+
+typedef IncomingInviteView = ({
+  String? inviterId,
+  String inviterName,
+  bool inviterNamed,
+  String name,
+  Uri? avatarUrl,
+  bool group,
+  bool community,
+});
+
+IncomingInviteView incomingInviteView(Room room, AppLocalizations l10n) {
+  final inviter = inviterId(room);
+  final inviterUser = inviter == null
+      ? null
+      : room.unsafeGetUserFromMemoryOrFallback(inviter);
+  final inviterName = inviterUser?.calcDisplayname() ?? l10n.roomsSomeone;
+  final group = room.name.isNotEmpty;
+  return (
+    inviterId: inviter,
+    inviterName: inviterName,
+    inviterNamed: inviterUser?.displayName != null,
+    name: group ? room.name : inviterName,
+    avatarUrl: group ? room.avatar : inviterUser?.avatarUrl,
+    group: group,
+    community: room.isSpace,
   );
 }
 

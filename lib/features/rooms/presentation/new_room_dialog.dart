@@ -85,7 +85,6 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
               if (_error != null) setState(() => _error = null);
             },
             decoration: InputDecoration(
-              border: const OutlineInputBorder(),
               hintText: widget.hint ?? l10n.roomsRoomName,
               errorText: _error,
             ),

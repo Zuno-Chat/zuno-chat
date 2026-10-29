@@ -131,7 +131,7 @@ void main() {
 
       await invite(tester, 'carol');
 
-      expect(find.text('Invitation not sent.'), findsOneWidget);
+      expect(find.text('Invitation not sent. Try again.'), findsOneWidget);
     });
 
     testWidgets('a username with no account says so', (tester) async {

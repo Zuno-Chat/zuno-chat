@@ -4,14 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../features/calls/presentation/call_page.dart';
-import '../../../features/calls/presentation/incoming_call_page.dart';
+import '../../errors/best_effort.dart';
 import '../../errors/global_error_handler.dart';
-import '../../l10n/display_text.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../navigation/global_navigator.dart';
-import '../../navigation/launch_route.dart';
 import '../../platform/platform_capabilities.dart';
+import '../../ui/notice.dart';
 import '../active_call_controller.dart';
 import '../active_call_provider.dart';
 import '../matrixrtc/call_decline.dart';
@@ -23,11 +22,11 @@ import '../models/call_kind.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../platform/system_call.dart';
 import '../platform/system_ring.dart';
+import '../ring_coordinator.dart';
 import '../show_over_lockscreen.dart';
 import '../system_call_sync.dart';
 import 'await_room.dart';
 import 'call_notification_service.dart';
-import 'pending_call_notification_action_provider.dart';
 import 'ringing_call_provider.dart';
 
 final callNotificationRouterProvider =
@@ -127,7 +126,6 @@ class CallNotificationRouter extends Notifier<void> {
 
   Future<bool> _showRingingScreen(RingingCallInfo ringing, bool instant) async {
     if (ref.read(activeCallProvider) != null) return true;
-    if (RingingCall.instance.callId == ringing.callId) return true;
     if (await _isOver(ringing.callId)) {
       _log('ring ${ringing.callId} already resolved');
       return false;
@@ -138,28 +136,21 @@ class CallNotificationRouter extends Notifier<void> {
       _log('ring ${ringing.callId}: room ${ringing.roomId} never appeared');
       return false;
     }
-    final navigator = globalNavigatorKey.currentState;
-    if (navigator == null) {
-      _log('ring ${ringing.callId}: no navigator yet');
-      return false;
-    }
-    _log('showing ring screen for ${ringing.callId}');
-    unawaited(
-      navigator.push(
-        pageRoute(
-          instant: instant,
-          builder: (_) => IncomingCallPage(
-            call: IncomingCall(
-              room: room,
-              callId: ringing.callId,
-              callerId: ringing.callerId,
-              kind: ringing.isVideo ? CallKind.video : CallKind.voice,
-            ),
+    final shown = ref
+        .read(ringScreenProvider.notifier)
+        .present(
+          IncomingCall(
+            room: room,
+            callId: ringing.callId,
+            callerId: ringing.callerId,
+            kind: ringing.isVideo ? CallKind.video : CallKind.voice,
           ),
-        ),
-      ),
+          instant: instant,
+        );
+    _log(
+      'ring screen for ${ringing.callId}: ${shown ? 'showing' : 'not shown'}',
     );
-    return true;
+    return shown;
   }
 
   Future<void> handle(
@@ -168,16 +159,6 @@ class CallNotificationRouter extends Notifier<void> {
   }) async {
     final call = response.call;
     _log('handling ${response.action} for ${call.callId}');
-    if (RingingCall.instance.callId == call.callId) {
-      _log('ring page owns ${call.callId}; leaving it to that');
-      return;
-    }
-
-    final pending = ref.read(pendingCallNotificationActionProvider);
-    if (pending?.call.callId == call.callId) {
-      ref.read(pendingCallNotificationActionProvider.notifier).consume();
-    }
-
     await ref
         .read(incomingCallPresenterProvider)
         .cancelIncoming(roomId: call.roomId, callId: call.callId);
@@ -185,7 +166,9 @@ class CallNotificationRouter extends Notifier<void> {
     final client = ref.read(matrixClientProvider);
     final room = await awaitRoom(client, call.roomId);
     if (room == null) {
-      _reportFailure(deviceLocalizations().callsCouldNotOpenCall);
+      globalScaffoldMessengerKey.currentState?.say(
+        deviceLocalizations().callsCouldNotOpenCall,
+      );
       if (response.action == CallNotificationAction.accept) {
         _releaseSystemCall(call, SystemCallEnd.failed);
       }
@@ -198,8 +181,11 @@ class CallNotificationRouter extends Notifier<void> {
         _log('already on ${call.callId}; not declining it');
         return;
       }
-      await declineCall(room, call.callId);
       ref.read(resolvedCallIdsProvider.notifier).markResolved(call.callId);
+      await runBestEffort(
+        () => declineCall(room, call.callId),
+        label: 'decline a call from its notification',
+      );
       await releaseLockscreenIfIdle();
       return;
     }
@@ -215,7 +201,9 @@ class CallNotificationRouter extends Notifier<void> {
 
     final navigator = globalNavigatorKey.currentState;
     if (navigator == null && !ref.read(platformCapabilitiesProvider).voipRing) {
-      _reportFailure(deviceLocalizations().callsCouldNotOpenCallScreen);
+      globalScaffoldMessengerKey.currentState?.say(
+        deviceLocalizations().callsCouldNotOpenCallScreen,
+      );
       return;
     }
     final session = ref
@@ -259,7 +247,7 @@ class CallNotificationRouter extends Notifier<void> {
   }) {
     final call = ref.read(activeCallControllerProvider);
     if (call == null || !identical(call.session, session)) return;
-    showCallScreen(navigator, call, instant: instant);
+    showAnsweredCallScreen(navigator, call, instant: instant);
   }
 
   void _openActiveCallScreen() {
@@ -288,11 +276,5 @@ class CallNotificationRouter extends Notifier<void> {
       return;
     }
     await ShowOverLockscreen.instance.releaseUnclaimed();
-  }
-
-  void _reportFailure(@displayText String message) {
-    globalScaffoldMessengerKey.currentState?.showSnackBar(
-      SnackBar(content: Text(message)),
-    );
   }
 }

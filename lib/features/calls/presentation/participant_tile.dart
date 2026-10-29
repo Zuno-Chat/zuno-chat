@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/ui/media_pill.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'call_status_widgets.dart';
@@ -93,16 +94,7 @@ class _ParticipantTileState extends State<ParticipantTile> {
 
   Widget? _status() {
     if (!widget.showStatus) return null;
-    if (encrypting) {
-      return Material(
-        color: mediaScrimColor,
-        borderRadius: BorderRadius.circular(12),
-        child: const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          child: EncryptingLabel(),
-        ),
-      );
-    }
+    if (encrypting) return const MediaPill(child: EncryptingLabel());
     if (!participant.isLocal && participant.lowBandwidth) {
       return CallBadge(label: context.l10n.callsConnectionWeak);
     }

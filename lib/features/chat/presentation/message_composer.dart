@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/security/zuno_text_field.dart';
+import '../../../core/ui/inline_feedback.dart';
+import '../../../core/ui/message_text.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'send_icon.dart';
@@ -37,10 +39,7 @@ class MessageComposer extends StatelessWidget {
     final cancelColor = colors.error;
     final hintColor = colors.onSurfaceVariant;
     final l10n = context.l10n;
-    final textStyle = theme.textTheme.bodyLarge!.copyWith(
-      height: 1.3,
-      letterSpacing: 0.2,
-    );
+    final textStyle = messageTextStyle(theme);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
@@ -85,7 +84,10 @@ class MessageComposer extends StatelessWidget {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   AnimatedDefaultTextStyle(
-                                    duration: ZunoDurations.fast,
+                                    duration: ZunoDurations.motion(
+                                      context,
+                                      ZunoDurations.fast,
+                                    ),
                                     style: theme.textTheme.bodyMedium!.copyWith(
                                       color: willCancel
                                           ? cancelColor
@@ -116,13 +118,7 @@ class MessageComposer extends StatelessWidget {
                       children: [
                         IconButton(
                           icon: attaching
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                  ),
-                                )
+                              ? const InlineSpinner()
                               : const Icon(Icons.attach_file_outlined),
                           color: hintColor,
                           onPressed: attaching ? null : onAttach,
@@ -171,7 +167,7 @@ class MessageComposer extends StatelessWidget {
                 micIcon = const Icon(Icons.mic);
               }
               return AnimatedSwitcher(
-                duration: ZunoDurations.fast,
+                duration: ZunoDurations.motion(context, ZunoDurations.fast),
                 transitionBuilder: (child, animation) => FadeTransition(
                   opacity: animation,
                   child: ScaleTransition(

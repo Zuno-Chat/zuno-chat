@@ -2,7 +2,9 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:matrix/encryption.dart';
 
+import 'core/app_services.dart';
 import 'core/brand.dart';
 import 'core/calls/active_call_controller.dart';
 import 'core/calls/active_call_provider.dart';
@@ -10,7 +12,6 @@ import 'core/calls/matrixrtc/incoming_call.dart';
 import 'core/calls/models/call_kind.dart';
 import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
-import 'core/calls/notifications/ringing_call_provider.dart';
 import 'core/calls/notifications/server_ring.dart';
 import 'core/calls/ring_coordinator.dart';
 import 'core/errors/caught_errors.dart';
@@ -21,7 +22,6 @@ import 'core/l10n/app_locale.dart';
 import 'core/l10n/l10n.dart';
 import 'core/location/live_location_capture.dart';
 import 'core/location/live_location_sharing.dart';
-import 'core/location/live_location_viewing.dart';
 import 'core/matrix/cached_attachment_image.dart';
 import 'core/matrix/connection_monitor.dart';
 import 'core/matrix/connectivity_provider.dart';
@@ -41,26 +41,24 @@ import 'core/notifications/settings/notifications_allowed_provider.dart';
 import 'core/platform/platform_capabilities.dart';
 import 'core/push/delivery/notification_delivery.dart';
 import 'core/push/delivery/notification_delivery_mode.dart';
-import 'core/push/nse/nse_services.dart';
 import 'core/push/nse/opaque_thread_ids.dart';
 import 'core/security/alerts/security_alert_notifications.dart';
 import 'core/security/zuno_text_field.dart';
 import 'core/settings/app_preferences_provider.dart';
 import 'core/share/inbound_share.dart';
-import 'core/shortcuts/conversation_shortcuts.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
 import 'core/ui/zuno_splash.dart';
 import 'core/ui/zuno_theme.dart';
 import 'features/auth/presentation/signed_out_entry.dart';
 import 'features/calls/presentation/call_layer.dart';
 import 'features/calls/presentation/call_page.dart';
-import 'features/calls/presentation/incoming_call_page.dart';
 import 'features/chat/presentation/room_page.dart';
 import 'features/communities/presentation/community_page.dart';
 import 'features/rooms/presentation/room_invite_page.dart';
 import 'features/rooms/presentation/room_list_page.dart';
 import 'features/settings/presentation/active_sessions_page.dart';
 import 'features/share/presentation/share_picker_page.dart';
+import 'features/verification/presentation/incoming_verification.dart';
 
 const _launchBudget = Duration(seconds: 2);
 
@@ -81,6 +79,7 @@ class ZunoApp extends ConsumerWidget {
         supportedLocales: AppLocalizations.supportedLocales,
         scaffoldMessengerKey: globalScaffoldMessengerKey,
         navigatorKey: globalNavigatorKey,
+        navigatorObservers: [ref.read(openChatObserverProvider)],
         theme: zunoLightTheme,
         darkTheme: zunoDarkTheme,
         themeMode: themeMode,
@@ -180,16 +179,16 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     WidgetsBinding.instance.addObserver(this);
     AppLocale.instance.addListener(_onAppLocale);
     unawaited(drainNativeErrors());
-    ref.listenManual(nseServicesProvider, (_, _) {});
-    ref.listenManual(liveLocationViewingProvider, (_, _) {});
+    ref.listenManual(appServicesProvider, (_, _) {});
     ref.listenManual(
       liveLocationSharingProvider,
       (_, sharing) => _bindLiveLocation(sharing),
       fireImmediately: true,
     );
-    ref.listenManual(pushRingServicesProvider, (_, _) {});
-    ref.listenManual(syncReasonsProvider, (_, _) {});
-    ref.listenManual(conversationShortcutsProvider, (_, _) {});
+    ref.listenManual(incomingKeyVerificationProvider, (_, next) {
+      final request = next.value;
+      if (request != null) _answerVerification(request);
+    });
     bindAppStateToPushDelivery(
       currentlyOpenRoomId: () =>
           mounted ? ref.read(currentlyOpenRoomIdProvider) : null,
@@ -337,27 +336,33 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     final ring = widget.pendingRing;
     if (ring == null) return;
     await WidgetsBinding.instance.endOfFrame;
-    if (!mounted) return;
-    if (RingingCall.instance.callId == ring.callId) return;
-    if (ref.read(activeCallProvider) != null) return;
+    if (!mounted || ref.read(activeCallProvider) != null) return;
     final router = ref.read(callNotificationRouterProvider.notifier);
     if (await router.recheckLaunchAction(instant: true)) return;
-    if (!mounted) return;
-    if (RingingCall.instance.callId == ring.callId) return;
-    if (ref.read(activeCallProvider) != null) return;
+    if (!mounted || ref.read(activeCallProvider) != null) return;
     final room = ref.read(matrixClientProvider).getRoomById(ring.roomId);
     if (room == null) return;
     debugPrint('zuno/push: opening ring screen for ${ring.callId}');
-    Navigator.of(context).push(
-      LaunchRoute(
-        builder: (_) => IncomingCallPage(
-          call: IncomingCall(
+    ref
+        .read(ringScreenProvider.notifier)
+        .present(
+          IncomingCall(
             room: room,
             callId: ring.callId,
             callerId: ring.callerId,
             kind: ring.isVideo ? CallKind.video : CallKind.voice,
           ),
-        ),
+          instant: true,
+        );
+  }
+
+  void _answerVerification(KeyVerification request) {
+    if (!mounted) return;
+    unawaited(
+      answerIncomingVerification(
+        context,
+        request,
+        isOwnDevice: request.userId == ref.read(matrixClientProvider).userID,
       ),
     );
   }

@@ -3,6 +3,7 @@ import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
+import '../ui/notice.dart';
 import 'attachment_actions.dart';
 
 Future<void> saveAttachmentsWithFeedback(
@@ -13,22 +14,14 @@ Future<void> saveAttachmentsWithFeedback(
   try {
     if (events.length == 1) {
       final event = events.single;
-      if (await saveAttachment(event)) {
-        messenger.showSnackBar(
-          SnackBar(content: Text(savedMessage(l10n, event))),
-        );
-      }
+      if (await saveAttachment(event)) messenger.say(savedMessage(l10n, event));
       return;
     }
     final saved = await saveAttachments(events);
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(savedSummary(l10n, saved: saved, total: events.length)),
-      ),
-    );
+    messenger.say(savedSummary(l10n, saved: saved, total: events.length));
   } catch (e, s) {
     if (!isGalleryAccessDenied(e)) reportCaught('save attachment', e, s);
-    messenger.showSnackBar(SnackBar(content: Text(l10n.commonSaveFailed)));
+    messenger.sayFailed(l10n, e, failed: l10n.commonSaveFailed);
   }
 }
 
@@ -38,7 +31,7 @@ Future<void> shareAttachmentsWithFeedback(
   List<Event> events,
 ) async {
   var preparing = false;
-  String? failure;
+  Object? failure;
   try {
     await shareAttachments(
       events,
@@ -54,10 +47,10 @@ Future<void> shareAttachmentsWithFeedback(
     );
   } catch (e, s) {
     reportCaught('share attachment', e, s);
-    failure = l10n.matrixShareFailed;
+    failure = e;
   }
   if (preparing) messenger.hideCurrentSnackBar();
   if (failure != null) {
-    messenger.showSnackBar(SnackBar(content: Text(failure)));
+    messenger.sayFailed(l10n, failure, failed: l10n.matrixShareFailed);
   }
 }

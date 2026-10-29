@@ -475,9 +475,19 @@ void main() {
       );
     }
 
-    String? tickedTag(WidgetTester tester) => tester
-        .widget<RadioGroup<String>>(find.byType(RadioGroup<String>))
-        .groupValue;
+    Finder choices() => find.descendant(
+      of: find.byType(BottomSheet),
+      matching: find.byType(ListTile),
+    );
+
+    String? tickedChoice(WidgetTester tester) {
+      final ticked = find.ancestor(
+        of: find.byIcon(Icons.check_outlined),
+        matching: find.byType(ListTile),
+      );
+      if (ticked.evaluate().isEmpty) return null;
+      return (tester.widget<ListTile>(ticked).title as Text?)?.data;
+    }
 
     testWidgets('on Android 13 and up the row reads Device language until '
         'one is chosen', (tester) async {
@@ -497,7 +507,7 @@ void main() {
       await tester.tap(row('Language'));
       await tester.pumpAndSettle();
 
-      expect(find.byType(RadioListTile<String>), findsNWidgets(3));
+      expect(choices(), findsNWidgets(3));
       expect(find.text('Device language'), findsWidgets);
       expect(find.text('English'), findsOneWidget);
       expect(find.text('Ελληνικά'), findsOneWidget);
@@ -516,7 +526,7 @@ void main() {
 
       final set = localeCalls.singleWhere((c) => c.method == 'set');
       expect(set.arguments, {'tag': 'el'});
-      expect(find.byType(RadioListTile<String>), findsNothing);
+      expect(find.byType(BottomSheet), findsNothing);
     });
 
     testWidgets("the rows are the platform's list, and a choice sends its "
@@ -551,7 +561,7 @@ void main() {
       await tester.tap(row('Language'));
       await tester.pumpAndSettle();
 
-      expect(tickedTag(tester), 'el');
+      expect(tickedChoice(tester), 'Ελληνικά');
     });
 
     testWidgets('a regional tag Android reports ticks the row of the '
@@ -570,7 +580,7 @@ void main() {
       await tester.tap(row('Language'));
       await tester.pumpAndSettle();
 
-      expect(tickedTag(tester), 'el');
+      expect(tickedChoice(tester), 'Ελληνικά');
     });
 
     testWidgets('a tag that resolves to no row ticks nothing, not Device '
@@ -583,7 +593,7 @@ void main() {
       await tester.tap(row('Language'));
       await tester.pumpAndSettle();
 
-      expect(tickedTag(tester), isNull);
+      expect(tickedChoice(tester), isNull);
     });
 
     testWidgets('choosing Device language sends no tag', (tester) async {
