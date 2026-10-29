@@ -69,7 +69,7 @@ void main() {
         isLocal: local,
         encrypted: encrypted,
         audioMuted: muted,
-        lowBandwidth: weak,
+        weakConnection: weak,
         videoEnabled: camera,
       ),
       renderer: null,

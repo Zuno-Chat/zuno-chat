@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
@@ -76,6 +77,7 @@ void main() {
           'videoEnabled': false,
           'encrypted': false,
           'lowBandwidth': false,
+          'weakConnection': false,
         });
       });
     });
@@ -1191,21 +1193,18 @@ void main() {
           final sender = call.videoSlot.sender;
           final changesBefore = call.localStateChanges;
 
-          for (final (lost, received) in [
-            (0, 1000),
-            (100, 1900),
-            (200, 2800),
-          ]) {
-            call.pc.stats = [inbound(lost, received)];
-            call.async.elapse(const Duration(seconds: 3));
-            call.flush();
-          }
+          call.pollStats([
+            [inbound(0, 1000)],
+            [inbound(100, 1900)],
+            [inbound(200, 2800)],
+          ]);
 
-          expect(encoding(sender).maxBitrate, 300000);
+          expect(encoding(sender).maxBitrate, 400000);
           expect(encoding(sender).scaleResolutionDownBy, 2.0);
           expect(encoding(sender).maxFramerate, 30);
-          expect(call.local.lowBandwidth, isTrue);
+          expect(call.engine.quality, CallQuality.degraded);
           expect(call.engine.localFociInfo?['lowBandwidth'], isTrue);
+          expect(call.engine.localFociInfo?['weakConnection'], isTrue);
           expect(call.localStateChanges, greaterThan(changesBefore));
         }, kind: CallKind.video);
       },
@@ -1216,14 +1215,13 @@ void main() {
         call.joinEncrypted();
         final applied = call.videoSlot.sender.appliedParameters.length;
 
-        for (final (lost, received) in [(0, 1000), (100, 1900)]) {
-          call.pc.stats = [inbound(lost, received)];
-          call.async.elapse(const Duration(seconds: 3));
-          call.flush();
-        }
+        call.pollStats([
+          [inbound(0, 1000)],
+          [inbound(100, 1900)],
+        ]);
 
         expect(call.videoSlot.sender.appliedParameters, hasLength(applied));
-        expect(call.local.lowBandwidth, isFalse);
+        expect(call.engine.quality, CallQuality.good);
       }, kind: CallKind.video);
     });
 
@@ -1238,20 +1236,50 @@ void main() {
           {'packetsLost': lost, 'packetsReceived': received},
         );
 
-        for (final stats in [
+        call.pollStats([
           [inbound(0, 1000)],
           [inbound(0, 1100), pulled(10, 90)],
           [inbound(0, 1200), pulled(20, 180)],
           [inbound(0, 1300), pulled(20, 280)],
-        ]) {
-          call.pc.stats = stats;
-          call.async.elapse(const Duration(seconds: 3));
-          call.flush();
-        }
+        ]);
 
-        expect(call.local.lowBandwidth, isFalse);
+        expect(call.engine.quality, CallQuality.good);
         expect(call.engine.localFociInfo?['lowBandwidth'], isFalse);
       }, kind: CallKind.video);
+    });
+
+    List<List<StatsReport>> cameraHeldTo(double targetBitrate) => [
+      for (final received in [1000, 1900, 2800])
+        [
+          inbound(0, received),
+          EngineHarness.outbound('video', targetBitrate: targetBitrate),
+        ],
+    ];
+
+    test('a starved upload lowers the video encoding and shows everyone the '
+        'weak connection without asking them to send less', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.pollStats(cameraHeldTo(180000));
+
+        expect(encoding(call.videoSlot.sender).maxBitrate, 400000);
+        expect(call.engine.quality, CallQuality.degraded);
+        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
+        expect(call.engine.localFociInfo?['lowBandwidth'], isFalse);
+      }, kind: CallKind.video);
+    });
+
+    test('in a voice call a low video target is not taken for a weak '
+        'upload', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.pollStats(cameraHeldTo(50000));
+
+        expect(call.engine.quality, CallQuality.good);
+        expect(call.engine.localFociInfo?['weakConnection'], isFalse);
+      });
     });
 
     test('someone on a weak link lowers our video too', () {
@@ -1260,8 +1288,21 @@ void main() {
 
         call.remoteJoins(lowBandwidth: true);
 
-        expect(encoding(call.videoSlot.sender).maxBitrate, 300000);
+        expect(encoding(call.videoSlot.sender).maxBitrate, 400000);
         expect(encoding(call.videoSlot.sender).maxFramerate, 30);
+        expect(call.remote()?.weakConnection, isTrue);
+      }, kind: CallKind.video);
+    });
+
+    test('someone with a weak upload shows as weak without lowering our '
+        'video', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.remoteJoins(weakConnection: true);
+
+        expect(call.remote()?.weakConnection, isTrue);
+        expect(encoding(call.videoSlot.sender).maxBitrate, 950000);
       }, kind: CallKind.video);
     });
   });

@@ -309,7 +309,7 @@ class _CallViewState extends State<CallView> {
         talkingSince: widget.talkingSince,
         encryptingSince: _encryptingSince,
         remoteMuted: other?.participant.audioMuted ?? false,
-        remoteWeak: other?.participant.lowBandwidth ?? false,
+        remoteWeak: other?.participant.weakConnection ?? false,
       ),
     );
   }
@@ -336,7 +336,7 @@ class _CallViewState extends State<CallView> {
         talkingSince: widget.talkingSince,
         encryptingSince: _encryptingSince,
         remoteMuted: other.participant.audioMuted,
-        remoteWeak: other.participant.lowBandwidth,
+        remoteWeak: other.participant.weakConnection,
       );
 
   Widget _group(List<CallViewParticipant> others) {

@@ -289,6 +289,7 @@ class EngineHarness {
     bool encrypted = true,
     bool audioMuted = false,
     bool lowBandwidth = false,
+    bool weakConnection = false,
   }) {
     engine.updateRemoteParticipant(id, {
       'sessionId': sessionId,
@@ -297,23 +298,32 @@ class EngineHarness {
       'videoEnabled': videoEnabled,
       'encrypted': encrypted,
       'lowBandwidth': lowBandwidth,
+      'weakConnection': weakConnection,
     });
     flush();
   }
 
   void leave() => wait(engine.leave());
 
-  static StatsReport outbound(String kind, int bytesSent) => StatsReport(
-    'out-$kind',
-    'outbound-rtp',
-    0,
-    {'kind': kind, 'bytesSent': bytesSent},
-  );
+  static StatsReport outbound(String kind, {double? targetBitrate}) =>
+      StatsReport('out-$kind', 'outbound-rtp', 0, {
+        'kind': kind,
+        'bytesSent': 1200,
+        'targetBitrate': ?targetBitrate,
+      });
 
   void mediaFlows({Set<String> kinds = const {'audio', 'video'}}) {
-    pc.stats = [for (final kind in kinds) outbound(kind, 1200)];
+    pc.stats = [for (final kind in kinds) outbound(kind)];
     async.elapse(const Duration(seconds: 2));
     flush();
+  }
+
+  void pollStats(Iterable<List<StatsReport>> polls) {
+    for (final stats in polls) {
+      pc.stats = stats;
+      async.elapse(const Duration(seconds: 3));
+      flush();
+    }
   }
 
   FakePeerConnection get pc => backend.pc;

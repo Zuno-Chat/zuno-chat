@@ -10,7 +10,7 @@ class CallEngineParticipant {
   final bool audioMuted;
   final bool videoEnabled;
   final bool encrypted;
-  final bool lowBandwidth;
+  final bool weakConnection;
   final bool frontCamera;
 
   const CallEngineParticipant({
@@ -21,7 +21,7 @@ class CallEngineParticipant {
     this.audioMuted = false,
     this.videoEnabled = false,
     this.encrypted = false,
-    this.lowBandwidth = false,
+    this.weakConnection = false,
     this.frontCamera = false,
   });
 
@@ -36,7 +36,7 @@ class CallEngineParticipant {
           audioMuted == other.audioMuted &&
           videoEnabled == other.videoEnabled &&
           encrypted == other.encrypted &&
-          lowBandwidth == other.lowBandwidth &&
+          weakConnection == other.weakConnection &&
           frontCamera == other.frontCamera;
 
   @override
@@ -48,7 +48,7 @@ class CallEngineParticipant {
     audioMuted,
     videoEnabled,
     encrypted,
-    lowBandwidth,
+    weakConnection,
     frontCamera,
   );
 }

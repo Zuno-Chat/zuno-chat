@@ -95,7 +95,7 @@ class _ParticipantTileState extends State<ParticipantTile> {
   Widget? _status() {
     if (!widget.showStatus) return null;
     if (encrypting) return const MediaPill(child: EncryptingLabel());
-    if (!participant.isLocal && participant.lowBandwidth) {
+    if (!participant.isLocal && participant.weakConnection) {
       return CallBadge(label: context.l10n.callsConnectionWeak);
     }
     return null;

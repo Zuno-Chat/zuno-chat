@@ -89,7 +89,7 @@ void main() {
       final remote = engine.participants.singleWhere((p) => !p.isLocal);
       expect(remote.audioMuted, isFalse);
       expect(remote.videoEnabled, isFalse);
-      expect(remote.lowBandwidth, isFalse);
+      expect(remote.weakConnection, isFalse);
     });
 
     test('leaving after dispose does not throw', () async {

@@ -104,9 +104,10 @@ stateDiagram-v2
 - **`m.call.member` state is the only roster**, never a client-local list:
   each account's state event holds one entry, for its device in the call.
   Each entry's `fociInfo` carries the Cloudflare session, the published
-  tracks and media flags such as `videoEnabled`, `encrypted` and
-  `lowBandwidth`. The room's "call in progress" banner reads the same
-  state, so a missed ring or a closed app still finds the call.
+  tracks and media flags such as `videoEnabled`, `encrypted`,
+  `lowBandwidth` and `weakConnection`. The room's "call in progress"
+  banner reads the same state, so a missed ring or a closed app still
+  finds the call.
 - **An account is in a call from one device at a time.** Each device
   writes its account's whole event with only its own entry, so answering
   or joining is refused ("Hang up there to join here") while another of
@@ -230,17 +231,36 @@ is published at join, and the placeholder fills it in three cases:
 
 ### Quality and data use
 
-The engine samples `getStats()` every few seconds and classifies this
-device's connection as good, degraded or poor by incoming loss and RTT. It
-moves between tiers with hysteresis, so one bad sample never flaps the
-tier.
+The engine samples `getStats()` every few seconds and rates each direction
+of this device's connection as good, degraded or poor, with hysteresis so
+one bad sample never flaps a tier. The download reads incoming loss and
+RTT. The upload reads the loss Cloudflare reports on what we send and,
+while the camera sends, the bitrate WebRTC gives the video. The worse
+direction is the call's quality.
 
 - **Each tier writes explicit encoder limits** (resolution, frame rate,
   bitrate) to the video sender through `setParameters`, with no
   renegotiation. Weak links lose resolution before smoothness.
-- **A remote's `lowBandwidth` caps us at degraded.** We publish it whenever
-  our own tier is not good, so one side's struggling downlink stops the
-  other from sending more than it can absorb. Audio is never scaled.
+- **A starved upload shows in the video's target bitrate, not in loss or
+  RTT**, because congestion control lowers the bitrate before packets are
+  lost; reading only loss and RTT once sent smooth, blocky video with no
+  notice. The lines are WebRTC's own minimums to start 360p and 240p.
+- **The target counts only when the link, not our own cap, holds it
+  under the cap**, and a tier is left once our cap is what holds it, so
+  every tier's cap must sit above the line that enters it.
+- **Upload loss is the server's per-report loss share, weighted by packets
+  sent**, because its running loss total moves only when a report arrives
+  and would swing between samples.
+- **Two flags go out in `fociInfo`.** `weakConnection` (either direction)
+  shows others the weak badge; `lowBandwidth` (download only) caps everyone
+  sending to us at degraded, so one side's struggling downlink stops the
+  other from sending more than it can absorb, while a weak upload never
+  makes others send less. Apps up to 1.3.0 send only `lowBandwidth`, read
+  as both. Audio is never scaled.
+- **WebRTC's bandwidth estimate starts above the weak line**
+  (`x-google-start-bitrate` on our sending video in Cloudflare's answer),
+  because WebRTC's default start reads as a weak upload until it has
+  measured the link.
 - **The poor-connection notice says video is reduced only while this
   device sends its camera**, since the tiers cap nothing else.
 - **Low-data calls are on by default, by design** (Settings → Data &
@@ -693,6 +713,13 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   reaches Android's encoder and so never lifts a cap.
 - RTT comes only from the transport's selected candidate pair, because
   unused TURN relay pairs keep stale RTTs that read as a weak link.
+- Send settings (Opus FEC and DTX, the video start bitrate) are written
+  into every SDP Cloudflare sends us, because WebRTC takes a sender's codec
+  settings from the remote description.
+- Only the video section we send on carries the start bitrate, because
+  every audio section clears WebRTC's shared start value on each
+  description, so a start on a newly pulled video section would restart
+  the estimate whenever someone's tracks are pulled.
 - "Everyone left" needs two empty passes, because a republish can read as
   empty once.
 - "Was this call answered" is a flag set once (`everHadRemote`), because a

@@ -97,6 +97,77 @@ void main() {
     });
   });
 
+  group('CallQualityClassifier upload bandwidth', () {
+    QualitySample heldTo(double? videoBps) => QualitySample(
+      lossFraction: 0,
+      rttMs: 80,
+      linkLimitedVideoBps: videoBps,
+    );
+
+    test('an upload under what WebRTC needs for 360p steps down to '
+        'degraded', () {
+      final c = CallQualityClassifier();
+      expect(c.observe(heldTo(280000)), isNull);
+      expect(c.observe(heldTo(280000)), CallQuality.degraded);
+    });
+
+    test('an upload at what WebRTC needs for 360p stays good', () {
+      final c = CallQualityClassifier();
+      for (var i = 0; i < 5; i++) {
+        expect(c.observe(heldTo(300000)), isNull);
+      }
+      expect(c.current, CallQuality.good);
+    });
+
+    test('an upload too thin even for degraded video steps down to poor', () {
+      final c = CallQualityClassifier();
+      c.observe(heldTo(90000));
+      expect(c.observe(heldTo(90000)), CallQuality.poor);
+    });
+
+    test('recovers only once our own cap, not the link, holds the video '
+        'back', () {
+      final c = CallQualityClassifier();
+      c.observe(heldTo(280000));
+      c.observe(heldTo(280000));
+      for (var i = 0; i < 6; i++) {
+        expect(c.observe(heldTo(340000)), isNull);
+      }
+      expect(c.current, CallQuality.degraded);
+      for (var i = 0; i < 3; i++) {
+        expect(c.observe(heldTo(null)), isNull);
+      }
+      expect(c.observe(heldTo(null)), CallQuality.good);
+    });
+  });
+
+  test('every tier can be left: video at its cap reads as held back by us, '
+      'not the link, above the line that enters it', () {
+    for (final lowData in [false, true]) {
+      int cap(CallQuality tier) =>
+          videoEncodingFor(tier, lowDataMode: lowData).maxBitrate;
+      for (final (tier, line) in [
+        (CallQuality.good, CallQualityClassifier.enterDegradedVideoBps),
+        (CallQuality.degraded, CallQualityClassifier.enterDegradedVideoBps),
+        (CallQuality.poor, CallQualityClassifier.enterPoorVideoBps),
+      ]) {
+        expect(
+          cap(tier) * StatsCounters.belowCapToJudgeLink,
+          greaterThan(line),
+          reason: '$tier, low data $lowData',
+        );
+      }
+    }
+  });
+
+  test('WebRTC starts with video above the weak line, leaving 100 kbps for '
+      'audio and packet overhead', () {
+    expect(
+      startBitrateKbps * 1000 - 100000,
+      greaterThanOrEqualTo(CallQualityClassifier.enterDegradedVideoBps),
+    );
+  });
+
   group('videoEncodingFor', () {
     test('good tier is the capture profile cap', () {
       expect(videoEncodingFor(CallQuality.good, lowDataMode: false), (
@@ -305,31 +376,132 @@ void main() {
           rttMs: rttMs,
         );
 
-    test('sampleSince computes the loss fraction of the delta only', () {
-      final sample = counters(
-        20,
-        1090,
-        rttMs: 40,
-      ).sampleSince(counters(10, 1000));
-      expect(sample.lossFraction, closeTo(0.1, 1e-9));
-      expect(sample.rttMs, 40);
-    });
+    test(
+      'the download sample computes the loss fraction of the delta only',
+      () {
+        final sample = counters(
+          20,
+          1090,
+          rttMs: 40,
+        ).downlinkSampleSince(counters(10, 1000));
+        expect(sample.lossFraction, closeTo(0.1, 1e-9));
+        expect(sample.rttMs, 40);
+      },
+    );
 
     test('a negative delta (duplicate packets) clamps to zero loss', () {
-      expect(counters(8, 100).sampleSince(counters(10, 100)).lossFraction, 0);
+      expect(
+        counters(8, 100).downlinkSampleSince(counters(10, 100)).lossFraction,
+        0,
+      );
     });
 
     test('a silent stretch of a few packets says nothing about loss', () {
-      final sample = counters(1, 7, rttMs: 40).sampleSince(counters(0, 0));
+      final sample = counters(
+        1,
+        7,
+        rttMs: 40,
+      ).downlinkSampleSince(counters(0, 0));
       expect(sample.lossFraction, 0);
       expect(sample.rttMs, 40);
     });
 
     test('enough packets to judge still count their loss', () {
       expect(
-        counters(6, 54).sampleSince(counters(0, 0)).lossFraction,
+        counters(6, 54).downlinkSampleSince(counters(0, 0)).lossFraction,
         closeTo(0.1, 1e-9),
       );
+    });
+
+    StatsReport sent(String id, int packetsSent) => StatsReport(
+      id,
+      'outbound-rtp',
+      0,
+      {'kind': 'audio', 'packetsSent': packetsSent},
+    );
+    StatsReport serverReport(String localId, double fractionLost) =>
+        StatsReport('remote-$localId', 'remote-inbound-rtp', 0, {
+          'localId': localId,
+          'fractionLost': fractionLost,
+        });
+
+    StatsCounters uplink(Map<String, UplinkCounters> streams) =>
+        StatsCounters(uplinkStreams: streams);
+
+    test('counts the loss the server reports, weighing each stream by the '
+        'packets it sent', () {
+      final sample =
+          uplink({
+            'audio': (fractionLost: 0, sent: 1150),
+            'video': (fractionLost: 0.2, sent: 1450),
+          }).uplinkSampleSince(
+            uplink({
+              'audio': (fractionLost: 0, sent: 1000),
+              'video': (fractionLost: 0.2, sent: 1000),
+            }),
+            videoCapBps: null,
+          );
+      expect(sample.lossFraction, closeTo(0.15, 1e-9));
+    });
+
+    test('a few packets sent say nothing about upload loss', () {
+      final sample = uplink({'audio': (fractionLost: 0.5, sent: 1010)})
+          .uplinkSampleSince(
+            uplink({'audio': (fractionLost: 0.5, sent: 1000)}),
+            videoCapBps: null,
+          );
+      expect(sample.lossFraction, 0);
+    });
+
+    test('joins each server report to the stream it describes and drops '
+        'reports for streams we no longer send', () {
+      final counters = StatsCounters.fromReports([
+        sent('out-audio', 1000),
+        serverReport('out-audio', 0.1),
+        serverReport('gone', 0.5),
+      ]);
+      expect(counters.uplinkStreams, {
+        'out-audio': (fractionLost: 0.1, sent: 1000),
+      });
+    });
+
+    test('each direction judges only its own loss', () {
+      const before = StatsCounters(
+        streams: {'in': (lost: 0, received: 1000)},
+        uplinkStreams: {'out': (fractionLost: 0, sent: 1000)},
+      );
+      const after = StatsCounters(
+        streams: {'in': (lost: 2, received: 1098)},
+        uplinkStreams: {'out': (fractionLost: 0.1, sent: 1100)},
+      );
+      expect(
+        after.downlinkSampleSince(before).lossFraction,
+        closeTo(0.02, 1e-9),
+      );
+      expect(
+        after.uplinkSampleSince(before, videoCapBps: null).lossFraction,
+        closeTo(0.1, 1e-9),
+      );
+    });
+
+    test('judges the video target only when the link, not our cap or a '
+        'stopped camera, holds it back', () {
+      final counters = StatsCounters.fromReports([
+        StatsReport('out-audio', 'outbound-rtp', 0, {
+          'kind': 'audio',
+          'targetBitrate': 32000.0,
+        }),
+        StatsReport('out-video', 'outbound-rtp', 0, {
+          'kind': 'video',
+          'targetBitrate': 180000.0,
+        }),
+      ]);
+      double? held({int? cap}) => counters
+          .uplinkSampleSince(counters, videoCapBps: cap)
+          .linkLimitedVideoBps;
+      expect(held(cap: 500000), 180000);
+      expect(held(cap: 190000), isNull);
+      expect(held(), isNull);
     });
 
     test('a stream seen for the first time counts from its next sample, so '
@@ -350,8 +522,11 @@ void main() {
         }),
       ]);
 
-      expect(after.sampleSince(before).lossFraction, 0);
-      expect(next.sampleSince(after).lossFraction, closeTo(10 / 210, 1e-9));
+      expect(after.downlinkSampleSince(before).lossFraction, 0);
+      expect(
+        next.downlinkSampleSince(after).lossFraction,
+        closeTo(10 / 210, 1e-9),
+      );
     });
   });
 }

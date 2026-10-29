@@ -20,8 +20,8 @@ import '../module/calls_module.dart';
 import 'call_quality_policy.dart';
 import 'cloudflare_api_client.dart';
 import 'local_media.dart';
-import 'opus_send_params.dart';
 import 'remote_track_plan.dart';
+import 'send_params.dart';
 import 'video_codec_preference.dart';
 import 'webrtc_backend.dart';
 
@@ -29,10 +29,7 @@ CfSessionDescription _cfDescription(RTCSessionDescription description) =>
     CfSessionDescription(sdp: description.sdp!, type: description.type!);
 
 RTCSessionDescription _remoteDescription(CfSessionDescription description) =>
-    RTCSessionDescription(
-      withOpusSendParams(description.sdp),
-      description.type,
-    );
+    RTCSessionDescription(withSendParams(description.sdp), description.type);
 
 const _audioSender = 'local-audio';
 const _videoSender = 'local-video';
@@ -81,7 +78,8 @@ class CloudflareCallEngine implements CallEngine {
 
   Timer? _statsTimer;
   StatsCounters? _lastCounters;
-  final _classifier = CallQualityClassifier();
+  final _downlink = CallQualityClassifier();
+  final _uplink = CallQualityClassifier();
   final _localStateController = StreamController<void>.broadcast();
 
   final _negotiationLock = SerialLock();
@@ -385,7 +383,6 @@ class CloudflareCallEngine implements CallEngine {
       audioMuted: _media.microphoneMuted,
       videoEnabled: _media.cameraEnabled,
       encrypted: _keyProvider != null,
-      lowBandwidth: _classifier.current != CallQuality.good,
       frontCamera: _media.frontCamera,
     ),
     ..._remote.values.map((r) => r.toParticipant()),
@@ -398,7 +395,7 @@ class CloudflareCallEngine implements CallEngine {
   CallKind get kind => _kind;
 
   @override
-  CallQuality get quality => _classifier.current;
+  CallQuality get quality => _downlink.current.worse(_uplink.current);
   @override
   Stream<void> get localStateChangedStream => _localStateController.stream;
 
@@ -407,8 +404,11 @@ class CloudflareCallEngine implements CallEngine {
     _localStateController.add(null);
   }
 
+  VideoEncodingLimits get _videoLimits =>
+      videoEncodingFor(_combinedQuality, lowDataMode: lowDataMode);
+
   CallQuality get _combinedQuality => combineQuality(
-    local: _classifier.current,
+    local: quality,
     anyRemoteLowBandwidth: _remote.values.any((r) => r.lowBandwidth),
   );
 
@@ -879,10 +879,18 @@ class CloudflareCallEngine implements CallEngine {
       final previous = _lastCounters;
       _lastCounters = counters;
       if (previous == null) return;
-      final changed = _classifier.observe(counters.sampleSince(previous));
-      if (changed == null) return;
-      await _reapplyVideoEncoding();
-      _notifyParticipants();
+      final limits = _videoLimits;
+      final downlinkChanged = _downlink.observe(
+        counters.downlinkSampleSince(previous),
+      );
+      final uplinkChanged = _uplink.observe(
+        counters.uplinkSampleSince(
+          previous,
+          videoCapBps: _sendingCamera ? limits.maxBitrate : null,
+        ),
+      );
+      if (downlinkChanged == null && uplinkChanged == null) return;
+      if (_videoLimits != limits) await _reapplyVideoEncoding();
       _notifyLocalStateChanged();
     }, label: 'poll call stats');
   }
@@ -949,8 +957,7 @@ class CloudflareCallEngine implements CallEngine {
     final pc = _pc;
     final sender = _localVideoTransceiver?.sender;
     if (pc == null || sender == null || !_sendingCamera) return;
-    final limits = videoEncodingFor(_combinedQuality, lowDataMode: lowDataMode);
-    final params = applyVideoEncodingLimits(sender.parameters, limits);
+    final params = applyVideoEncodingLimits(sender.parameters, _videoLimits);
     await _bestEffortOn(
       pc,
       () => sender.setParameters(params),
@@ -1210,7 +1217,8 @@ class CloudflareCallEngine implements CallEngine {
       'audioMuted': _media.microphoneMuted,
       'videoEnabled': _sendingCamera,
       'encrypted': _keyProvider != null,
-      'lowBandwidth': _classifier.current != CallQuality.good,
+      'lowBandwidth': _downlink.current != CallQuality.good,
+      'weakConnection': quality != CallQuality.good,
     };
   }
 
@@ -1237,6 +1245,7 @@ class CloudflareCallEngine implements CallEngine {
       ..videoEnabled = fociInfo['videoEnabled'] == true
       ..encrypted = fociInfo['encrypted'] == true;
     final lowBandwidth = fociInfo['lowBandwidth'] == true;
+    remote.weakConnection = lowBandwidth || fociInfo['weakConnection'] == true;
     if (remote.lowBandwidth != lowBandwidth) {
       remote.lowBandwidth = lowBandwidth;
       unawaited(_reapplyVideoEncoding());
@@ -1515,6 +1524,7 @@ class _RemoteParticipant {
   bool audioMuted = false;
   bool videoEnabled = false;
   bool lowBandwidth = false;
+  bool weakConnection = false;
   bool encrypted = false;
 
   bool pulling = false;
@@ -1554,6 +1564,6 @@ class _RemoteParticipant {
     audioMuted: audioMuted,
     videoEnabled: videoEnabled,
     encrypted: encrypted,
-    lowBandwidth: lowBandwidth,
+    weakConnection: weakConnection,
   );
 }
