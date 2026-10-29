@@ -112,6 +112,7 @@ if missing:
 
 A5, CS6, E6 = 880.0, 1108.73, 1318.51
 C6, F6 = 1046.50, 1396.91
+G5 = 783.99
 CALL_TONE = 425.0
 
 # Incoming call: a rising three-note figure, twice, then a gap — played
@@ -137,6 +138,18 @@ message_tone = mix(0.75, [
 ])
 write('android/app/src/main/res/raw/message_tone.ogg', message_tone, vorbis)
 write('ios/Runner/message_tone.caf', message_tone, ima4_caf)
+
+conversation_in = mix(0.30, [
+    (0.00, note(G5, 0.28, amplitude=0.22, decay=16.0)),
+])
+write('android/app/src/main/res/raw/conversation_in.ogg', conversation_in, vorbis)
+write('ios/Runner/conversation_in.caf', conversation_in, ima4_caf)
+
+conversation_out = mix(0.16, [
+    (0.00, note(E6, 0.14, amplitude=0.16, decay=28.0)),
+])
+write('android/app/src/main/res/raw/conversation_out.ogg', conversation_out, vorbis)
+write('ios/Runner/conversation_out.caf', conversation_out, ima4_caf)
 
 
 def call_tone(start, seconds):

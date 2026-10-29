@@ -608,6 +608,7 @@ void main() {
       ('Ringtone', ringtoneEnabledProvider),
       ('Vibrate for calls', callVibrationEnabledProvider),
       ('Message tone', messageToneEnabledProvider),
+      ('Chat tones', conversationTonesEnabledProvider),
       ('Vibrate for messages', messageVibrationEnabledProvider),
     ]) {
       testWidgets('$title flips its setting', (tester) async {

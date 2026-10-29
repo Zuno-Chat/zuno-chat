@@ -148,7 +148,7 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | diagnostics | la diagnostica | |
 | notification category, notification shade | la categoria di notifiche · l’area notifiche | |
 | lock screen | la schermata di blocco | |
-| quiet, sound, vibration | silenziose · il suono · la vibrazione | "Message tone" → «Suono dei messaggi». |
+| quiet, sound, vibration | silenziose · il suono · la vibrazione | "Message tone" → «Suono dei messaggi». "Chat tones" → «Suoni della chat». |
 | standby bucket | il gruppo di standby | |
 
 ### 1.9 Location

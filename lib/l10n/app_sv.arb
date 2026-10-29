@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Android visar notiserna utan ljud eller inte alls. Tryck för att ändra.",
   "notificationsContent": "Notisinnehåll",
   "notificationsContentFootnote": "Den här enheten sparar en kopia av det som notiser visar. Med ”Endast namn” eller ”Ingenting” stannar meddelandetexten i Zuno. Inkommande samtal följer också den här inställningen.",
+  "notificationsConversationTones": "Chattljud",
+  "notificationsConversationTonesHint": "Spela upp ljud för meddelanden i chatten du har öppen",
   "notificationsDelivery": "Leverans",
   "notificationsDeliveryIntro": "Hur meddelanden och samtal når dig när Zuno är stängd. ”Bakgrundssynkronisering” kräver ingen konfiguration. UnifiedPush kräver en installerad distributörsapp, till exempel ntfy. ”Google-tjänster” kräver Google Play-tjänster.",
   "notificationsDeliveryMethod": "Leveransmetod",

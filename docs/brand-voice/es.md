@@ -148,7 +148,7 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | diagnostics | el diagnóstico | |
 | notification category, notification shade | la categoría de notificaciones · el panel de notificaciones | |
 | lock screen | la pantalla de bloqueo | |
-| quiet, sound, vibration | silenciosas · el sonido · la vibración | "Message tone" → «Tono de mensaje». |
+| quiet, sound, vibration | silenciosas · el sonido · la vibración | "Message tone" → «Tono de mensaje». "Chat tones" → «Tonos del chat». |
 | standby bucket | el grupo de inactividad | |
 
 ### 1.9 Location

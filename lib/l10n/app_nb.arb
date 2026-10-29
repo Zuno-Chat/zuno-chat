@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Android viser dem uten lyd, eller ikke i det hele tatt. Trykk for å endre.",
   "notificationsContent": "Varselinnhold",
   "notificationsContentFootnote": "Denne enheten beholder en kopi av det varslene viser. Med «Bare navn» eller «Ingenting» blir meldingsteksten værende i Zuno. Innkommende anrop følger også denne innstillingen.",
+  "notificationsConversationTones": "Chatlyder",
+  "notificationsConversationTonesHint": "Spill av lyder for meldinger i chatten du har åpen",
   "notificationsDelivery": "Levering",
   "notificationsDeliveryIntro": "Hvordan meldinger og anrop når deg mens Zuno er lukket. «Bakgrunnssynkronisering» krever ikke noe oppsett. UnifiedPush krever en installert distributørapp, for eksempel ntfy. «Google-tjenester» krever Google Play-tjenester.",
   "notificationsDeliveryMethod": "Leveringsmetode",

@@ -39,6 +39,8 @@ class FakeAudioSessionPort implements AudioSessionPort {
       ? 'playback'
       : identical(configuration, videoPlaybackSession)
       ? 'video'
+      : identical(configuration, toneSession)
+      ? 'tone'
       : 'recording';
 }
 

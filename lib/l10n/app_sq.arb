@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Android i shfaq pa tingull ose nuk i shfaq fare. Prek për ta ndryshuar.",
   "notificationsContent": "Përmbajtja e njoftimeve",
   "notificationsContentFootnote": "Kjo pajisje ruan një kopje të asaj që shfaqin njoftimet. Me “Vetëm emri” ose “Asgjë”, teksti i mesazhit mbetet në Zuno. Edhe thirrjet hyrëse e ndjekin këtë cilësim.",
+  "notificationsConversationTones": "Tingujt e bisedës",
+  "notificationsConversationTonesHint": "Luaj tinguj për mesazhet në bisedën që ke hapur",
   "notificationsDelivery": "Shpërndarja",
   "notificationsDeliveryIntro": "Si vijnë mesazhet dhe thirrjet kur Zuno është i mbyllur. “Sinkronizimi në sfond” nuk kërkon konfigurim. “UnifiedPush” kërkon një aplikacion shpërndarës të instaluar, si ntfy. “Shërbimet e Google” kërkojnë Shërbimet e Google Play.",
   "notificationsDeliveryMethod": "Mënyra e shpërndarjes",

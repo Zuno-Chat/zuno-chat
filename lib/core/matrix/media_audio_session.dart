@@ -47,6 +47,12 @@ final voiceRecordingSession = AudioSessionConfiguration(
       AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
 );
 
+final toneSession = AudioSessionConfiguration(
+  avAudioSessionCategory: AVAudioSessionCategory.ambient,
+  avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.none,
+  avAudioSessionMode: AVAudioSessionMode.defaultMode,
+);
+
 abstract interface class AudioSessionPort {
   Future<void> configure(AudioSessionConfiguration configuration);
 
@@ -76,9 +82,9 @@ class _PluginAudioSessionPort implements AudioSessionPort {
       );
 
   @override
-  Stream<void> get unplugged => Stream.fromFuture(
-    AudioSession.instance,
-  ).asyncExpand<void>((session) => session.becomingNoisyEventStream);
+  Stream<void> get unplugged =>
+      Stream.fromFuture(AudioSession.instance)
+          .asyncExpand<void>((session) => session.becomingNoisyEventStream);
 }
 
 enum MediaSound { voice, video }
@@ -116,6 +122,7 @@ class MediaAudioSession {
   final _turns = SerialLock();
   final _playing = <MediaPlayback>{};
   final _recording = <Object>{};
+  final _tones = <Object>{};
   List<StreamSubscription<void>>? _pauseRequests;
   AudioSessionConfiguration? _held;
 
@@ -147,22 +154,34 @@ class MediaAudioSession {
     }
   }
 
-  Future<void> beginRecording(Object holder) async {
-    if (ownsRecordingSession) await _update(() => _recording.add(holder));
-  }
+  bool get isRecording => _recording.isNotEmpty;
 
-  Future<void> endRecording(Object holder) async {
-    if (ownsRecordingSession) await _update(() => _recording.remove(holder));
+  Future<void> beginRecording(Object holder) =>
+      _update(() => _recording.add(holder) && ownsRecordingSession);
+
+  Future<void> endRecording(Object holder) =>
+      _update(() => _recording.remove(holder) && ownsRecordingSession);
+
+  Future<void> duringTone(Future<void> Function() play) async {
+    final tone = Object();
+    await _update(() => _tones.add(tone));
+    try {
+      await play();
+    } finally {
+      await _update(() => _tones.remove(tone));
+    }
   }
 
   Future<void> _update(bool Function() change) => _turns.run(() async {
     if (!change()) return;
-    final wanted = _recording.isNotEmpty
+    final wanted = ownsRecordingSession && _recording.isNotEmpty
         ? voiceRecordingSession
         : _playing.any((holder) => holder.sound == MediaSound.video)
         ? videoPlaybackSession
         : _playing.isNotEmpty
         ? voicePlaybackSession
+        : _tones.isNotEmpty
+        ? toneSession
         : null;
     if (identical(wanted, _held)) return;
     if (_callHoldsAudio()) {

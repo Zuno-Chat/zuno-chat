@@ -8,6 +8,7 @@ import 'matrix/matrix_client_provider.dart';
 import 'matrix/sync_coordinator_provider.dart';
 import 'notifications/actions/headless_message_action_provider.dart';
 import 'notifications/join_request_notification_provider.dart';
+import 'notifications/messages/conversation_tones.dart';
 import 'notifications/messages/message_notification_provider.dart';
 import 'notifications/room_invite_notification_provider.dart';
 import 'notifications/server_push_rules.dart';
@@ -48,4 +49,5 @@ final List<ProviderListenable<Object?>> _signedIn = [
   deliveryAutoFallbackProvider,
   securityAlertsProvider,
   apnsMessageToneProvider,
+  conversationTonePlayerProvider,
 ];

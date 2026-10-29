@@ -812,6 +812,8 @@
   "notificationsChannelSilencedHint": "O Android as mostra sem som, ou não as mostra. Toque para alterar.",
   "notificationsContent": "Conteúdo das notificações",
   "notificationsContentFootnote": "Este dispositivo mantém uma cópia do que as notificações mostram. Com “Só o nome” ou “Nada”, o texto das mensagens fica no Zuno. As chamadas recebidas também seguem esta configuração.",
+  "notificationsConversationTones": "Sons da conversa",
+  "notificationsConversationTonesHint": "Tocar sons para as mensagens da conversa aberta",
   "notificationsDelivery": "Entrega",
   "notificationsDeliveryIntro": "Como as mensagens e chamadas chegam até você com o Zuno fechado. A sincronização em segundo plano não precisa de configuração. O UnifiedPush precisa de um app distribuidor instalado, como o ntfy. A opção “Serviços do Google” precisa do Google Play Services.",
   "notificationsDeliveryMethod": "Método de entrega",

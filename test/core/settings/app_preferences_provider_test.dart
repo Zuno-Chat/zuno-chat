@@ -4,8 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
@@ -428,6 +428,12 @@ void main() {
           defaultValue: false,
           read: (c) => c.read(showHiddenMessagesProvider),
           set: (c, v) => c.read(showHiddenMessagesProvider.notifier).set(v),
+        ),
+        conversationTonesEnabledKey: (
+          defaultValue: true,
+          read: (c) => c.read(conversationTonesEnabledProvider),
+          set: (c, v) =>
+              c.read(conversationTonesEnabledProvider.notifier).set(v),
         ),
         'settings.reduce_media_size': (
           defaultValue: true,

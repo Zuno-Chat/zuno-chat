@@ -147,7 +147,7 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | diagnostics | le diagnostic | |
 | notification category, notification shade | la catégorie de notifications · le volet des notifications | |
 | lock screen | l’écran de verrouillage | |
-| quiet, sound, vibration | silencieuses · le son · la vibration | "Message tone" → «Son des messages». |
+| quiet, sound, vibration | silencieuses · le son · la vibration | "Message tone" → «Son des messages». "Chat tones" → «Sons des conversations». |
 | standby bucket | le groupe de veille | |
 
 ### 1.9 Location

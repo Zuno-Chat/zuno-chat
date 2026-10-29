@@ -364,6 +364,27 @@ class CallVibrationEnabledNotifier extends Notifier<bool> {
   }
 }
 
+final conversationTonesEnabledProvider =
+    NotifierProvider<ConversationTonesEnabledNotifier, bool>(
+      ConversationTonesEnabledNotifier.new,
+    );
+
+class ConversationTonesEnabledNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref
+          .watch(sharedPreferencesProvider)
+          .getBool(conversationTonesEnabledKey) ??
+      true;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setBool(conversationTonesEnabledKey, value);
+  }
+}
+
 final messageToneEnabledProvider =
     NotifierProvider<MessageToneEnabledNotifier, bool>(
       MessageToneEnabledNotifier.new,

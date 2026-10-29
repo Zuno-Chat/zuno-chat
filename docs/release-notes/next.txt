@@ -10,5 +10,6 @@ New
 • React and reply in the photo viewer.
 • Forward photos, videos and files.
 • Spot unencrypted messages.
+• Hear chat tones in the chat you have open.
 
 Fixed 182 bugs.

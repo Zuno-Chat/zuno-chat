@@ -65,6 +65,16 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 - **The sync path also takes down a push's instant notice** for an event that needs no notification, but only for an event the server's push rules would push, since only those left one.
 - **An invitation to a room the user asked to join is never announced**, since it answers their own request, on every path: sync, Android push and the iOS extension, which reads those rooms from the read model.
 
+### Chat tones
+
+A soft tone when a message arrives in the open chat, and a lighter one when the server accepts a message of yours, behind **Chat tones** in Settings → Notifications: on by default and independent of every notification sound setting, in Zuno or the phone.
+
+- **The incoming tone replaces the notification the open chat skips.** The open-chat decision plays it only where that notification would have sounded, so a muted chat or a quiet mentions-only message stays silent, and only for a message sent after the chat came on screen, since one sent earlier already sounded as a notification.
+- **The sent tone fires when one of your messages in the open chat reaches `EventStatus.sent`**, the local echo the SDK publishes once the server answers, so every send path counts while a failed send or a message from another device stays silent.
+- **One tone per burst and per gallery**, with the message tone's 2-second spacing, because a gallery's items reach the server one upload apart.
+- **Native code keeps both tones quiet in silent or vibrate mode and on any call**, the phone's or another app's; Dart keeps them quiet while recording.
+- **Both tones play at the media volume**, which the volume keys set in the app, because an iOS system sound follows the ringer volume and Android's notification stream its own slider. Android plays them through `SoundPool` on media usage, iOS through `AVAudioPlayer` in the audio session's tone profile (`chats-messaging.md`).
+
 ### Preview levels
 
 One level (`NotificationPreview`, default Name and message) applies on both platforms, with one rule per surface.

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -14,6 +15,7 @@ import '../../matrix/currently_open_room_provider.dart';
 import '../../matrix/event_display.dart';
 import '../../matrix/late_decryptions.dart';
 import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/media_gallery_group.dart';
 import '../../matrix/room_title.dart';
 import '../../matrix/undecryptable_event.dart';
 import '../../platform/platform_capabilities.dart';
@@ -22,6 +24,7 @@ import '../../settings/app_preferences_provider.dart';
 import '../settings/notification_preview.dart';
 import '../settings/notify_me.dart';
 import 'apns_alert_removal.dart';
+import 'conversation_tones.dart';
 import 'message_notification_content.dart';
 import 'message_notification_image.dart';
 import 'message_notification_poster.dart';
@@ -56,19 +59,29 @@ class MessageNotificationDecision {
 
   final bool placeholder;
 
+  final bool inChatTone;
+
   const MessageNotificationDecision.notify(
     MessageNotificationContent this.content,
   ) : refusal = null,
-      placeholder = false;
+      placeholder = false,
+      inChatTone = false;
 
   const MessageNotificationDecision.floor(
     MessageNotificationContent this.content,
   ) : refusal = null,
-      placeholder = true;
+      placeholder = true,
+      inChatTone = false;
 
   const MessageNotificationDecision.refuse(
     MessageNotificationRefusal this.refusal,
   ) : content = null,
+      placeholder = false,
+      inChatTone = false;
+
+  const MessageNotificationDecision.roomOpen({required this.inChatTone})
+    : refusal = MessageNotificationRefusal.roomOpen,
+      content = null,
       placeholder = false;
 }
 
@@ -107,6 +120,7 @@ MessageNotificationDecision messageNotificationFor(
   required EvaluatedPushRuleAction pushRuleAction,
   required NotifyMe notifyMe,
   required String? currentlyOpenRoomId,
+  DateTime? openedAt,
   NotificationPreview preview = NotificationPreview.full,
 }) {
   if (event.senderId == client.userID) {
@@ -130,15 +144,15 @@ MessageNotificationDecision messageNotificationFor(
       MessageNotificationRefusal.callSummaryNotMissed,
     );
   }
-  if (event.room.id == currentlyOpenRoomId) {
-    return const MessageNotificationDecision.refuse(
-      MessageNotificationRefusal.roomOpen,
-    );
-  }
-
   final loud = notifyMe == NotifyMe.mentionsOnly
       ? pushRuleAction.highlight
       : pushRuleAction.notify;
+  if (event.room.id == currentlyOpenRoomId) {
+    return MessageNotificationDecision.roomOpen(
+      inChatTone: loud && _sentWhileOpen(event, openedAt),
+    );
+  }
+
   if (!loud && !pushRuleAction.notify) {
     return const MessageNotificationDecision.refuse(
       MessageNotificationRefusal.pushRule,
@@ -190,6 +204,12 @@ MessageNotificationDecision messageNotificationFor(
   );
 }
 
+const _openedAtClockSlack = Duration(seconds: 2);
+
+bool _sentWhileOpen(Event event, DateTime? openedAt) =>
+    openedAt == null ||
+    !event.originServerTs.isBefore(openedAt.subtract(_openedAtClockSlack));
+
 final messageNotificationProvider =
     NotifierProvider<MessageNotificationNotifier, void>(
       MessageNotificationNotifier.new,
@@ -201,10 +221,16 @@ class MessageNotificationNotifier extends Notifier<void> {
   final _roomCache = NotificationRoomCacheWriter();
   final _posting = <String, Set<Future<void>>>{};
   final _awaitingKeys = <String, _AwaitedKey>{};
+  DateTime? _chatOpenedAt;
 
   @override
   void build() {
     final client = ref.watch(matrixClientProvider);
+    ref.listen(
+      currentlyOpenRoomIdProvider,
+      (_, roomId) => _chatOpenedAt = roomId == null ? null : clock.now(),
+      fireImmediately: true,
+    );
     final sub = client.onTimelineEvent.stream.listen(
       (event) => _handleEvent(client, event),
     );
@@ -306,6 +332,7 @@ class MessageNotificationNotifier extends Notifier<void> {
         pushRuleAction: pushRuleAction,
         notifyMe: ref.read(notifyMeProvider),
         currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
+        openedAt: _chatOpenedAt,
         preview: preview,
       );
       final content = decision.content;
@@ -329,6 +356,16 @@ class MessageNotificationNotifier extends Notifier<void> {
       }
       if (decision.refusal == MessageNotificationRefusal.roomOpen) {
         markShown();
+        if (decision.inChatTone) {
+          unawaited(
+            ref
+                .read(conversationTonePlayerProvider)
+                .play(
+                  ConversationTone.incoming,
+                  gallery: galleryGroupOf(event)?.id,
+                ),
+          );
+        }
         return false;
       }
       if (content == null) return false;

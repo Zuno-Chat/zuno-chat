@@ -154,7 +154,7 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | diagnostics | diagnostikk | |
 | notification category, notification shade | varselkategori · varselpanelet | |
 | lock screen | låseskjerm | |
-| quiet, sound, vibration | lydløs · lyd · vibrering | "Message tone" → «Meldingslyd». |
+| quiet, sound, vibration | lydløs · lyd · vibrering | "Message tone" → «Meldingslyd». "Chat tones" → «Chatlyder». |
 | standby bucket | standbygruppe | |
 
 ### 1.9 Location

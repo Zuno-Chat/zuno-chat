@@ -146,7 +146,7 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | diagnostics | o Diagnóstico | |
 | notification category, notification shade | a categoria de notificação · a aba de notificações | |
 | lock screen | a tela de bloqueio | |
-| quiet, sound, vibration | silenciosas · o som · a vibração | "Message tone" → «Som de mensagem». |
+| quiet, sound, vibration | silenciosas · o som · a vibração | "Message tone" → «Som de mensagem». "Chat tones" → «Sons da conversa». |
 | standby bucket | o grupo de espera | |
 
 ### 1.9 Location

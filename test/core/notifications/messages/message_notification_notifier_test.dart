@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -9,10 +10,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/messages/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
@@ -27,6 +28,7 @@ import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fixed_open_room.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/notifying_client.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -69,8 +71,22 @@ void main() {
   late ProviderContainer container;
   late RecordedNotifications notifications;
   late _ScriptedRing ring;
+  String? openRoomId;
+
+  Future<void> startNotifier() async {
+    container = await containerWithPreferences(
+      {},
+      overrides: [
+        matrixClientProvider.overrideWithValue(client),
+        incomingCallPresenterProvider.overrideWithValue(ring),
+        fixedOpenRoom(openRoomId),
+      ],
+    );
+    container.read(messageNotificationProvider);
+  }
 
   setUp(() async {
+    openRoomId = null;
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
     client = _DecryptingClient();
@@ -79,14 +95,7 @@ void main() {
     room.setState(User('@a:x', displayName: 'Alice', room: room));
     room.setState(User('@me:x', displayName: 'Me', room: room));
     ring = _ScriptedRing();
-    container = await containerWithPreferences(
-      {},
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        incomingCallPresenterProvider.overrideWithValue(ring),
-      ],
-    );
-    container.read(messageNotificationProvider);
+    await startNotifier();
   });
 
   void roomShowing() => notifications.active = [
@@ -143,6 +152,95 @@ void main() {
       await deliver(invite());
 
       expect(notifications.cancelled, isEmpty);
+    });
+  });
+
+  group('in the open chat', () {
+    late RecordedMethodCalls tones;
+    late DateTime now;
+
+    setUp(() async {
+      openRoomId = room.id;
+      tones = recordMethodChannel('zuno/conversation_tones');
+      now = clock.now();
+      container.dispose();
+      await withClock(Clock(() => now), startNotifier);
+    });
+
+    test('a message plays the incoming tone and posts nothing', () async {
+      await deliver(textEvent());
+
+      expect(tones.argsOf('play'), [
+        {'tone': 'incoming'},
+      ]);
+      expect(notifications.shown, isEmpty);
+    });
+
+    test('a message sent before the chat came on screen plays no tone, since '
+        'its notification already sounded', () async {
+      await deliver(
+        textEvent(originServerTs: now.subtract(const Duration(minutes: 1))),
+      );
+
+      expect(tones.calls, isEmpty);
+    });
+
+    test('your own message plays no incoming tone', () async {
+      await deliver(textEvent(senderId: '@me:x'));
+
+      expect(tones.calls, isEmpty);
+    });
+
+    test('two messages landing together play one tone', () async {
+      client.onTimelineEvent
+        ..add(textEvent())
+        ..add(
+          buildTestEvent(
+            room,
+            eventId: r'$2',
+            senderId: '@a:x',
+            content: {'msgtype': MessageTypes.Text, 'body': 'and again'},
+          ),
+        );
+      await pumpEventQueue();
+
+      expect(tones.count('play'), 1);
+    });
+
+    test(
+      'a locked message plays one tone, and its late key plays none',
+      () async {
+        await deliver(lockedTestEvent(room, eventId: r'$1', senderId: '@a:x'));
+        now = now.add(const Duration(seconds: 3));
+        client.decryption.keyArrives(
+          room,
+          opens: textEvent(),
+          sessionId: 'session',
+        );
+        await pumpEventQueue();
+
+        expect(tones.count('play'), 1);
+      },
+    );
+
+    test('a gallery arriving slowly plays one tone', () async {
+      for (final index in [0, 1]) {
+        await deliver(
+          buildTestEvent(
+            room,
+            eventId: '\$$index',
+            senderId: '@a:x',
+            content: {
+              'msgtype': MessageTypes.Image,
+              'body': 'photo.jpg',
+              ...galleryGroupContent(id: 'g', index: index, count: 2),
+            },
+          ),
+        );
+        now = now.add(const Duration(seconds: 3));
+      }
+
+      expect(tones.count('play'), 1);
     });
   });
 

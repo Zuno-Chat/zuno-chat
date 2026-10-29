@@ -154,7 +154,7 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | diagnostics | diagnostik | |
 | notification category, notification shade | notiskategori · notispanelen | |
 | lock screen | låsskärm | |
-| quiet, sound, vibration | tyst · ljud · vibration | "Message tone" → «Meddelandeljud». |
+| quiet, sound, vibration | tyst · ljud · vibration | "Message tone" → «Meddelandeljud». "Chat tones" → «Chattljud». |
 | standby bucket | standbygrupp | |
 
 ### 1.9 Location

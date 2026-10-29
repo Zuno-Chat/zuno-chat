@@ -156,7 +156,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | notification category, notification shade | kategori njoftimesh · paneli i njoftimeve | |
 | alert, security alerts | sinjalizim · Sinjalizimet e sigurisë | Never «njoftim», which is a notification. |
 | lock screen | ekrani i kyçjes | Android's. The iOS diagnostics row stays English (§2.8). |
-| quiet, sound, vibration | pa zë · tingull · dridhje | "Message tone" → «Tingulli i mesazhit». |
+| quiet, sound, vibration | pa zë · tingull · dridhje | "Message tone" → «Tingulli i mesazhit». "Chat tones" → «Tingujt e bisedës». |
 | standby bucket | grup gatishmërie | |
 
 ### 1.9 Location

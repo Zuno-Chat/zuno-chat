@@ -155,7 +155,7 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | diagnostics | diagnostiek | |
 | notification category, notification shade | meldingscategorie · het meldingenpaneel | |
 | lock screen | vergrendelscherm | |
-| quiet, sound, vibration | stil · geluid · trillen | "Message tone" → «Berichttoon». |
+| quiet, sound, vibration | stil · geluid · trillen | "Message tone" → «Berichttoon». "Chat tones" → «Chattonen». |
 | standby bucket | stand-bycategorie | |
 
 ### 1.9 Location

@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Android toont ze zonder geluid of helemaal niet. Tik om dit te wijzigen.",
   "notificationsContent": "Meldingsinhoud",
   "notificationsContentFootnote": "Dit apparaat bewaart een kopie van wat meldingen tonen. Met ‘Alleen naam’ of ‘Niets’ blijft berichttekst in Zuno. Inkomende oproepen volgen ook deze instelling.",
+  "notificationsConversationTones": "Chattonen",
+  "notificationsConversationTonesHint": "Speel geluiden af bij berichten in de chat die je open hebt",
   "notificationsDelivery": "Bezorging",
   "notificationsDeliveryIntro": "Hoe berichten en oproepen je bereiken als Zuno gesloten is. ‘Achtergrondsynchronisatie’ hoeft niet te worden ingesteld. ‘UnifiedPush’ vereist een geïnstalleerde distributeur-app, zoals ntfy. ‘Google-services’ vereist Google Play-services.",
   "notificationsDeliveryMethod": "Bezorgmethode",

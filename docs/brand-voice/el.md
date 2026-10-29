@@ -158,7 +158,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | notification category (Android channel), notification shade | η κατηγορία ειδοποιήσεων · το πλαίσιο ειδοποιήσεων | |
 | alert, security alerts | η ειδοποίηση · Ειδοποιήσεις ασφαλείας | Greek uses one word for notification and alert, as iOS «Κρίσιμες ειδοποιήσεις» does. |
 | lock screen | η οθόνη κλειδώματος | "first unlock" → «πρώτο ξεκλείδωμα». |
-| quiet, silent, sound, vibration | αθόρυβα / αθόρυβη · ο ήχος · η δόνηση | "Quiet messages" → «Αθόρυβα μηνύματα». "Message tone" → «Ήχος μηνύματος». "Sounds & vibration" → «Ήχοι και δόνηση». "buzz" → «δόνηση». "silenced" → «σε σίγαση». |
+| quiet, silent, sound, vibration | αθόρυβα / αθόρυβη · ο ήχος · η δόνηση | "Quiet messages" → «Αθόρυβα μηνύματα». "Message tone" → «Ήχος μηνύματος». "Chat tones" → «Ήχοι συνομιλίας». "Sounds & vibration" → «Ήχοι και δόνηση». "buzz" → «δόνηση». "silenced" → «σε σίγαση». |
 
 ### 1.9 Location
 

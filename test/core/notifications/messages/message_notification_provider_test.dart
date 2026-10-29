@@ -50,6 +50,7 @@ void main() {
     EvaluatedPushRuleAction? pushRuleAction,
     NotifyMe notifyMe = NotifyMe.all,
     String? currentlyOpenRoomId,
+    DateTime? openedAt,
     NotificationPreview preview = NotificationPreview.full,
   }) => messageNotificationFor(
     client,
@@ -57,6 +58,7 @@ void main() {
     pushRuleAction: pushRuleAction ?? actionWith(notify: true),
     notifyMe: notifyMe,
     currentlyOpenRoomId: currentlyOpenRoomId,
+    openedAt: openedAt,
     preview: preview,
   );
 
@@ -216,6 +218,41 @@ void main() {
 
     expect(decision.content, isNull);
     expect(decision.refusal, MessageNotificationRefusal.roomOpen);
+    expect(decision.inChatTone, isTrue);
+  });
+
+  test('the open room plays no tone for a message that would have been '
+      'quiet or silent', () {
+    final quiet = decide(
+      textEvent(),
+      pushRuleAction: actionWith(notify: true, highlight: false),
+      notifyMe: NotifyMe.mentionsOnly,
+      currentlyOpenRoomId: room.id,
+    );
+    final muted = decide(
+      textEvent(),
+      pushRuleAction: actionWith(notify: false),
+      currentlyOpenRoomId: room.id,
+    );
+
+    expect(quiet.refusal, MessageNotificationRefusal.roomOpen);
+    expect(quiet.inChatTone, isFalse);
+    expect(muted.inChatTone, isFalse);
+    expect(decide(textEvent()).inChatTone, isFalse);
+  });
+
+  test('the open room plays no tone for a message sent before the chat came '
+      'on screen, which a notification already announced', () {
+    final opened = DateTime(2030, 1, 1, 12);
+    bool toneFor(DateTime sentAt) => decide(
+      textEvent(originServerTs: sentAt),
+      currentlyOpenRoomId: room.id,
+      openedAt: opened,
+    ).inChatTone;
+
+    expect(toneFor(opened.subtract(const Duration(minutes: 1))), isFalse);
+    expect(toneFor(opened.subtract(const Duration(seconds: 1))), isTrue);
+    expect(toneFor(opened.add(const Duration(seconds: 5))), isTrue);
   });
 
   test('mentions-only still shows a message that does not mention you, '

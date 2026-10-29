@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Android zeigt sie ohne Ton oder gar nicht an. Tippe, um das zu ändern.",
   "notificationsContent": "Benachrichtigungsinhalt",
   "notificationsContentFootnote": "Dieses Gerät speichert eine Kopie dessen, was Benachrichtigungen anzeigen. Mit „Nur Name“ oder „Nichts“ bleibt der Nachrichtentext in Zuno. Auch eingehende Anrufe folgen dieser Einstellung.",
+  "notificationsConversationTones": "Chattöne",
+  "notificationsConversationTonesHint": "Töne für Nachrichten im geöffneten Chat abspielen",
   "notificationsDelivery": "Zustellung",
   "notificationsDeliveryIntro": "Wie Nachrichten und Anrufe dich erreichen, während Zuno geschlossen ist. „Hintergrundsynchronisierung“ braucht keine Einrichtung. „UnifiedPush“ braucht eine installierte Distributor-App wie ntfy. „Google-Dienste“ braucht die Google Play-Dienste.",
   "notificationsDeliveryMethod": "Zustellungsart",

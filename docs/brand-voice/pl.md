@@ -149,7 +149,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | notification category, notification shade | kategoria powiadomień · obszar powiadomień | |
 | alert, security alerts | alert · Alerty bezpieczeństwa | The same word as iOS «Alerty krytyczne». |
 | lock screen | ekran blokady | |
-| quiet, sound, vibration | bez dźwięku · dźwięk · wibracje | "Message tone" → «Dźwięk wiadomości». |
+| quiet, sound, vibration | bez dźwięku · dźwięk · wibracje | "Message tone" → «Dźwięk wiadomości». "Chat tones" → «Dźwięki czatu». |
 | standby bucket | zasobnik gotowości | |
 
 ### 1.9 Location

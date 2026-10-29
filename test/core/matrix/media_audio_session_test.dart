@@ -221,6 +221,36 @@ void main() {
     expect(port.log, isEmpty);
   });
 
+  test('a chat tone takes a session that mixes with other audio and follows '
+      'the silent switch, only while it plays', () async {
+    final audio = session();
+
+    await audio.duringTone(() async => port.log.add('tone'));
+
+    expect(port.log, ['configure tone', 'active', 'tone', 'inactive']);
+  });
+
+  test('a chat tone during a voice message plays inside its session', () async {
+    final audio = session();
+    await audio.beginPlayback(message);
+
+    await audio.duringTone(() async => port.log.add('tone'));
+
+    expect(port.log, ['configure playback', 'active', 'tone']);
+  });
+
+  test('knows a recording is going on every platform, whoever holds the '
+      'session', () async {
+    for (final owns in [true, false]) {
+      final audio = session(ownsRecordingSession: owns);
+
+      await audio.beginRecording(#recorder);
+      expect(audio.isRecording, isTrue, reason: 'owns: $owns');
+      await audio.endRecording(#recorder);
+      expect(audio.isRecording, isFalse, reason: 'owns: $owns');
+    }
+  });
+
   test('an interruption or unplugged headphones pause every playing '
       'message, which then gives the session back itself', () async {
     final audio = session();

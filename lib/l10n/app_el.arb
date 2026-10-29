@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Το Android τις εμφανίζει χωρίς ήχο ή καθόλου. Πατήστε για αλλαγή.",
   "notificationsContent": "Περιεχόμενο ειδοποιήσεων",
   "notificationsContentFootnote": "Αυτή η συσκευή κρατά αντίγραφο όσων εμφανίζουν οι ειδοποιήσεις. Με «Μόνο όνομα» ή «Τίποτα», το κείμενο των μηνυμάτων μένει στο Zuno. Οι εισερχόμενες κλήσεις ακολουθούν κι αυτές τη ρύθμιση.",
+  "notificationsConversationTones": "Ήχοι συνομιλίας",
+  "notificationsConversationTonesHint": "Αναπαραγωγή ήχων για τα μηνύματα της ανοιχτής συνομιλίας",
   "notificationsDelivery": "Παράδοση",
   "notificationsDeliveryIntro": "Πώς φτάνουν σε εσάς τα μηνύματα και οι κλήσεις όσο το Zuno είναι κλειστό. Ο συγχρονισμός στο παρασκήνιο δεν απαιτεί ρύθμιση. Το UnifiedPush χρειάζεται εγκατεστημένη εφαρμογή διανομέα, όπως το ntfy. Οι Υπηρεσίες Google χρειάζονται τις Υπηρεσίες Google Play.",
   "notificationsDeliveryMethod": "Μέθοδος παράδοσης",

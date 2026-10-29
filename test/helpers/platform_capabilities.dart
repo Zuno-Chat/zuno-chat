@@ -112,6 +112,7 @@ PlatformCapabilities capabilitiesLike(
   nativeSensitiveFileExport: base.nativeSensitiveFileExport,
   nativeFileShare: base.nativeFileShare,
   recorderNeedsAudioSession: base.recorderNeedsAudioSession,
+  tonesNeedAudioSession: base.tonesNeedAudioSession,
   liveLocation: liveLocation ?? base.liveLocation,
   nativeLogFloor: base.nativeLogFloor,
   appLanguage: appLanguage ?? base.appLanguage,

@@ -63,6 +63,7 @@ class PlatformCapabilities {
   final bool nativeSensitiveFileExport;
   final bool nativeFileShare;
   final bool recorderNeedsAudioSession;
+  final bool tonesNeedAudioSession;
   final bool liveLocation;
   final bool nativeLogFloor;
   final AppLanguageSetting appLanguage;
@@ -123,6 +124,7 @@ class PlatformCapabilities {
     required this.nativeSensitiveFileExport,
     required this.nativeFileShare,
     required this.recorderNeedsAudioSession,
+    required this.tonesNeedAudioSession,
     required this.liveLocation,
     required this.nativeLogFloor,
     required this.appLanguage,
@@ -190,6 +192,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeSensitiveFileExport: false,
         nativeFileShare: true,
         recorderNeedsAudioSession: false,
+        tonesNeedAudioSession: false,
         liveLocation: true,
         nativeLogFloor: true,
         appLanguage: AppLanguageSetting.inApp,
@@ -254,6 +257,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeSensitiveFileExport: true,
         nativeFileShare: false,
         recorderNeedsAudioSession: true,
+        tonesNeedAudioSession: true,
         liveLocation: true,
         nativeLogFloor: false,
         appLanguage: AppLanguageSetting.systemSettings,

@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Android viser dem uden lyd eller slet ikke. Tryk for at ændre det.",
   "notificationsContent": "Notifikationsindhold",
   "notificationsContentFootnote": "Denne enhed gemmer en kopi af det, notifikationer viser. Med “Kun navn” eller “Intet” bliver beskedteksten i Zuno. Indgående opkald følger også denne indstilling.",
+  "notificationsConversationTones": "Chatlyde",
+  "notificationsConversationTonesHint": "Afspil lyde for beskeder i den chat, du har åben",
   "notificationsDelivery": "Levering",
   "notificationsDeliveryIntro": "Sådan når beskeder og opkald frem til dig, mens Zuno er lukket. Baggrundssynkronisering kræver ingen opsætning. UnifiedPush kræver en installeret distributørapp, f.eks. ntfy. Google-tjenester kræver Google Play-tjenester.",
   "notificationsDeliveryMethod": "Leveringsmetode",

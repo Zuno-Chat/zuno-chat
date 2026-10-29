@@ -148,7 +148,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | diagnostics | die Diagnose | |
 | notification category, notification shade | die Benachrichtigungskategorie · die Benachrichtigungsleiste | |
 | lock screen | der Sperrbildschirm | |
-| quiet, sound, vibration | lautlos · der Ton · die Vibration | "Message tone" → «Nachrichtenton». |
+| quiet, sound, vibration | lautlos · der Ton · die Vibration | "Message tone" → «Nachrichtenton». "Chat tones" → «Chattöne». |
 | standby bucket | die Standby-Gruppe | |
 
 ### 1.9 Location

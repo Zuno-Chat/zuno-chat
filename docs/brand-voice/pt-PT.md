@@ -148,7 +148,7 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | diagnostics | o Diagnóstico | |
 | notification category, notification shade | a categoria de notificação · o painel de notificações | |
 | lock screen | o ecrã de bloqueio | |
-| quiet, sound, vibration | silenciosas · o som · a vibração | "Message tone" → «Som de mensagem». |
+| quiet, sound, vibration | silenciosas · o som · a vibração | "Message tone" → «Som de mensagem». "Chat tones" → «Sons da conversa». |
 | standby bucket | o grupo de espera | |
 
 ### 1.9 Location

@@ -642,6 +642,7 @@ class MainActivity : FlutterActivity() {
             }
 
         AppLanguage.register(flutterEngine.dartExecutor.binaryMessenger, this)
+        ConversationTones.register(flutterEngine.dartExecutor.binaryMessenger, this)
 
         val deviceSafetyChannel =
             MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DEVICE_SAFETY_CHANNEL)

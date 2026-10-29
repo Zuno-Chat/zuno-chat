@@ -401,8 +401,8 @@ sends stops the batch (Unsent messages).
 
 ### Audio session
 
-One owner sets the audio session for voice messages, video sound and iOS
-recording (`media_audio_session.dart`).
+One owner sets the audio session for voice messages, video sound, iOS
+recording and iOS chat tones (`media_audio_session.dart`).
 
 - **Voice plays with a speech profile and video with a film profile.** A
   video holds the session only while it plays with sound, and starting a
@@ -415,6 +415,11 @@ recording (`media_audio_session.dart`).
 - **iOS recording goes through it** because the recorder never gives its
   session back; Android's recorder holds its own focus
   (`recorderNeedsAudioSession`).
+- **An iOS chat tone holds an ambient session only while it plays**, so it
+  follows the silent switch and mixes with other apps' audio, and plays
+  inside a voice message's or video's session when one is held
+  (`tonesNeedAudioSession`); Android's tones need no session
+  (`notifications.md`).
 
 ### Avatars
 

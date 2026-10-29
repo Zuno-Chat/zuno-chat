@@ -811,6 +811,8 @@
   "notificationsChannelSilencedHint": "Android pokazuje je bez dźwięku albo wcale. Dotknij, aby zmienić.",
   "notificationsContent": "Treść powiadomień",
   "notificationsContentFootnote": "To urządzenie przechowuje kopię treści powiadomień. Przy opcji „Tylko nazwa” lub „Nic” tekst wiadomości zostaje w Zuno. Połączenia przychodzące też stosują to ustawienie.",
+  "notificationsConversationTones": "Dźwięki czatu",
+  "notificationsConversationTonesHint": "Odtwarzaj dźwięki przy wiadomościach w otwartym czacie",
   "notificationsDelivery": "Dostarczanie",
   "notificationsDeliveryIntro": "Jak wiadomości i połączenia docierają do Ciebie, gdy Zuno jest zamknięte. „Synchronizacja w tle” nie wymaga konfiguracji. „UnifiedPush” wymaga zainstalowanej aplikacji dystrybutora, np. ntfy. „Usługi Google” wymagają Usług Google Play.",
   "notificationsDeliveryMethod": "Sposób dostarczania",

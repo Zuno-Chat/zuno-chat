@@ -6,6 +6,7 @@ const ringtoneEnabledKey = 'settings.ringtone_enabled';
 const callVibrationEnabledKey = 'settings.call_vibration_enabled';
 const messageToneEnabledKey = 'settings.message_tone_enabled';
 const messageVibrationEnabledKey = 'settings.message_vibration_enabled';
+const conversationTonesEnabledKey = 'settings.conversation_tones_enabled';
 
 const darwinMessageToneSound = 'message_tone.caf';
 
@@ -61,6 +62,9 @@ const messageVibrationPattern = <int>[0, 300, 150, 300];
 
 const minMessageToneInterval = Duration(seconds: 2);
 
+bool toneDue(DateTime? last, DateTime now) =>
+    last == null || now.difference(last) >= minMessageToneInterval;
+
 enum MessageAlert { tone, silentUpdate, silent }
 
 typedef MessageAlertPlan = ({MessageAlert alert, bool vibrate});
@@ -71,10 +75,7 @@ MessageAlert messageAlertFor({
   required DateTime? lastToneAt,
   required DateTime now,
 }) {
-  if (lastToneAt == null ||
-      now.difference(lastToneAt) >= minMessageToneInterval) {
-    return MessageAlert.tone;
-  }
+  if (toneDue(lastToneAt, now)) return MessageAlert.tone;
   return roomId == lastToneRoomId
       ? MessageAlert.silentUpdate
       : MessageAlert.silent;

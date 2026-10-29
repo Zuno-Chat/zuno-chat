@@ -3403,6 +3403,11 @@
     "description": "Section heading in notification settings: what notifications show"
   },
   "notificationsContentFootnote": "This device keeps a copy of what notifications show. With Name only or Nothing, message text stays in Zuno. Incoming calls follow this setting too.",
+  "notificationsConversationTones": "Chat tones",
+  "@notificationsConversationTones": {
+    "description": "Switch: play sounds for messages in the open chat"
+  },
+  "notificationsConversationTonesHint": "Play sounds for messages in the chat you have open",
   "notificationsDelivery": "Delivery",
   "@notificationsDelivery": {
     "description": "Notification settings row and screen title: how notifications reach this phone"

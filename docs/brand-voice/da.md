@@ -154,7 +154,7 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | diagnostics | diagnosticering | |
 | notification category, notification shade | notifikationskategori · notifikationspanelet | |
 | lock screen | låseskærm | |
-| quiet, sound, vibration | lydløs · lyd · vibration | "Message tone" → «Beskedlyd». |
+| quiet, sound, vibration | lydløs · lyd · vibration | "Message tone" → «Beskedlyd». "Chat tones" → «Chatlyde». |
 | standby bucket | standbygruppe | |
 
 ### 1.9 Location

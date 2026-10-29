@@ -110,6 +110,7 @@ class _NotificationsSettingsPageState
     final ringtone = ref.watch(ringtoneEnabledProvider);
     final callVibration = ref.watch(callVibrationEnabledProvider);
     final messageTone = ref.watch(messageToneEnabledProvider);
+    final conversationTones = ref.watch(conversationTonesEnabledProvider);
     final messageVibration = ref.watch(messageVibrationEnabledProvider);
     final notificationsEnabled = _status.isGranted;
     final deliveryFailure = notificationsEnabled && !canChooseDelivery
@@ -273,6 +274,15 @@ class _NotificationsSettingsPageState
                 value: messageTone,
                 onChanged: (value) =>
                     ref.read(messageToneEnabledProvider.notifier).set(value),
+              ),
+              SwitchListTile(
+                secondary: const Icon(Icons.forum_outlined),
+                title: Text(l10n.notificationsConversationTones),
+                subtitle: Text(l10n.notificationsConversationTonesHint),
+                value: conversationTones,
+                onChanged: (value) => ref
+                    .read(conversationTonesEnabledProvider.notifier)
+                    .set(value),
               ),
               if (capabilities.vibrationPatterns)
                 SwitchListTile(

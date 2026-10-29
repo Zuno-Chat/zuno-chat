@@ -25,6 +25,7 @@ const _networkChannel = EventChannel('zuno/network');
 const _liveLocationChannel = MethodChannel('zuno/live_location');
 const _liveLocationFixes = EventChannel('zuno/live_location/fixes');
 const _privacyChannel = MethodChannel('zuno/privacy');
+const _conversationTonesChannel = MethodChannel('zuno/conversation_tones');
 const _deviceSafetyChannel = MethodChannel('zuno/device_safety');
 
 TestDefaultBinaryMessenger? _testMessenger() {
@@ -55,6 +56,10 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       (_) async => null,
     );
     messenger?.setMockMethodCallHandler(_privacyChannel, (_) async => null);
+    messenger?.setMockMethodCallHandler(
+      _conversationTonesChannel,
+      (_) async => null,
+    );
     messenger?.setMockMethodCallHandler(
       _deviceSafetyChannel,
       (_) async => null,
