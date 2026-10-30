@@ -240,7 +240,7 @@ final class CallAudioRoutingTests: XCTestCase {
 
   func testTheCallConfigurationRejectsOptionsThatChangeHowTheCallSounds() {
     let foreign: [AVAudioSession.CategoryOptions] = [
-      .defaultToSpeaker, .mixWithOthers, .duckOthers, .interruptSpokenAudioAndMixWithOthers,
+      .mixWithOthers, .duckOthers, .interruptSpokenAudioAndMixWithOthers,
     ]
     for option in foreign {
       XCTAssertFalse(
@@ -248,6 +248,43 @@ final class CallAudioRoutingTests: XCTestCase {
           category: .playAndRecord, mode: .voiceChat,
           options: [.allowBluetoothHFP, .allowBluetoothA2DP, option]), "\(option.rawValue)")
     }
+  }
+
+  func testASpeakerFirstCallDefaultsToTheSpeakerAndAnotherDoesNot() {
+    XCTAssertTrue(CallAudioRouting.callOptions(speakerFirst: true).contains(.defaultToSpeaker))
+    XCTAssertFalse(CallAudioRouting.callOptions(speakerFirst: false).contains(.defaultToSpeaker))
+    XCTAssertTrue(
+      CallAudioRouting.callOptions(speakerFirst: true).isSuperset(of: CallAudioRouting.callOptions))
+  }
+
+  func testBothCallConfigurationsAreTheCalls() {
+    for speakerFirst in [true, false] {
+      XCTAssertTrue(
+        CallAudioRouting.isCallConfiguration(
+          category: .playAndRecord, mode: .voiceChat,
+          options: CallAudioRouting.callOptions(speakerFirst: speakerFirst)), "\(speakerFirst)")
+    }
+  }
+
+  func testTheCallConfigurationTellsWhetherItStartsOnTheSpeaker() {
+    let speakerFirst = CallAudioRouting.callOptions(speakerFirst: true)
+    let plain = CallAudioRouting.callOptions(speakerFirst: false)
+    XCTAssertTrue(
+      CallAudioRouting.isCallConfiguration(
+        category: .playAndRecord, mode: .voiceChat, options: speakerFirst, speakerFirst: true))
+    XCTAssertFalse(
+      CallAudioRouting.isCallConfiguration(
+        category: .playAndRecord, mode: .voiceChat, options: speakerFirst, speakerFirst: false))
+    XCTAssertFalse(
+      CallAudioRouting.isCallConfiguration(
+        category: .playAndRecord, mode: .voiceChat, options: plain, speakerFirst: true))
+  }
+
+  func testAVoiceMessageSessionOnTheSpeakerIsNotTheCall() {
+    XCTAssertFalse(
+      CallAudioRouting.isCallConfiguration(
+        category: .playAndRecord, mode: .default,
+        options: CallAudioRouting.callOptions(speakerFirst: true)))
   }
 
   func testTheCallConfigurationRequiresBluetoothA2DP() {
@@ -366,6 +403,96 @@ final class CallAudioRoutingTests: XCTestCase {
     XCTAssertEqual(
       CallAudioRouting.preferredInput(for: .wiredHeadset, available: [.builtInMic, .bluetoothHFP]),
       .unchanged)
+  }
+}
+
+final class CallToneSourceTests: XCTestCase {
+  private let format = AVAudioFormat(standardFormatWithSampleRate: 8000, channels: 1)!
+
+  private func toneFile() throws -> URL {
+    let url = FileManager.default.temporaryDirectory.appendingPathComponent("tone-\(UUID()).caf")
+    let file = try AVAudioFile(forWriting: url, settings: format.settings)
+    let buffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 800))
+    buffer.frameLength = 800
+    for frame in 0..<800 {
+      buffer.floatChannelData![0][frame] = 0.5
+    }
+    try file.write(from: buffer)
+    addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+    return url
+  }
+
+  private func offlineEngine() throws -> AVAudioEngine {
+    let engine = AVAudioEngine()
+    try engine.enableManualRenderingMode(.offline, format: format, maximumFrameCount: 256)
+    return engine
+  }
+
+  private func loudest(_ engine: AVAudioEngine) throws -> Float {
+    try engine.start()
+    defer { engine.stop() }
+    let out = try XCTUnwrap(
+      AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: 256))
+    _ = try engine.renderOffline(256, to: out)
+    return (0..<Int(out.frameLength)).map { abs(out.floatChannelData![0][$0]) }.max() ?? 0
+  }
+
+  private func joined(_ source: CallToneSource) throws -> AVAudioEngine {
+    let engine = try offlineEngine()
+    source.join(engine, mixer: engine.mainMixerNode)
+    return engine
+  }
+
+  func testTheToneIsSilentUntilItPlays() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    XCTAssertEqual(try loudest(joined(source)), 0)
+  }
+
+  func testAPlayingToneSoundsThroughTheEngine() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    source.setPlaying(true)
+    XCTAssertGreaterThan(try loudest(joined(source)), 0.1)
+  }
+
+  func testAStoppedToneFallsSilent() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    source.setPlaying(true)
+    source.setPlaying(false)
+    XCTAssertEqual(try loudest(joined(source)), 0)
+  }
+
+  func testJoiningTheSameEngineAgainConnectsTheToneOnce() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    let engine = try joined(source)
+    source.join(engine, mixer: engine.mainMixerNode)
+    XCTAssertEqual(engine.outputConnectionPoints(for: source.node, outputBus: 0).count, 1)
+  }
+
+  func testANewEngineTakesTheToneOver() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    _ = try joined(source)
+    let next = try joined(source)
+    source.setPlaying(true)
+    XCTAssertTrue(source.node.engine === next)
+    XCTAssertGreaterThan(try loudest(next), 0.1)
+  }
+
+  func testLeavingAReleasedEngineFreesTheTone() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    let engine = try joined(source)
+    source.leave(engine)
+    XCTAssertNil(source.node.engine)
+  }
+
+  func testLeavingAnotherEngineKeepsTheTone() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    let engine = try joined(source)
+    source.leave(AVAudioEngine())
+    XCTAssertTrue(source.node.engine === engine)
+  }
+
+  func testAMissingFileGivesNoTone() {
+    XCTAssertNil(CallToneSource(contentsOf: URL(fileURLWithPath: "/nonexistent/ringback.wav")))
   }
 }
 

@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import Flutter
 import Foundation
+import Synchronization
 @preconcurrency import WebRTC
 @preconcurrency import flutter_webrtc
 import os
@@ -35,8 +36,12 @@ enum CallAudioRouting {
     .allowBluetoothHFP, .allowBluetoothA2DP,
   ]
   static let foreignOptions: AVAudioSession.CategoryOptions = [
-    .defaultToSpeaker, .mixWithOthers, .duckOthers, .interruptSpokenAudioAndMixWithOthers,
+    .mixWithOthers, .duckOthers, .interruptSpokenAudioAndMixWithOthers,
   ]
+
+  static func callOptions(speakerFirst: Bool) -> AVAudioSession.CategoryOptions {
+    speakerFirst ? callOptions.union(.defaultToSpeaker) : callOptions
+  }
 
   static func route(forOutput port: AVAudioSession.Port) -> CallAudioRoute {
     switch port {
@@ -77,6 +82,14 @@ enum CallAudioRouting {
   ) -> Bool {
     category == .playAndRecord && mode == .voiceChat && options.isSuperset(of: callOptions)
       && options.isDisjoint(with: foreignOptions)
+  }
+
+  static func isCallConfiguration(
+    category: AVAudioSession.Category, mode: AVAudioSession.Mode,
+    options: AVAudioSession.CategoryOptions, speakerFirst: Bool
+  ) -> Bool {
+    isCallConfiguration(category: category, mode: mode, options: options)
+      && options.contains(.defaultToSpeaker) == speakerFirst
   }
 
   static func startingRoute(wanted: CallAudioRoute?, isVideo: Bool, headsets: Set<CallAudioRoute>)
@@ -120,20 +133,191 @@ struct UncheckedSendable<Value>: @unchecked Sendable {
   }
 }
 
+final class CallToneSource: @unchecked Sendable {
+  private final class Render: @unchecked Sendable {
+    let samples: UnsafeMutableBufferPointer<Float>
+    let playing = Atomic<Bool>(false)
+    let rewind = Atomic<Bool>(false)
+    var position = 0
+
+    init(samples: UnsafeMutableBufferPointer<Float>) {
+      self.samples = samples
+    }
+
+    deinit {
+      samples.deallocate()
+    }
+  }
+
+  let node: AVAudioSourceNode
+  let format: AVAudioFormat
+  private let render: Render
+
+  init?(contentsOf url: URL) {
+    guard let file = try? AVAudioFile(forReading: url),
+      let buffer = AVAudioPCMBuffer(
+        pcmFormat: file.processingFormat, frameCapacity: AVAudioFrameCount(file.length)),
+      (try? file.read(into: buffer)) != nil, buffer.frameLength > 0,
+      let channel = buffer.floatChannelData?[0],
+      let format = AVAudioFormat(
+        standardFormatWithSampleRate: file.processingFormat.sampleRate, channels: 1)
+    else { return nil }
+    let samples = UnsafeMutableBufferPointer<Float>.allocate(capacity: Int(buffer.frameLength))
+    _ = samples.initialize(from: UnsafeBufferPointer(start: channel, count: samples.count))
+    let render = Render(samples: samples)
+    self.render = render
+    self.format = format
+    node = AVAudioSourceNode(format: format) { isSilence, _, frameCount, data in
+      let buffers = UnsafeMutableAudioBufferListPointer(data)
+      guard render.playing.load(ordering: .acquiring) else {
+        isSilence.pointee = true
+        for buffer in buffers {
+          if let bytes = buffer.mData { memset(bytes, 0, Int(buffer.mDataByteSize)) }
+        }
+        return noErr
+      }
+      if render.rewind.exchange(false, ordering: .relaxed) { render.position = 0 }
+      let count = render.samples.count
+      var position = render.position
+      for buffer in buffers {
+        guard let out = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
+        position = render.position
+        for frame in 0..<Int(frameCount) {
+          out[frame] = render.samples[position]
+          position = position + 1 == count ? 0 : position + 1
+        }
+      }
+      render.position = position
+      return noErr
+    }
+  }
+
+  func setPlaying(_ playing: Bool) {
+    if playing, !render.playing.load(ordering: .relaxed) {
+      render.rewind.store(true, ordering: .relaxed)
+    }
+    render.playing.store(playing, ordering: .releasing)
+  }
+
+  func join(_ engine: AVAudioEngine, mixer: AVAudioMixerNode) {
+    if node.engine !== engine {
+      node.engine?.detach(node)
+      engine.attach(node)
+    }
+    if engine.outputConnectionPoints(for: node, outputBus: 0).isEmpty {
+      engine.connect(
+        node, to: mixer, fromBus: 0, toBus: mixer.nextAvailableInputBus, format: format)
+    }
+  }
+
+  func leave(_ engine: AVAudioEngine) {
+    if node.engine === engine {
+      engine.detach(node)
+    }
+  }
+}
+
+final class CallToneSlot: Sendable {
+  private let loaded = Mutex<CallToneSource?>(nil)
+
+  var source: CallToneSource? { loaded.withLock { $0 } }
+
+  func load(_ url: URL) -> CallToneSource? {
+    loaded.withLock { current in
+      if current == nil { current = CallToneSource(contentsOf: url) }
+      return current
+    }
+  }
+}
+
+final class CallAudioEngineObserver: NSObject, RTCAudioDeviceModuleDelegate, @unchecked Sendable {
+  private let tone: CallToneSlot
+  private weak var plugin: FlutterWebRTCPlugin?
+
+  init(plugin: FlutterWebRTCPlugin?, tone: CallToneSlot) {
+    self.plugin = plugin
+    self.tone = tone
+  }
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule,
+    didReceiveSpeechActivityEvent speechActivityEvent: RTCSpeechActivityEvent
+  ) {}
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule, didCreateEngine engine: AVAudioEngine
+  ) -> Int { 0 }
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule, willStartEngine engine: AVAudioEngine,
+    isPlayoutEnabled: Bool, isRecordingEnabled: Bool
+  ) -> Int {
+    return 0
+  }
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule, didStopEngine engine: AVAudioEngine,
+    isPlayoutEnabled: Bool, isRecordingEnabled: Bool
+  ) -> Int { 0 }
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule, didDisableEngine engine: AVAudioEngine,
+    isPlayoutEnabled: Bool, isRecordingEnabled: Bool
+  ) -> Int { 0 }
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule, willReleaseEngine engine: AVAudioEngine
+  ) -> Int {
+    tone.source?.leave(engine)
+    return 0
+  }
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule, engine: AVAudioEngine,
+    configureInputFromSource source: AVAudioNode?, toDestination destination: AVAudioNode,
+    format: AVAudioFormat, context: [AnyHashable: Any]
+  ) -> Int { 0 }
+
+  func audioDeviceModule(
+    _ audioDeviceModule: RTCAudioDeviceModule, engine: AVAudioEngine,
+    configureOutputFromSource source: AVAudioNode, toDestination destination: AVAudioNode?,
+    format: AVAudioFormat, context: [AnyHashable: Any]
+  ) -> Int {
+    if let mixer = source as? AVAudioMixerNode {
+      tone.source?.join(engine, mixer: mixer)
+    }
+    return 0
+  }
+
+  func audioDeviceModuleDidUpdateDevices(_ audioDeviceModule: RTCAudioDeviceModule) {
+    plugin?.audioDeviceModuleDidUpdateDevices(audioDeviceModule)
+  }
+}
+
 final class CallAudioEngineGate: @unchecked Sendable {
   private let queue = DispatchQueue(label: "im.zuno.calls.audio-gate")
   private var factory: RTCPeerConnectionFactory?
   private var module: RTCAudioDeviceModule?
+  private var observer: CallAudioEngineObserver?
   private var available = false
   private var applied: Bool?
+  private let tone: CallToneSlot
 
-  func attach(_ factory: RTCPeerConnectionFactory?) {
-    let box = UncheckedSendable(factory)
+  init(tone: CallToneSlot) {
+    self.tone = tone
+  }
+
+  func attach(_ factory: RTCPeerConnectionFactory?, plugin: FlutterWebRTCPlugin?) {
+    let box = UncheckedSendable((factory, plugin))
     queue.async { [self] in
-      if self.factory !== box.value {
-        self.factory = box.value
-        module = box.value?.audioDeviceModule
+      if self.factory !== box.value.0 {
+        self.factory = box.value.0
+        module = box.value.0?.audioDeviceModule
         module?.duckingLevel = .min
+        observer = module.map { _ in
+          CallAudioEngineObserver(plugin: box.value.1, tone: tone)
+        }
+        module?.observer = observer
         applied = nil
       }
       apply()
@@ -163,50 +347,18 @@ final class CallAudioEngineGate: @unchecked Sendable {
 
 @MainActor
 final class CallRingback {
-  private var player: AVAudioPlayer?
-  private var wanted = false
-  private var sessionActive = false
-  private var tone: URL?
+  let tone = CallToneSlot()
 
   func start(asset: String?) {
-    tone = asset.flatMap(Self.bundledURL(forAsset:))
-    if tone == nil {
+    guard let url = asset.flatMap(Self.bundledURL(forAsset:)), let source = tone.load(url) else {
       CaughtErrors.record("call ringback tone", CocoaError(.fileNoSuchFile))
-    }
-    setWanted(true)
-  }
-
-  func setWanted(_ value: Bool) {
-    wanted = value
-    update()
-  }
-
-  func setSessionActive(_ value: Bool) {
-    sessionActive = value
-    update()
-  }
-
-  func restart() {
-    player?.stop()
-    player = nil
-    update()
-  }
-
-  private func update() {
-    guard wanted, sessionActive, let tone else {
-      player?.stop()
-      player = nil
       return
     }
-    if player == nil {
-      player = CaughtErrors.attempt("call ringback player") {
-        try AVAudioPlayer(contentsOf: tone)
-      }
-      player?.numberOfLoops = -1
-    }
-    if player?.isPlaying == false {
-      player?.play()
-    }
+    source.setPlaying(true)
+  }
+
+  func stop() {
+    tone.source?.setPlaying(false)
   }
 
   nonisolated static func bundledURL(forAsset asset: String) -> URL? {
@@ -230,7 +382,7 @@ final class CallAudio {
   var onRouteChange: ((CallAudioState) -> Void)?
   var onMediaServicesReset: (() -> Void)?
   private(set) var isActive = false
-  private let gate = CallAudioEngineGate()
+  private lazy var gate = CallAudioEngineGate(tone: ringback.tone)
   private weak var webRTC: FlutterWebRTCPlugin?
   private var observers: [NSObjectProtocol] = []
   private var forwardedActivation = false
@@ -243,6 +395,7 @@ final class CallAudio {
       options: AVAudioSession.CategoryOptions
     )?
   private var wantedRoute: CallAudioRoute?
+  private var speakerFirst = false
   private var reported: CallAudioState?
   private var rebalance: Task<Void, Never>?
 
@@ -271,13 +424,13 @@ final class CallAudio {
   func adoptRegisteredWebRTC() {
     if let plugin = FlutterWebRTCPlugin.sharedSingleton() {
       webRTC = plugin
-      gate.attach(nil)
+      gate.attach(nil, plugin: nil)
     }
   }
 
   func armEngine() {
     let plugin = webRTC ?? FlutterWebRTCPlugin.sharedSingleton()
-    gate.attach(plugin?.peerConnectionFactory)
+    gate.attach(plugin?.peerConnectionFactory, plugin: plugin)
     gate.setAvailable(isActive)
   }
 
@@ -300,6 +453,9 @@ final class CallAudio {
         saved = (session.category, session.mode, session.categoryOptions)
       }
     }
+    speakerFirst =
+      CallAudioRouting.startingRoute(
+        wanted: wantedRoute, isVideo: videoCall, headsets: currentState().headsets) == .speaker
     configure()
   }
 
@@ -345,9 +501,10 @@ final class CallAudio {
 
   func callsEnded() {
     wantedRoute = nil
+    speakerFirst = false
     videoCall = false
     reported = nil
-    ringback.setWanted(false)
+    ringback.stop()
     inCall = false
     if AVAudioApplication.shared.isInputMuted {
       CaughtErrors.attempt("call audio unmute") {
@@ -379,8 +536,8 @@ final class CallAudio {
 
   func releaseMedia() {
     gate.setAvailable(false)
-    gate.attach(nil)
-    ringback.setWanted(false)
+    gate.attach(nil, plugin: nil)
+    ringback.stop()
     let plugin = webRTC ?? FlutterWebRTCPlugin.sharedSingleton()
     if let connections = plugin?.peerConnections {
       for case let connection as RTCPeerConnection in connections.allValues {
@@ -395,7 +552,6 @@ final class CallAudio {
     RTCAudioSession.sharedInstance().isAudioEnabled = true
     gate.setAvailable(true)
     applyStartingRoute()
-    ringback.setSessionActive(true)
     report()
   }
 
@@ -418,7 +574,6 @@ final class CallAudio {
 
   private func deactivated() {
     isActive = false
-    ringback.setSessionActive(false)
     gate.setAvailable(false)
     RTCAudioSession.sharedInstance().isAudioEnabled = false
   }
@@ -450,14 +605,24 @@ final class CallAudio {
       mode: AVAudioSession.Mode(rawValue: rtc.mode), options: rtc.categoryOptions)
   }
 
+  private var sessionInWantedCallConfiguration: Bool {
+    let rtc = RTCAudioSession.sharedInstance()
+    return CallAudioRouting.isCallConfiguration(
+      category: AVAudioSession.Category(rawValue: rtc.category),
+      mode: AVAudioSession.Mode(rawValue: rtc.mode), options: rtc.categoryOptions,
+      speakerFirst: speakerFirst)
+  }
+
   @discardableResult
   private func configure() -> Bool {
-    guard !sessionInCallConfiguration else { return false }
+    guard !sessionInWantedCallConfiguration else { return false }
     let rtc = RTCAudioSession.sharedInstance()
     rtc.lockForConfiguration()
     defer { rtc.unlockForConfiguration() }
     do {
-      try rtc.setCategory(.playAndRecord, mode: .voiceChat, options: CallAudioRouting.callOptions)
+      try rtc.setCategory(
+        .playAndRecord, mode: .voiceChat,
+        options: CallAudioRouting.callOptions(speakerFirst: speakerFirst))
       return true
     } catch {
       CaughtErrors.record("call audio configure", error)
@@ -481,6 +646,8 @@ final class CallAudio {
   }
 
   private func apply(_ route: CallAudioRoute) {
+    speakerFirst = route == .speaker
+    configure()
     let session = AVAudioSession.sharedInstance()
     let inputs = session.availableInputs ?? []
     do {
@@ -524,6 +691,5 @@ final class CallAudio {
     if reconfigured {
       restoreRoute()
     }
-    ringback.restart()
   }
 }
