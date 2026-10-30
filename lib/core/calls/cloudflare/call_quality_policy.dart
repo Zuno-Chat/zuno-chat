@@ -260,7 +260,7 @@ VideoEncodingLimits videoEncodingFor(
     ),
     CallQuality.poor => (
       scaleResolutionDownBy: capturedHeight / 180,
-      maxFramerate: 24,
+      maxFramerate: 15,
       maxBitrate: 150000,
     ),
   };

@@ -182,13 +182,13 @@ void main() {
       ));
     });
 
-    test('good and degraded keep 30 fps, poor drops to 24', () {
+    test('good and degraded keep 30 fps, poor drops to 15 so each frame gets more bits', () {
       for (final lowData in [false, true]) {
         int fps(CallQuality quality) =>
             videoEncodingFor(quality, lowDataMode: lowData).maxFramerate;
         expect(fps(CallQuality.good), 30, reason: 'low data $lowData');
         expect(fps(CallQuality.degraded), 30, reason: 'low data $lowData');
-        expect(fps(CallQuality.poor), 24, reason: 'low data $lowData');
+        expect(fps(CallQuality.poor), 15, reason: 'low data $lowData');
       }
     });
 

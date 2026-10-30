@@ -261,6 +261,9 @@ direction is the call's quality.
   (`x-google-start-bitrate` on our sending video in Cloudflare's answer),
   because WebRTC's default start reads as a weak upload until it has
   measured the link.
+- **The poorest tier also drops the frame rate**, because at its bitrate
+  motion otherwise breaks into blocks, and fewer frames leave each one
+  more bits.
 - **The poor-connection notice says video is reduced only while this
   device sends its camera**, since the tiers cap nothing else.
 - **Low-data calls are on by default, by design** (Settings → Data &

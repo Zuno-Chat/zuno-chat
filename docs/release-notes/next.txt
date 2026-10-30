@@ -12,4 +12,4 @@ New
 • Spot unencrypted messages.
 • Hear chat tones in the chat you have open.
 
-Fixed 183 bugs.
+Fixed 184 bugs.
