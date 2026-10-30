@@ -55,12 +55,8 @@ class CallChannelMocks {
   String? _callAudioRoute;
   List<String> _reportedHeadsets = const [];
   var _nextTexture = 0;
-  final _textureEvents = <int, RecordedMethodCalls>{};
 
   List<MethodCall> get calls => _native.calls;
-
-  bool rendererReleaseStarted(Object? texture) =>
-      (_textureEvents[texture]?.count('cancel') ?? 0) > 0;
 
   Map<String, Object?> _createRenderer() {
     if (rendererCreatesToRefuse > 0) {
@@ -72,7 +68,7 @@ class CallChannelMocks {
 
   int _textureFor() {
     final id = ++_nextTexture;
-    _textureEvents[id] = recordMethodChannel('FlutterWebRTC/Texture$id');
+    silenceMethodChannels(['FlutterWebRTC/Texture$id']);
     return id;
   }
 

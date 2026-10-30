@@ -106,7 +106,6 @@ PlatformCapabilities capabilitiesLike(
   nativeNotificationActions:
       nativeNotificationActions ?? base.nativeNotificationActions,
   notificationRetentionCheck: base.notificationRetentionCheck,
-  videoRendererNeedsDetach: base.videoRendererNeedsDetach,
   cameraStopsInBackground: base.cameraStopsInBackground,
   externalPaymentLinks: externalPaymentLinks ?? base.externalPaymentLinks,
   nativeSensitiveFileExport: base.nativeSensitiveFileExport,

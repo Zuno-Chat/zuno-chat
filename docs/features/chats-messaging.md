@@ -439,8 +439,9 @@ recording and iOS chat tones (`media_audio_session.dart`).
 
 One viewer (`media_viewer/`) opens every photo and video, from a chat
 bubble, a gallery tile, Room info's preview or the Media page. It pages
-through the room's sent photos and videos, never files, in time order,
-starting at the tapped item. Every opener hands it the chat's room, live
+through the room's sent photos and videos, never files, in time order
+(older to the left in a left-to-right language, matching the chat's
+top-to-bottom order), starting at the tapped item. Every opener hands it the chat's room, live
 timeline and reply and edit starters, so Room info and the Media page reach
 the chat too.
 
@@ -471,6 +472,8 @@ edit.
 - **⋯ opens the same sheet as long-pressing the message**, and React and
   Reply follow its rule: shown only where the user can post and the item
   is sent.
+- **Opened before the chat's timeline exists** (from Room info, say), the
+  viewer hides ⋯, reactions and Forward instead of failing.
 - **Reply and Edit return to the chat**, closing every screen above it (the
   viewer, the Media page, Room info), and start in the composer.
 - **Reaction chips** show every reaction with its count, the user's own
@@ -491,6 +494,8 @@ edit.
 - **Opening flies the photo from its thumbnail, and closing flies it
   back.** Only the opened item flies back; one reached by swiping fades
   out. With reduced motion the viewer appears and leaves at once.
+- **Not built**: Show in chat (dropped), editing, cropping, a slideshow
+  and video zoom.
 
 ## Forwarding
 
@@ -596,7 +601,8 @@ flowchart TD
   and video viewers, so their controls and actions never drift apart.
 - **The media viewer shows no overall position** ("12 of 120"), because
   the room's total is unknown until all history has loaded; a gallery item
-  shows its place in its gallery instead.
+  shows its place in its gallery instead, as dots for a small gallery and
+  as "N of M" for a large one, since a gallery has no size limit.
 - **Media never falls back to the original bytes.** A failed photo or
   video preparation refuses the send, because the untouched file leaks
   metadata. The SDK's resizer sends the original when it fails, which is

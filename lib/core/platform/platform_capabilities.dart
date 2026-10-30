@@ -57,7 +57,6 @@ class PlatformCapabilities {
   final bool nseNotifications;
   final bool nativeNotificationActions;
   final bool notificationRetentionCheck;
-  final bool videoRendererNeedsDetach;
   final bool cameraStopsInBackground;
   final bool externalPaymentLinks;
   final bool nativeSensitiveFileExport;
@@ -118,7 +117,6 @@ class PlatformCapabilities {
     required this.nseNotifications,
     required this.nativeNotificationActions,
     required this.notificationRetentionCheck,
-    required this.videoRendererNeedsDetach,
     required this.cameraStopsInBackground,
     required this.externalPaymentLinks,
     required this.nativeSensitiveFileExport,
@@ -186,7 +184,6 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nseNotifications: false,
         nativeNotificationActions: false,
         notificationRetentionCheck: false,
-        videoRendererNeedsDetach: false,
         cameraStopsInBackground: false,
         externalPaymentLinks: true,
         nativeSensitiveFileExport: false,
@@ -251,7 +248,6 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nseNotifications: true,
         nativeNotificationActions: true,
         notificationRetentionCheck: true,
-        videoRendererNeedsDetach: true,
         cameraStopsInBackground: true,
         externalPaymentLinks: false,
         nativeSensitiveFileExport: true,

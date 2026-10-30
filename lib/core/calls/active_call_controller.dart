@@ -38,7 +38,6 @@ import 'platform/ongoing_call_presenter.dart';
 import 'platform/system_ring.dart';
 import 'show_over_lockscreen.dart';
 
-const _videoDrainDelay = Duration(milliseconds: 500);
 const _callConfirmPromptDelay = Duration(seconds: 30);
 const endMessagesWait = Duration(seconds: 15);
 
@@ -49,12 +48,6 @@ typedef _PictureInPictureOffer = ({
   String? streamId,
   String? ownerTag,
 });
-
-Future<void> _releaseAfterDetach(RTCVideoRenderer renderer) async {
-  await runBestEffort(renderer.setSrcObject, label: 'detach call video');
-  await Future<void>.delayed(_videoDrainDelay);
-  await runBestEffort(renderer.dispose, label: 'release call video');
-}
 
 final activeCallControllerProvider =
     NotifierProvider<ActiveCallControllers, ActiveCallController?>(
@@ -114,15 +107,13 @@ class ActiveCallController extends ChangeNotifier {
     required this._ownsDevice,
     required this._release,
   }) : _audioOutput = callAudioOutputFor(capabilities),
-       _systemPicksStartingRoute = capabilities.callKit,
-       _detachVideoBeforeRelease = capabilities.videoRendererNeedsDetach;
+       _systemPicksStartingRoute = capabilities.callKit;
 
   final CallSession session;
   final OngoingCallPresenter _ongoingCall;
   final CallTonePlayer _tones;
   final CallAudioOutput _audioOutput;
   final bool _systemPicksStartingRoute;
-  final bool _detachVideoBeforeRelease;
   final SerialLock _deviceEffects;
   final bool Function() _ownsDevice;
   final void Function() _release;
@@ -408,7 +399,7 @@ class ActiveCallController extends ChangeNotifier {
       return renderer;
     } catch (e, s) {
       reportCaught('create call video', e, s);
-      unawaited(runBestEffort(renderer.dispose, label: 'release call video'));
+      unawaited(_releaseRenderer(renderer));
       return null;
     }
   }
@@ -481,13 +472,8 @@ class ActiveCallController extends ChangeNotifier {
   bool _sameVideo(MediaStream? attached, MediaStream? wanted) =>
       attached?.id == wanted?.id && attached?.ownerTag == wanted?.ownerTag;
 
-  Future<void> _releaseRenderer(RTCVideoRenderer renderer) async {
-    if (_detachVideoBeforeRelease) {
-      unawaited(_releaseAfterDetach(renderer));
-    } else {
-      await runBestEffort(renderer.dispose, label: 'release call video');
-    }
-  }
+  Future<void> _releaseRenderer(RTCVideoRenderer renderer) =>
+      runBestEffort(renderer.dispose, label: 'release call video');
 
   void _syncPictureInPicture() {
     if (_finished) return;

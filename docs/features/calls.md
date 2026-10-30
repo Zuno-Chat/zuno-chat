@@ -452,22 +452,29 @@ two live engines and an "on hold" state other clients would have to
 understand.
 
 - **A ring is waiting while a live call other than the ringing one is
-  held**, one rule in `callWaitingProvider`. The provider hears ring
+  held**, an outgoing call nobody has answered yet included, one rule in
+  `callWaitingProvider`. The provider hears ring
   changes a microtask late, because the ring screen sets the ring while
   it builds, where no provider may change; code that needs the answer at
   once calls the same rule (`waitingRing`).
 - **Android:** the ring screen names the call on the line and offers End &
-  answer; a call-waiting beep plays on the call's audio route, and the
-  phone vibrates as the ring settings say, but never plays the ringtone.
+  answer; a call-waiting beep plays on the call's audio route (silent,
+  like ringback, while the Ringtone switch is off), and the phone vibrates
+  as the ring settings say, but never plays the ringtone.
   The heads-up keeps `CallStyle`, whose Answer label Android sets, so its
   second line says answering ends your current call.
 - **iOS:** CallKit shows its own End & Accept and plays its own tone,
-  because Zuno reports no hold support. Swift needs nothing for this.
+  because Zuno reports no hold support. Swift needs nothing for this:
+  CallKit already shows a second call, and call audio is released only
+  once no call remains.
 - **Answering is one handoff** (`ActiveCallNotifier.answer`): the call on
   the line hangs up as the user and the new session takes the device in
   the same step. The device is never released between the two, so audio
   mode, Bluetooth headset audio and the lock-screen display carry over,
-  and the old call's membership clear and end notice still go out.
+  and the old call's membership clear and end notice still go out. The
+  replaced call's screen then closes only its own route; without the
+  handoff, closing it also pops the ring page, and the new call is never
+  accepted.
 - **The answered call opens its microphone and camera only once the
   replaced call's engine has let go of them**, waiting at most a few
   seconds, because two engines must never hold the camera at once.
@@ -750,10 +757,6 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   because it reaches plugin internals by reflection and fails quietly.
 - iOS sets no codec preferences, because flutter_webrtc's iOS side would
   find the transceiver by its still-empty mid and hit the audio one.
-- iOS clears a renderer's `srcObject` shortly before disposing it
-  (`videoRendererNeedsDetach`), because flutter_webrtc's iOS renderer
-  crashes on queued frames and a crashed app never clears its
-  `m.call.member`.
 - Re-verify the `CallStyle` intents on a flutter_local_notifications
   major, because they copy its undocumented intent shape and a mis-wire
   fails only on a real tap.

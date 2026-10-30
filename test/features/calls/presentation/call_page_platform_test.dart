@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/active_call_provider.dart';
@@ -663,122 +662,6 @@ void main() {
 
       expect(harness.container.read(activeCallProvider), same(accepted));
       expect(harness.wakelockToggles, [false, true]);
-      await harness.close();
-    });
-  });
-
-  group('releasing video renderers', () {
-    List<String> rendererCalls(CallPageHarness harness, Object? texture) => [
-      for (final call in harness.webrtc)
-        if (call.arguments case {'textureId': final Object? id}
-            when id == texture)
-          switch (call.method) {
-            'videoRendererSetSrcObject' =>
-              (call.arguments as Map)['streamId'] == '' ? 'detach' : 'attach',
-            'videoRendererDispose' => 'dispose',
-            final method => method,
-          },
-    ];
-
-    Future<(FakeCallSession, Object?)> remoteOnCamera(
-      CallPageHarness harness,
-    ) async {
-      final session = await talking(harness, CallKind.video);
-      session.engine.setParticipants([
-        localParticipant(),
-        remoteParticipant(camera: true),
-      ]);
-      await harness.settle();
-      final shown = harness.webrtc.lastWhere(
-        (c) =>
-            c.method == 'videoRendererSetSrcObject' &&
-            (c.arguments as Map)['streamId'] == '@ann:example.org-video',
-      );
-      harness.webrtc.clear();
-      return (session, (shown.arguments as Map)['textureId']);
-    }
-
-    testWidgets('ios takes the video off the renderer of someone who left '
-        'and releases the renderer only after a pause', (tester) async {
-      final harness = CallPageHarness(tester, capabilities: iosCapabilities);
-      _NativeAudio(harness, route: 'earpiece');
-      final (session, texture) = await remoteOnCamera(harness);
-
-      session.engine.setParticipants([localParticipant()]);
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(rendererCalls(harness, texture), ['detach']);
-      expect(harness.rendererReleaseStarted(texture), isFalse);
-
-      await harness.untilRenderersReleased(1);
-      expect(rendererCalls(harness, texture), ['detach', 'dispose']);
-      await harness.close();
-    });
-
-    testWidgets('ios still releases the renderer when taking the video off '
-        'fails', (tester) async {
-      final harness = CallPageHarness(tester, capabilities: iosCapabilities);
-      _NativeAudio(harness, route: 'earpiece');
-      final (session, texture) = await remoteOnCamera(harness);
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(
-            const MethodChannel('FlutterWebRTC.Method'),
-            (call) async {
-              harness.webrtc.add(call);
-              if (call.method == 'videoRendererSetSrcObject') {
-                throw PlatformException(code: 'renderer gone');
-              }
-              return null;
-            },
-          );
-
-      session.engine.setParticipants([localParticipant()]);
-      await harness.untilRenderersReleased(1);
-
-      expect(rendererCalls(harness, texture), ['detach', 'dispose']);
-      await harness.close();
-    });
-
-    testWidgets('ios takes the video off every renderer before releasing it '
-        'when the call ends', (tester) async {
-      final harness = CallPageHarness(tester, capabilities: iosCapabilities);
-      _NativeAudio(harness, route: 'earpiece');
-      final (session, texture) = await remoteOnCamera(harness);
-      session.engine.setParticipants([
-        localParticipant(camera: true),
-        remoteParticipant(camera: true),
-      ]);
-      await harness.settle();
-      final local =
-          harness.webrtc
-                  .lastWhere((c) => c.method == 'videoRendererSetSrcObject')
-                  .arguments
-              as Map;
-      harness.webrtc.clear();
-
-      session.end();
-      await harness.untilRenderersReleased(2);
-
-      expect(rendererCalls(harness, texture), ['detach', 'dispose']);
-      expect(rendererCalls(harness, local['textureId']), ['detach', 'dispose']);
-      expect(local['textureId'], isNot(texture));
-      await harness.close();
-    });
-
-    testWidgets('android releases the renderer of someone who left straight '
-        'away, without taking the video off first', (tester) async {
-      final harness = CallPageHarness(
-        tester,
-        capabilities: androidCapabilities,
-      );
-      final (session, texture) = await remoteOnCamera(harness);
-
-      session.engine.setParticipants([localParticipant()]);
-      await tester.pump();
-      expect(harness.rendererReleaseStarted(texture), isTrue);
-
-      await harness.untilRenderersReleased(1);
-      expect(rendererCalls(harness, texture), ['dispose']);
       await harness.close();
     });
   });

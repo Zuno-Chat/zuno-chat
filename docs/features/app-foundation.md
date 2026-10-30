@@ -311,6 +311,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **The base is the region CLDR means by the bare language** (`pt` is Brazil), because Dart and iOS take plural rules from the file's tag: European Portuguese under `pt` would put 0 in the singular.
 - **Each language's glossary and style rules live in its own guide** in `docs/brand-voice/`; the rules every translation shares live once in `translating.md`, and `README.md` there is the English source.
 - **Every language must be complete**: a test fails when a translation misses a key or placeholder of the English template, so a new string ships with every language.
+- **A plural `count` that only picks the form has no `format`**, or gen-l10n emits an unused `countString` and root analyze fails.
 - **Layouts are checked per language**: the layout-matrix widget tests also run each translated language on the smallest phone with larger text, to catch longer text overflowing.
 - **The platform owns the language and Zuno stores nothing.** Settings → Account → Language is the only picker, and each language file names itself (`languageNativeName`), so adding a language needs no code change.
 - **The platform also picks which language file Zuno uses.** The generator puts a marker naming each file into its native resources, and Dart reads the one the platform resolved over `zuno/locale` at every engine start and locale change. Dart screens and native text therefore always agree, parent regions included (a phone in pt-AO gets pt-PT). If the read fails, Flutter's own resolution is used and the failure is reported.
@@ -407,7 +408,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **Changing the Team ID strands the App Group containers and the Keychain items**, because their identifiers carry it.
 - **Never call the AppDelegate's `registrar(forPlugin:)`, `hasPlugin` or `valuePublishedByPlugin`**, including a plugin README's `GeneratedPluginRegistrant.register(with: self)`: they silently start Flutter's `LaunchEngine`, a second engine with a second Matrix client.
 - **A headless engine's display links do not tick in the background**, so a ring or action wake must not wait on frames.
-- **Edit `project.pbxproj` only with CocoaPods' bundled xcodeproj gem** (`tool/xcode/add_sources.rb`, `remove_sources.rb`), because Xcode 27 saves it at an `objectVersion` CocoaPods cannot read. Keep "Embed Foundation Extensions" above "Run Script" in Runner, or Thin Binary forms a build cycle.
+- **Edit `project.pbxproj` only with CocoaPods' bundled xcodeproj gem** (`tool/xcode/add_sources.rb`, `remove_sources.rb`), because Xcode 27 saves it at an `objectVersion` CocoaPods cannot read; `add_sources.rb` puts `.caf` and `.xcstrings` files in the resources build phase. Keep "Embed Foundation Extensions" above "Run Script" in Runner, or Thin Binary forms a build cycle.
 - **Every target compiles in Swift 6 mode**, so a channel handler copies the `@MainActor` shape of those in `ios/Runner/`, and one run off the main thread crashes instead of racing.
 - **A missing usage-description key crashes on first use**, and permission_handler compiles out any permission whose key it cannot find, so builds from Xcode.app need `PERMISSION_HANDLER_INFO_PLIST` in launchd's environment, which a reboot clears.
 

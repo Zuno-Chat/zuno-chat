@@ -71,7 +71,9 @@ A soft tone when a message arrives in the open chat, and a lighter one when the 
 
 - **The incoming tone replaces the notification the open chat skips.** The open-chat decision plays it only where that notification would have sounded, so a muted chat or a quiet mentions-only message stays silent, and only for a message sent after the chat came on screen, since one sent earlier already sounded as a notification.
 - **The sent tone fires when one of your messages in the open chat reaches `EventStatus.sent`**, the local echo the SDK publishes once the server answers, so every send path counts while a failed send or a message from another device stays silent.
-- **One tone per burst and per gallery**, with the message tone's 2-second spacing, because a gallery's items reach the server one upload apart.
+- **A message that arrives before its key plays the incoming tone on arrival**, and its later decryption plays none.
+- **One tone per burst and per gallery**, with the message tone's 2-second spacing, because a gallery's items reach the server one upload apart; each tone keeps its own spacing, so a sent tone inside the incoming tone's window still plays.
+- **Do Not Disturb and Focus are not a rule**, because iOS gives an app no way to follow Focus for its own sounds without a new permission prompt.
 - **Native code keeps both tones quiet in silent or vibrate mode and on any call**, the phone's or another app's; Dart keeps them quiet while recording.
 - **Both tones play at the media volume**, which the volume keys set in the app, because an iOS system sound follows the ringer volume and Android's notification stream its own slider. Android plays them through `SoundPool` on media usage, iOS through `AVAudioPlayer` in the audio session's tone profile (`chats-messaging.md`).
 
@@ -245,7 +247,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **A refused VoIP registration** shows the module's answer under Calls until a registration goes through or the user signs out, since the home banner cannot say why calls will not ring.
 - **Send a test notification** goes through the module and Synapse's pusher, so it is unavailable without the module or under background sync. It shows even in front. On Android a test push never reaches Dart (`PushKind.TEST`), so Dart never fetches its fake event.
 - **Recent pushes** merges the FCM delivery log, the extension and app logs and the call ledger into one list, never with text or names. Android shows it only under FCM, the one mode where app code sees every push.
-- **Push target** shows this device's pusher details and last error, and lets the user remove other registrations.
+- **Push target** shows this device's pusher details and last error, and lets the user remove other registrations; the last error is raw exception text on purpose, since this is the technical diagnostics page.
 - **Share diagnostics** redacts Matrix ids, URLs and long tokens, and is always English because support reads it, while the screen follows the phone's language.
 
 ## Decisions
@@ -271,6 +273,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **Sygnal omits falsy counts and drops the empty badge push**, so an `unread` 0 clear may never arrive and the next sync cleans up instead.
 - **Background audio hardening mutes app-process sound** once no activity is visible, so one-shot sounds play as a channel's own sound, which the system plays.
 - **Release builds strip any resource only Dart names**, so `res/raw/keep.xml` keeps every one (the message tone and the notification icon), and a test fails if a sound or drawable Dart names is missing from it; without it the channel's tone fails to load and only Zuno's own vibration fires, and a notification without its icon is refused.
+- **The chat-tone player lives in the app module, not `zuno_notifications`**, because the tones are the app's own `res/raw` files, which a plugin can't reach; native code names them through `R.raw`, so resource shrinking keeps them with no `keep.xml` entry.
 - **Every tone comes from `tool/generate_tones.py` in the smallest format its player takes**: Ogg Vorbis for Android's players, µ-law WAV for call tones, which Android decodes itself into call audio, and IMA4 CAF for iOS alert and CallKit sounds; Android-only tones are limited to Android in `pubspec.yaml`, so the iPhone app doesn't ship them.
 - **An Android tone must be a file type the build stores uncompressed** (`.ogg` or `.wav`, never `.flac`), because the channel sound and the ringtone open it by file descriptor, which fails on a compressed file.
 - **Never reuse a retired channel id** (`messages`, `messages_group`, `messages_sound_v1`, `messages_group_sound_v1`), because recreating one restores its old settings.
