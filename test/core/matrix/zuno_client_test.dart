@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
@@ -159,6 +160,56 @@ class _PushFetchClient extends ZunoClient with TestDecryption {
   Future<MatrixEvent> getOneRoomEvent(String roomId, String eventId) async =>
       onServer!;
 }
+
+class _SyncingDatabase extends FakeDatabaseApi with SendCapableDatabase {
+  @override
+  Future<void> forgetRoom(String roomId) async {}
+
+  @override
+  Future<void> deleteTimelineForRoom(String roomId) async {}
+
+  @override
+  Future<void> storeSyncFilterId(String syncFilterId) async {}
+
+  @override
+  Future<void> storePrevBatch(String? prevBatch) async {}
+
+  @override
+  Future<void> deleteOldFiles(int savedAt) async {}
+}
+
+ZunoClient _syncClient(FakeHttpHandler serve) {
+  final client = ZunoClient(
+    'Zuno',
+    database: _SyncingDatabase(),
+    httpClient: FakeHttpClient(
+      (request) async => request.url.path.endsWith('/filter')
+          ? http.Response(jsonEncode({'filter_id': 'f1'}), 200)
+          : serve(request),
+    ),
+  )..setUserId('@me:example.org');
+  client
+    ..homeserver = Uri.parse('https://example.org')
+    ..bearerToken = 'token'
+    ..backgroundSync = false
+    ..syncErrorTimeoutSec = 0
+    ..importantStateEvents.add('m.call.member');
+  return client;
+}
+
+Map<String, Object?> _callMember(String eventId, {required int memberships}) =>
+    {
+      'type': 'm.call.member',
+      'state_key': '@bob:example.org',
+      'sender': '@bob:example.org',
+      'event_id': eventId,
+      'origin_server_ts': 1,
+      'content': {
+        'memberships': [
+          for (var i = 0; i < memberships; i++) {'call_id': 'c1'},
+        ],
+      },
+    };
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -405,6 +456,122 @@ void main() {
 
       expect(calls.map((c) => c.method), ['acquire', 'release']);
       expect(calls.last.arguments, {'token': 'lease-7'});
+    });
+  });
+
+  group('room state at the end of each sync', () {
+    const roomId = '!room:example.org';
+
+    Future<ZunoClient> synced(Map<String, Object?> rooms) async {
+      final client = _syncClient(
+        (_) async => http.Response(
+          jsonEncode({'next_batch': 's2', 'rooms': rooms}),
+          200,
+        ),
+      );
+      await client.oneShotSync(timeout: Duration.zero);
+      return client;
+    }
+
+    List<Object?>? memberships(ZunoClient client) =>
+        client
+                .getRoomById(roomId)
+                ?.getState('m.call.member', '@bob:example.org')
+                ?.content['memberships']
+            as List<Object?>?;
+
+    test('is asked for on every sync', () async {
+      Uri? asked;
+      final client = _syncClient((request) async {
+        if (request.url.path.endsWith('/sync')) asked = request.url;
+        return http.Response(jsonEncode({'next_batch': 's2'}), 200);
+      });
+
+      await client.oneShotSync(timeout: Duration.zero);
+
+      expect(asked!.queryParameters['use_state_after'], 'true');
+    });
+
+    test('reaches a joined room through the sync loop', () async {
+      final client = await synced({
+        'join': {
+          roomId: {
+            'state_after': {
+              'events': [_callMember(r'$left', memberships: 0)],
+            },
+          },
+        },
+      });
+
+      expect(memberships(client), isEmpty);
+    });
+
+    test('keeps a newly joined room encrypted, so nothing goes out in the '
+        'clear', () async {
+      final client = await synced({
+        'join': {
+          roomId: {
+            'state_after': {
+              'events': [
+                {
+                  'type': EventTypes.Encryption,
+                  'state_key': '',
+                  'sender': '@bob:example.org',
+                  'event_id': r'$encryption',
+                  'origin_server_ts': 1,
+                  'content': {'algorithm': AlgorithmTypes.megolmV1AesSha2},
+                },
+              ],
+            },
+          },
+        },
+      });
+
+      expect(client.getRoomById(roomId)!.encrypted, isTrue);
+    });
+
+    test(
+      'a server that still sends the state at the start keeps working',
+      () async {
+        final client = await synced({
+          'join': {
+            roomId: {
+              'state': {
+                'events': [_callMember(r'$joined', memberships: 1)],
+              },
+            },
+          },
+        });
+
+        expect(memberships(client), hasLength(1));
+      },
+    );
+
+    test('a room left during the sync still gets its final state', () async {
+      final client = _syncClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'next_batch': 's2',
+            'rooms': {
+              'leave': {
+                roomId: {
+                  'state_after': {
+                    'events': [_callMember(r'$left', memberships: 0)],
+                  },
+                },
+              },
+            },
+          }),
+          200,
+        ),
+      );
+      final applied = <String?>[];
+      client.onRoomState.stream.listen((u) => applied.add(u.state.stateKey));
+
+      await client.oneShotSync(timeout: Duration.zero);
+      await pumpEventQueue();
+
+      expect(applied, ['@bob:example.org']);
     });
   });
 }

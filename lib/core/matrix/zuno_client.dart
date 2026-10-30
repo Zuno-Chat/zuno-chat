@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:http/http.dart' show Request;
 import 'package:matrix/matrix.dart';
 
 import 'client_lease.dart';
@@ -161,6 +164,49 @@ class ZunoClient extends Client {
       );
     }
     return event;
+  }
+
+  @override
+  Future<SyncUpdate> sync({
+    String? filter,
+    String? since,
+    bool? fullState,
+    PresenceType? setPresence,
+    int? timeout,
+    bool? useStateAfter,
+  }) async {
+    final request = Request(
+      'GET',
+      baseUri!.resolveUri(
+        Uri(
+          path: '_matrix/client/v3/sync',
+          queryParameters: {
+            'filter': ?filter,
+            'since': ?since,
+            if (fullState != null) 'full_state': '$fullState',
+            if (setPresence != null) 'set_presence': setPresence.name,
+            if (timeout != null) 'timeout': '$timeout',
+            'use_state_after': 'true',
+          },
+        ),
+      ),
+    );
+    request.headers['authorization'] = 'Bearer ${bearerToken!}';
+    final response = await httpClient.send(request);
+    final body = await response.stream.toBytes();
+    if (response.statusCode != 200) unexpectedResponse(response, body);
+    final json = jsonDecode(utf8.decode(body)) as Map<String, Object?>;
+    if (json['rooms'] case final Map<String, Object?> rooms) {
+      for (final section in [rooms['join'], rooms['leave']]) {
+        if (section is! Map<String, Object?>) continue;
+        for (final room in section.values.whereType<Map<String, Object?>>()) {
+          if (room.remove('state_after') case final after?) {
+            room['state'] = after;
+          }
+        }
+      }
+    }
+    return SyncUpdate.fromJson(json);
   }
 
   Future<void>? syncForPush({Duration? timeout}) =>

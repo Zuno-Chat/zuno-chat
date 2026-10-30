@@ -294,6 +294,7 @@ stateDiagram-v2
 - A live share needs sync for watches and membership changes (`location-sharing.md`), and background-service delivery for every notification (`notifications.md`).
 - Background-only sync uses a longer long-poll, because an idle long-poll costs a radio wake-up per round and returns as soon as anything arrives. A long-poll cut after a long wait means something between the device and the server cuts long requests, so the session falls back to the short length.
 - Turning sync off never cancels anything: the request in flight finishes and is processed.
+- Every sync asks for the room state at the end of its timeline (`state_after`, Matrix v1.16, Synapse 1.164 or later) and hands it to the SDK as the room's `state`, because the state at the start of the timeline lets two events sent at once roll room state back, which kept a hung-up caller's call listed until its membership expired. Older servers ignore the request and keep the old behaviour.
 - Coming back to the front, or the network coming back, cancels a request still waiting for its response and sends a fresh one, because a request sent before the app froze or the network dropped can hang until it times out.
 - A cancel closes the connection (an abortable `/sync` request in the HTTP chain); `abortSync()` only orphans the request until the server answers.
 - Background-only sync backs off after repeated failures, until a new reason, the network or the front ends the wait. In front, in a call or during a ring, it keeps the SDK's quick retry.
