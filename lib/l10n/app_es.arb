@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Aún se está cifrando. Si sigue así, cuelga y vuelve a intentarlo.",
   "callsEndAndAnswer": "Colgar y aceptar",
   "callsEndCall": "Colgar",
+  "callsEnded": "Llamada finalizada",
   "callsFailureCallFull": "{count, plural, one{Esta llamada está completa. Una llamada admite hasta {count} persona.} other{Esta llamada está completa. Una llamada admite hasta {count} personas.}}",
   "callsFailureConnectionLost": "Se ha perdido la conexión",
   "callsFailureDidNotConnect": "La llamada no se ha conectado",

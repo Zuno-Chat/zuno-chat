@@ -205,6 +205,22 @@ void main() {
       expect(find.byTooltip('Switch camera'), findsOneWidget);
     });
 
+    testWidgets('a call that has ended says so on the voice stage, showing '
+        'nobody the engine still lists', (tester) async {
+      await pump(
+        tester,
+        kind: CallKind.video,
+        status: CallStatus.ended,
+        localCamera: true,
+        remote: [person('Ann', camera: true)],
+      );
+
+      expect(find.byType(VoiceCallStage), findsOneWidget);
+      expect(find.text('Call ended'), findsOneWidget);
+      expect(find.text('Ann'), findsNothing);
+      expect(find.byType(ParticipantTile), findsNothing);
+    });
+
     testWidgets('the person answering sees Connecting, and nobody the engine '
         'already lists', (tester) async {
       await pump(tester, connecting: true, remote: [person('Ann')]);

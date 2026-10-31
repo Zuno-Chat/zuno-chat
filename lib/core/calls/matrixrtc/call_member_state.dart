@@ -82,6 +82,17 @@ Iterable<CallJoin> callJoins(Room room, String callId) sync* {
   }
 }
 
+const _leftCallIdKey = 'left_call_id';
+
+Map<String, Object?> leavingCallMembership(String callId) => {
+  'memberships': <Object?>[],
+  _leftCallIdKey: callId,
+};
+
+bool hasLeftCall(Room room, String userId, String callId) =>
+    room.states[callMemberEventType]?[userId]?.content[_leftCallIdKey] ==
+    callId;
+
 String? callMembershipEventId(Room room, String callId, {String? excluding}) =>
     callJoins(room, callId)
         .where((join) => join.userId != excluding && join.eventId != null)

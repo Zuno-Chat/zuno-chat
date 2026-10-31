@@ -167,6 +167,7 @@ class ActiveCallController extends ChangeNotifier {
   CallStatus get status {
     final local = _local;
     return callStatus(
+      ending: session.ending,
       calling: session.role == CallSessionRole.caller && !session.everHadRemote,
       connecting: connecting,
       someoneHere: !connecting && _remotes.isNotEmpty,
@@ -236,6 +237,7 @@ class ActiveCallController extends ChangeNotifier {
       scheduleMicrotask(leave);
       return;
     }
+    unawaited(session.endingStarted.then((_) => _onEnding()));
     unawaited(_attachEngine());
     unawaited(_init());
   }
@@ -344,6 +346,12 @@ class ActiveCallController extends ChangeNotifier {
         (Object e, StackTrace s) =>
             reportCaught('start the ongoing-call notice', e, s),
       );
+
+  void _onEnding() {
+    if (_finished || _released) return;
+    _notify();
+    _syncRingback();
+  }
 
   void _onPhase(CallSessionPhase phase) {
     if (_finished) return;
@@ -551,10 +559,7 @@ class ActiveCallController extends ChangeNotifier {
 
   void _syncRingback() {
     if (session.role != CallSessionRole.caller) return;
-    _tone(
-      CallTone.ringback,
-      on: !session.everHadRemote && session.phase != CallSessionPhase.ended,
-    );
+    _tone(CallTone.ringback, on: !session.everHadRemote && !session.ending);
   }
 
   void _tone(CallTone tone, {required bool on}) =>

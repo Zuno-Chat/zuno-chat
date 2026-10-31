@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Ende po enkriptohet. Nëse vazhdon kështu, mbyll thirrjen dhe provo sërish.",
   "callsEndAndAnswer": "Mbylle dhe përgjigju",
   "callsEndCall": "Mbyll thirrjen",
+  "callsEnded": "Thirrja përfundoi",
   "callsFailureCallFull": "{count, plural, one{Kjo thirrje është plot. Në një thirrje mund të bashkohet deri në {count} person.} other{Kjo thirrje është plot. Në një thirrje mund të bashkohen deri në {count} persona.}}",
   "callsFailureConnectionLost": "Lidhja u ndërpre",
   "callsFailureDidNotConnect": "Thirrja nuk u lidh",

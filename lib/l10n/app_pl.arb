@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Szyfrowanie nadal trwa. Jeśli to się przedłuża, rozłącz się i spróbuj ponownie.",
   "callsEndAndAnswer": "Rozłącz i odbierz",
   "callsEndCall": "Rozłącz",
+  "callsEnded": "Połączenie zakończone",
   "callsFailureCallFull": "{count, plural, one{To połączenie jest pełne. Może w nim uczestniczyć maksymalnie {count} osoba.} few{To połączenie jest pełne. Mogą w nim uczestniczyć maksymalnie {count} osoby.} many{To połączenie jest pełne. Może w nim uczestniczyć maksymalnie {count} osób.} other{To połączenie jest pełne. Może w nim uczestniczyć maksymalnie {count} osób.}}",
   "callsFailureConnectionLost": "Utracono połączenie",
   "callsFailureDidNotConnect": "Nie udało się nawiązać połączenia",

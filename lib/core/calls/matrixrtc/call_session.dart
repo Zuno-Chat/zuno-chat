@@ -186,7 +186,11 @@ class CallSession {
     _phaseController.add(phase);
   }
 
-  bool get ending => _hangUp != null || _phase == CallSessionPhase.ended;
+  final _endingStarted = Completer<void>();
+
+  Future<void> get endingStarted => _endingStarted.future;
+
+  bool get ending => _endingStarted.isCompleted;
 
   Future<void> get engineReleased => _engineTeardown ?? Future<void>.value();
 
@@ -264,6 +268,7 @@ class CallSession {
   }
 
   Future<void> _end(String why) async {
+    if (!_endingStarted.isCompleted) _endingStarted.complete();
     _releaseListeners();
     await _tearDownEngine(why);
     _setPhase(CallSessionPhase.ended);
@@ -892,7 +897,8 @@ class CallSession {
   }
 
   Future<void> _clearOwnMembership() => runBestEffort(
-    () => writeOwnCallMembership(client, _roomId, {'memberships': <Object?>[]}),
+    () =>
+        writeOwnCallMembership(client, _roomId, leavingCallMembership(callId)),
     label: 'clear our call membership',
   );
 
@@ -939,7 +945,11 @@ class CallSession {
       eng.updateRemoteParticipant(id, membership.fociActive);
     }
 
-    for (final id in _knownRemote.difference(seenThisPass)) {
+    final departed = _knownRemote.difference(seenThisPass);
+    final hungUp =
+        departed.isNotEmpty &&
+        departed.every((id) => hasLeftCall(room, id.userId, callId));
+    for (final id in departed) {
       eng.removeRemoteParticipant(id);
       _knownRemote.remove(id);
       _knownRemoteSessions.remove(id);
@@ -954,7 +964,7 @@ class CallSession {
     }
     _consecutiveEmptyReconciles++;
     if (!_everHadRemote || _phase != CallSessionPhase.active) return;
-    if (_consecutiveEmptyReconciles >= 2) {
+    if (hungUp || _consecutiveEmptyReconciles >= 2) {
       unawaited(hangUp());
       return;
     }

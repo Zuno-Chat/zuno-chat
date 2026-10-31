@@ -67,6 +67,15 @@ class FakeCallSession implements CallSession {
   @override
   Future<void> engineReleased = Future<void>.value();
 
+  final _endingStarted = Completer<void>();
+
+  @override
+  Future<void> get endingStarted => _endingStarted.future;
+
+  void _startEnding() {
+    if (!_endingStarted.isCompleted) _endingStarted.complete();
+  }
+
   bool microphoneGranted = true;
   bool disposed = false;
   int membershipRefreshes = 0;
@@ -106,6 +115,7 @@ class FakeCallSession implements CallSession {
   Future<void> hangUp({bool byUser = false, bool summarized = false}) async {
     hangUpsByUser.add(byUser);
     hangUpsSummarized.add(summarized);
+    _startEnding();
     journal?.add(byUser ? 'call ended' : 'call dropped');
   }
 
@@ -119,6 +129,7 @@ class FakeCallSession implements CallSession {
   void dispose() => disposed = true;
 
   void moveTo(CallSessionPhase next) {
+    if (next == CallSessionPhase.ended) _startEnding();
     _phase = next;
     _phases.add(next);
   }

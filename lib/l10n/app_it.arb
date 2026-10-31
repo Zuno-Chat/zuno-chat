@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Crittografia ancora in corso. Se persiste, termina la chiamata e riprova.",
   "callsEndAndAnswer": "Termina e accetta",
   "callsEndCall": "Termina chiamata",
+  "callsEnded": "Chiamata terminata",
   "callsFailureCallFull": "{count, plural, one{Questa chiamata è al completo. Può partecipare al massimo {count} persona.} other{Questa chiamata è al completo. Possono partecipare al massimo {count} persone.}}",
   "callsFailureConnectionLost": "Connessione persa",
   "callsFailureDidNotConnect": "Impossibile connettere la chiamata",

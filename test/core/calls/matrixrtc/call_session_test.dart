@@ -38,6 +38,7 @@ import '../../../helpers/send_recording_room.dart';
 
 const _me = '@me:example.org';
 const _bob = '@bob:example.org';
+const _carol = '@carol:example.org';
 const _caller = '@caller:example.org';
 const _mallory = '@mallory:example.org';
 
@@ -2157,6 +2158,62 @@ void main() {
         .where((content) => content['msgtype'] == callSummaryMsgtype)
         .length;
 
+    test('the clear a hang-up writes names the call it leaves', () async {
+      final memberPuts = <String>[];
+      final session = incoming(
+        inRoom: sendRoom(loggingMemberPuts(memberPuts)),
+        engine: FakeCallEngine(),
+      );
+      await session.accept();
+
+      await session.hangUp(byUser: true);
+
+      expect(jsonDecode(memberPuts.last), {
+        'memberships': <Object?>[],
+        'left_call_id': 'call1',
+      });
+    });
+
+    test('the call says it is ending as soon as a hang-up starts, before '
+        'the teardown finishes', () async {
+      final engine = FakeCallEngine()..leaveGate = Completer<void>();
+      final session = incoming(inRoom: sendRoom(), engine: engine);
+      await session.accept();
+      var endingStarted = false;
+      unawaited(session.endingStarted.then((_) => endingStarted = true));
+
+      final hangingUp = session.hangUp();
+      await pumpEventQueue();
+
+      expect(endingStarted, isTrue);
+      expect(session.ending, isTrue);
+      expect(session.phase, CallSessionPhase.active);
+      engine.leaveGate!.complete();
+      await hangingUp;
+    });
+
+    test('a call ending because its room was left says it is ending before '
+        'the teardown finishes', () async {
+      final engine = FakeCallEngine()..leaveGate = Completer<void>();
+      final r = sendRoom();
+      final session = incoming(inRoom: r, engine: engine);
+      await session.accept();
+
+      client.onSync.add(
+        SyncUpdate(
+          nextBatch: 'next',
+          rooms: RoomsUpdate(leave: {r.id: LeftRoomUpdate()}),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(session.ending, isTrue);
+      expect(session.phase, CallSessionPhase.active);
+      engine.leaveGate!.complete();
+      await pumpEventQueue();
+      expect(session.phase, CallSessionPhase.ended);
+    });
+
     test('the end button marks the hang-up as the user\'s own', () async {
       final call = buildActiveCall();
       await call.session.accept();
@@ -2421,6 +2478,49 @@ void main() {
       expect(call.session.phase, CallSessionPhase.active);
       expect(call.engine.leaveCalls, 0);
     });
+
+    test('a remote that hangs up ends the call on the first pass that shows '
+        'it, with no confirmation wait', () async {
+      final call = await startJoinedCall();
+
+      hangUpFromCall(call.room, userId: _bob, callId: 'call1');
+      await sync();
+
+      expect(call.session.phase, CallSessionPhase.ended);
+      expect(call.session.endReason, CallEndReason.hungUp);
+      expect(call.engine.leaveCalls, 1);
+    });
+
+    test('a clear naming another call still waits for confirmation, since '
+        'it can be a late write from an earlier call', () async {
+      final call = await startJoinedCall();
+
+      hangUpFromCall(call.room, userId: _bob, callId: 'an-earlier-call');
+      await sync();
+
+      expect(call.session.phase, CallSessionPhase.active);
+      expect(call.engine.leaveCalls, 0);
+    });
+
+    test(
+      'one person hanging up leaves the call running for the rest',
+      () async {
+        final r = sendRoom();
+        joinTheCall(r, _bob, deviceId: 'BOBDEVICE');
+        joinTheCall(r, _carol, deviceId: 'CAROLDEVICE');
+        final engine = FakeCallEngine();
+        final session = incoming(inRoom: r, engine: engine);
+        await session.accept();
+        await pumpEventQueue();
+
+        hangUpFromCall(r, userId: _carol, callId: 'call1');
+        await sync();
+        await sync();
+
+        expect(session.phase, CallSessionPhase.active);
+        expect(engine.leaveCalls, 0);
+      },
+    );
   });
 
   group('a call already taken on another of my devices', () {
@@ -3197,7 +3297,10 @@ void main() {
       expect(call.session.endReason, CallEndReason.removed);
       expect(call.session.removedBy, mod);
       expect(call.session.failure, isNull);
-      expect(jsonDecode(call.puts.last), {'memberships': <Object?>[]});
+      expect(jsonDecode(call.puts.last), {
+        'memberships': <Object?>[],
+        'left_call_id': 'call1',
+      });
       expect(call.room.attempts, isEmpty);
     });
 

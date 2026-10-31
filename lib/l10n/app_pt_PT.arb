@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Ainda a encriptar. Se isto se prolongar, termine a chamada e tente novamente.",
   "callsEndAndAnswer": "Terminar e aceitar",
   "callsEndCall": "Terminar chamada",
+  "callsEnded": "Chamada terminada",
   "callsFailureCallFull": "{count, plural, one{Esta chamada está cheia. Uma chamada admite até {count} pessoa.} other{Esta chamada está cheia. Uma chamada admite até {count} pessoas.}}",
   "callsFailureConnectionLost": "Ligação perdida",
   "callsFailureDidNotConnect": "Não foi possível estabelecer a chamada",

@@ -276,4 +276,34 @@ void main() {
       expect(canStartCall(roomWith(joined: 2, stateDefault: 50)), isFalse);
     });
   });
+
+  group('a hang-up', () {
+    Room room() => buildTestRoom(buildTestClient(userId: '@alice:example.org'));
+
+    test('writes no membership and names the call it leaves', () {
+      final content = leavingCallMembership('c1');
+
+      expect(content, {'memberships': <Object?>[], 'left_call_id': 'c1'});
+      expect(parseRtcMemberships(content), isEmpty);
+    });
+
+    test('reads as that account having left that call, and no other', () {
+      final r = room();
+      hangUpFromCall(r, userId: '@bob:example.org', callId: 'c1');
+
+      expect(hasLeftCall(r, '@bob:example.org', 'c1'), isTrue);
+      expect(hasLeftCall(r, '@bob:example.org', 'c2'), isFalse);
+      expect(hasLeftCall(r, '@carol:example.org', 'c1'), isFalse);
+    });
+
+    test('an account still in the call, or cleared without naming it, has '
+        'not left it', () {
+      final r = room();
+      joinCall(r, userId: '@bob:example.org', deviceId: 'BOB');
+      leaveCalls(r, userId: '@carol:example.org');
+
+      expect(hasLeftCall(r, '@bob:example.org', 'c1'), isFalse);
+      expect(hasLeftCall(r, '@carol:example.org', 'c1'), isFalse);
+    });
+  });
 }

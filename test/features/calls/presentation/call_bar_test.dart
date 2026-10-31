@@ -20,6 +20,10 @@ void main() {
     expect(labelOf(CallStatus.encrypting), 'Encrypting…');
   });
 
+  test('a call that has ended says so', () {
+    expect(labelOf(CallStatus.ended), 'Call ended');
+  });
+
   test('each waiting state has its own short word', () {
     expect(labelOf(CallStatus.calling), 'Calling…');
     expect(labelOf(CallStatus.connecting), 'Connecting…');

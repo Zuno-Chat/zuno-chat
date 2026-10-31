@@ -39,6 +39,7 @@ class CallStatusLine extends StatelessWidget {
     return switch (status) {
       CallStatus.calling => Text(l10n.callsCalling, style: style),
       CallStatus.connecting => Text(l10n.callsConnecting, style: style),
+      CallStatus.ended => Text(l10n.callsEnded, style: style),
       CallStatus.waiting => Text(
         l10n.callsWaitingForOther,
         style: style,

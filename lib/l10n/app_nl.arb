@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Nog bezig met versleutelen. Blijft dit zo, hang dan op en probeer het opnieuw.",
   "callsEndAndAnswer": "Ophangen en opnemen",
   "callsEndCall": "Ophangen",
+  "callsEnded": "Oproep beëindigd",
   "callsFailureCallFull": "{count, plural, one{Deze oproep is vol. Er kan maximaal {count} persoon deelnemen.} other{Deze oproep is vol. Er kunnen maximaal {count} personen deelnemen.}}",
   "callsFailureConnectionLost": "Verbinding verbroken",
   "callsFailureDidNotConnect": "Oproep kwam niet tot stand",

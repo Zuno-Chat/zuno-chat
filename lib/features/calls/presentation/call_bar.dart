@@ -21,6 +21,7 @@ String? callBarLabel(
     CallStatus.waiting => l10n.callsWaiting,
     CallStatus.encrypting => l10n.callsEncrypting,
     CallStatus.talking => null,
+    CallStatus.ended => l10n.callsEnded,
   };
 }
 

@@ -83,6 +83,16 @@ stateDiagram-v2
   hangs up when nobody else is there a short while after it connects, and
   ends when the call's summary arrives before anyone was, since the caller
   has already given up.
+- **A call everyone else has left ends by itself.** A hang-up's membership
+  clear names the call it leaves (`left_call_id`), so the others end at
+  once; any other empty roster (an expired entry, a late clear from an
+  earlier call, an older client's plain clear, a rollback on servers older
+  than Synapse 1.164) waits for a second empty pass, since it can be a
+  blip.
+- **A call is ending from the moment its teardown starts, whatever ends
+  it.** From then the call screen and bar say "Call ended" with nobody on
+  the stage, and the ringback stops, because the teardown drops the other
+  people before the call has ended, which would otherwise read as waiting.
 - **Ended means torn down locally.** The membership clear and the end
   notice go out after the phase turns ended, so each platform keeps the
   process alive until they leave, for a bounded time: Android keeps the
@@ -747,8 +757,6 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   every audio section clears WebRTC's shared start value on each
   description, so a start on a newly pulled video section would restart
   the estimate whenever someone's tracks are pulled.
-- "Everyone left" needs two empty passes, because a republish can read as
-  empty once.
 - "Was this call answered" is a flag set once (`everHadRemote`), because a
   departing participant leaves the roster before the auto hang-up checks
   it.

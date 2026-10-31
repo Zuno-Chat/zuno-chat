@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Chiffrement toujours en cours. Si cela persiste, raccrochez et réessayez.",
   "callsEndAndAnswer": "Raccrocher et accepter",
   "callsEndCall": "Raccrocher",
+  "callsEnded": "Appel terminé",
   "callsFailureCallFull": "{count, plural, one{Cet appel est complet. Un appel peut réunir jusqu’à {count} personne.} other{Cet appel est complet. Un appel peut réunir jusqu’à {count} personnes.}}",
   "callsFailureConnectionLost": "Connexion perdue",
   "callsFailureDidNotConnect": "L’appel n’a pas abouti",

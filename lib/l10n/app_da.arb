@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Krypterer stadig. Hvis det fortsætter, så læg på, og prøv igen.",
   "callsEndAndAnswer": "Læg på og besvar",
   "callsEndCall": "Læg på",
+  "callsEnded": "Opkald afsluttet",
   "callsFailureCallFull": "{count, plural, one{Opkaldet er fuldt. Der kan højst være {count} person i et opkald.} other{Opkaldet er fuldt. Der kan højst være {count} personer i et opkald.}}",
   "callsFailureConnectionLost": "Forbindelsen blev afbrudt",
   "callsFailureDidNotConnect": "Opkaldet kunne ikke forbindes",

@@ -447,6 +447,63 @@ void main() {
         CallStatus.encrypting,
       );
     });
+
+    Future<(FakeCallSession, ActiveCallController)> talking() async {
+      CallChannelMocks();
+      final container = containerWithControllers();
+      final call = voiceCall();
+      container.read(activeCallProvider.notifier).set(call);
+      await pumpEventQueue();
+      call.moveTo(CallSessionPhase.active);
+      call.engine.setParticipants([localParticipant(), remoteParticipant()]);
+      await pumpEventQueue();
+      return (call, container.read(activeCallControllerProvider)!);
+    }
+
+    test('a call hanging up says it ended at once, and still does once its '
+        'teardown drops the other person', () async {
+      final (call, controller) = await talking();
+      var redrawn = 0;
+      controller.addListener(() => redrawn++);
+
+      unawaited(call.hangUp());
+      await pumpEventQueue();
+
+      expect(redrawn, greaterThan(0));
+      expect(controller.status, CallStatus.ended);
+
+      call.engine.setParticipants([localParticipant()]);
+      await pumpEventQueue();
+
+      expect(controller.status, CallStatus.ended);
+    });
+
+    test('an ended call says so, never that it is connecting', () async {
+      final (call, controller) = await talking();
+
+      call.end();
+      await pumpEventQueue();
+
+      expect(controller.status, CallStatus.ended);
+    });
+  });
+
+  test('the ringback stops as soon as the caller hangs up', () async {
+    CallChannelMocks();
+    final container = containerWithControllers();
+    final caller = FakeCallSession(
+      room: buildCallRoom(),
+      kind: CallKind.voice,
+      role: CallSessionRole.caller,
+    );
+    container.read(activeCallProvider.notifier).set(caller);
+    await pumpEventQueue();
+    expect(NativeCallTonePlayer.callAudio.playing, {CallTone.ringback});
+
+    unawaited(caller.hangUp());
+    await pumpEventQueue();
+
+    expect(NativeCallTonePlayer.callAudio.playing, isEmpty);
   });
 
   test('a call that has already ended never builds its engine', () async {

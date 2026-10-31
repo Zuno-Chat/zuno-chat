@@ -89,7 +89,9 @@ class CallView extends StatefulWidget {
     this.mutedBy,
   });
 
-  List<CallViewParticipant> get present => connecting ? const [] : remote;
+  bool get live => !connecting && status != CallStatus.ended;
+
+  List<CallViewParticipant> get present => live ? remote : const [];
 
   @override
   State<CallView> createState() => _CallViewState();
@@ -136,12 +138,12 @@ class _CallViewState extends State<CallView> {
         present.length == 1 &&
         (widget.kind == CallKind.video ||
             present.single.participant.videoEnabled);
-    final self = widget.kind == CallKind.video && !group && !widget.connecting
+    final self = widget.kind == CallKind.video && !group && widget.live
         ? widget.local
         : null;
     final local = widget.local;
     final sendingVideo = local?.participant.videoEnabled ?? false;
-    final shownQuality = widget.connecting ? CallQuality.good : widget.quality;
+    final shownQuality = widget.live ? widget.quality : CallQuality.good;
     final qualityLabel = ConnectionQualityPill.labelFor(
       context.l10n,
       shownQuality,

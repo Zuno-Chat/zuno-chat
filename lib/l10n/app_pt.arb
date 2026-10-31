@@ -93,6 +93,7 @@
   "callsEncryptingHint": "Ainda criptografando. Se isso continuar, encerre a chamada e tente novamente.",
   "callsEndAndAnswer": "Encerrar e aceitar",
   "callsEndCall": "Encerrar chamada",
+  "callsEnded": "Chamada encerrada",
   "callsFailureCallFull": "{count, plural, one{Esta chamada está cheia. Até {count} pessoa pode entrar em uma chamada.} other{Esta chamada está cheia. Até {count} pessoas podem entrar em uma chamada.}}",
   "callsFailureConnectionLost": "Conexão perdida",
   "callsFailureDidNotConnect": "Não foi possível conectar a chamada",

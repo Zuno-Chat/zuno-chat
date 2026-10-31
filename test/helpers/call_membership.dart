@@ -64,3 +64,18 @@ void leaveCalls(Room room, {required String userId}) => room.setState(
     content: {'memberships': <Object?>[]},
   ),
 );
+
+void hangUpFromCall(
+  Room room, {
+  required String userId,
+  required String callId,
+}) => room.setState(
+  buildTestEvent(
+    room,
+    eventId: '\$hung-up-$userId-$callId',
+    senderId: userId,
+    stateKey: userId,
+    type: callMemberEventType,
+    content: leavingCallMembership(callId),
+  ),
+);

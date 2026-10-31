@@ -92,6 +92,7 @@
   "callsEncryptingHint": "Krypterar fortfarande. Om det fortsätter, lägg på och försök igen.",
   "callsEndAndAnswer": "Lägg på och svara",
   "callsEndCall": "Lägg på",
+  "callsEnded": "Samtalet avslutat",
   "callsFailureCallFull": "{count, plural, one{Samtalet är fullt. Högst {count} person kan ansluta till ett samtal.} other{Samtalet är fullt. Högst {count} personer kan ansluta till ett samtal.}}",
   "callsFailureConnectionLost": "Anslutningen bröts",
   "callsFailureDidNotConnect": "Samtalet kopplades inte upp",

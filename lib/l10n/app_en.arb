@@ -278,6 +278,10 @@
   "@callsEndCall": {
     "description": "Tooltip on the call control: hang up"
   },
+  "callsEnded": "Call ended",
+  "@callsEnded": {
+    "description": "Call status once the call has ended, shown while the call screen closes"
+  },
   "callsFailureCallFull": "{count, plural, one{This call is full. Up to {count} person can join a call.} other{This call is full. Up to {count} people can join a call.}}",
   "@callsFailureCallFull": {
     "placeholders": {
