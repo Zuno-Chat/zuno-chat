@@ -36,16 +36,33 @@ object IncomingRing {
     private const val TONE_COPY = "zuno_ringtone"
 
     private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
-    private var ringingCallId: String? = null
+    private var ringing: RememberedRing? = null
     private var player: MediaPlayer? = null
     private var vibrator: Vibrator? = null
     private var timeout: Runnable? = null
     private var aloud: AloudRing? = null
 
     @Synchronized
+    fun <T> decide(context: Context, nowMs: Long, decision: (RingNow) -> T): T {
+        val app = context.applicationContext
+        val remembered = rememberedRing(app)
+        return decision(
+            RingNow(
+                showing = showing(app, remembered),
+                rememberedCallId = RingDecisions.remembersRing(remembered, nowMs),
+            ),
+        )
+    }
+
+    @Synchronized
+    fun active(context: Context): RememberedRing? = context.applicationContext.let {
+        showing(it, rememberedRing(it))
+    }
+
+    @Synchronized
     fun present(
         context: Context,
-        callId: String,
+        ring: RememberedRing,
         token: String,
         notification: Notification,
         toneKey: String?,
@@ -56,36 +73,30 @@ object IncomingRing {
         val app = context.applicationContext
         silence(app)
         ringPreferences(app).edit().putString(TOKEN_KEY, token).apply()
+        FlutterStore.preferences(app).edit()
+            .putString(FlutterStore.RINGING_CALL, ring.record())
+            .apply()
         NotificationManagerCompat.from(app).notify(NOTIFICATION_ID, notification)
-        ringingCallId = callId
+        ringing = ring
         player = toneKey?.let { startTone(app, it) }
         vibrator = vibrationPattern?.let { startVibration(app, it) }
         this.aloud = aloud
-        armTimeout(app, callId, ringMs)
+        armTimeout(app, ring.callId, ringMs)
     }
 
-    fun remember(context: Context, call: InstantRingCall, nowMs: Long) {
-        FlutterStore.preferences(context)
-            .edit()
-            .putString(FlutterStore.RINGING_CALL, RememberedRing.record(call, nowMs))
-            .apply()
-    }
-
-    fun rememberedCallId(context: Context, nowMs: Long): String? =
-        RingDecisions.remembersRing(rememberedRing(context.applicationContext), nowMs)
-
-    fun showingCallId(context: Context): String? {
-        val app = context.applicationContext
-        val showing = app.getSystemService(NotificationManager::class.java)
-            ?.activeNotifications
-            ?.any { it.id == NOTIFICATION_ID } == true
-        return RingDecisions.showingRing(showing, rememberedRing(app))
+    private fun showing(app: Context, remembered: RememberedRing?): RememberedRing? {
+        val inProcess = ringing
+        val listed = inProcess == null && remembered != null &&
+            app.getSystemService(NotificationManager::class.java)
+                ?.activeNotifications
+                ?.any { it.id == NOTIFICATION_ID } == true
+        return RingDecisions.showingRing(inProcess, listed, remembered)
     }
 
     @Synchronized
     fun ringAloud(context: Context, callId: String) {
         val next = aloud ?: return
-        if (ringingCallId != callId) return
+        if (ringing?.callId != callId) return
         aloud = null
         val app = context.applicationContext
         NotificationManagerCompat.from(app).notify(NOTIFICATION_ID, next.notification)
@@ -93,11 +104,20 @@ object IncomingRing {
     }
 
     @Synchronized
-    fun dismiss(context: Context, callId: String?): Boolean {
+    fun endFromServer(context: Context, callId: String, nowMs: Long) {
+        val app = context.applicationContext
+        FlutterStore.preferences(app).edit()
+            .putLong(FlutterStore.RESOLVED_CALL_PREFIX + callId, nowMs)
+            .apply()
+        dismiss(app, callId)
+    }
+
+    @Synchronized
+    fun dismiss(context: Context, callId: String?) {
         val app = context.applicationContext
         val decision = RingDecisions.cancel(
             callId,
-            ringingCallId,
+            ringing?.callId,
             rememberedRing(app),
             System.currentTimeMillis(),
         )
@@ -108,12 +128,11 @@ object IncomingRing {
             NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
             silence(app)
         }
-        return decision.dismiss
     }
 
     @Synchronized
     fun stopFor(context: Context, callId: String?, takeDownNotification: Boolean) {
-        if (!RingDecisions.stops(ringingCallId, callId)) return
+        if (!RingDecisions.stops(ringing?.callId, callId)) return
         val app = context.applicationContext
         if (takeDownNotification) NotificationManagerCompat.from(app).cancel(NOTIFICATION_ID)
         silence(app)
@@ -153,7 +172,7 @@ object IncomingRing {
     }
 
     private fun silence(app: Context) {
-        ringingCallId = null
+        ringing = null
         aloud = null
         ringPreferences(app).edit().remove(TOKEN_KEY).apply()
         player?.release()

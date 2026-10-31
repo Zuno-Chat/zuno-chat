@@ -32,7 +32,7 @@ stopped and every step shows at most once per account on this device.
 | `profile` | Just registered on this device | Save | this flow |
 | `notifications` | Permission not granted and not permanently denied | The OS answers; on Android, a follow-up page may ask for full-screen call alerts | `notifications.md`, `calls.md` |
 | `deliveryMethod` | More than one delivery mode is offered | Continue | `notifications.md` |
-| `batteryExemption` | The chosen mode needs a battery exemption the app lacks | The OS grants it | `notifications.md` |
+| `batteryExemption` | Android, while Zuno lacks a battery exemption, or UnifiedPush's distributor does | The OS grants it | `notifications.md` |
 | `autostart` | The maker has an autostart screen (Xiaomi, Oppo, Vivo, Huawei) | "Open settings"; Android cannot report the setting, so it is asked once | `notifications.md` |
 | `approveDevice` | Recovery exists and this device lacks identity keys | The approval page is gone | `security-verification.md` |
 | `setUpRecovery` | No recovery, at least one joined chat, prompt not on cooldown | The recovery page is gone | `security-verification.md` |
@@ -42,7 +42,8 @@ stopped and every step shows at most once per account on this device.
 The flow adjusts itself in two places:
 
 - **The delivery choice places the battery step**, inserting it right after
-  the choice or dropping it, depending on the mode picked.
+  the choice or dropping it, since only UnifiedPush also needs its
+  distributor exempt.
 - **Notifications gate the three delivery steps.** If the `notifications`
   step ends without a grant, the delivery, battery and autostart steps are
   dropped and marked shown.

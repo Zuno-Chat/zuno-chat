@@ -21,6 +21,9 @@ object FlutterStore {
     const val PREVIEW_HIDDEN = "nothing"
     const val NOTIFY_ME_MENTIONS_ONLY = "mentionsOnly"
 
+    fun cachedRoom(prefs: SharedPreferences, roomId: String): CachedRoom? =
+        PushNoticeDecision.parseRoomCache(prefs.getString(ROOM_CACHE, null))[roomId]
+
     fun preferences(context: Context): SharedPreferences =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 }

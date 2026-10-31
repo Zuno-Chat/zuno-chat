@@ -65,7 +65,6 @@ Future<bool> needsBatteryExemptionFor(
 }) async {
   final supported = (capabilities ?? ambientCapabilities).batteryExemption;
   if (!supported) return false;
-  if (!deliveryDependsOnBatteryExemption(mode)) return false;
   final zunoExempt =
       zunoIgnoresBatteryOptimizations ??
       BackgroundRestrictions.instance.isIgnoringBatteryOptimizations;
@@ -111,9 +110,23 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
     ),
   );
   final store = ref.watch(onboardingStoreProvider);
+  final shown = store.shown(userId);
   final lastPrompted = ref.watch(securityPromptStoreProvider).lastPrompted();
-  final permission = await _notificationPermission();
   final capabilities = ref.watch(platformCapabilitiesProvider);
+  final mode = ref.watch(notificationDeliveryModeProvider);
+  Future<bool> unlessShown(OnboardingStep step, Future<bool> Function() ask) =>
+      shown.contains(step) ? Future.value(false) : ask();
+  final (permission, needsBatteryExemption, needsAutostart) = await (
+    _notificationPermission(),
+    unlessShown(
+      OnboardingStep.batteryExemption,
+      () => needsBatteryExemptionFor(mode, capabilities: capabilities),
+    ),
+    unlessShown(
+      OnboardingStep.autostart,
+      BackgroundRestrictions.instance.hasAutostartSettings,
+    ),
+  ).wait;
   return onboardingSteps(
     justRegistered: store.justRegistered(userId),
     notificationsAllowed: permission?.isGranted ?? false,
@@ -122,12 +135,8 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
         !permission.isGranted &&
         !permission.isPermanentlyDenied,
     canChooseDelivery: capabilities.deliveryModes.length > 1,
-    needsBatteryExemption: await needsBatteryExemptionFor(
-      ref.watch(notificationDeliveryModeProvider),
-      capabilities: capabilities,
-    ),
-    needsAutostart: await BackgroundRestrictions.instance
-        .hasAutostartSettings(),
+    needsBatteryExemption: needsBatteryExemption,
+    needsAutostart: needsAutostart,
     recoveryExists: security.recoveryExists,
     thisDeviceHasIdentityKeys: security.thisDeviceHasIdentityKeys,
     hasConversations: client.rooms.any(
@@ -140,6 +149,6 @@ final onboardingStepsProvider = FutureProvider<List<OnboardingStep>>((
     crashReportingChosen: crashReportingChosen(
       ref.watch(sharedPreferencesProvider),
     ),
-    alreadyShown: store.shown(userId),
+    alreadyShown: shown,
   );
 });

@@ -9,12 +9,14 @@ sealed interface FcmReceivePlan {
 
     data object RingWarmUp : FcmReceivePlan
 
+    data object RingEnd : FcmReceivePlan
+
     data object RecordOnly : FcmReceivePlan
 }
 
 class FcmReceiveFilter(private val capacity: Int = RECENT_MESSAGE_IDS) {
-    private val recent = object : LinkedHashMap<String, Unit>(capacity, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Unit>?): Boolean =
+    private val recent = object : LinkedHashMap<String, Long>(capacity, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Long>?): Boolean =
             size > capacity
     }
 
@@ -24,9 +26,12 @@ class FcmReceiveFilter(private val capacity: Int = RECENT_MESSAGE_IDS) {
         messageId: String?,
         kind: PushKind,
         appInFront: Boolean,
+        arrivedAtElapsedMs: Long,
     ): FcmReceivePlan? {
         if (messageType != null && messageType != DATA_MESSAGE) return null
-        if (messageId != null && recent.put(messageId, Unit) != null) return null
+        if (messageId != null && recent.putIfAbsent(messageId, arrivedAtElapsedMs) != null) {
+            return null
+        }
         return when (kind) {
             PushKind.TEST -> FcmReceivePlan.TestNotice
 
@@ -37,11 +42,17 @@ class FcmReceiveFilter(private val capacity: Int = RECENT_MESSAGE_IDS) {
 
             PushKind.RING -> FcmReceivePlan.RingWarmUp
 
+            PushKind.RING_END -> FcmReceivePlan.RingEnd
+
             PushKind.BADGE -> FcmReceivePlan.RecordOnly
         }
     }
 
+    @Synchronized
+    fun arrivedAt(messageId: String?): Long? = messageId?.let { recent[it] }
+
     companion object {
+        val shared = FcmReceiveFilter()
         const val RECENT_MESSAGE_IDS = 32
         private const val DATA_MESSAGE = "gcm"
     }

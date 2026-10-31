@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:isolate';
 import 'dart:ui';
 
-import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,12 +20,13 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/fixtures.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
   late RecordedNotifications notifications;
-  late RecordedMethodCalls callStyle;
+  late FakeNativeRing callStyle;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
@@ -98,7 +98,7 @@ void main() {
     const presenter = AndroidIncomingCallPresenter();
 
     test('posts the call-style ring with everything its actions and its '
-        'sound need, and remembers the call', () async {
+        'sound need', () async {
       await ring(presenter);
 
       expect((callStyle.lastShow.arguments as Map).cast<String, Object?>(), {
@@ -113,7 +113,6 @@ void main() {
         'ringtone': true,
         'vibrate': true,
       });
-      expect((await remembered())?.callId, 'call1');
     });
 
     test('rings on the direct channel by default, the group channel for a '
@@ -153,7 +152,7 @@ void main() {
           ringtoneEnabledKey: settings.ringtone,
           callVibrationEnabledKey: settings.vibration,
         });
-        RememberingIncomingCallPresenter.forgetForTest();
+        callStyle.ringing = null;
 
         await ring(presenter);
 
@@ -312,136 +311,77 @@ void main() {
       );
     });
 
-    test('leaves forgetting the ring to the native side, which checks and '
-        'forgets it in one step', () async {
-      for (final answer in [true, false]) {
-        final messenger =
-            TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-        messenger.setMockMethodCallHandler(
-          const MethodChannel('zuno/call_style'),
-          (call) async =>
-              call.method == 'cancelIncomingCallStyle' ? answer : null,
-        );
-        RememberingIncomingCallPresenter.forgetForTest();
-        await ring(presenter);
-
-        await presenter.cancelIncoming(
-          roomId: '!room:example.org',
-          callId: 'call1',
-        );
-
-        expect((await remembered())?.callId, 'call1', reason: '$answer');
-      }
-    });
-
-    test('without the native side, still forgets the ring itself', () async {
+    test('leaves the ring record to the native side, which forgets it in the '
+        'same step that takes the ring down', () async {
+      await callStyle.ringNatively(testRingingCall);
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(
             const MethodChannel('zuno/call_style'),
-            null,
+            (call) async => null,
           );
-      await ring(presenter);
 
       await presenter.cancelIncoming(
         roomId: '!room:example.org',
         callId: 'call1',
       );
 
-      expect(await remembered(), isNull);
-    });
-
-    test('reports the ring only while its notification is on screen', () async {
-      await ring(presenter);
-
-      notifications.active = [
-        {...ringNotificationOnScreen(), 'id': 12345},
-      ];
-      expect(await presenter.activeRing(), isNull);
-
-      notifications.active = [ringNotificationOnScreen()];
-      expect((await presenter.activeRing())?.callId, 'call1');
-
-      notifications.active = const [];
-      expect(await presenter.activeRing(), isNull);
-    });
-
-    test('a ring still on screen in its last seconds still counts as '
-        'ringing', () async {
-      final prefs = await SharedPreferences.getInstance();
-      await withClock(
-        Clock.fixed(clock.now().subtract(const Duration(seconds: 55))),
-        () => saveRingingCall(prefs, (
-          roomId: '!room:example.org',
-          callId: 'call1',
-          callerId: '@bob:example.org',
-          isVideo: true,
-        )),
-      );
-      notifications.active = [ringNotificationOnScreen()];
-
-      expect((await presenter.activeRing())?.callId, 'call1');
-    });
-
-    test('a ring native code could not show is no ring, and leaves no '
-        'record of one', () async {
-      recordMethodChannel(
-        'zuno/call_style',
-        reply: (call) => call.method == 'showIncomingCallStyle' ? false : null,
-      );
-
-      final outcome = await ring(presenter);
-
-      expect(outcome, RingOutcome.unavailable);
-      expect(await remembered(), isNull);
-    });
-
-    test('a call that rang here and was declined or answered does not ring '
-        'again', () async {
-      await saveRingingCall(await SharedPreferences.getInstance(), (
-        roomId: '!room:example.org',
-        callId: 'call1',
-        callerId: '@bob:example.org',
-        isVideo: true,
-      ));
-
-      final outcome = await ring(presenter);
-
-      expect(outcome, RingOutcome.filtered);
-      expect(callStyle.named('showIncomingCallStyle'), isEmpty);
-    });
-
-    test('a call that rang here long ago may ring again', () async {
-      final prefs = await SharedPreferences.getInstance();
-      await withClock(
-        Clock.fixed(clock.now().subtract(const Duration(minutes: 2))),
-        () => saveRingingCall(prefs, (
-          roomId: '!room:example.org',
-          callId: 'call1',
-          callerId: '@bob:example.org',
-          isVideo: true,
-        )),
-      );
-
-      expect(await ring(presenter), RingOutcome.shown);
-      expect(callStyle.named('showIncomingCallStyle'), hasLength(1));
+      expect((await remembered())?.callId, 'call1');
     });
 
     test(
-      'cancelling takes the notification down and forgets the call',
+      'without the native side, rings nothing and reports no ring',
       () async {
-        await ring(presenter);
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(
+              const MethodChannel('zuno/call_style'),
+              null,
+            );
 
-        await presenter.cancelIncoming();
-        notifications.active = [ringNotificationOnScreen()];
-
-        expect(callStyle.calls.map((c) => c.method), [
-          'showIncomingCallStyle',
-          'cancelIncomingCallStyle',
-        ]);
-        expect(await remembered(), isNull);
+        expect(await ring(presenter), RingOutcome.unavailable);
         expect(await presenter.activeRing(), isNull);
       },
     );
+
+    test('reports the ring native code says is ringing, and none once it '
+        'stops', () async {
+      await ring(presenter);
+      expect(await presenter.activeRing(), testRingingCall);
+
+      callStyle.ringing = null;
+      expect(await presenter.activeRing(), isNull);
+    });
+
+    test('reports a ring native code started on its own', () async {
+      await callStyle.ringNatively(testRingingCall);
+
+      expect(await presenter.activeRing(), testRingingCall);
+    });
+
+    test('a ring native code could not show is no ring', () async {
+      callStyle.showFails = true;
+
+      expect(await ring(presenter), RingOutcome.unavailable);
+      expect(await presenter.activeRing(), isNull);
+    });
+
+    test('a call native code says rang here already, declined or answered, '
+        'does not ring again', () async {
+      await callStyle.rememberRang(testRingingCall);
+
+      expect(await ring(presenter), RingOutcome.filtered);
+    });
+
+    test('cancelling takes the ring down', () async {
+      await ring(presenter);
+
+      await presenter.cancelIncoming();
+
+      expect(callStyle.calls.map((c) => c.method), [
+        'showIncomingCallStyle',
+        'cancelIncomingCallStyle',
+      ]);
+      expect(await presenter.activeRing(), isNull);
+    });
 
     test('cancelling the ringing call lets go of the ring it holds, and '
         'cancelling another call keeps it', () async {
@@ -508,34 +448,57 @@ void main() {
     Iterable<MethodCall> posts() =>
         callStyle.calls.where((c) => c.method == 'showIncomingCallStyle');
 
-    test('is not posted again, so its ring is not restarted and nothing takes '
-        'it down', () async {
+    test('is adopted as shown and never taken down', () async {
       await ring(presenter);
 
       expect(await ring(presenter), RingOutcome.shown);
       await pumpEventQueue();
 
-      expect(callStyle.calls.map((c) => c.method), ['showIncomingCallStyle']);
+      expect(callStyle.methods, isNot(contains('cancelIncomingCallStyle')));
+      expect(await presenter.activeRing(), testRingingCall);
     });
 
-    test('presented twice at once is posted once', () async {
-      await Future.wait([ring(presenter), ring(presenter)]);
-
-      expect(posts(), hasLength(1));
-    });
-
-    test('rung by another isolate is not rung again here', () async {
-      await saveRingingCall(await SharedPreferences.getInstance(), (
-        roomId: '!room:example.org',
-        callId: 'call1',
-        callerId: '@bob:example.org',
-        isVideo: true,
-      ));
-      notifications.active = [ringNotificationOnScreen()];
+    test('rung by native code or another engine is adopted as shown, even '
+        'before Android lists its notification', () async {
+      await callStyle.ringNatively(testRingingCall);
 
       expect(await ring(presenter), RingOutcome.shown);
+    });
 
-      expect(posts(), isEmpty);
+    test('reads every answer native code gives, spelled as the shared '
+        'fixture spells it', () async {
+      final answers =
+          pushFixture('call_style_answers_v1.json')['answers']
+              as Map<String, dynamic>;
+      const outcomes = {
+        'shown': RingOutcome.shown,
+        'alreadyRinging': RingOutcome.shown,
+        'rangHere': RingOutcome.filtered,
+        'busy': RingOutcome.filtered,
+        'unavailable': RingOutcome.unavailable,
+      };
+      expect(answers.keys.toSet(), outcomes.keys.toSet());
+
+      for (final MapEntry(:key, :value) in answers.entries) {
+        recordMethodChannel(
+          'zuno/call_style',
+          reply: (call) async =>
+              call.method == 'showIncomingCallStyle' ? value : null,
+        );
+        expect(await ring(presenter), outcomes[key], reason: key);
+      }
+    });
+
+    test('never rings over another call that still rings', () async {
+      await callStyle.ringNatively((
+        roomId: '!other:example.org',
+        callId: 'call0',
+        callerId: '@ann:example.org',
+        isVideo: false,
+      ));
+
+      expect(await ring(presenter), RingOutcome.filtered);
+      expect(callStyle.ringing?.callId, 'call0');
     });
 
     test('rings again once its ring was cancelled', () async {
@@ -545,8 +508,7 @@ void main() {
         callId: 'call1',
       );
 
-      await ring(presenter);
-
+      expect(await ring(presenter), RingOutcome.shown);
       expect(posts(), hasLength(2));
     });
 
@@ -567,26 +529,34 @@ void main() {
       ]);
     });
 
-    test('a cancel that lands while the call is still being presented takes '
-        'it down once it is up', () async {
+    test('a cancel that lands while the call is still being presented reaches '
+        'native code only once it is up', () async {
       final presenting = Completer<void>();
-      final slow = _FakeRememberingPresenter(presenting: presenting.future);
+      final native = recordMethodChannel(
+        'zuno/call_style',
+        reply: (call) async {
+          if (call.method != 'showIncomingCallStyle') return null;
+          await presenting.future;
+          return 'shown';
+        },
+      );
 
-      final shown = ring(slow);
+      final shown = ring(presenter);
       await pumpEventQueue();
-      final cancelled = slow.cancelIncoming(
+      final cancelled = presenter.cancelIncoming(
         roomId: '!room:example.org',
         callId: 'call1',
       );
       await pumpEventQueue();
-      expect(slow.dismissals, isEmpty);
+      expect(native.methods, ['showIncomingCallStyle']);
 
       presenting.complete();
       await Future.wait([shown, cancelled]);
 
-      expect(slow.presented, 1);
-      expect(slow.dismissals, ['call1']);
-      expect(await remembered(), isNull);
+      expect(native.methods, [
+        'showIncomingCallStyle',
+        'cancelIncomingCallStyle',
+      ]);
     });
   });
 
@@ -600,115 +570,6 @@ void main() {
     await ring(const AndroidIncomingCallPresenter());
 
     expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
-  });
-
-  group('every presenter that really rings', () {
-    test('remembers the call before presenting it, so a cold start can reopen '
-        'it, even when presenting fails', () async {
-      final presenter = _FakeRememberingPresenter(fails: true);
-
-      await expectLater(ring(presenter), throwsA(isA<StateError>()));
-
-      expect((await remembered())?.callId, 'call1');
-      expect((await remembered())?.isVideo, isTrue);
-    });
-
-    test('a cancel naming no call, even one naming the room, hands the whole '
-        'ring over to be forgotten and taken down', () async {
-      final presenter = _FakeRememberingPresenter();
-
-      for (final roomId in [null, '!room:example.org']) {
-        await ring(presenter);
-        await presenter.cancelIncoming(roomId: roomId, end: RingEnd.unanswered);
-        expect(await remembered(), isNull, reason: '$roomId');
-      }
-
-      expect(presenter.dismissals, [null, null]);
-    });
-
-    test('cancelling another call leaves the remembered ring up and dismisses '
-        'nothing', () async {
-      final presenter = _FakeRememberingPresenter();
-      await ring(presenter);
-
-      await presenter.cancelIncoming(
-        roomId: '!room:example.org',
-        callId: 'call2',
-        end: RingEnd.declinedElsewhere,
-      );
-
-      expect((await remembered())?.callId, 'call1');
-      expect(presenter.dismissals, isEmpty);
-    });
-
-    test('cancelling the ringing call by name hands that call over to be '
-        'forgotten and taken down', () async {
-      final presenter = _FakeRememberingPresenter();
-      await ring(presenter);
-
-      await presenter.cancelIncoming(
-        roomId: '!room:example.org',
-        callId: 'call1',
-        end: RingEnd.remoteEnded,
-      );
-
-      expect(presenter.dismissals, ['call1']);
-      expect(await remembered(), isNull);
-    });
-
-    test('a remembered ring of another call too old to still be ringing does '
-        'not hold the cancel back', () async {
-      final presenter = _FakeRememberingPresenter();
-      final prefs = await SharedPreferences.getInstance();
-      await withClock(
-        Clock.fixed(clock.now().subtract(const Duration(seconds: 46))),
-        () => saveRingingCall(prefs, (
-          roomId: '!room:example.org',
-          callId: 'call1',
-          callerId: '@bob:example.org',
-          isVideo: true,
-        )),
-      );
-
-      await presenter.cancelIncoming(
-        roomId: '!room:example.org',
-        callId: 'call2',
-        end: RingEnd.remoteEnded,
-      );
-
-      expect(presenter.dismissals, ['call2']);
-    });
-
-    test('with nothing remembered, a cancel naming a call still '
-        'dismisses', () async {
-      final presenter = _FakeRememberingPresenter();
-
-      await presenter.cancelIncoming(
-        roomId: '!room:example.org',
-        callId: 'call1',
-        end: RingEnd.remoteEnded,
-      );
-
-      expect(presenter.dismissals, ['call1']);
-    });
-
-    test(
-      'an unreadable remembered ring does not hold the cancel back',
-      () async {
-        final presenter = _FakeRememberingPresenter();
-        SharedPreferences.setMockInitialValues({
-          'calls.ringing_notification': '{not json',
-        });
-
-        await presenter.cancelIncoming(
-          roomId: '!room:example.org',
-          callId: 'call1',
-          end: RingEnd.remoteEnded,
-        );
-
-        expect(presenter.dismissals, ['call1']);
-      },
-    );
   });
 
   group('the presenter for a platform with neither a ring screen nor '
@@ -1010,44 +871,4 @@ void main() {
       expect(await presenter.activeRing(), isNull);
     });
   });
-}
-
-class _FakeRememberingPresenter extends RememberingIncomingCallPresenter {
-  _FakeRememberingPresenter({this.fails = false, this.presenting});
-
-  final bool fails;
-  final Future<void>? presenting;
-  int presented = 0;
-  final dismissals = <String?>[];
-
-  @override
-  Future<bool> presentIncoming({
-    required String name,
-    String? caller,
-    required String callerId,
-    required bool isVideo,
-    required String roomId,
-    required String callId,
-    required bool isGroupCall,
-    Uint8List? avatarBytes,
-    required bool waiting,
-    Duration? ringFor,
-  }) async {
-    await presenting;
-    if (fails) throw StateError('no ring screen');
-    presented++;
-    return true;
-  }
-
-  @override
-  Future<void> ringAloud(String callId) async {}
-
-  @override
-  Future<void> forgetAndDismiss(String? callId) async {
-    dismissals.add(callId);
-    await clearRingingCall(await SharedPreferences.getInstance());
-  }
-
-  @override
-  Future<RingingCallInfo?> activeRing() => rememberedRing();
 }

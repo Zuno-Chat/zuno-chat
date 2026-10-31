@@ -1982,6 +1982,88 @@ void main() {
     });
   });
 
+  group('an outgoing call rings as soon as it has an SFU session', () {
+    test('publishes its membership once the session opens, before its media '
+        'is published, then again with its tracks', () async {
+      final c = _PublishCountingClient();
+      final joinGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate);
+      final session = outgoing(sendRoom(c), engine: engine);
+      await pumpEventQueue();
+      expect(c.publishes, isEmpty);
+
+      engine.openSession();
+      await pumpEventQueue();
+      expect(c.publishes.single, contains('"sessionId":"opening-session"'));
+      expect(session.phase, CallSessionPhase.connecting);
+
+      joinGate.complete();
+      await untilPhase(session, CallSessionPhase.active);
+
+      expect(c.publishes, hasLength(2));
+      expect(c.publishes.last, contains('"audio":"audio"'));
+    });
+
+    test('a caller who may not start calls is told so, and the early write\'s '
+        'refusal is not reported', () async {
+      final logs = recordDebugPrints();
+      final c = _PublishCountingClient()..refusal = forbidden();
+      final joinGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate);
+      final session = outgoing(sendRoom(c), engine: engine);
+      await pumpEventQueue();
+
+      engine.openSession();
+      await pumpEventQueue();
+      joinGate.complete();
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(session.failure, const CallNoPermissionToStart());
+      expect(
+        reported(logs).where((line) => line.contains('refresh membership')),
+        isEmpty,
+      );
+    });
+
+    test('a caller whose join fails after the callee started ringing takes '
+        'its membership back and sends the call summary', () async {
+      final c = _PublishCountingClient();
+      final r = sendRoom(c);
+      final joinGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate, failJoin: true);
+      final session = outgoing(r, engine: engine);
+      await pumpEventQueue();
+
+      engine.openSession();
+      await pumpEventQueue();
+      expect(c.publishes.single, contains('"sessionId":"opening-session"'));
+
+      joinGate.complete();
+      await untilPhase(session, CallSessionPhase.ended);
+      await pumpEventQueue();
+
+      expect(c.publishes.last, contains('"memberships":[]'));
+      expect(r.attempts.map((e) => e['msgtype']), [
+        callInviteMsgtype,
+        callSummaryMsgtype,
+      ]);
+    });
+
+    test('a session that opens as the caller hangs up publishes '
+        'nothing', () async {
+      final c = _PublishCountingClient();
+      final engine = _OpeningSessionEngine(joinGate: Completer<void>());
+      final session = outgoing(sendRoom(c), engine: engine);
+      await pumpEventQueue();
+
+      unawaited(session.hangUp());
+      engine.openSession();
+      await pumpEventQueue();
+
+      expect(c.publishes.where((p) => p.contains('opening-session')), isEmpty);
+    });
+  });
+
   group('our membership goes public only once the call hears its key', () {
     test('a refresh while connecting publishes nothing, and joining publishes '
         'once, with the latest state', () {
@@ -3349,6 +3431,24 @@ class _RemovedWhileJoiningEngine extends FakeCallEngine {
     await super.join();
     setStatus(CallEngineStatus.removed);
   }
+}
+
+class _OpeningSessionEngine extends FakeCallEngine {
+  _OpeningSessionEngine({super.joinGate, super.failJoin});
+
+  bool _sessionOpen = false;
+
+  void openSession() {
+    _sessionOpen = true;
+    localStateController.add(null);
+  }
+
+  @override
+  Map<String, Object?>? get localFociInfo => joined
+      ? super.localFociInfo
+      : _sessionOpen
+      ? {'sessionId': 'opening-session', 'tracks': const <String, Object?>{}}
+      : null;
 }
 
 class _EarlySessionEngine extends FakeCallEngine {

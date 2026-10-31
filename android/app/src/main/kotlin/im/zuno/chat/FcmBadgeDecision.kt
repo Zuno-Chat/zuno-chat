@@ -15,8 +15,8 @@ object FcmBadgeDecision {
     private val messageChannels = setOf("direct_messages", "group_messages", "quiet_messages")
 
     fun handlingFor(data: Map<String, String?>, appInFront: Boolean): FcmPushHandling =
-        when (PushKind.of(data["event_id"], data["room_id"], data[RingBlob.PUSH_KEY] != null)) {
-            PushKind.TEST -> FcmPushHandling.NOTHING
+        when (RingBlob.pushKind(data["event_id"], data["room_id"], data)) {
+            PushKind.TEST, PushKind.RING_END -> FcmPushHandling.NOTHING
 
             PushKind.MESSAGE -> FcmPushHandling.DART
 

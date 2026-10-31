@@ -2,7 +2,6 @@ package im.zuno.chat
 
 import im.zuno.chat.zuno_notifications.CachedRoom
 import im.zuno.chat.zuno_notifications.FlutterStore
-import im.zuno.chat.zuno_notifications.InstantRingCall
 import im.zuno.chat.zuno_notifications.PushNoticeDecision
 import im.zuno.chat.zuno_notifications.RememberedRing
 import im.zuno.chat.zuno_notifications.RingDecisions
@@ -64,18 +63,17 @@ class FlutterStoreContractTest {
         assertEquals(values.getString("notifyMeMentionsOnly"), FlutterStore.NOTIFY_ME_MENTIONS_ONLY)
     }
 
+    private val fixtureRing = RememberedRing(
+        roomId = ringingCall.getString("roomId"),
+        callId = ringingCall.getString("callId"),
+        callerId = ringingCall.getString("callerId"),
+        isVideo = ringingCall.getBoolean("isVideo"),
+        postedAtMs = ringingCall.getLong("postedAt"),
+    )
+
     @Test
     fun `the ring record native code writes has exactly the fields Dart reads`() {
-        val call = InstantRingCall(
-            roomId = ringingCall.getString("roomId"),
-            callId = ringingCall.getString("callId"),
-            callerId = ringingCall.getString("callerId"),
-            callerName = "Bob",
-            roomName = "",
-            isVideo = ringingCall.getBoolean("isVideo"),
-        )
-
-        val written = JSONObject(RememberedRing.record(call, ringingCall.getLong("postedAt")))
+        val written = JSONObject(fixtureRing.record())
 
         assertEquals(ringingCall.keyNames(), written.keyNames())
         for (key in ringingCall.keyNames()) {
@@ -84,19 +82,8 @@ class FlutterStoreContractTest {
     }
 
     @Test
-    fun `native code reads the ring record Dart writes`() {
-        val callId = ringingCall.getString("callId")
-        val expected = RememberedRing(callId, ringingCall.getLong("postedAt"))
-
-        assertEquals(expected, RememberedRing.parse(ringingCall.toString()))
-        assertEquals(
-            expected,
-            RememberedRing.of(
-                ringingCall.opt("roomId"),
-                ringingCall.opt("callId"),
-                ringingCall.opt("postedAt"),
-            ),
-        )
+    fun `native code reads back the ring record in the shared format`() {
+        assertEquals(fixtureRing, RememberedRing.parse(ringingCall.toString()))
     }
 
     @Test

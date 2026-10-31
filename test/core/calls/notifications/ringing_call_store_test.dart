@@ -1,7 +1,10 @@
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
+
+import '../../../helpers/fake_call_style_channel.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +21,7 @@ void main() {
     return SharedPreferences.getInstance();
   }
 
-  test('round-trips the ringing call', () async {
+  test('reads the ringing call native code remembered', () async {
     final prefs = await emptyPrefs();
 
     await saveRingingCall(prefs, call);
@@ -55,12 +58,32 @@ void main() {
     expect(readRingingCall(await SharedPreferences.getInstance()), isNull);
   });
 
-  test('clear() forgets it', () async {
-    final prefs = await emptyPrefs();
-    await saveRingingCall(prefs, call);
+  group('the active ring native code reports', () {
+    test('names its room, call, caller and kind', () {
+      expect(
+        ringingCallFrom({
+          'roomId': '!room:example.org',
+          'callId': 'c1',
+          'callerId': '@alice:example.org',
+          'isVideo': true,
+        }),
+        call,
+      );
+    });
 
-    await clearRingingCall(prefs);
+    test('without a caller or kind, names no caller and rings as voice', () {
+      expect(ringingCallFrom({'roomId': '!room:example.org', 'callId': 'c1'}), (
+        roomId: '!room:example.org',
+        callId: 'c1',
+        callerId: '',
+        isVideo: false,
+      ));
+    });
 
-    expect(readRingingCall(prefs), isNull);
+    test('is none without its room or call', () {
+      expect(ringingCallFrom(null), isNull);
+      expect(ringingCallFrom({'callId': 'c1'}), isNull);
+      expect(ringingCallFrom({'roomId': '!room:example.org'}), isNull);
+    });
   });
 }

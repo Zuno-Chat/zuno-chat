@@ -160,7 +160,13 @@ object IncomingCallStyle {
         val ring = if (RingDecisions.ringsAloud(importance)) spec.plan else spec.plan.quiet()
         IncomingRing.present(
             context,
-            callId,
+            RememberedRing(
+                roomId = spec.roomId,
+                callId = callId,
+                callerId = spec.callerId,
+                isVideo = spec.isVideo,
+                postedAtMs = System.currentTimeMillis(),
+            ),
             token,
             notification(ring.waitingText ?: spec.text, alertOnce = false),
             ring.toneNow?.let(tonePath),
@@ -175,6 +181,7 @@ object IncomingCallStyle {
                 null
             },
         )
+        PushNotice.takeDownUnderRing(context, spec.roomId)
         return true
     }
 

@@ -33,6 +33,7 @@ class PushHolds(private val timeoutMs: Long, private val writeOffMs: Long) {
 object PushWakeLock {
     private const val WAKE_LOCK_TAG = "zuno:push"
     private const val TIMEOUT_MS = 30_000L
+    private const val ALERT_SETTLE_MS = 2_000L
     private const val WRITE_OFF_MS = 300_000L
 
     private var wakeLock: PowerManager.WakeLock? = null
@@ -57,7 +58,7 @@ object PushWakeLock {
     fun release(context: Context, key: String?) {
         if (!holds.release(key, SystemClock.elapsedRealtime())) return
         try {
-            wakeLock?.takeIf { it.isHeld }?.release()
+            wakeLock?.takeIf { it.isHeld }?.acquire(ALERT_SETTLE_MS)
         } catch (e: Exception) {
             CaughtErrors.record(context, "push wake lock release", e)
         }

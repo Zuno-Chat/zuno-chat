@@ -54,7 +54,7 @@ object RingRegistration {
         judge(context, data)
     }
 
-    private fun judge(context: Context, data: Map<String, String?>): RingPushOutcome {
+    fun judge(context: Context, data: Map<String, String?>): RingPushOutcome {
         val keys = (keyStore(context).load() as? RingKeysRead.Ready)?.keys
         val now = System.currentTimeMillis()
         val opened = RingBlob.open(data) { kid -> keys?.keyFor(kid, now) }

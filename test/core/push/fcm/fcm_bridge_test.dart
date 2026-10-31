@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/notifications/server_ring.dart';
@@ -172,6 +173,38 @@ void main() {
   });
 
   group('serve', () {
+    test('a push carries when native code received it, from its age', () async {
+      final pushes = <FcmPush>[];
+      FcmBridge().serve(onPush: (push) async => pushes.add(push));
+      const age = Duration(seconds: 4);
+
+      final before = clock.now();
+      await fromNative('push', {
+        'id': 'm1',
+        'data': {'event_id': r'$e', 'room_id': '!r:x'},
+        'appInFront': false,
+        'ageMs': age.inMilliseconds,
+      });
+      final after = clock.now();
+
+      final receivedAt = pushes.single.receivedAt!;
+      expect(receivedAt.isBefore(before.subtract(age)), isFalse);
+      expect(receivedAt.isAfter(after.subtract(age)), isFalse);
+    });
+
+    test('a push without its age leaves its arrival unknown', () async {
+      final pushes = <FcmPush>[];
+      FcmBridge().serve(onPush: (push) async => pushes.add(push));
+
+      await fromNative('push', {
+        'id': 'm1',
+        'data': {'event_id': r'$e', 'room_id': '!r:x'},
+        'appInFront': false,
+      });
+
+      expect(pushes.single.receivedAt, isNull);
+    });
+
     test(
       'hands a push to the handler and replies once it is handled',
       () async {

@@ -117,7 +117,10 @@ stateDiagram-v2
   break the call for everyone in the room.
 - **Membership is published only once the session listens for to-device
   call keys**, so a key sent in reply is never lost; refreshes before that
-  are ignored. After that it is republished periodically and on every
+  are ignored. The one exception is a caller's first publish, made as soon
+  as its SFU session exists, before its tracks: the module rings on that
+  membership, so the ring never waits on the caller's camera, and nobody
+  in a new call can send a key before answering. After that it is republished periodically and on every
   change, with user toggles coalesced, because state events are permanent
   room history.
 - **One serial writer per room carries all of our membership writes**, each
@@ -497,13 +500,14 @@ group alone.
 
 | Rule | Why |
 |---|---|
-| The ringing-call store is written before a ring is presented | Written after, a decline in the gap misses the cancel and the ring sounds on |
+| On Android, native code decides whether a call rings (new, already ringing, rang here, or over another ring) and writes the ringing-call record in one locked step, for the instant ring and every engine's presenter alike | Engines that each checked first raced one another into a second ring, and a record written after the ring lets a decline in the gap miss the cancel |
 | A ring is idempotent per call id across the server push, the message push and sync, and every cancel names its call | They often deliver the same call, and one call's end must never take down another's ring |
 | The ring screen has one opener for sync, a notification tap and a ring launch, which never opens it twice for one call, for a settled call or for a ring CallKit shows | Those paths often reach the same call at once |
 | Every Accept or Decline on a ring notification goes to the notification router, even while the ring screen shows, and the ring screen closes once its call is resolved, whoever resolved it | One owner per tap, so a call is never answered or declined twice |
 | A resolved call (summary, decline, answer elsewhere or unanswered ring) never rings again | A late push would otherwise ring a finished call |
 | A ring ends when another of my devices joins or declines | Nothing about an answer elsewhere pushes, so only sync tells, and sync keeps running during a ring (`app-foundation.md`) |
 | A ring ends when the call's other memberships, once seen, are all gone | A caller that crashes or loses its connection sends no end notice |
+| On Android, a ring also ends at the server's ring end push, applied natively whether or not Zuno is in front (`notifications.md`) | The summary push queues behind other pushes and may not decrypt, so it alone can leave a finished call ringing |
 
 **Android ring**
 
@@ -692,6 +696,10 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 
 ## Gotchas
 
+- The answers native code gives Android's ring presenter are strings that
+  Dart and Kotlin tests both check against one fixture
+  (`test/fixtures/push/call_style_answers_v1.json`), because Dart reads an
+  answer it does not know as a ring that could not show.
 - iOS sets WebRTC's audio device module to minimum ducking, because its
   voice processing otherwise turns down any other app audio.
 - A video call's iOS session starts on the speaker (`.defaultToSpeaker`),

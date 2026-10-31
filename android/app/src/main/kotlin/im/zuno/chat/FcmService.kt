@@ -14,6 +14,8 @@ class FcmService : FirebaseMessagingService() {
     override fun onMessageReceived(message: RemoteMessage) {
         val startedAtElapsedMs = SystemClock.elapsedRealtime()
         val messageId = FcmPushKeys.messageId(message.messageId)
+        val arrivedAtElapsedMs =
+            FcmReceiveFilter.shared.arrivedAt(messageId) ?: startedAtElapsedMs
         var handling = FcmPushHandling.NOTHING
         var ackedAtElapsedMs: Long? = null
         try {
@@ -24,6 +26,7 @@ class FcmService : FirebaseMessagingService() {
                     "push",
                     mapOf("data" to HashMap(message.data), "appInFront" to appInFront),
                     messageId,
+                    arrivedAtElapsedMs,
                 )
 
                 FcmPushHandling.RING -> {
@@ -33,12 +36,13 @@ class FcmService : FirebaseMessagingService() {
                             "ring",
                             ringArgs(outcome, appInFront),
                             messageId,
+                            arrivedAtElapsedMs,
                         )
 
                         is RingPushOutcome.Drop ->
                             Log.i(TAG, "Ring push $messageId dropped: ${outcome.reason}")
 
-                        RingPushOutcome.ReRegister -> Unit
+                        is RingPushOutcome.End, RingPushOutcome.ReRegister -> Unit
                     }
                 }
 
@@ -73,8 +77,19 @@ class FcmService : FirebaseMessagingService() {
         PushNotice.postMissed(applicationContext)
     }
 
-    private fun deliverToDart(method: String, args: Map<String, Any?>, messageId: String?): Long? {
-        val done = FcmRouter.deliver(applicationContext, method, args, messageId ?: method)
+    private fun deliverToDart(
+        method: String,
+        args: Map<String, Any?>,
+        messageId: String?,
+        arrivedAtMs: Long,
+    ): Long? {
+        val done = FcmRouter.deliver(
+            applicationContext,
+            method,
+            args,
+            messageId ?: method,
+            arrivedAtMs,
+        )
         return if (awaitHandled(done, "$method $messageId")) SystemClock.elapsedRealtime() else null
     }
 

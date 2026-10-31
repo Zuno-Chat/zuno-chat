@@ -378,6 +378,41 @@ void main() {
       ]);
     });
 
+    test('Android asks Google services users for the exemption too', () async {
+      expect(
+        await stepsOn(
+          androidCapabilities,
+          prefs: {
+            'settings.notification_delivery_mode': 'fcm',
+            'onboarding.shown.$_userId': ['deliveryMethod', 'privacy'],
+          },
+        ),
+        [OnboardingStep.batteryExemption],
+      );
+    });
+
+    test('once the battery step was shown, the phone is not asked about it '
+        'again', () async {
+      expect(
+        await stepsOn(
+          androidCapabilities,
+          prefs: {
+            'settings.notification_delivery_mode': 'fcm',
+            'onboarding.shown.$_userId': [
+              'deliveryMethod',
+              'batteryExemption',
+              'privacy',
+            ],
+          },
+        ),
+        isEmpty,
+      );
+      expect(
+        backgroundRestrictions.named('isIgnoringBatteryOptimizations'),
+        isEmpty,
+      );
+    });
+
     test('a platform without a battery exemption never asks for one', () async {
       expect(
         await stepsOn(

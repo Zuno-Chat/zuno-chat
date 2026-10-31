@@ -5,7 +5,9 @@ import im.zuno.chat.zuno_notifications.InstantRingCall
 import im.zuno.chat.zuno_notifications.InstantRingDecision
 import im.zuno.chat.zuno_notifications.InstantRingOutcome
 import im.zuno.chat.zuno_notifications.InstantRingState
+import im.zuno.chat.zuno_notifications.RememberedRing
 import im.zuno.chat.zuno_notifications.RingName
+import im.zuno.chat.zuno_notifications.RingNow
 import im.zuno.chat.zuno_notifications.RingText
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -26,13 +28,17 @@ class InstantRingDecisionTest {
         appInFront = false,
         userId = "@me:x",
         resolved = emptySet(),
-        showingCallId = null,
-        rememberedCallId = null,
+        ring = RingNow(showing = null, rememberedCallId = null),
         callActive = false,
         room = CachedRoom("Alice Smith", isDirect = true),
         preview = null,
         ringtone = true,
         vibrate = true,
+    )
+
+    private fun ringNow(showing: String? = null, remembered: String? = null) = RingNow(
+        showing = showing?.let { RememberedRing("!r:x", it, "@bob:x", false, 0L) },
+        rememberedCallId = remembered,
     )
 
     private fun decide(
@@ -117,19 +123,19 @@ class InstantRingDecisionTest {
     @Test
     fun `does not ring a call that already rings`() {
         assertEquals(
-            "already_rung",
-            skipped(decide(idle.copy(showingCallId = "c1", rememberedCallId = "c1"))),
+            "already_ringing",
+            skipped(decide(idle.copy(ring = ringNow(showing = "c1", remembered = "c1")))),
         )
     }
 
     @Test
     fun `does not ring again a call that rang a moment ago and was declined or answered`() {
-        assertEquals("already_rung", skipped(decide(idle.copy(rememberedCallId = "c1"))))
+        assertEquals("already_rung", skipped(decide(idle.copy(ring = ringNow(remembered = "c1")))))
     }
 
     @Test
     fun `another call that rang a moment ago but no longer shows does not hold this one back`() {
-        shown(decide(idle.copy(rememberedCallId = "c0")))
+        shown(decide(idle.copy(ring = ringNow(remembered = "c0"))))
     }
 
     @Test
@@ -141,13 +147,13 @@ class InstantRingDecisionTest {
     fun `does not ring over another call that still rings`() {
         assertEquals(
             "busy_ringing",
-            skipped(decide(idle.copy(showingCallId = "c0", rememberedCallId = "c0"))),
+            skipped(decide(idle.copy(ring = ringNow(showing = "c0", remembered = "c0")))),
         )
     }
 
     @Test
     fun `rings over a call that rings on though it is over`() {
-        shown(decide(idle.copy(showingCallId = "c0", resolved = setOf("c0"))))
+        shown(decide(idle.copy(ring = ringNow(showing = "c0"), resolved = setOf("c0"))))
     }
 
     @Test

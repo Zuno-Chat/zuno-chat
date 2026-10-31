@@ -416,9 +416,7 @@ DiagnosticSection _androidPermission(
         false => DiagnosticRow(
           battery,
           l10n.diagnosticsBatteryOptimized,
-          deliveryDependsOnBatteryExemption(inputs.deliveryMode)
-              ? DiagnosticStatus.warning
-              : DiagnosticStatus.info,
+          DiagnosticStatus.warning,
         ),
         null => _unknown(l10n, battery),
       },

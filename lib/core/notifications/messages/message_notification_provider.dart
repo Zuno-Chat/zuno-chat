@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../calls/matrixrtc/call_summary_message.dart';
 import '../../calls/notifications/ring_over_lines.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
+import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/currently_open_room_provider.dart';
@@ -205,6 +206,7 @@ MessageNotificationDecision messageNotificationFor(
 }
 
 const _openedAtClockSlack = Duration(seconds: 2);
+const _takeOverPace = Duration(milliseconds: 250);
 
 bool _sentWhileOpen(Event event, DateTime? openedAt) =>
     openedAt == null ||
@@ -222,10 +224,13 @@ class MessageNotificationNotifier extends Notifier<void> {
   final _posting = <String, Set<Future<void>>>{};
   final _awaitingKeys = <String, _AwaitedKey>{};
   DateTime? _chatOpenedAt;
+  Future<void> _takingOver = Future.value();
+  bool _synced = false;
 
   @override
   void build() {
     final client = ref.watch(matrixClientProvider);
+    _synced = false;
     ref.listen(
       currentlyOpenRoomIdProvider,
       (_, roomId) => _chatOpenedAt = roomId == null ? null : clock.now(),
@@ -239,15 +244,62 @@ class MessageNotificationNotifier extends Notifier<void> {
     final syncSub = client.onSync.stream.listen(
       (update) => _handleSync(client, update),
     );
+    final lifecycle = AppLifecycleListener(
+      onResume: () => _takeOverWaitingLines(client),
+    );
     ref.onDispose(() {
       sub.cancel();
       lateSub.cancel();
       syncSub.cancel();
+      lifecycle.dispose();
       _awaitingKeys.clear();
     });
+    _takeOverWaitingLines(client);
+  }
+
+  void _takeOverWaitingLines(Client client) => _takingOver = _takingOver.then(
+    (_) => runBestEffort(
+      () => _takeOverEachLine(client),
+      label: 'take over waiting notification lines',
+    ),
+  );
+
+  Future<void> _takeOverEachLine(Client client) async {
+    final lines = await MessageNotifications.instance.showingWaitingLines();
+    var posted = false;
+    for (final (:roomId, :eventId) in lines) {
+      if (!ref.mounted) return;
+      if (posted) await Future<void>.delayed(_takeOverPace);
+      posted = false;
+      await runBestEffort(
+        () async => posted = await _takeOverLine(client, roomId, eventId),
+        label: 'take over a waiting notification line',
+      );
+    }
+  }
+
+  Future<bool> _takeOverLine(
+    Client client,
+    String roomId,
+    String eventId,
+  ) async {
+    if (_awaitingKeys.containsKey(eventId)) return false;
+    final event = await client.getRoomById(roomId)?.getEventById(eventId);
+    if (event == null || !ref.mounted) return false;
+    _awaitingKeys[eventId] = (roomId: roomId, floorPosted: true);
+    if (isUndecryptableEvent(event)) {
+      LateDecryptions.of(client).watch(event);
+      return false;
+    }
+    await _handleLateKey(client, event);
+    return true;
   }
 
   Future<void> _handleSync(Client client, SyncUpdate update) async {
+    if (!_synced) {
+      _synced = true;
+      _takeOverWaitingLines(client);
+    }
     if (!_roomCache.hasWritten || notificationRoomCacheDirty(update)) {
       await _writeRoomCache(client);
     }

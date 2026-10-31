@@ -5,10 +5,10 @@ import android.content.Context
 import android.content.Intent
 import android.os.SystemClock
 import android.util.Log
+import im.zuno.chat.zuno_notifications.IncomingRing
 import im.zuno.chat.zuno_notifications.InstantRing
 import im.zuno.chat.zuno_notifications.InstantRingCall
 import im.zuno.chat.zuno_notifications.InstantRingDecision
-import im.zuno.chat.zuno_notifications.PushKind
 import im.zuno.chat.zuno_notifications.PushNotice
 import io.flutter.FlutterInjector
 
@@ -21,11 +21,14 @@ class PushNoticeReceiver : BroadcastReceiver() {
         val messageId = FcmPushKeys.messageId(intent.getStringExtra(MESSAGE_ID))
         val roomId = intent.getStringExtra(ROOM_ID)
         val eventId = intent.getStringExtra(EVENT_ID)
-        val plan = filter.planFor(
+        val ringData = listOf(RingBlob.PUSH_KEY, RingBlob.END_PUSH_KEY)
+            .associateWith { intent.getStringExtra(it) }
+        val plan = FcmReceiveFilter.shared.planFor(
             intent.getStringExtra(MESSAGE_TYPE),
             messageId,
-            PushKind.of(eventId, roomId, intent.getStringExtra(RingBlob.PUSH_KEY) != null),
+            RingBlob.pushKind(eventId, roomId, ringData),
             appInFront,
+            receivedAtElapsedMs,
         )
         if (plan == null) {
             Log.d(TAG, "Not a new push, nothing to do")
@@ -42,7 +45,12 @@ class PushNoticeReceiver : BroadcastReceiver() {
 
             FcmReceivePlan.RingWarmUp -> {
                 warmUpFlutter(app)
-                ringAtOnce(app, messageId, intent.getStringExtra(RingBlob.PUSH_KEY), appInFront)
+                ringAtOnce(app, messageId, ringData, appInFront)
+            }
+
+            FcmReceivePlan.RingEnd -> {
+                endRing(app, ringData)
+                false
             }
 
             FcmReceivePlan.RecordOnly -> false
@@ -60,7 +68,7 @@ class PushNoticeReceiver : BroadcastReceiver() {
     private fun ringAtOnce(
         context: Context,
         messageId: String?,
-        sealed: String?,
+        ringData: Map<String, String?>,
         appInFront: Boolean,
     ): Boolean {
         val userId = RingRegistration.userId(context)
@@ -68,11 +76,7 @@ class PushNoticeReceiver : BroadcastReceiver() {
             Log.d(TAG, "Not ringing at once: $it")
             return false
         }
-        val outcome = RingRegistration.judgeAndHandOff(
-            context,
-            messageId,
-            mapOf(RingBlob.PUSH_KEY to sealed),
-        )
+        val outcome = RingRegistration.judgeAndHandOff(context, messageId, ringData)
         if (outcome !is RingPushOutcome.Ring) return false
         val ring = outcome.ring
         return InstantRing.present(
@@ -91,6 +95,13 @@ class PushNoticeReceiver : BroadcastReceiver() {
             ringMs = outcome.ringMs,
             tonePath = { flutterAssetKey(context, it) },
         )
+    }
+
+    private fun endRing(context: Context, ringData: Map<String, String?>) {
+        val outcome = RingRegistration.judge(context, ringData)
+        if (outcome !is RingPushOutcome.End) return
+        IncomingRing.endFromServer(context, outcome.end.call, System.currentTimeMillis())
+        Log.d(TAG, "Ring ended by the server")
     }
 
     private fun flutterAssetKey(context: Context, asset: String): String? = try {
@@ -115,6 +126,5 @@ class PushNoticeReceiver : BroadcastReceiver() {
         const val MESSAGE_TYPE = "message_type"
         const val ROOM_ID = "room_id"
         const val EVENT_ID = "event_id"
-        val filter = FcmReceiveFilter()
     }
 }

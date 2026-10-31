@@ -658,8 +658,7 @@ void main() {
       ]);
     });
 
-    test('a blocked chat category is a problem; optimized battery is fine '
-        'with Google services', () {
+    test('a blocked chat category is a problem', () {
       final rows = section(
         inputs(
           capabilities: android,
@@ -688,7 +687,6 @@ void main() {
           DiagnosticStatus.problem,
         ),
       );
-      expect(rows.row('Battery use')?.status, DiagnosticStatus.info);
     });
 
     PushDeliveryRecord recordWithBucket(int? bucket) {

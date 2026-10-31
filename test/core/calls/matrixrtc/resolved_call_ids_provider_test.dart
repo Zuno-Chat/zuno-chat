@@ -302,7 +302,7 @@ void main() {
         'up to do it', () async {
       installSilentNotificationSideChannels();
       final callStyle = installFakeCallStyleChannel();
-      await saveRingingCall(prefs, (
+      await callStyle.ringNatively((
         roomId: room.id,
         callId: 'c1',
         callerId: '@a:x',

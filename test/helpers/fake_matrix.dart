@@ -14,7 +14,16 @@ class FakeDatabaseApi implements DatabaseApi {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
-class StoredMembersFakeDatabaseApi extends FakeDatabaseApi {
+mixin StoredEventsDatabase on FakeDatabaseApi {
+  List<Event> events = [];
+
+  @override
+  Future<Event?> getEventById(String eventId, Room room) async =>
+      events.where((e) => e.eventId == eventId).firstOrNull;
+}
+
+class StoredMembersFakeDatabaseApi extends FakeDatabaseApi
+    with StoredEventsDatabase {
   final Map<String, String> displayNames = {};
   final List<String> lookups = [];
   Future<void>? heldLookups;
@@ -69,13 +78,8 @@ class TimelineCapableFakeDatabaseApi extends FakeDatabaseApi {
   }) async => [];
 }
 
-class StoredEventsFakeDatabaseApi extends TimelineCapableFakeDatabaseApi {
-  List<Event> events = [];
-
-  @override
-  Future<Event?> getEventById(String eventId, Room room) async =>
-      events.where((e) => e.eventId == eventId).firstOrNull;
-
+class StoredEventsFakeDatabaseApi extends TimelineCapableFakeDatabaseApi
+    with StoredEventsDatabase {
   @override
   Future<List<Event>> getEventList(
     Room room, {

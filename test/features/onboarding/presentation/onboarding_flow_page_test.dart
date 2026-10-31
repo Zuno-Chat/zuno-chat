@@ -704,10 +704,24 @@ void main() {
       expect(find.text('UnifiedPush'), findsNothing);
     });
 
-    testWidgets('Google services drops a battery step that was pending', (
-      tester,
-    ) async {
+    testWidgets('Google services keeps the battery step while Zuno is not '
+        'exempt', (tester) async {
       stubBatteryExemption(granted: false);
+      await pumpFlow(tester, [
+        OnboardingStep.deliveryMethod,
+        OnboardingStep.batteryExemption,
+        OnboardingStep.setUpRecovery,
+      ]);
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Let Zuno wake up'), findsOneWidget);
+    });
+
+    testWidgets('Google services drops the battery step once Zuno is '
+        'exempt', (tester) async {
+      stubBatteryExemption(granted: true);
       await pumpFlow(tester, [
         OnboardingStep.deliveryMethod,
         OnboardingStep.batteryExemption,

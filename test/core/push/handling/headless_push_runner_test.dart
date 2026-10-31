@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -7,9 +8,9 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_marker.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
-import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/notifications/server_ring.dart';
 import 'package:zuno/core/matrix/client_lease.dart';
+import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/push/handling/headless_push_runner.dart';
 import 'package:zuno/core/push/handling/incoming_push_handler.dart';
 
@@ -19,6 +20,7 @@ import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/headless_ring.dart';
+import '../../../helpers/hybrid_fake_async.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/notifying_client.dart';
 import '../../../helpers/push_test_client.dart';
@@ -59,11 +61,14 @@ class _SyncingClient extends PushTestClient {
   Future<void> oneShotSync({Duration? timeout}) => inFlight.future;
 }
 
-PushTestClient _lockedClient() {
-  final client = _SyncingClient()..setUserId('@me:x');
+PushTestClient _lockedClient({
+  String userId = '@me:x',
+  String senderId = '@a:x',
+}) {
+  final client = _SyncingClient()..setUserId(userId);
   final room = buildTestRoom(client);
   client.pushedEvent = (notification) =>
-      lockedTestEvent(room, eventId: notification.eventId!, senderId: '@a:x');
+      lockedTestEvent(room, eventId: notification.eventId!, senderId: senderId);
   return client;
 }
 
@@ -130,22 +135,57 @@ void main() {
       });
     });
 
-    test('a push trying again after the sync in flight lets the client go '
-        'as soon as the app asks for it', () async {
+    test('a push waiting for its key stops and lets the client go as soon as '
+        'the app asks for it', () async {
       installFakeLocalNotifications();
       installSilentNotificationSideChannels();
       final built = <PushTestClient>[];
       final runner = _recordingRunner(built, newClient: _lockedClient);
 
-      await runner.deliver(_push());
+      final delivered = runner.deliver(_push());
       await pumpEventQueue();
-      expect(runner.lastPushOutcome, IncomingPushOutcome.message);
       expect(built.single.disposeCalls, 0);
 
       runner.yieldClient();
+      await delivered;
       await pumpEventQueue();
 
+      expect(runner.lastPushOutcome, IncomingPushOutcome.message);
       expect(built.single.disposeCalls, 1);
+    });
+
+    test('hands the handler when the push arrived, so a push already past '
+        'its key wait waits on no sync', () async {
+      installFakeLocalNotifications();
+      installSilentNotificationSideChannels();
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: _lockedClient);
+
+      await runner.deliver(
+        _push(),
+        receivedAt: clock.now().subtract(const Duration(seconds: 11)),
+      );
+
+      expect(runner.lastPushOutcome, IncomingPushOutcome.message);
+    });
+
+    test('a push queued behind another counts its key wait from when it '
+        'arrived, not from when its turn came', () async {
+      installFakeLocalNotifications();
+      installSilentNotificationSideChannels();
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(built, newClient: _lockedClient);
+      final time = FakeAsync();
+      var handled = 0;
+      time.run((_) {
+        runner.deliver(_push(eventId: r'$one')).then((_) => handled++);
+        runner.deliver(_push(eventId: r'$two')).then((_) => handled++);
+      });
+
+      await time.advance(const Duration(seconds: 10, milliseconds: 500));
+
+      expect(handled, 2);
+      expect(runner.lastPushOutcome, IncomingPushOutcome.message);
     });
 
     test('a push after the client was given up opens a fresh one', () async {
@@ -836,7 +876,7 @@ void main() {
   });
 
   group('a ring the server sent', () {
-    late RecordedMethodCalls callStyle;
+    late FakeNativeRing callStyle;
 
     setUp(() => callStyle = installHeadlessRingChannels());
 
@@ -933,14 +973,7 @@ void main() {
 
     test('takes over a ring native code already shows, holding it without '
         'showing it again', () async {
-      final notifications = installFakeLocalNotifications();
-      await saveRingingCall(await SharedPreferences.getInstance(), (
-        roomId: '!room:example.org',
-        callId: 'call1',
-        callerId: '@bob:example.org',
-        isVideo: true,
-      ));
-      notifications.active = [ringNotificationOnScreen()];
+      await callStyle.ringNatively(testRingingCall);
       var holds = 0;
       final built = <PushTestClient>[];
       final runner = _recordingRunner(built, newClient: ringingPushClient)
@@ -954,16 +987,36 @@ void main() {
       expect(holds, 1);
     });
 
+    test('takes down the "New message" its caller\'s locked invite left, '
+        'while Android has not yet listed the native ring', () async {
+      final notifications = installFakeLocalNotifications();
+      final messageId = messageNotificationIdFor('!room:example.org');
+      final built = <PushTestClient>[];
+      final runner = _recordingRunner(
+        built,
+        newClient: () => _lockedClient(
+          userId: '@me:example.org',
+          senderId: '@bob:example.org',
+        ),
+      );
+      await runner.deliver(
+        _push(),
+        receivedAt: clock.now().subtract(const Duration(seconds: 11)),
+      );
+      notifications.active = [
+        {'id': messageId, 'channelId': 'direct_messages', 'payload': ''},
+      ];
+      await callStyle.ringNatively(testRingingCall);
+
+      await runner.deliverRing(ring());
+
+      expect(runner.lastPushOutcome, IncomingPushOutcome.callRinging);
+      expect(notifications.cancelled, contains(messageId));
+    });
+
     test('leaves the call-waiting ring of that call alone while I am on '
         'another call', () async {
-      final notifications = installFakeLocalNotifications();
-      await saveRingingCall(await SharedPreferences.getInstance(), (
-        roomId: '!room:example.org',
-        callId: 'call1',
-        callerId: '@bob:example.org',
-        isVideo: true,
-      ));
-      notifications.active = [ringNotificationOnScreen()];
+      await callStyle.ringNatively(testRingingCall);
       markCallActiveInProcess(true);
       addTearDown(() => markCallActiveInProcess(false));
       final built = <PushTestClient>[];

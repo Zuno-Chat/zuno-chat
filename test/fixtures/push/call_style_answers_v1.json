@@ -1,0 +1,10 @@
+{
+  "description": "The answers native code gives Dart's showIncomingCallStyle request on zuno/call_style. Kotlin and Dart both assert these strings.",
+  "answers": {
+    "shown": "shown",
+    "alreadyRinging": "ringing",
+    "rangHere": "rangHere",
+    "busy": "busy",
+    "unavailable": "unavailable"
+  }
+}

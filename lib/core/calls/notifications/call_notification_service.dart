@@ -39,10 +39,10 @@ RingingCallInfo? ringingCallFromPayload(String? payload) {
   } on FormatException {
     return null;
   }
-  return _ringingCallFrom(decoded);
+  return ringingCallFrom(decoded);
 }
 
-RingingCallInfo? _ringingCallFrom(Object? value) {
+RingingCallInfo? ringingCallFrom(Object? value) {
   if (value is! Map) return null;
   final roomId = value['roomId'];
   final callId = value['callId'];
@@ -180,13 +180,13 @@ class CallNotificationService {
           _systemMuteController.add((callId: callId, muted: muted));
         }
       case 'ringEnded':
-        final call = _ringingCallFrom(arguments);
+        final call = ringingCallFrom(arguments);
         if (call != null) _ringEndedController.add(call);
       case 'callFailed':
         final callId = _callIdFrom(arguments);
         if (callId != null) _systemCallFailedController.add(callId);
       case 'ringing':
-        final call = _ringingCallFrom(arguments);
+        final call = ringingCallFrom(arguments);
         if (call != null) _systemRingingController.add(call);
         if (_capabilities.voipRing) {
           final ring = NativeRing.tryParse(arguments);
@@ -223,7 +223,7 @@ class CallNotificationService {
     CallNotificationAction action,
     Object? arguments,
   ) {
-    final call = _ringingCallFrom(arguments);
+    final call = ringingCallFrom(arguments);
     if (call == null) return;
     final response = CallNotificationResponse(action: action, call: call);
     if (_actionController.hasListener) {

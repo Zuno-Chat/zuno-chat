@@ -13,8 +13,7 @@ data class InstantRingState(
     val appInFront: Boolean,
     val userId: String?,
     val resolved: Set<String>,
-    val showingCallId: String?,
-    val rememberedCallId: String?,
+    val ring: RingNow,
     val callActive: Boolean,
     val room: CachedRoom?,
     val preview: String?,
@@ -62,12 +61,16 @@ object InstantRingDecision {
         state: InstantRingState,
         canRing: (String) -> Boolean,
     ): InstantRingOutcome {
-        val showing = state.showingCallId
         val skip = unavailable(state.appInFront, state.userId) ?: when {
             call.callerId == state.userId -> "own_call"
-            call.callId == state.rememberedCallId -> "already_rung"
+            else -> when (RingDecisions.offer(call.callId, state.ring, state.resolved)) {
+                RingOffer.RINGING -> "already_ringing"
+                RingOffer.RANG_HERE -> "already_rung"
+                RingOffer.BUSY -> "busy_ringing"
+                RingOffer.PRESENT -> null
+            }
+        } ?: when {
             call.callId in state.resolved -> "resolved"
-            showing != null && showing !in state.resolved -> "busy_ringing"
             state.callActive -> "busy_active"
             else -> null
         }

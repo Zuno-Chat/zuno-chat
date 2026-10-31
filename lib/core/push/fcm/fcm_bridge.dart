@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
 
@@ -36,11 +37,13 @@ class FcmPush {
     required this.id,
     required this.data,
     required this.appInFront,
+    this.receivedAt,
   });
 
   final String id;
   final Map<String, dynamic> data;
   final bool appInFront;
+  final DateTime? receivedAt;
 }
 
 typedef FcmPushHandler = Future<void> Function(FcmPush push);
@@ -202,6 +205,10 @@ FcmPush? _pushFrom(Object? arguments) {
         if (key is String) key: value,
     },
     appInFront: arguments['appInFront'] == true,
+    receivedAt: switch (arguments['ageMs']) {
+      final int ageMs => clock.now().subtract(Duration(milliseconds: ageMs)),
+      _ => null,
+    },
   );
 }
 

@@ -1,10 +1,12 @@
 package im.zuno.chat
 
+import im.zuno.chat.RingBlobFixture.endPayload
 import im.zuno.chat.RingBlobFixture.header
 import im.zuno.chat.RingBlobFixture.keys
 import im.zuno.chat.RingBlobFixture.payload
 import im.zuno.chat.RingBlobFixture.ring
 import im.zuno.chat.RingBlobFixture.seal
+import im.zuno.chat.RingBlobOpen.Ended
 import im.zuno.chat.RingBlobOpen.Forged
 import im.zuno.chat.RingBlobOpen.Opened
 import im.zuno.chat.RingBlobOpen.UnknownKid
@@ -173,6 +175,101 @@ class RingBlobTest {
     fun `a ring opens without rts and whatever other keys it carries`() {
         assertEquals(Opened(header, ring), opened("rts" to null))
         assertEquals(Opened(header, ring), opened("v" to 2))
+    }
+
+    @Test
+    fun `every end vector opens to its call and reason`() {
+        val vectors = RingBlobFixture.endVectors()
+        assertEquals(
+            listOf("known_answer", "answered_elsewhere", "ended"),
+            vectors.map { it.getString("name") },
+        )
+        for (vector in vectors) {
+            val payload = vector.getJSONObject("payload")
+            val expected = PushedRingEnd(
+                room = payload.getString("room"),
+                call = payload.getString("call"),
+                ts = payload.getLong("ts"),
+            )
+
+            assertEquals(
+                vector.getString("name"),
+                Ended(
+                    RingBlobHeader(RingBlobFixture.endContract.getLong("kid"), vector.getLong("x")),
+                    expected,
+                ),
+                RingBlob.openEnd(RingBlobFixture.bytes(vector.getString("blob")), ::keys),
+            )
+        }
+    }
+
+    @Test
+    fun `the test sealer reproduces every end vector`() {
+        for (vector in RingBlobFixture.endVectors()) {
+            assertArrayEquals(
+                vector.getString("name"),
+                RingBlobFixture.bytes(vector.getString("blob")),
+                seal(
+                    vector.getString("plaintext"),
+                    withNonce = RingBlobFixture.bytes(vector.getString("nonce")),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `an end ends the ring whatever reason it gives, or none`() {
+        for (reason in listOf("moved_away", null)) {
+            assertEquals(
+                "$reason",
+                Ended(header, RingBlobFixture.end),
+                RingBlob.openEnd(seal(endPayload("reason" to reason)), ::keys),
+            )
+        }
+    }
+
+    @Test
+    fun `an end without its room, call or send time is forged`() {
+        for (missing in listOf("room", "call", "ts")) {
+            assertEquals(missing, Forged, RingBlob.openEnd(seal(endPayload(missing to null)), ::keys))
+        }
+        assertEquals(Forged, RingBlob.openEnd(seal(endPayload("call" to "")), ::keys))
+        assertEquals(Forged, RingBlob.openEnd(seal(endPayload("ts" to "1")), ::keys))
+    }
+
+    @Test
+    fun `only the ze key carries an end, so an end sealed under z is forged`() {
+        val sealed = Base64.getEncoder().encodeToString(seal(endPayload()))
+
+        assertEquals(Forged, RingBlob.open(mapOf("z" to sealed), ::keys))
+    }
+
+    @Test
+    fun `an end carried in ze opens as an end`() {
+        val sealed = Base64.getEncoder().encodeToString(seal(endPayload()))
+
+        assertEquals(Ended(header, RingBlobFixture.end), RingBlob.open(mapOf("ze" to sealed), ::keys))
+    }
+
+    @Test
+    fun `a blob under ze that does not say it is an end is forged, so a ring moved there ends nothing`() {
+        for (sealed in listOf(seal(endPayload("kind" to null)), seal(payload()))) {
+            val carried = Base64.getEncoder().encodeToString(sealed)
+
+            assertEquals(Forged, RingBlob.open(mapOf("ze" to carried), ::keys))
+        }
+    }
+
+    @Test
+    fun `an end carried in ze without its room, call or send time is forged`() {
+        for (missing in listOf("room", "call", "ts")) {
+            val sealed = Base64.getEncoder().encodeToString(
+                seal(endPayload(missing to null)),
+            )
+
+            assertEquals(missing, Forged, RingBlob.open(mapOf("ze" to sealed), ::keys))
+        }
+        assertEquals(Forged, RingBlob.open(mapOf("ze" to "not base64!"), ::keys))
     }
 
     @Test

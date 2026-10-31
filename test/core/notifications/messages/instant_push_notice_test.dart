@@ -82,7 +82,8 @@ void main() {
   });
 
   clockedTest(
-    'a notice the user already dismissed does not silence the post',
+    'a post after the user dismissed its native notice shows quietly, since '
+    'that notice already alerted',
     () async {
       noticed[roomId] = r'$e1';
       notifications.active = const [];
@@ -90,7 +91,7 @@ void main() {
       await post();
 
       expect(conversations.takenNotices, ['$roomId/\$e1']);
-      expect(notifications.lastPlatformSpecifics['onlyAlertOnce'], isFalse);
+      expect(notifications.lastPlatformSpecifics['silent'], isTrue);
     },
   );
 

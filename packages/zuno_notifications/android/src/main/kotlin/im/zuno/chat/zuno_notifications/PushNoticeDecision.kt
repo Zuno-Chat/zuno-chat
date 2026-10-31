@@ -33,6 +33,11 @@ object PushNoticeDecision {
     ): Boolean =
         !roomId.isNullOrBlank() && !eventId.isNullOrBlank() && !appInFront && !showingForRoom
 
+    fun ringCanStandIn(room: CachedRoom?): Boolean = room?.isDirect == true
+
+    fun ringStandsIn(room: CachedRoom?, roomId: String, ringingRoomId: String?): Boolean =
+        ringCanStandIn(room) && ringingRoomId == roomId
+
     fun parseRoomCache(text: String?): Map<String, CachedRoom> {
         if (text.isNullOrEmpty()) return emptyMap()
         val rooms = HashMap<String, CachedRoom>()

@@ -8,14 +8,12 @@ import '../matrixrtc/resolved_call_ids_store.dart';
 import '../models/call_kind.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../ring_identity.dart';
-import 'call_notification_service.dart' show RingingCallInfo;
 import 'ring_over_lines.dart';
 
 Future<RingOutcome> postRingNotification(
   IncomingCall call, {
   bool allowNetwork = false,
   IncomingCallPresenter? presenter,
-  Future<RingingCallInfo?>? ringingNow,
   bool waiting = false,
 }) async {
   await loadRingIdentity(call, allowNetwork: allowNetwork);
@@ -33,7 +31,6 @@ Future<RingOutcome> postRingNotification(
     callId: call.callId,
     isGroupCall: !call.room.isDirectChat,
     avatarBytes: avatarBytes,
-    ringingNow: ringingNow,
     waiting: waiting,
     ringFor: call.ringFor,
   );

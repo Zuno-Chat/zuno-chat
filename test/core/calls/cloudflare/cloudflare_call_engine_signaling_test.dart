@@ -39,6 +39,23 @@ void main() {
       sender.appliedParameters.last.encodings!.first;
 
   group('joining', () {
+    test('announces its local state as soon as its SFU session opens, before '
+        'it publishes media, so a membership can carry the session', () {
+      inCall((call) {
+        Object? sessionThen;
+        int? pushesThen;
+        call.engine.localStateChangedStream.first.then((_) {
+          sessionThen = call.engine.localFociInfo?['sessionId'];
+          pushesThen = call.sfu.pushes.length;
+        });
+
+        call.join();
+
+        expect(sessionThen, 's1');
+        expect(pushesThen, 0);
+      });
+    });
+
     test('a voice call captures the microphone only, publishes audio plus a '
         'black placeholder video, and applies the SFU answer', () {
       inCall((call) {

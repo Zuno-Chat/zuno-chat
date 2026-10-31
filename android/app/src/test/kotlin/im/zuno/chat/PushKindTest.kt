@@ -18,6 +18,12 @@ class PushKindTest {
     }
 
     @Test
+    fun `a push carrying a ring end is a ring end, even beside a ring blob`() {
+        assertEquals(PushKind.RING_END, PushKind.of(null, null, ringEnd = true))
+        assertEquals(PushKind.RING_END, PushKind.of("\$e", "!r:x", ring = true, ringEnd = true))
+    }
+
+    @Test
     fun `an event id and a room id make a message push`() {
         assertEquals(PushKind.MESSAGE, PushKind.of("\$e", "!r:x"))
     }

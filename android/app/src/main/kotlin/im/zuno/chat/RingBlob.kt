@@ -7,6 +7,7 @@ import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.SecretKeySpec
+import im.zuno.chat.zuno_notifications.PushKind
 import org.json.JSONException
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -26,10 +27,14 @@ data class PushedRing(
     val ts: Long,
 )
 
+data class PushedRingEnd(val room: String, val call: String, val ts: Long)
+
 data class RingBlobHeader(val kid: Long, val expiry: Long)
 
 sealed interface RingBlobOpen {
     data class Opened(val header: RingBlobHeader, val ring: PushedRing) : RingBlobOpen
+
+    data class Ended(val header: RingBlobHeader, val end: PushedRingEnd) : RingBlobOpen
 
     data class UnknownKid(val header: RingBlobHeader) : RingBlobOpen
 
@@ -40,6 +45,8 @@ sealed interface RingBlobOpen {
 
 object RingBlob {
     const val PUSH_KEY = "z"
+    const val END_PUSH_KEY = "ze"
+    private const val END_KIND = "end"
     private const val VERSION: Byte = 0x01
     private const val HEADER_LENGTH = 9
     private const val NONCE_LENGTH = 12
@@ -61,18 +68,28 @@ object RingBlob {
 
     val isSupported: Boolean get() = transformation != null
 
-    internal fun bytesOf(data: Map<String, String?>): ByteArray? {
-        val encoded = data[PUSH_KEY] ?: return null
-        return try {
-            Base64.getDecoder().decode(encoded)
-        } catch (error: IllegalArgumentException) {
-            null
-        }
-    }
+    fun pushKind(eventId: String?, roomId: String?, data: Map<String, String?>): PushKind =
+        PushKind.of(
+            eventId,
+            roomId,
+            ring = data[PUSH_KEY] != null,
+            ringEnd = data[END_PUSH_KEY] != null,
+        )
+
+    internal fun bytesOf(data: Map<String, String?>): ByteArray? = data[PUSH_KEY]?.let(::decoded)
 
     fun open(data: Map<String, String?>, key: (Long) -> ByteArray?): RingBlobOpen {
+        data[END_PUSH_KEY]?.let { sealed ->
+            return openEnd(decoded(sealed) ?: return RingBlobOpen.Forged, key)
+        }
         val blob = bytesOf(data) ?: return RingBlobOpen.Forged
         return open(blob, key)
+    }
+
+    private fun decoded(encoded: String): ByteArray? = try {
+        Base64.getDecoder().decode(encoded)
+    } catch (error: IllegalArgumentException) {
+        null
     }
 
     internal fun header(blob: ByteArray): RingBlobHeader? {
@@ -80,7 +97,21 @@ object RingBlob {
         return RingBlobHeader(kid = uint32(blob, 1), expiry = uint32(blob, 5))
     }
 
-    internal fun open(blob: ByteArray, key: (Long) -> ByteArray?): RingBlobOpen {
+    internal fun open(blob: ByteArray, key: (Long) -> ByteArray?): RingBlobOpen =
+        openSealed(blob, key) { header, json ->
+            ringOf(json)?.let { RingBlobOpen.Opened(header, it) }
+        }
+
+    internal fun openEnd(blob: ByteArray, key: (Long) -> ByteArray?): RingBlobOpen =
+        openSealed(blob, key) { header, json ->
+            endOf(json)?.let { RingBlobOpen.Ended(header, it) }
+        }
+
+    private fun openSealed(
+        blob: ByteArray,
+        key: (Long) -> ByteArray?,
+        payload: (RingBlobHeader, JSONObject) -> RingBlobOpen?,
+    ): RingBlobOpen {
         if (blob.size < HEADER_LENGTH) return RingBlobOpen.Forged
         val header = header(blob) ?: return RingBlobOpen.UnknownVersion
         val secret = key(header.kid) ?: return RingBlobOpen.UnknownKid(header)
@@ -88,8 +119,8 @@ object RingBlob {
             return RingBlobOpen.Forged
         }
         val plaintext = decrypt(blob, secret) ?: return RingBlobOpen.Forged
-        val ring = ringOf(plaintext) ?: return RingBlobOpen.Forged
-        return RingBlobOpen.Opened(header, ring)
+        val json = jsonOf(plaintext) ?: return RingBlobOpen.Forged
+        return payload(header, json) ?: RingBlobOpen.Forged
     }
 
     private fun decrypt(blob: ByteArray, secret: ByteArray): ByteArray? {
@@ -114,7 +145,7 @@ object RingBlob {
         }
     }
 
-    private fun ringOf(plaintext: ByteArray): PushedRing? {
+    private fun jsonOf(plaintext: ByteArray): JSONObject? {
         var end = plaintext.size
         while (end > 0 && plaintext[end - 1] == 0.toByte()) end--
         val text = try {
@@ -122,16 +153,33 @@ object RingBlob {
         } catch (error: CharacterCodingException) {
             return null
         }
-        val json = try {
+        return try {
             JSONTokener(text).nextValue() as? JSONObject
         } catch (error: JSONException) {
             null
-        } ?: return null
-        val room = (json.opt("room") as? String)?.takeIf { it.isNotEmpty() } ?: return null
-        val call = (json.opt("call") as? String)?.takeIf { it.isNotEmpty() } ?: return null
-        val caller = (json.opt("caller") as? String)?.takeIf { it.isNotEmpty() } ?: return null
+        }
+    }
+
+    private fun JSONObject.text(name: String): String? =
+        (opt(name) as? String)?.takeIf { it.isNotEmpty() }
+
+    private fun JSONObject.sentAt(): Long? = (opt("ts") as? Number)?.toLong()
+
+    private fun endOf(json: JSONObject): PushedRingEnd? {
+        if (json.opt("kind") != END_KIND) return null
+        return PushedRingEnd(
+            room = json.text("room") ?: return null,
+            call = json.text("call") ?: return null,
+            ts = json.sentAt() ?: return null,
+        )
+    }
+
+    private fun ringOf(json: JSONObject): PushedRing? {
+        val room = json.text("room") ?: return null
+        val call = json.text("call") ?: return null
+        val caller = json.text("caller") ?: return null
         val kind = RingKind.entries.firstOrNull { it.wire == json.opt("kind") } ?: return null
-        val ts = (json.opt("ts") as? Number)?.toLong() ?: return null
+        val ts = json.sentAt() ?: return null
         return PushedRing(
             room = room,
             call = call,

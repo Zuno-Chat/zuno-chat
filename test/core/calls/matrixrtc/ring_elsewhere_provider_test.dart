@@ -316,14 +316,14 @@ void main() {
   });
 
   group('on Android, with the ring notification up for the call', () {
-    late RecordedMethodCalls callStyle;
+    late FakeNativeRing callStyle;
     late RecordedMethodCalls toNative;
 
     setUp(() async {
       installSilentNotificationSideChannels();
       callStyle = installFakeCallStyleChannel();
       toNative = installFakeCallsChannel();
-      await saveRingingCall(prefs, (
+      await callStyle.ringNatively((
         roomId: room.id,
         callId: 'c1',
         callerId: _bob,

@@ -19,40 +19,49 @@ object InstantRing {
         return try {
             val prefs = FlutterStore.preferences(app)
             val nowMs = System.currentTimeMillis()
-            val state = InstantRingState(
-                appInFront = appInFront,
-                userId = userId,
-                resolved = RingDecisions.resolvedCallIds(prefs.all, nowMs),
-                showingCallId = IncomingRing.showingCallId(app),
-                rememberedCallId = IncomingRing.rememberedCallId(app, nowMs),
-                callActive = callActive,
-                room = PushNoticeDecision.parseRoomCache(
-                    prefs.getString(FlutterStore.ROOM_CACHE, null),
-                )[call.roomId],
-                preview = prefs.getString(FlutterStore.NOTIFICATION_PREVIEW, null),
-                ringtone = prefs.getBoolean(FlutterStore.RINGTONE, true),
-                vibrate = prefs.getBoolean(FlutterStore.CALL_VIBRATION, true),
-            )
-            val outcome = InstantRingDecision.decide(call, state) {
-                IncomingCallStyle.canRing(app, it)
-            }
-            when (outcome) {
-                is InstantRingOutcome.Skip -> {
-                    Log.d(TAG, "Not ringing at once: ${outcome.reason}")
-                    false
-                }
-
-                is InstantRingOutcome.Present -> {
-                    val spec = specFor(app, call, outcome.look, ringMs)
-                    IncomingCallStyle.show(app, spec, tonePath).also { shown ->
-                        if (shown) IncomingRing.remember(app, call, nowMs)
-                        Log.d(TAG, if (shown) "Ringing at once" else "Ring could not show")
-                    }
-                }
+            val room = FlutterStore.cachedRoom(prefs, call.roomId)
+            val preview = prefs.getString(FlutterStore.NOTIFICATION_PREVIEW, null)
+            val ringtone = prefs.getBoolean(FlutterStore.RINGTONE, true)
+            val vibrate = prefs.getBoolean(FlutterStore.CALL_VIBRATION, true)
+            IncomingRing.decide(app, nowMs) { ring ->
+                val state = InstantRingState(
+                    appInFront = appInFront,
+                    userId = userId,
+                    resolved = RingDecisions.resolvedCallIds(prefs.all, nowMs),
+                    ring = ring,
+                    callActive = callActive,
+                    room = room,
+                    preview = preview,
+                    ringtone = ringtone,
+                    vibrate = vibrate,
+                )
+                ringIfDue(app, call, state, ringMs, tonePath)
             }
         } catch (e: Exception) {
             Log.w(TAG, "Could not ring at once", e)
             false
+        }
+    }
+
+    private fun ringIfDue(
+        app: Context,
+        call: InstantRingCall,
+        state: InstantRingState,
+        ringMs: Long,
+        tonePath: (String) -> String?,
+    ): Boolean = when (
+        val outcome = InstantRingDecision.decide(call, state) { IncomingCallStyle.canRing(app, it) }
+    ) {
+        is InstantRingOutcome.Skip -> {
+            Log.d(TAG, "Not ringing at once: ${outcome.reason}")
+            false
+        }
+
+        is InstantRingOutcome.Present -> {
+            val spec = specFor(app, call, outcome.look, ringMs)
+            IncomingCallStyle.show(app, spec, tonePath).also { shown ->
+                Log.d(TAG, if (shown) "Ringing at once" else "Ring could not show")
+            }
         }
     }
 

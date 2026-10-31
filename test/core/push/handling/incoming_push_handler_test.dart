@@ -38,7 +38,6 @@ import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/hybrid_fake_async.dart';
-import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/notifying_client.dart';
 
 class _ScriptedClient extends ZunoClient with TestDecryption {
@@ -109,7 +108,7 @@ void main() {
   late _ScriptedClient client;
   late Room room;
   late RecordedNotifications notifications;
-  late RecordedMethodCalls callStyle;
+  late FakeNativeRing callStyle;
 
   PushNotification push({
     String? roomId = '!room:example.org',
@@ -168,16 +167,16 @@ void main() {
   Future<IncomingPushOutcome> handle({
     NotifyMe notifyMe = NotifyMe.all,
     String eventId = r'$event',
-    void Function(Future<void> refinement)? onRefining,
     void Function()? onRinging,
-    Future<void>? appWantsClient,
+    Completer<void>? appWantsClient,
+    DateTime? receivedAt,
   }) => handleIncomingPushNotification(
     client,
     push(eventId: eventId),
     notifyMe: notifyMe,
-    onRefining: onRefining,
     onRinging: onRinging,
     appWantsClient: appWantsClient,
+    receivedAt: receivedAt,
   );
 
   Iterable<String> callStyleMethods() => callStyle.calls.map((c) => c.method);
@@ -371,15 +370,14 @@ void main() {
     group('with another call already ringing', () {
       const ringingCallId = 'ringing-call';
 
-      setUp(() async {
-        await saveRingingCall(await SharedPreferences.getInstance(), (
-          roomId: room.id,
-          callId: ringingCallId,
-          callerId: '@bob:example.org',
-          isVideo: false,
-        ));
-        notifications.active = [ringNotificationOnScreen()];
-      });
+      final ringingCall = (
+        roomId: '!room:example.org',
+        callId: ringingCallId,
+        callerId: '@bob:example.org',
+        isVideo: false,
+      );
+
+      setUp(() => callStyle.ringNatively(ringingCall));
 
       test('does not ring over it', () async {
         client.resolved = callInvite(callId: 'call1');
@@ -410,10 +408,10 @@ void main() {
             eventId: r'$locked',
             senderId: '@bob:example.org',
           );
-        notifications.active = [];
+        callStyle.ringing = null;
         expect(await handle(eventId: r'$locked'), IncomingPushOutcome.message);
+        callStyle.ringing = ringingCall;
         notifications.active = [
-          ringNotificationOnScreen(),
           {
             'id': messageNotificationIdFor(room.id),
             'channelId': 'group_messages',
@@ -470,13 +468,13 @@ void main() {
 
         await time.advance(const Duration(seconds: 3));
         expect(summaryOutcome, IncomingPushOutcome.ignored);
-        expect(callStyleMethods(), isNot(contains('cancelIncomingCallStyle')));
+        expect(callStyle.ringing?.callId, 'call1');
         expect(await rememberedCallId(), 'call1');
       });
 
-      test('rings once its notification is gone, though it is still '
+      test('rings once it no longer rings, though it is still '
           'remembered', () async {
-        notifications.active = const [];
+        callStyle.ringing = null;
         client.resolved = callInvite(callId: 'call1');
 
         expect(await handle(), IncomingPushOutcome.callRinging);
@@ -492,31 +490,10 @@ void main() {
         );
 
         expect(await handle(), IncomingPushOutcome.ignored);
-        expect(callStyleMethods(), isNot(contains('cancelIncomingCallStyle')));
+        expect(callStyle.ringing?.callId, ringingCallId);
         expect(await rememberedCallId(), ringingCallId);
         expect(await resolvedCallIds(), contains('call1'));
         expect(await resolvedCallIds(), isNot(contains(ringingCallId)));
-      });
-
-      test('a summary for a different call still cancels once the ring is '
-          'over 45 seconds old', () async {
-        final prefs = await SharedPreferences.getInstance();
-        await withClock(
-          Clock.fixed(clock.now().subtract(const Duration(seconds: 46))),
-          () => saveRingingCall(prefs, (
-            roomId: room.id,
-            callId: ringingCallId,
-            callerId: '@bob:example.org',
-            isVideo: false,
-          )),
-        );
-        client.resolved = callSummary(
-          callId: 'call1',
-          status: CallSummaryStatus.ended,
-        );
-
-        expect(await handle(), IncomingPushOutcome.ignored);
-        expect(callStyleMethods(), contains('cancelIncomingCallStyle'));
       });
     });
 
@@ -531,7 +508,7 @@ void main() {
 
     test('a summary for a call that just rang marks it over at once, but '
         'takes its ring down only after the grace', () async {
-      await saveRingingCall(await SharedPreferences.getInstance(), (
+      await callStyle.rememberRang((
         roomId: room.id,
         callId: 'call1',
         callerId: '@bob:example.org',
@@ -804,14 +781,12 @@ void main() {
       'its room', () {
     setUp(() async {
       client.decryption = FakeRoomDecryption();
-      final prefs = await SharedPreferences.getInstance();
-      await saveRingingCall(prefs, (
+      await callStyle.ringNatively((
         roomId: room.id,
         callId: 'call1',
         callerId: '@bob:example.org',
         isVideo: false,
       ));
-      notifications.active = [ringNotificationOnScreen()];
     });
 
     test('is the invite the ring already shows, so it posts nothing', () async {
@@ -880,7 +855,6 @@ void main() {
     late FakeRoomDecryption decryption;
     late Completer<void> sync;
     late Completer<void> appWantsClient;
-    late List<Future<void>> refinements;
     late int rang;
 
     setUp(() {
@@ -895,114 +869,191 @@ void main() {
       sync = Completer<void>();
       client.catchUpGate = sync.future;
       appWantsClient = Completer<void>();
-      refinements = [];
       rang = 0;
-      notifications.active = [
-        {
-          'id': messageNotificationIdFor(room.id),
-          'channelId': 'group_messages',
-          'payload': '',
-        },
-      ];
     });
 
-    Future<IncomingPushOutcome> handleLocked() => handle(
-      onRefining: refinements.add,
+    Future<IncomingPushOutcome> handleLocked({DateTime? receivedAt}) => handle(
       onRinging: () => rang++,
-      appWantsClient: appWantsClient.future,
+      appWantsClient: appWantsClient,
+      receivedAt: receivedAt,
     );
 
-    test('shows "New message" and is done without waiting for the '
-        'sync', () async {
-      expect(await handleLocked(), IncomingPushOutcome.message);
+    test('waits for that sync and shows the message it opens, never "New '
+        'message"', () async {
+      final outcome = handleLocked();
+      await pumpEventQueue();
+      expect(notifications.shown, isEmpty);
 
-      expect(notifications.single.lineTexts, ['New message']);
-      expect(refinements, hasLength(1));
-    });
-
-    test('turns "New message" into the message once the sync brings its '
-        'key', () async {
-      await handleLocked();
       decryption.decrypted.add(message(body: 'hello'));
-
       sync.complete();
-      await Future.wait(refinements);
 
-      expect(notifications.shown.last.lineTexts, ['hello']);
-      expect(notifications.shown.last.android['onlyAlertOnce'], isTrue);
+      expect(await outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['hello']);
     });
 
-    test('rings and asks for the ring hold when the sync opens a call '
+    test('rings and asks for the ring hold when that sync opens a call '
         'invite', () async {
-      await handleLocked();
+      final outcome = handleLocked();
       decryption.decrypted.add(callInvite());
-
       sync.complete();
-      await Future.wait(refinements);
 
+      expect(await outcome, IncomingPushOutcome.callRinging);
       expect((callStyle.lastShow.arguments as Map)['callId'], 'call1');
       expect(rang, 1);
+      expect(notifications.shown, isEmpty);
     });
 
-    test('keeps "New message" when the sync brings no key', () async {
-      await handleLocked();
-
+    test('syncs once more when the first sync ends without the key', () async {
+      client.onCaughtUp = () {
+        if (client.catchUps.length == 2) {
+          decryption.decrypted.add(message(body: 'hello'));
+        }
+      };
       sync.complete();
-      await Future.wait(refinements);
 
-      expect(notifications.single.lineTexts, ['New message']);
-      expect(rang, 0);
+      expect(await handleLocked(), IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['hello']);
+      expect(client.catchUps, hasLength(2));
     });
 
-    test('lets go at once when the app asks for the client', () async {
-      await handleLocked();
+    test('shows "New message" after two syncs without the key, and syncs no '
+        'more', () async {
+      sync.complete();
+
+      expect(await handleLocked(), IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+      expect(client.catchUps, hasLength(2));
+    });
+
+    test('shows "New message" 10 s after the push arrived, though the sync '
+        'is still running', () async {
+      final time = FakeAsync();
+      IncomingPushOutcome? outcome;
+      time.run((_) => handleLocked().then((o) => outcome = o));
+
+      await time.advance(const Duration(seconds: 9));
+      expect(outcome, isNull);
+      expect(notifications.shown, isEmpty);
+
+      await time.advance(const Duration(seconds: 1));
+      expect(outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+    });
+
+    test('counts those 10 s from when the push arrived, not from when Dart '
+        'got it', () async {
+      final time = FakeAsync();
+      IncomingPushOutcome? outcome;
+      time.run(
+        (_) => handleLocked(
+          receivedAt: clock.now().subtract(const Duration(seconds: 8)),
+        ).then((o) => outcome = o),
+      );
+
+      await time.advance(const Duration(seconds: 2));
+
+      expect(outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+    });
+
+    test('a push that arrived more than 10 s ago shows "New message" at '
+        'once, without waiting on any sync', () async {
+      final outcome = await handleLocked(
+        receivedAt: clock.now().subtract(const Duration(seconds: 11)),
+      );
+
+      expect(outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+      expect(client.catchUps, isEmpty);
+    });
+
+    test('a push that reaches Dart past its 10 s still tries its key once '
+        'more, so a key the catch-up already brought opens it', () async {
+      decryption.decrypted.add(message(body: 'hello'));
+
+      final outcome = await handleLocked(
+        receivedAt: clock.now().subtract(const Duration(seconds: 11)),
+      );
+
+      expect(outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['hello']);
+      expect(client.catchUps, isEmpty);
+    });
+
+    test('a push stamped after now, by a clock that stepped back, still waits '
+        'no more than 10 s', () async {
+      final time = FakeAsync();
+      IncomingPushOutcome? outcome;
+      time.run(
+        (_) =>
+            handleLocked(receivedAt: clock.now().add(const Duration(hours: 1)))
+                .then((o) => outcome = o),
+      );
+
+      await time.advance(const Duration(seconds: 10));
+
+      expect(outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+    });
+
+    test('a push handled after the app asked for the client starts no '
+        'sync', () async {
+      appWantsClient.complete();
+
+      expect(await handleLocked(), IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
+      expect(client.catchUps, isEmpty);
+    });
+
+    test('stops waiting as soon as the app asks for the client, and leaves '
+        '"New message" for the app to resolve', () async {
+      final outcome = handleLocked();
+      await pumpEventQueue();
 
       appWantsClient.complete();
-      await Future.wait(refinements);
 
+      expect(await outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['New message']);
       expect(decryption.attempts, 0);
     });
 
     group('from the caller of the call ringing in its room', () {
       setUp(() async {
-        await saveRingingCall(await SharedPreferences.getInstance(), (
+        await callStyle.ringNatively((
           roomId: room.id,
           callId: 'call1',
           callerId: '@bob:example.org',
           isVideo: false,
         ));
-        notifications.active = [
-          ...notifications.active,
-          ringNotificationOnScreen(),
-        ];
       });
 
-      test('shows no "New message", but still shows the message the sync '
-          'opens', () async {
-        expect(await handleLocked(), IncomingPushOutcome.ignored);
-        expect(notifications.shown, isEmpty);
-
+      test('still shows the message that sync opens', () async {
+        final outcome = handleLocked();
         decryption.decrypted.add(message(body: 'pick up, it is urgent'));
         sync.complete();
-        await Future.wait(refinements);
 
-        expect(notifications.shown.last.lineTexts, ['pick up, it is urgent']);
+        expect(await outcome, IncomingPushOutcome.message);
+        expect(notifications.single.lineTexts, ['pick up, it is urgent']);
+      });
+
+      test('shows no "New message" when the key does not come', () async {
+        sync.complete();
+
+        expect(await handleLocked(), IncomingPushOutcome.ignored);
+        expect(notifications.shown, isEmpty);
       });
     });
 
-    test('with no sync in flight, a client the push built syncs once in the '
-        'background for the key, and fills the line in', () async {
+    test('with no sync in flight, a client the push built starts one that '
+        'waits on the server for the time left', () async {
       client.syncing = false;
-
-      expect(await handleLocked(), IncomingPushOutcome.message);
-      expect(notifications.single.lineTexts, ['New message']);
-      expect(client.catchUps, [lateKeySyncWait]);
-
+      final outcome = handleLocked();
       decryption.decrypted.add(message(body: 'hello'));
       sync.complete();
-      await Future.wait(refinements);
 
-      expect(notifications.shown.last.lineTexts, ['hello']);
+      expect(await outcome, IncomingPushOutcome.message);
+      expect(notifications.single.lineTexts, ['hello']);
+      expect(client.catchUps.first, greaterThan(const Duration(seconds: 9)));
     });
 
     test('with no sync in flight, the app\'s client leaves the key to the '
@@ -1019,7 +1070,8 @@ void main() {
       });
 
       expect(await handleLocked(), IncomingPushOutcome.message);
-      expect(refinements, isEmpty);
+      expect(notifications.single.lineTexts, ['New message']);
+      expect(client.catchUps.where((wait) => wait != Duration.zero), isEmpty);
     });
   });
 
@@ -1428,8 +1480,9 @@ void main() {
     messenger.setMockMethodCallHandler(const MethodChannel('zuno/call_style'), (
       call,
     ) async {
-      if (call.method == 'showIncomingCallStyle') order.add('ring');
-      return null;
+      if (call.method != 'showIncomingCallStyle') return null;
+      order.add('ring');
+      return 'shown';
     });
     messenger.setMockMethodCallHandler(
       const MethodChannel('zuno/conversations'),
@@ -1883,7 +1936,6 @@ class _GatedPresenter extends NoopIncomingCallPresenter {
     required String callId,
     bool isGroupCall = false,
     Uint8List? avatarBytes,
-    Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
     Duration? ringFor,
   }) async {

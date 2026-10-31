@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:clock/clock.dart';
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -17,6 +18,7 @@ import 'package:zuno/core/matrix/media_gallery_group.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/messages/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
+import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';
@@ -29,6 +31,7 @@ import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_open_room.dart';
+import '../../../helpers/hybrid_fake_async.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/notifying_client.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -73,9 +76,9 @@ void main() {
   late _ScriptedRing ring;
   String? openRoomId;
 
-  Future<void> startNotifier() async {
+  Future<void> startNotifier({Map<String, Object> stored = const {}}) async {
     container = await containerWithPreferences(
-      {},
+      stored,
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         incomingCallPresenterProvider.overrideWithValue(ring),
@@ -403,6 +406,189 @@ void main() {
       expect(shown.android['style'], AndroidNotificationStyle.messaging.index);
     },
   );
+
+  group('a "New message" line another engine left', () {
+    Event locked() => lockedTestEvent(room, eventId: r'$1', senderId: '@a:x');
+
+    Map<String, Object> waiting([List<String> eventIds = const [r'$1']]) => {
+      notificationThreadsKey: jsonEncode({
+        room.id: NotificationThread(
+          roomId: room.id,
+          title: 'Alice',
+          isGroupChat: false,
+          lines: [
+            for (final eventId in eventIds)
+              NotificationLine(
+                eventId: eventId,
+                senderId: '@a:x',
+                senderName: 'Alice',
+                text: 'New message',
+                timestamp: DateTime(2026, 10, 30, 17, 34),
+                placeholder: true,
+              ),
+          ],
+        ).toJson(),
+      }),
+    };
+
+    Future<void> anotherEngineLeavesALine() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        notificationThreadsKey,
+        waiting()[notificationThreadsKey]! as String,
+      );
+    }
+
+    Future<void> appStartsWithNoLine() async {
+      client.rooms.add(room);
+      (client.database as StoredMembersFakeDatabaseApi).events.add(locked());
+      container.dispose();
+      await startNotifier();
+      await pumpEventQueue();
+    }
+
+    Future<void> appStarts() async {
+      client.rooms.add(room);
+      (client.database as StoredMembersFakeDatabaseApi).events.add(locked());
+      container.dispose();
+      await startNotifier(stored: waiting());
+      await pumpEventQueue();
+    }
+
+    Future<void> keyArrives(Event opens) async {
+      client.decryption.keyArrives(room, opens: opens);
+      await pumpEventQueue();
+    }
+
+    test('turns into the message once its key arrives in the app', () async {
+      roomShowing();
+      await appStarts();
+      expect(notifications.shown, isEmpty);
+
+      await keyArrives(textEvent(body: 'are you around?'));
+
+      expect(notifications.shown.last.lineTexts, ['are you around?']);
+      expect(notifications.shown.last.android['onlyAlertOnce'], isTrue);
+    });
+
+    test('whose key came while the app was closed turns into the message as '
+        'the app starts', () async {
+      roomShowing();
+      client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+
+      await appStarts();
+
+      expect(notifications.shown.last.lineTexts, ['are you around?']);
+    });
+
+    test('one another engine leaves after the app started is taken over '
+        'once the app has synced', () async {
+      roomShowing();
+      await appStartsWithNoLine();
+      await anotherEngineLeavesALine();
+      client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+
+      client.onSync.add(SyncUpdate(nextBatch: 's1'));
+      await pumpEventQueue();
+
+      expect(notifications.shown.last.lineTexts, ['are you around?']);
+    });
+
+    test('one another engine leaves after the app started is taken over '
+        'once the app comes back to the front', () async {
+      final binding = TestWidgetsFlutterBinding.instance;
+      void moveThrough(List<AppLifecycleState> states) {
+        for (final state in states) {
+          binding.handleAppLifecycleStateChanged(state);
+        }
+      }
+
+      moveThrough([AppLifecycleState.resumed]);
+      roomShowing();
+      await appStartsWithNoLine();
+      moveThrough([
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+      ]);
+      await anotherEngineLeavesALine();
+      client.decryption.decrypted.add(textEvent(body: 'are you around?'));
+
+      moveThrough([
+        AppLifecycleState.hidden,
+        AppLifecycleState.inactive,
+        AppLifecycleState.resumed,
+      ]);
+      await pumpEventQueue();
+
+      expect(notifications.shown.last.lineTexts, ['are you around?']);
+    });
+
+    test('several lines whose keys came are upgraded a quarter second apart, '
+        'so Android drops none of the updates', () async {
+      roomShowing();
+      client.rooms.add(room);
+      final database = client.database as StoredMembersFakeDatabaseApi;
+      for (final eventId in [r'$1', r'$2', r'$3']) {
+        database.events.add(
+          lockedTestEvent(room, eventId: eventId, senderId: '@a:x'),
+        );
+        client.decryption.decrypted.add(
+          buildTestEvent(
+            room,
+            eventId: eventId,
+            senderId: '@a:x',
+            content: {'msgtype': MessageTypes.Text, 'body': 'line $eventId'},
+          ),
+        );
+      }
+      container.dispose();
+      final time = FakeAsync();
+      time.run(
+        (_) => unawaited(startNotifier(stored: waiting([r'$1', r'$2', r'$3']))),
+      );
+
+      await time.advance(const Duration(milliseconds: 1));
+      final first = notifications.shown.length;
+      expect(first, greaterThan(0));
+      await time.advance(const Duration(milliseconds: 248));
+      expect(notifications.shown, hasLength(first));
+      await time.advance(const Duration(milliseconds: 2));
+      expect(notifications.shown, hasLength(first + 1));
+      await time.advance(const Duration(milliseconds: 250));
+
+      expect(notifications.shown, hasLength(first + 2));
+      expect(notifications.shown.last.lineTexts, [
+        r'line $1',
+        r'line $2',
+        r'line $3',
+      ]);
+    });
+
+    test(
+      'the user swiped away stays gone, even once its key arrives',
+      () async {
+        await appStarts();
+
+        await keyArrives(textEvent(body: 'are you around?'));
+
+        expect(notifications.shown, isEmpty);
+      },
+    );
+
+    test('whose message needs no notification is taken back once it '
+        'opens', () async {
+      roomShowing();
+      await appStarts();
+
+      await keyArrives(textEvent(senderId: '@me:x'));
+
+      expect(
+        notifications.cancelled,
+        contains(messageNotificationIdFor(room.id)),
+      );
+    });
+  });
 
   group('a message whose key has not arrived yet', () {
     Event locked({String senderId = '@a:x'}) =>

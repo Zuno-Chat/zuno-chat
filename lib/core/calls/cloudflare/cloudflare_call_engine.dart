@@ -593,6 +593,7 @@ class CloudflareCallEngine implements CallEngine {
     pc.onConnectionState = _handleConnectionState;
     _sessionId = sessionId;
     _pc = pc;
+    _notifyLocalStateChanged();
   }
 
   void _disposeOrphanedConnectResult(Object? value) {

@@ -711,7 +711,10 @@ class _BatteryStepState extends ConsumerState<_BatteryStep>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    unawaited(unifiedPushDeliveryProvider.refreshDistributorBattery());
+    if (ref.read(notificationDeliveryModeProvider) ==
+        NotificationDeliveryMode.unifiedPush) {
+      unawaited(unifiedPushDeliveryProvider.refreshDistributorBattery());
+    }
   }
 
   @override

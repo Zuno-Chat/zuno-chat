@@ -50,22 +50,6 @@ void main() {
       ringing['postedAt']! as int,
     );
 
-    test('is written with the fields native code reads', () async {
-      final prefs = await SharedPreferences.getInstance();
-
-      await withClock(
-        Clock.fixed(postedAt),
-        () => saveRingingCall(prefs, (
-          roomId: ringing['roomId']! as String,
-          callId: ringing['callId']! as String,
-          callerId: ringing['callerId']! as String,
-          isVideo: ringing['isVideo']! as bool,
-        )),
-      );
-
-      expect(jsonDecode(prefs.getString(keys['ringingCall']!)!), ringing);
-    });
-
     test('reads the record native code writes', () async {
       SharedPreferences.setMockInitialValues({
         keys['ringingCall']!: jsonEncode(ringing),

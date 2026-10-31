@@ -4,6 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:matrix/matrix.dart';
 
+import '../../async/elapsed.dart';
 import '../../calls/matrixrtc/call_summary_message.dart';
 import '../../calls/matrixrtc/incoming_call_provider.dart';
 import '../../calls/notifications/ring_from_push.dart';
@@ -28,6 +29,8 @@ import 'push_timing.dart';
 const defaultPlaceholderAfter = Duration(seconds: 3);
 const messageCatchUpWait = Duration(milliseconds: 1500);
 const _noticeReplacedWithin = Duration(seconds: 30);
+const _keyWait = Duration(seconds: 10);
+const _keySyncs = 2;
 
 bool _readElsewhere(Client client, Event event) {
   final room = client.getRoomById(event.room.id) ?? event.room;
@@ -48,7 +51,8 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
   IncomingCallPresenter? incomingCallPresenter,
   void Function(Future<void> refinement)? onRefining,
   void Function()? onRinging,
-  Future<void>? appWantsClient,
+  Completer<void>? appWantsClient,
+  DateTime? receivedAt,
 }) async {
   final roomId = notification.roomId;
   final eventId = notification.eventId;
@@ -69,6 +73,7 @@ Future<IncomingPushOutcome> handleIncomingPushNotification(
       onRefining: onRefining,
       onRinging: onRinging,
       appWantsClient: appWantsClient,
+      receivedAt: receivedAt ?? clock.now(),
     );
   } finally {
     forgetNotice?.call();
@@ -85,9 +90,12 @@ Future<IncomingPushOutcome> _handle(
   required IncomingCallPresenter ring,
   required void Function(Future<void> refinement)? onRefining,
   required void Function()? onRinging,
-  required Future<void>? appWantsClient,
+  required Completer<void>? appWantsClient,
+  required DateTime receivedAt,
 }) async {
   final handlingSince = clock.now();
+  final keyBudget = _keyBudget(receivedAt);
+  final sinceHandling = startStopwatch();
   if (kDebugMode) {
     debugPrint('zuno/push: resolving event ${notification.eventId}');
   }
@@ -144,6 +152,14 @@ Future<IncomingPushOutcome> _handle(
     await placeholder.retract();
     return IncomingPushOutcome.ignored;
   }
+  final opened = await _openBy(
+    () => keyBudget - sinceHandling.elapsed,
+    client,
+    fetched,
+    stop: appWantsClient,
+  );
+  timing?.mark('key');
+  if (opened != null) return dispatch.run(opened);
   var underRing = await ringStandsInFor(fetched, ring);
   if (!underRing) {
     if (!await placeholder.post(senderId: fetched.senderId)) {
@@ -152,25 +168,38 @@ Future<IncomingPushOutcome> _handle(
     underRing = await ringStandsInFor(fetched, ring);
   }
   if (underRing) await placeholder.retract();
-  final keySync = onRefining != null ? syncForLateKey(client) : null;
-  if (onRefining != null && keySync != null) {
-    debugPrint('zuno/push: not decrypted yet, trying again after a sync');
-    onRefining(_openAfter(keySync, fetched, dispatch, stop: appWantsClient));
-  }
   return underRing ? IncomingPushOutcome.ignored : IncomingPushOutcome.message;
 }
 
-Future<void> _openAfter(
-  Future<void> sync,
-  Event locked,
-  _Dispatch dispatch, {
-  required Future<void>? stop,
+Duration _keyBudget(DateTime receivedAt) {
+  final left = _keyWait - clock.now().difference(receivedAt);
+  if (left > _keyWait) return _keyWait;
+  return left < Duration.zero ? Duration.zero : left;
+}
+
+Future<Event?> _openBy(
+  Duration Function() timeLeft,
+  Client client,
+  Event locked, {
+  required Completer<void>? stop,
 }) async {
-  var stopped = false;
-  await Future.any([sync, ?stop?.then((_) => stopped = true)]);
-  if (stopped) return;
-  final opened = await decryptAgain(dispatch.client, locked);
-  if (opened != null) await dispatch.run(opened);
+  bool stopped() => stop?.isCompleted ?? false;
+  for (var attempt = 0; attempt < _keySyncs; attempt++) {
+    if (stopped()) return null;
+    final left = timeLeft();
+    if (left <= Duration.zero) {
+      return attempt == 0 ? decryptAgain(client, locked) : null;
+    }
+    final sync = syncForKey(client, wait: left);
+    if (sync == null) return null;
+    debugPrint('zuno/push: not decrypted yet, waiting on a sync for its key');
+    await Future.any([sync, ?stop?.future])
+        .timeout(left, onTimeout: () => null);
+    if (stopped()) return null;
+    final opened = await decryptAgain(client, locked);
+    if (opened != null) return opened;
+  }
+  return null;
 }
 
 class _Dispatch {

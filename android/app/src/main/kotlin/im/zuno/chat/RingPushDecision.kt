@@ -10,6 +10,8 @@ enum class RingDropReason {
 sealed interface RingPushOutcome {
     data class Ring(val ring: PushedRing, val ringMs: Long) : RingPushOutcome
 
+    data class End(val end: PushedRingEnd) : RingPushOutcome
+
     data class Drop(val reason: RingDropReason) : RingPushOutcome
 
     data object ReRegister : RingPushOutcome
@@ -32,6 +34,8 @@ object RingPushDecision {
                 } else {
                     RingPushOutcome.ReRegister
                 }
+
+            is RingBlobOpen.Ended -> RingPushOutcome.End(blob.end)
 
             is RingBlobOpen.Opened ->
                 if (isStale(blob.header.expiry, nowMs, serverOffsetMs, blob.ring.ts)) {

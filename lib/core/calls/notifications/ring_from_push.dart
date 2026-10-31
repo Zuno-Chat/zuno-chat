@@ -52,9 +52,8 @@ Future<bool> ringFromPush(
     callId,
   );
   if (heldHere != null) return heldHere;
-  final ringingNow = presenter.activeRing();
   final ringingElsewhere = await _whileRinging(
-    (await ringingNow)?.callId,
+    (await presenter.activeRing())?.callId,
     callId,
   );
   if (ringingElsewhere ?? false) await takeDownLinesUnderRing(call);
@@ -62,11 +61,7 @@ Future<bool> ringFromPush(
   SystemRing.instance.set(roomId: call.room.id, callId: callId);
   var outcome = RingOutcome.unavailable;
   try {
-    outcome = await postRingNotification(
-      call,
-      presenter: presenter,
-      ringingNow: ringingNow,
-    );
+    outcome = await postRingNotification(call, presenter: presenter);
   } finally {
     if (outcome != RingOutcome.shown) SystemRing.instance.clear(callId);
   }

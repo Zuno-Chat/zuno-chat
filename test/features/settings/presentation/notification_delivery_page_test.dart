@@ -91,12 +91,15 @@ void main() {
     expect(find.text('Background data'), findsOneWidget);
   });
 
-  testWidgets('FCM offers the battery exemption too, since it keeps a '
-      'sleeping device from holding notifications back', (tester) async {
+  testWidgets('FCM offers the battery exemption too, since Android and some '
+      'devices limit Zuno in the background', (tester) async {
     await _pumpPage(tester, NotificationDeliveryMode.fcm);
 
     expect(find.text('Unrestricted battery usage'), findsOneWidget);
-    expect(find.textContaining('can hold notifications back'), findsOneWidget);
+    expect(
+      find.textContaining('notifications may arrive late'),
+      findsOneWidget,
+    );
   });
 
   group('autostart', () {
@@ -434,7 +437,7 @@ void main() {
         for (final (mode, subtitle) in [
           (
             NotificationDeliveryMode.fcm,
-            'Android will not hold notifications back to save power',
+            'Android will not limit Zuno in the background to save power',
           ),
           (
             NotificationDeliveryMode.backgroundService,

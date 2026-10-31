@@ -24,17 +24,18 @@ import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/hybrid_fake_async.dart';
-import '../../../helpers/native_method_calls.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late RecordedNotifications notifications;
+  late FakeNativeRing callStyle;
   Map<String, Object?>? initializeArguments;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     notifications = installFakeLocalNotifications();
+    callStyle = installFakeCallStyleChannel();
     installSilentNotificationSideChannels();
     await CallNotificationService.instance.initialize(claimLiveRoutes: false);
     initializeArguments ??= notifications.initializeArguments;
@@ -53,7 +54,6 @@ void main() {
       roomId: '!room:example.org',
       callId: callId,
     );
-    notifications.active = [ringNotificationOnScreen()];
   }
 
   test(
@@ -96,7 +96,7 @@ void main() {
         reason: 'the hold ended while the ring notification was still up',
       );
 
-      notifications.active = const [];
+      callStyle.ringing = null;
       await time.advance(declineGrace);
       expect(
         completed,
@@ -155,7 +155,7 @@ void main() {
       awaitHeadlessDecline(runner).whenComplete(() => completed = true);
     });
     await time.advance(const Duration(seconds: 2));
-    notifications.active = const [];
+    callStyle.ringing = null;
     await time.advance(const Duration(seconds: 3));
     expect(completed, isFalse);
     expect(LocalNotifications.instance.stillHoldsDeclinePort(), isTrue);
@@ -171,7 +171,7 @@ void main() {
   });
 
   test('a ring that comes back during the grace keeps the hold', () async {
-    notifications.active = const [];
+    callStyle.ringing = null;
     final time = FakeAsync();
 
     var completed = false;
@@ -246,15 +246,12 @@ void main() {
   });
 
   group('once Decline is tapped', () {
-    late RecordedMethodCalls callStyle;
-
-    setUp(() => callStyle = installFakeCallStyleChannel());
-
     Future<void> declineWhileHolding(
       String callId, {
       Future<void> Function()? meanwhile,
     }) async {
       final hold = awaitHeadlessDecline(HeadlessPushRunner());
+      callStyle.ringing = null;
       await meanwhile?.call();
       LocalNotifications.instance.onHeadlessDeclineForTest(
         HeadlessCallDecline(roomId: '!room:example.org', callId: callId),
@@ -292,10 +289,7 @@ void main() {
         },
       );
 
-      expect(
-        callStyle.calls.map((c) => c.method),
-        isNot(contains('cancelIncomingCallStyle')),
-      );
+      expect(callStyle.ringing?.callId, 'call2');
       expect(await rememberedCallId(), 'call2');
     });
 
@@ -371,7 +365,6 @@ class _ScriptedPresenter extends NoopIncomingCallPresenter {
     required String callId,
     bool isGroupCall = false,
     Uint8List? avatarBytes,
-    Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
     Duration? ringFor,
   }) async {

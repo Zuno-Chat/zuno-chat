@@ -7,12 +7,10 @@ import 'client_lease.dart';
 import 'send_keep_awake.dart';
 import 'sync_coordinator.dart';
 
-const lateKeySyncWait = Duration(seconds: 6);
-
-Future<void>? syncForLateKey(Client client) {
+Future<void>? syncForKey(Client client, {required Duration wait}) {
   final sync = client is ZunoClient
-      ? client.syncForPush(timeout: lateKeySyncWait)
-      : client.oneShotSync(timeout: lateKeySyncWait);
+      ? client.syncForPush(timeout: wait)
+      : client.oneShotSync(timeout: wait);
   return sync?.then<void>((_) {}, onError: (_) {});
 }
 

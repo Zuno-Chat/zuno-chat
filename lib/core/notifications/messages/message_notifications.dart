@@ -157,10 +157,7 @@ class MessageNotifications {
     final noticed =
         !refine && inRoomThread && await _takeNoticeFor(roomId, eventId);
     timing?.mark('prefs');
-    final active = {
-      for (final notification in await _notifications.activeNotifications())
-        ?notification.id,
-    };
+    final active = await _showingIds();
     final showing = active.contains(messageNotificationIdFor(key));
     final lines = [if (showing && !noticed) ...?stored?.lines];
     timing?.mark('thread');
@@ -215,6 +212,8 @@ class MessageNotifications {
       );
     } else if ((replacing && !upgradesQuietLine) || (noticed && showing)) {
       plan = (alert: MessageAlert.silentUpdate, vibrate: false);
+    } else if (noticed) {
+      plan = (alert: MessageAlert.silent, vibrate: false);
     } else {
       plan = await NotificationSoundPlayer.instance.prepareMessageNotification(
         roomId: roomId,
@@ -290,6 +289,16 @@ class MessageNotifications {
 
   String _summaryOf(NotificationThread thread, NotificationLine line) =>
       thread.isGroupChat ? '${line.senderName}: ${line.text}' : line.text;
+
+  Future<List<WaitingLine>> showingWaitingLines() async {
+    final waiting = await _withStore(waitingLines);
+    if (waiting == null || waiting.isEmpty) return const [];
+    final showing = await _showingIds();
+    return [
+      for (final MapEntry(key: thread, value: lines) in waiting.entries)
+        if (showing.contains(messageNotificationIdFor(thread))) ...lines,
+    ];
+  }
 
   Future<void> retractPlaceholder(
     String roomId,
@@ -583,11 +592,13 @@ class MessageNotifications {
   Future<void> cancelMessageNotification(String thread) =>
       _rooms.run(thread, () => _cancelThread(thread));
 
-  Future<bool> _isShowing(String thread) async {
-    final active = await _notifications.activeNotifications();
-    final id = messageNotificationIdFor(thread);
-    return active.any((notification) => notification.id == id);
-  }
+  Future<Set<int>> _showingIds() async => {
+    for (final notification in await _notifications.activeNotifications())
+      ?notification.id,
+  };
+
+  Future<bool> _isShowing(String thread) async =>
+      (await _showingIds()).contains(messageNotificationIdFor(thread));
 
   Future<void> _cancelThread(String thread) async {
     await _plugin.cancel(id: messageNotificationIdFor(thread));
@@ -620,9 +631,7 @@ class MessageNotifications {
   Future<void> cancelMessageNotificationsIfShowing(
     Iterable<String> threads,
   ) async {
-    final showing = (await _notifications.activeNotifications())
-        .map((n) => n.id)
-        .toSet();
+    final showing = await _showingIds();
     for (final thread in threads) {
       if (!showing.contains(messageNotificationIdFor(thread))) continue;
       await cancelMessageNotification(thread);

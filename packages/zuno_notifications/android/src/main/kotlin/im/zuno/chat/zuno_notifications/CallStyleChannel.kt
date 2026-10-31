@@ -86,12 +86,15 @@ class CallStyleChannel :
             "showIncomingCallStyle" -> {
                 @Suppress("UNCHECKED_CAST")
                 val args = call.arguments as? Map<String, Any?> ?: emptyMap()
-                result.success(show(context, args))
+                result.success(offer(context, args))
             }
+
+            "activeRing" -> result.success(IncomingRing.active(context)?.toMap())
 
             "cancelIncomingCallStyle" -> {
                 val callId = (call.arguments as? Map<*, *>)?.get("callId") as? String
-                result.success(IncomingRing.dismiss(context, callId))
+                IncomingRing.dismiss(context, callId)
+                result.success(null)
             }
 
             "ringIncomingCallStyleAloud" -> {
@@ -104,9 +107,24 @@ class CallStyleChannel :
         }
     }
 
-    private fun show(context: Context, args: Map<String, Any?>): Boolean {
-        val spec = IncomingCallSpec.from(args) ?: return false
-        return IncomingCallStyle.show(context, spec) { assets.getAssetFilePathByName(it) }
+    private fun offer(context: Context, args: Map<String, Any?>): String {
+        val spec = IncomingCallSpec.from(args) ?: return RingAnswer.UNAVAILABLE
+        val nowMs = System.currentTimeMillis()
+        return IncomingRing.decide(context, nowMs) { ring ->
+            val resolved =
+                RingDecisions.resolvedCallIds(FlutterStore.preferences(context).all, nowMs)
+            when (RingDecisions.offer(spec.callId, ring, resolved)) {
+                RingOffer.RINGING -> RingAnswer.RINGING
+                RingOffer.RANG_HERE -> RingAnswer.RANG_HERE
+                RingOffer.BUSY -> RingAnswer.BUSY
+                RingOffer.PRESENT -> {
+                    val shown = IncomingCallStyle.show(context, spec) {
+                        assets.getAssetFilePathByName(it)
+                    }
+                    if (shown) RingAnswer.SHOWN else RingAnswer.UNAVAILABLE
+                }
+            }
+        }
     }
 
     private companion object {

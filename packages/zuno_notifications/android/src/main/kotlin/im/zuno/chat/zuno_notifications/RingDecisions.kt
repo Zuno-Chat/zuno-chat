@@ -34,35 +34,72 @@ class RingPlan(
     }
 }
 
-data class RememberedRing(val callId: String, val postedAtMs: Long) {
-    companion object {
-        fun record(call: InstantRingCall, postedAtMs: Long): String = JSONObject().apply {
-            put("roomId", call.roomId)
-            put("callId", call.callId)
-            put("callerId", call.callerId)
-            put("isVideo", call.isVideo)
-            put("postedAt", postedAtMs)
-        }.toString()
+data class RememberedRing(
+    val roomId: String,
+    val callId: String,
+    val callerId: String,
+    val isVideo: Boolean,
+    val postedAtMs: Long,
+) {
+    fun record(): String = JSONObject(toMap() + ("postedAt" to postedAtMs)).toString()
 
+    fun toMap(): Map<String, Any> = mapOf(
+        "roomId" to roomId,
+        "callId" to callId,
+        "callerId" to callerId,
+        "isVideo" to isVideo,
+    )
+
+    companion object {
         fun parse(stored: String?): RememberedRing? {
             val record = try {
                 JSONObject(stored ?: return null)
             } catch (e: JSONException) {
                 return null
             }
-            return of(record.opt("roomId"), record.opt("callId"), record.opt("postedAt"))
+            return of(
+                record.opt("roomId"),
+                record.opt("callId"),
+                record.opt("callerId"),
+                record.opt("isVideo"),
+                record.opt("postedAt"),
+            )
         }
 
-        fun of(roomId: Any?, callId: Any?, postedAt: Any?): RememberedRing? {
+        fun of(
+            roomId: Any?,
+            callId: Any?,
+            callerId: Any?,
+            isVideo: Any?,
+            postedAt: Any?,
+        ): RememberedRing? {
             if (roomId !is String || callId !is String) return null
             val postedAtMs = when (postedAt) {
                 is Int -> postedAt.toLong()
                 is Long -> postedAt
                 else -> return null
             }
-            return RememberedRing(callId, postedAtMs)
+            return RememberedRing(
+                roomId = roomId,
+                callId = callId,
+                callerId = callerId as? String ?: "",
+                isVideo = isVideo == true,
+                postedAtMs = postedAtMs,
+            )
         }
     }
+}
+
+data class RingNow(val showing: RememberedRing?, val rememberedCallId: String?)
+
+enum class RingOffer { PRESENT, RINGING, RANG_HERE, BUSY }
+
+object RingAnswer {
+    const val SHOWN = "shown"
+    const val RINGING = "ringing"
+    const val RANG_HERE = "rangHere"
+    const val BUSY = "busy"
+    const val UNAVAILABLE = "unavailable"
 }
 
 data class RingCancel(val forget: Boolean, val dismiss: Boolean)
@@ -133,8 +170,21 @@ object RingDecisions {
     fun remembersRing(remembered: RememberedRing?, nowMs: Long): String? =
         remembered?.takeIf { nowMs - it.postedAtMs <= REMEMBERED_RING_MAX_AGE_MS }?.callId
 
-    fun showingRing(notificationShowing: Boolean, remembered: RememberedRing?): String? =
-        remembered?.callId?.takeIf { notificationShowing }
+    fun showingRing(
+        ringing: RememberedRing?,
+        notificationShowing: Boolean,
+        remembered: RememberedRing?,
+    ): RememberedRing? = ringing ?: remembered?.takeIf { notificationShowing }
+
+    fun offer(callId: String, ring: RingNow, resolved: Set<String>): RingOffer {
+        val showing = ring.showing?.callId
+        return when {
+            callId == showing -> RingOffer.RINGING
+            callId == ring.rememberedCallId -> RingOffer.RANG_HERE
+            showing != null && showing !in resolved -> RingOffer.BUSY
+            else -> RingOffer.PRESENT
+        }
+    }
 
     fun stops(ringingCallId: String?, requestedCallId: String?): Boolean =
         ringingCallId == null || requestedCallId == null || ringingCallId == requestedCallId

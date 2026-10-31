@@ -25,7 +25,11 @@ Future<void> handleFcmPush(HeadlessPushRunner runner, FcmPush push) async {
     debugPrint('zuno/push: FCM payload could not be decoded');
     return;
   }
-  await runner.deliver(notification, appInFront: push.appInFront);
+  await runner.deliver(
+    notification,
+    appInFront: push.appInFront,
+    receivedAt: push.receivedAt,
+  );
 }
 
 HeadlessPushRunner? _backgroundRunner;

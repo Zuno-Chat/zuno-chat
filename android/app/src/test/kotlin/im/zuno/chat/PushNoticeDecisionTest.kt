@@ -49,6 +49,38 @@ class PushNoticeDecisionTest {
     }
 
     @Test
+    fun `a call ringing in a one-to-one chat stands in for that chat's notice`() {
+        assertTrue(
+            PushNoticeDecision.ringStandsIn(CachedRoom("Ana", isDirect = true), "!r:x", "!r:x"),
+        )
+    }
+
+    @Test
+    fun `only a one-to-one chat the app knows can have a ring stand in for its notice`() {
+        assertTrue(PushNoticeDecision.ringCanStandIn(CachedRoom("Ana", isDirect = true)))
+        assertFalse(PushNoticeDecision.ringCanStandIn(CachedRoom("Hike", isDirect = false)))
+        assertFalse(PushNoticeDecision.ringCanStandIn(null))
+    }
+
+    @Test
+    fun `a ring never stands in for a group's notice, which may be someone else's message`() {
+        assertFalse(
+            PushNoticeDecision.ringStandsIn(CachedRoom("Hike", isDirect = false), "!r:x", "!r:x"),
+        )
+    }
+
+    @Test
+    fun `a ring stands in only for its own chat, and only for a chat the app knows`() {
+        assertFalse(
+            PushNoticeDecision.ringStandsIn(CachedRoom("Ana", isDirect = true), "!r:x", "!other:x"),
+        )
+        assertFalse(
+            PushNoticeDecision.ringStandsIn(CachedRoom("Ana", isDirect = true), "!r:x", null),
+        )
+        assertFalse(PushNoticeDecision.ringStandsIn(null, "!r:x", "!r:x"))
+    }
+
+    @Test
     fun `parses the room cache lines and skips malformed ones`() {
         val cache = PushNoticeDecision.parseRoomCache(
             "!a:x\td\tAlice\n!g:x\tg\tFamily chat\nbroken line\n\n!h:x\tq\tOdd",

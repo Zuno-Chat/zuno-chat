@@ -1,0 +1,58 @@
+{
+  "aad_prefix" : "zuno-voip-v1",
+  "key" : "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+  "kid" : 16909060,
+  "vectors" : [
+    {
+      "blob" : "AQECAwRqsTutEBESExQVFhcYGRobJeg3aGl05FM551IBupHPABQJ20Dp4PpW4fLbYc6GgYXNqKxbsu3VuFev2YnrySHwMno1bMcPSkuxte+oxYxttSNnueNl1/95hBpLFsTjlKMGxzcMhyoDh8w5gbnQnRZ3oqBhSq8ekvhtCImWaqlsx/A34Ta1kFCvERwZDeDmJiTha4zdaQ4e4CXJgd26O0r4PNg+1rRAKd2UwP7AUuSLhRzympbYsZgzL+Sx0NfL3Iq2vEdI4tfVmeYpHF0JPCpCW1VMiShn6dJX+IFxTDQlwc6uARmBHaLc9GJdWltD1XM20UXEEdINDzWv5hjxaWzZ7MHIirGBvojoIHpg+uFSTieIlFMpW8xyIuAXFAHnVcCNMZ1zpfT6JJ3QYyIgN/DhHCSEByyRX/zDqL5mmQXgCDeT/5wVHnZNhntXau24pSE2wIVhkTTpVWCO5Cjyp/aOB4jKWeKqsQxP2ejDLPfUIMI5yhMRusAB7U9zD9eux+oqo0a0/K8sl3wlF3Dlcvp319S0Br4b05SnDJ3FK5nd9LcOtSAqR+YZS6xh6gxj3FXMukeFkb4NDIErNgWWv+VcRdp5ya/fbD7oyPGcuXaferiUGmbhBk/J1evd6/bR2MrMVqIkgUDnq8AtNKOunpmS9Oq9dF3vVH26afwXLHeDFlx5ZlbLmUSCLvEbzVNRCZoNkVl/n+vqotHmGF9Wvm2S",
+      "blob_length" : 549,
+      "blob_sha256" : "1edb50b58a6fe2630e5276a5091ca0624a03114cf6db5ff4a59866d116e4e67c",
+      "name" : "known_answer",
+      "nonce" : "EBESExQVFhcYGRob",
+      "padded_length" : 512,
+      "payload" : {
+        "call" : "c1",
+        "kind" : "end",
+        "reason" : "hung_up",
+        "room" : "!abc:zuno.im",
+        "ts" : 1790000030000
+      },
+      "plaintext" : "{\"room\":\"!abc:zuno.im\",\"call\":\"c1\",\"kind\":\"end\",\"reason\":\"hung_up\",\"ts\":1790000030000}",
+      "x" : 1790000045
+    },
+    {
+      "blob" : "AQECAwRqsTutICEiIyQlJicoKSorCMX6E36C3gC55MyqKgX1zRUBUFt9S7Nv5YBRyJ6B+XEyla50p3K5A8b1z3IOlUFs534ABP08brCUJK2PVTThEvr8Q8rbpxaA27lQZJAUDFOOProGCcdZ1H+mBvBpIb9C3ydxFswt2g7bDK3UIoLZiaGyynbenxg19l4/KVsGs/aU0QK1u/Z32s26mgeD1KnxnKgAp9kpq2Csp5v9FvG2oVaQzyKicP8Yp9oOWNu25TvibTRpNEWIHuSa7JyM0BbLzlu83gbX53/iA5HJGTaaqq2mhOmqOhfe1f8TKjfPNt0RCdAgH4WeTwsNOMFZV9+ZSSmk1Y7m1YBgLh3ybq9pw7vaXKGIQS30wA/a2Fbh+tplIPTIdyejFr6mNkJ1e45r3k6HtLzkRR4WLHB+tICTg/G1b75OujpzzAXxKYm+hKvslpYijE7H26I2ww9k07pIdjhatTvitMduiQ47owGE7kY9bNuPMDa/Pv/LDU3CrJBYZBwGTULmBLCLoUHa0SkWRZrQBxIw5SNznyCaVeJMIA2qYWWQALRc1W5goGaKRy1H1cEcvnuxtjxXkberYJG8VELg2ZdoxtjjDGwI/+gjvAJYKQIAOXxdD6qeXFem64Ar3QgGirihFc/KWdeDgmakTZxDtKipExLsS0C67J9zctNWeVw75KDAMTgFoVY4u4gzk/rZj5Akilhg0DMexejT",
+      "blob_length" : 549,
+      "blob_sha256" : "ed470a021f58145f25058f7d13c85164c57d4a292da84d2e20f21209251c57e6",
+      "name" : "answered_elsewhere",
+      "nonce" : "ICEiIyQlJicoKSor",
+      "padded_length" : 512,
+      "payload" : {
+        "call" : "c1",
+        "kind" : "end",
+        "reason" : "answered_elsewhere",
+        "room" : "!abc:zuno.im",
+        "ts" : 1790000030000
+      },
+      "plaintext" : "{\"room\":\"!abc:zuno.im\",\"call\":\"c1\",\"kind\":\"end\",\"reason\":\"answered_elsewhere\",\"ts\":1790000030000}",
+      "x" : 1790000045
+    },
+    {
+      "blob" : "AQECAwRqsTutMDEyMzQ1Njc4OTo7LdY4JauM9d9KM9huFqJSd6Ws/nygoz0L/2SIbmL1NoSv2HWSAtJV6c/uSn5X1lQ+0/iMRFolnqxhI3Q2k7Be+oNkLkpDtrXPUPHSaVueuLuRANkgCc1IvjhHhPAfvlGOhr8Ulwf7+oNR7aUVyyRF5sYSj5fVP2stlYPDWpSGmV0qfaj7CR6zIn+ZZZX1LQNbdcUScrnZHzPyZoU9i90WCv1+mjgcO8MqSxmLrhr4k8IKmmbV88aMMpvwhGyiPbBOCUF7DeE/g9s6aESo6A65rhXFgg6Lk5xCpZXlu5qO+/E/7Wz7IVYK6KQlueru5j28d51xr7Xer2nG6FtFeerZq64bnWyrdJQqv9v1GaIBlmh5gAK7uc394pGgSUrkDgLKzFDEyHbI+sp4/TO+MqnbfIE0sKb48CQeLVeYITIj2QJYPL+xSh0p4pAmyxrz7dPiLPK3I/vfV1EsAfqCgO7+7URxTRL9sat2yeDVW+rOaTPHPX6wFm+L1LuvvgHh9kvAaxAnbgHAJZa+pqxRgYGOmLTrRLj9EPmjQkNyJQ4KF/8i6IdolRVm+tFgY5LluqcGo+GIk8aPOIHRFOMKdw+1SWvXd9LwGAWqe7rDC0QDzUCCxgxkmcXcyPWvfaP7SmoD//cyOHpbdiN3lvMu25Jjltq3Q3VxBHmOO3c8YOd+66sL37ECKhM8axzxBAXF43Rw",
+      "blob_length" : 549,
+      "blob_sha256" : "8050d9920571cdbd53058619fc5f3597a0d3e48166ac493cf2f8f454604ba231",
+      "name" : "ended",
+      "nonce" : "MDEyMzQ1Njc4OTo7",
+      "padded_length" : 512,
+      "payload" : {
+        "call" : "c1",
+        "kind" : "end",
+        "reason" : "ended",
+        "room" : "!abc:zuno.im",
+        "ts" : 1790000030000
+      },
+      "plaintext" : "{\"room\":\"!abc:zuno.im\",\"call\":\"c1\",\"kind\":\"end\",\"reason\":\"ended\",\"ts\":1790000030000}",
+      "x" : 1790000045
+    }
+  ]
+}

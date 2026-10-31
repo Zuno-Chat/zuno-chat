@@ -3,49 +3,18 @@ import 'dart:convert';
 import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'call_notification_service.dart' show RingingCallInfo;
+import 'call_notification_service.dart' show RingingCallInfo, ringingCallFrom;
 
 const ringingCallKey = 'calls.ringing_notification';
 const _maxAge = Duration(seconds: 45);
 
-Future<void> saveRingingCall(
-  SharedPreferences prefs,
-  RingingCallInfo call,
-) async {
-  await prefs.setString(
-    ringingCallKey,
-    jsonEncode({
-      'roomId': call.roomId,
-      'callId': call.callId,
-      'callerId': call.callerId,
-      'isVideo': call.isVideo,
-      'postedAt': clock.now().millisecondsSinceEpoch,
-    }),
-  );
-}
-
-RingingCallInfo? readRingingCall(
-  SharedPreferences prefs, {
-  bool onScreen = false,
-}) {
+RingingCallInfo? readRingingCall(SharedPreferences prefs) {
   final decoded = _readStored(prefs);
   if (decoded == null) return null;
-  final roomId = decoded['roomId'];
-  final callId = decoded['callId'];
   final postedAt = decoded['postedAt'];
-  if (roomId is! String || callId is! String || postedAt is! int) return null;
-  if (!onScreen && _ageOf(postedAt) > _maxAge) return null;
-  final callerId = decoded['callerId'];
-  return (
-    roomId: roomId,
-    callId: callId,
-    callerId: callerId is String ? callerId : '',
-    isVideo: decoded['isVideo'] == true,
-  );
+  if (postedAt is! int || _ageOf(postedAt) > _maxAge) return null;
+  return ringingCallFrom(decoded);
 }
-
-Future<void> clearRingingCall(SharedPreferences prefs) =>
-    prefs.remove(ringingCallKey);
 
 Duration? ringAgeFor(SharedPreferences prefs, String callId) {
   final decoded = _readStored(prefs);

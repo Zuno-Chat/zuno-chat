@@ -15,7 +15,6 @@ import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
@@ -50,7 +49,6 @@ class _PendingRingPresenter extends NoopIncomingCallPresenter {
     required String callId,
     bool isGroupCall = false,
     Uint8List? avatarBytes,
-    Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
     Duration? ringFor,
   }) {

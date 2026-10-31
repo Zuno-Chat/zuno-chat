@@ -24,7 +24,7 @@ PushTestClient ringingPushClient({bool rings = true}) {
   return client;
 }
 
-RecordedMethodCalls installHeadlessRingChannels() {
+FakeNativeRing installHeadlessRingChannels() {
   ringRateLimiter.clear();
   installFakeLocalNotifications();
   installSilentNotificationSideChannels();

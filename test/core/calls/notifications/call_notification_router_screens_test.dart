@@ -17,7 +17,6 @@ import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_router.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
-import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/ring_coordinator.dart';
 import 'package:zuno/core/calls/show_over_lockscreen.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
@@ -56,7 +55,7 @@ void main() {
   late Room room;
   late SharedPreferences prefs;
   late RecordedMethodCalls native;
-  late RecordedMethodCalls callStyle;
+  late FakeNativeRing callStyle;
   late RecordedNotifications notifications;
   late _PushedRoutes pushed;
   Completer<void>? sendGate;
@@ -150,13 +149,12 @@ void main() {
     String callId = 'call1',
     bool isVideo = false,
   }) async {
-    await saveRingingCall(prefs, (
+    await callStyle.ringNatively((
       roomId: room.id,
       callId: callId,
       callerId: '@bob:example.org',
       isVideo: isVideo,
     ));
-    notifications.active = [ringNotificationOnScreen()];
   }
 
   bool? lockscreenShown() {

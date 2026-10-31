@@ -24,6 +24,7 @@ object FcmRouter {
         val id: String,
         val method: String,
         val args: Map<String, Any?>,
+        val arrivedAtMs: Long,
         val done: CountDownLatch,
     )
 
@@ -46,9 +47,10 @@ object FcmRouter {
         method: String,
         args: Map<String, Any?>,
         key: String,
+        arrivedAtMs: Long = now(),
     ): CountDownLatch {
         val id = "$key#${sequence.incrementAndGet()}"
-        val job = Job(id, method, args + ("id" to id), CountDownLatch(1))
+        val job = Job(id, method, args + ("id" to id), arrivedAtMs, CountDownLatch(1))
         val app = context.applicationContext
         main.post {
             appContext = app
@@ -105,7 +107,7 @@ object FcmRouter {
         try {
             handle.channel.invokeMethod(
                 job.method,
-                job.args,
+                job.args + ("ageMs" to (now() - job.arrivedAtMs).coerceAtLeast(0)),
                 object : MethodChannel.Result {
                     override fun success(result: Any?) {
                         perform(routing.handled(job.id, now()))

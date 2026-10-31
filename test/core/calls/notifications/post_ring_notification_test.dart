@@ -8,7 +8,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ring_notification.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
@@ -375,7 +374,6 @@ class _ScriptedPresenter extends NoopIncomingCallPresenter {
     required String callId,
     bool isGroupCall = false,
     Uint8List? avatarBytes,
-    Future<RingingCallInfo?>? ringingNow,
     bool waiting = false,
     Duration? ringFor,
   }) async {

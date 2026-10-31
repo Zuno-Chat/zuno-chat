@@ -66,10 +66,8 @@ class _ViewerDismissState extends State<ViewerDismiss>
       onVerticalDragEnd: enabled ? _onEnd : null,
       child: AnimatedBuilder(
         animation: _offset,
-        builder: (context, child) => Transform.translate(
-          offset: Offset(0, _offset.value),
-          child: child,
-        ),
+        builder: (context, child) =>
+            Transform.translate(offset: Offset(0, _offset.value), child: child),
         child: widget.child,
       ),
     );

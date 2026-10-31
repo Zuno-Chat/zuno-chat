@@ -20,6 +20,16 @@ class FcmBadgeDecisionTest {
     }
 
     @Test
+    fun `a ring end carried in ze needs nothing here, since the receiver ends the ring`() {
+        for (appInFront in listOf(false, true)) {
+            assertEquals(
+                FcmPushHandling.NOTHING,
+                FcmBadgeDecision.handlingFor(mapOf("ze" to "sealed"), appInFront),
+            )
+        }
+    }
+
+    @Test
     fun `a badge push saying everything is read clears the chats natively`() {
         assertEquals(
             FcmPushHandling.CLEAR_MESSAGES,

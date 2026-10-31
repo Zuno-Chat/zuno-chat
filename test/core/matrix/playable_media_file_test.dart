@@ -61,18 +61,9 @@ void main() {
   });
 
   test('the extension follows the audio type of a voice message', () async {
-    expect(
-      p.extension((await playable(mimetype: 'audio/ogg')).path),
-      '.ogg',
-    );
-    expect(
-      p.extension((await playable(mimetype: 'audio/mp4')).path),
-      '.m4a',
-    );
-    expect(
-      p.extension((await playable(mimetype: 'audio/mpeg')).path),
-      '.mp3',
-    );
+    expect(p.extension((await playable(mimetype: 'audio/ogg')).path), '.ogg');
+    expect(p.extension((await playable(mimetype: 'audio/mp4')).path), '.m4a');
+    expect(p.extension((await playable(mimetype: 'audio/mpeg')).path), '.mp3');
   });
 
   test('an unknown type falls back to the file name, then to the caller\'s '

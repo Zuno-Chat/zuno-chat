@@ -56,9 +56,7 @@ object PushNotice {
                 Log.d(TAG, "Notify me is mentions only, no instant notice")
                 return false
             }
-            val cached = PushNoticeDecision.parseRoomCache(
-                prefs.getString(FlutterStore.ROOM_CACHE, null),
-            )[roomId]
+            val cached = FlutterStore.cachedRoom(prefs, roomId)
             val channel = PushNoticeDecision.channelFor(cached)
             if (manager.getNotificationChannel(channel) == null) {
                 Log.d(TAG, "No $channel channel yet, no instant notice")
@@ -112,9 +110,23 @@ object PushNotice {
                         .addMessage(text, System.currentTimeMillis(), sender),
                 )
             }
-            manager.notify(notificationId, builder.build())
+            fun show(): Boolean {
+                manager.notify(notificationId, builder.build())
+                synchronized(posted) { posted[roomId] = eventId }
+                return true
+            }
+            val shown = if (!PushNoticeDecision.ringCanStandIn(cached)) {
+                show()
+            } else {
+                IncomingRing.decide(context, System.currentTimeMillis()) { ring ->
+                    !PushNoticeDecision.ringStandsIn(cached, roomId, ring.showing?.roomId) && show()
+                }
+            }
+            if (!shown) {
+                Log.d(TAG, "A call rings in this chat, no instant notice")
+                return false
+            }
             notified = true
-            synchronized(posted) { posted[roomId] = eventId }
             if (alert.vibrate) vibrate(context)
             Log.d(TAG, "Instant notice posted")
         } catch (e: Exception) {
@@ -177,6 +189,23 @@ object PushNotice {
         } catch (e: Exception) {
             Log.w(TAG, "Could not post the test notice", e)
             return false
+        }
+    }
+
+    fun takeDownUnderRing(context: Context, ringingRoomId: String) {
+        try {
+            if (synchronized(posted) { ringingRoomId !in posted }) return
+            val cached = FlutterStore.cachedRoom(
+                FlutterStore.preferences(context),
+                ringingRoomId,
+            )
+            if (!PushNoticeDecision.ringCanStandIn(cached)) return
+            synchronized(posted) { posted.remove(ringingRoomId) } ?: return
+            NotificationManagerCompat.from(context)
+                .cancel(NotificationIds.messageNotificationIdFor(ringingRoomId))
+            Log.d(TAG, "A call rings in this chat, instant notice taken down")
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not take the instant notice down under the ring", e)
         }
     }
 

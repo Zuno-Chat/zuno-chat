@@ -2,13 +2,16 @@ package im.zuno.chat
 
 import im.zuno.chat.RingBlobFixture.EXPIRY
 import im.zuno.chat.RingBlobFixture.KID
+import im.zuno.chat.RingBlobFixture.end
 import im.zuno.chat.RingBlobFixture.header
 import im.zuno.chat.RingBlobFixture.ring
+import im.zuno.chat.RingBlobOpen.Ended
 import im.zuno.chat.RingBlobOpen.Forged
 import im.zuno.chat.RingBlobOpen.Opened
 import im.zuno.chat.RingBlobOpen.UnknownKid
 import im.zuno.chat.RingBlobOpen.UnknownVersion
 import im.zuno.chat.RingPushOutcome.Drop
+import im.zuno.chat.RingPushOutcome.End
 import im.zuno.chat.RingPushOutcome.ReRegister
 import im.zuno.chat.RingPushOutcome.Ring
 import org.junit.Assert.assertEquals
@@ -22,6 +25,17 @@ class RingPushDecisionTest {
         now: Long = 1_790_000_001_000,
         offset: Long? = 0,
     ) = RingPushDecision.decide(blob, nowMs = now, serverOffsetMs = offset)
+
+    @Test
+    fun `a fresh end ends the ring it names`() {
+        assertEquals(End(end), decide(Ended(header, end)))
+    }
+
+    @Test
+    fun `an end that arrives late still ends its ring, since it can only end the call it names`() {
+        assertEquals(End(end), decide(Ended(header, end), now = 1_790_000_045_001))
+        assertEquals(End(end), decide(Ended(header, end), now = 1_790_009_000_000, offset = 0))
+    }
 
     @Test
     fun `a fresh ring rings with what it carries, until its expiry and five seconds more`() {

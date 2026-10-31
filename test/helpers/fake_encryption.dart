@@ -95,6 +95,9 @@ class FakeRoomDecryption extends Fake implements Encryption {
 
   int get attempts => storedAfterDecrypt.length;
 
+  @override
+  bool get enabled => true;
+
   void keyArrives(Room room, {Event? opens, String sessionId = 'session'}) {
     if (opens != null) decrypted.add(opens);
     room.onSessionKeyReceived.add(sessionId);

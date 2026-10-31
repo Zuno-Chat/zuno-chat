@@ -6,6 +6,8 @@ import im.zuno.chat.zuno_notifications.IncomingCallSpec
 import im.zuno.chat.zuno_notifications.RememberedRing
 import im.zuno.chat.zuno_notifications.RingCancel
 import im.zuno.chat.zuno_notifications.RingDecisions
+import im.zuno.chat.zuno_notifications.RingNow
+import im.zuno.chat.zuno_notifications.RingOffer
 import im.zuno.chat.zuno_notifications.RingPlan
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
@@ -26,7 +28,8 @@ class IncomingRingDecisionsTest {
         "callId" to "c1",
     )
 
-    private fun remembered(callId: String, ageMs: Long = 0) = RememberedRing(callId, now - ageMs)
+    private fun remembered(callId: String, ageMs: Long = 0) =
+        RememberedRing("!r:x", callId, "@ana:x", true, now - ageMs)
 
     private fun ringMsFrom(ringMs: Any?): Long =
         IncomingCallSpec.from(appRing + ("ringMs" to ringMs))!!.ringMs
@@ -93,14 +96,57 @@ class IncomingRingDecisionsTest {
 
     @Test
     fun `a ring on screen counts as showing for as long as it rings`() {
-        assertEquals("c1", RingDecisions.showingRing(true, remembered("c1")))
-        assertEquals("c1", RingDecisions.showingRing(true, remembered("c1", ageMs = 59_999)))
+        assertEquals(remembered("c1"), RingDecisions.showingRing(null, true, remembered("c1")))
+        val old = remembered("c1", ageMs = 59_999)
+        assertEquals(old, RingDecisions.showingRing(null, true, old))
+    }
+
+    @Test
+    fun `a ring this process presented counts as showing before Android lists its notification`() {
+        val ringing = remembered("c1")
+        assertEquals(ringing, RingDecisions.showingRing(ringing, false, remembered("c0")))
+        assertEquals(ringing, RingDecisions.showingRing(ringing, false, null))
     }
 
     @Test
     fun `nothing counts as showing without its notification on screen or a record`() {
-        assertNull(RingDecisions.showingRing(false, remembered("c1")))
-        assertNull(RingDecisions.showingRing(true, null))
+        assertNull(RingDecisions.showingRing(null, false, remembered("c1")))
+        assertNull(RingDecisions.showingRing(null, true, null))
+    }
+
+    @Test
+    fun `a call already showing is adopted, not presented again`() {
+        assertEquals(
+            RingOffer.RINGING,
+            RingDecisions.offer("c1", RingNow(remembered("c1"), "c1"), emptySet()),
+        )
+    }
+
+    @Test
+    fun `a call that rang here recently and no longer shows does not ring again`() {
+        assertEquals(RingOffer.RANG_HERE, RingDecisions.offer("c1", RingNow(null, "c1"), emptySet()))
+    }
+
+    @Test
+    fun `a call is presented when nothing else rings`() {
+        assertEquals(RingOffer.PRESENT, RingDecisions.offer("c1", RingNow(null, null), emptySet()))
+        assertEquals(RingOffer.PRESENT, RingDecisions.offer("c1", RingNow(null, "c2"), emptySet()))
+    }
+
+    @Test
+    fun `a call never replaces another call that still rings`() {
+        assertEquals(
+            RingOffer.BUSY,
+            RingDecisions.offer("c1", RingNow(remembered("c2"), "c2"), emptySet()),
+        )
+    }
+
+    @Test
+    fun `a call replaces a ring left showing for a call that is over`() {
+        assertEquals(
+            RingOffer.PRESENT,
+            RingDecisions.offer("c1", RingNow(remembered("c2"), "c2"), setOf("c2")),
+        )
     }
 
     @Test
@@ -118,18 +164,33 @@ class IncomingRingDecisionsTest {
     }
 
     @Test
-    fun `reads a record the way the app writes it, and nothing else`() {
-        assertEquals(RememberedRing("c1", 42L), RememberedRing.of("!r:x", "c1", 42))
+    fun `reads a ring record in the shared format, and nothing else`() {
         assertEquals(
-            RememberedRing("c1", 1_700_000_000_000L),
-            RememberedRing.of("!r:x", "c1", 1_700_000_000_000L),
+            RememberedRing("!r:x", "c1", "@ana:x", true, 42L),
+            RememberedRing.of("!r:x", "c1", "@ana:x", true, 42),
         )
-        assertNull(RememberedRing.of(null, "c1", 42))
-        assertNull(RememberedRing.of("!r:x", null, 42))
-        assertNull(RememberedRing.of("!r:x", 7, 42))
-        assertNull(RememberedRing.of("!r:x", "c1", "42"))
-        assertNull(RememberedRing.of("!r:x", "c1", 42.5))
-        assertNull(RememberedRing.of("!r:x", "c1", null))
+        assertEquals(
+            RememberedRing("!r:x", "c1", "@ana:x", false, 1_700_000_000_000L),
+            RememberedRing.of("!r:x", "c1", "@ana:x", false, 1_700_000_000_000L),
+        )
+        assertEquals(
+            RememberedRing("!r:x", "c1", "", false, 42L),
+            RememberedRing.of("!r:x", "c1", null, null, 42),
+        )
+        assertNull(RememberedRing.of(null, "c1", "@ana:x", true, 42))
+        assertNull(RememberedRing.of("!r:x", null, "@ana:x", true, 42))
+        assertNull(RememberedRing.of("!r:x", 7, "@ana:x", true, 42))
+        assertNull(RememberedRing.of("!r:x", "c1", "@ana:x", true, "42"))
+        assertNull(RememberedRing.of("!r:x", "c1", "@ana:x", true, 42.5))
+        assertNull(RememberedRing.of("!r:x", "c1", "@ana:x", true, null))
+    }
+
+    @Test
+    fun `the active ring reaches Dart with the call it names`() {
+        assertEquals(
+            mapOf("roomId" to "!r:x", "callId" to "c1", "callerId" to "@ana:x", "isVideo" to true),
+            remembered("c1").toMap(),
+        )
     }
 
     @Test

@@ -122,6 +122,24 @@ Map<String, Object?> _readAll(SharedPreferences prefs) {
 Future<void> _writeAll(SharedPreferences prefs, Map<String, Object?> all) =>
     prefs.setString(notificationThreadsKey, jsonEncode(all));
 
+typedef WaitingLine = ({String roomId, String eventId});
+
+Map<String, List<WaitingLine>> waitingLines(SharedPreferences prefs) {
+  final waiting = <String, List<WaitingLine>>{};
+  for (final MapEntry(:key, :value) in _readAll(prefs).entries) {
+    final thread = NotificationThread.fromJson(key, value);
+    if (thread == null) continue;
+    final lines = [
+      for (final line in thread.lines)
+        if (line.placeholder)
+          if (line.eventId case final eventId?)
+            (roomId: thread.roomId, eventId: eventId),
+    ];
+    if (lines.isNotEmpty) waiting[key] = lines;
+  }
+  return waiting;
+}
+
 NotificationThread? readNotificationThread(
   SharedPreferences prefs,
   String key,

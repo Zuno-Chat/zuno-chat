@@ -18,20 +18,6 @@ void main() {
     capabilities: capabilities ?? androidCapabilities,
   );
 
-  test('Google services and Apple push never need an exemption, whatever the '
-      'phone says', () async {
-    for (final mode in [
-      NotificationDeliveryMode.fcm,
-      NotificationDeliveryMode.apns,
-    ]) {
-      expect(
-        await needs(mode, zunoExempt: false, distributorRestricted: true),
-        isFalse,
-        reason: mode.name,
-      );
-    }
-  });
-
   test(
     'UnifiedPush is fine when both Zuno and the distributor are exempt',
     () async {
@@ -59,21 +45,19 @@ void main() {
     },
   );
 
-  test('background sync only cares about Zuno itself', () async {
-    expect(
-      await needs(
-        NotificationDeliveryMode.backgroundService,
-        distributorRestricted: true,
-      ),
-      isFalse,
-    );
-    expect(
-      await needs(
-        NotificationDeliveryMode.backgroundService,
-        zunoExempt: false,
-      ),
-      isTrue,
-    );
+  test('Google services and background sync only care about Zuno '
+      'itself', () async {
+    for (final mode in [
+      NotificationDeliveryMode.fcm,
+      NotificationDeliveryMode.backgroundService,
+    ]) {
+      expect(
+        await needs(mode, distributorRestricted: true),
+        isFalse,
+        reason: mode.name,
+      );
+      expect(await needs(mode, zunoExempt: false), isTrue, reason: mode.name);
+    }
   });
 
   test('a probe that throws is treated as no exemption needed', () async {

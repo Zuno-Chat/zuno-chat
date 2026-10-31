@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:matrix/matrix.dart';
 
@@ -221,39 +222,46 @@ class HeadlessPushRunner {
     return result;
   }
 
-  Future<void> deliver(PushNotification notification, {bool? appInFront}) =>
-      _deliverWith(appInFront, () async {
-        if (notification.eventId == null) {
-          await _handleBadge(notification);
-          return;
+  Future<void> deliver(
+    PushNotification notification, {
+    bool? appInFront,
+    DateTime? receivedAt,
+  }) {
+    final arrivedAt = receivedAt ?? clock.now();
+    return _deliverWith(appInFront, () async {
+      if (notification.eventId == null) {
+        await _handleBadge(notification);
+        return;
+      }
+      final live = liveClient != null;
+      final timing = PushTiming(live ? 'live' : 'headless');
+      final outcome = await withClient((client) async {
+        if (!client.isLogged()) {
+          debugPrint('zuno/push: signed out, dropping push');
+          await _retractNotice(notification);
+          return IncomingPushOutcome.ignored;
         }
-        final live = liveClient != null;
-        final timing = PushTiming(live ? 'live' : 'headless');
-        final outcome = await withClient((client) async {
-          if (!client.isLogged()) {
-            debugPrint('zuno/push: signed out, dropping push');
-            await _retractNotice(notification);
-            return IncomingPushOutcome.ignored;
-          }
-          timing.mark('client');
-          return handleIncomingPushNotification(
-            client,
-            notification,
-            notifyMe: await currentNotifyMe(),
-            currentlyOpenRoomId: currentlyOpenRoomId(),
-            timing: timing,
-            onRefining: _keepRefining,
-            onRinging: _holdRing,
-            appWantsClient: live ? null : _appWantsClient.future,
-          );
-        });
-        timing.log();
-        if (outcome == null) {
-          debugPrint('zuno/push: no client, dropping push');
-          return;
-        }
-        lastPushOutcome = outcome;
+        timing.mark('client');
+        return handleIncomingPushNotification(
+          client,
+          notification,
+          notifyMe: await currentNotifyMe(),
+          currentlyOpenRoomId: currentlyOpenRoomId(),
+          timing: timing,
+          onRefining: _keepRefining,
+          onRinging: _holdRing,
+          appWantsClient: live ? null : _appWantsClient,
+          receivedAt: arrivedAt,
+        );
       });
+      timing.log();
+      if (outcome == null) {
+        debugPrint('zuno/push: no client, dropping push');
+        return;
+      }
+      lastPushOutcome = outcome;
+    });
+  }
 
   Future<void> deliverRing(ServerRing ring) =>
       _deliverWith(ring.appInFront, inFront: () => ringInApp(ring), () async {

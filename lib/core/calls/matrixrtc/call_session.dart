@@ -366,7 +366,7 @@ class CallSession {
     }
     if (ending) return;
     try {
-      await _connect();
+      await _connect(publishOnSession: true);
       _hangUpIfStillAlone(after: ringTimeout);
     } catch (e, s) {
       if (!_shownToUser(e)) reportCaught('connect an outgoing call', e, s);
@@ -526,8 +526,9 @@ class CallSession {
     }
   }
 
-  Future<void> _connect() async {
+  Future<void> _connect({bool publishOnSession = false}) async {
     _setPhase(CallSessionPhase.connecting);
+    StreamSubscription<void>? sessionWatch;
     try {
       await _startLocalMedia();
       if (await _abandonEngineIfEnded()) return;
@@ -535,6 +536,7 @@ class CallSession {
       final built = engine;
       if (_encryptionKey case final key?) await built.setEncryptionKey(key);
       if (await _abandonEngineIfEnded()) return;
+      if (publishOnSession) sessionWatch = _publishOnceSessionOpens(built);
       await built.join();
       if (await _abandonEngineIfEnded()) return;
 
@@ -571,7 +573,20 @@ class CallSession {
         }
       }
       rethrow;
+    } finally {
+      await sessionWatch?.cancel();
     }
+  }
+
+  StreamSubscription<void> _publishOnceSessionOpens(CallEngine built) {
+    _membershipLive = true;
+    late final StreamSubscription<void> watch;
+    watch = built.localStateChangedStream.listen((_) {
+      if (built.localFociInfo == null) return;
+      unawaited(watch.cancel());
+      _publishOwnMembership().ignore();
+    });
+    return watch;
   }
 
   void _followEngineStatus(CallEngineStatus status) {
