@@ -91,11 +91,12 @@ jobs:
       - run: dart tool/ci/forbidden_apis.dart build/app/outputs/bundle/release/app-release.aab build/app/outputs/flutter-apk/app-release.apk
       - env:
           CERT_SHA256: ${{ vars.ANDROID_CERT_SHA256 }}
+        shell: bash
         run: |
           apksigner=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n1)
-          actual=$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | sed -n 's/^Signer #[0-9]* certificate SHA-256 digest: //p')
+          actual=$("$apksigner" verify --print-certs-pem build/app/outputs/flutter-apk/app-release.apk | openssl x509 -outform DER | sha256sum | cut -d' ' -f1)
           expected=$(printf '%s' "$CERT_SHA256" | tr -d ':' | tr 'A-F' 'a-f')
-          [ -n "$expected" ] && [ "$actual" = "$expected" ] || { echo "The APK is not signed with ANDROID_CERT_SHA256; the website would serve an APK that cannot update existing installs." >&2; exit 1; }
+          [ -n "$expected" ] && [ "$actual" = "$expected" ] || { echo "The APK is signed with $actual, not ANDROID_CERT_SHA256 ($expected); the website would serve an APK that cannot update existing installs." >&2; exit 1; }
       - uses: actions/upload-artifact@v7
         with:
           name: android
