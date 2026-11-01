@@ -30,13 +30,14 @@ final class ReleaseFailure implements Exception {
 String? run(List<String> args, String root) => switch (args) {
   ['next'] => _next(root)?.toString() ?? 'none',
   ['hotfix'] => _hotfix(root),
+  ['waiting'] => _waiting(root),
   ['guard', '--dry-run', final branch] => _dryRunVersion(root, branch),
   ['guard', final branch] => _guard(root, branch),
   ['build-number', final version] => '${_parse(version).buildNumber}',
   ['bump', final version] => _bump(root, _parse(version)),
   ['check-notes', final path] => _checkNotes(path),
   _ => throw const ReleaseFailure(
-    'usage: next | hotfix | guard [--dry-run] <branch> | '
+    'usage: next | hotfix | waiting | guard [--dry-run] <branch> | '
     'build-number <X.Y.Z> | bump <X.Y.Z> | check-notes <file>',
   ),
 };
@@ -78,6 +79,27 @@ Version? _next(String root) {
 String _hotfix(String root) {
   final latest = _latest(root);
   return '${latest.nextPatch()} ${latest.tag}';
+}
+
+String _waiting(String root) {
+  final branches = [
+    for (final line in _gitLines(root, [
+      'ls-remote',
+      '--heads',
+      'origin',
+      'refs/heads/rc/*',
+    ]))
+      line.split('\t').last.replaceFirst('refs/heads/', ''),
+  ];
+  return switch (waitingReleases(branches, _tags(root))) {
+    [] => 'none',
+    [final version] => '$version',
+    final several => throw ReleaseFailure(
+      'several releases are waiting to ship '
+      '(${several.map((version) => version.branch).join(' ')}); '
+      'delete every rc branch but the one to ship',
+    ),
+  };
 }
 
 String _dryRunVersion(String root, String branch) {

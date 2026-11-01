@@ -116,6 +116,30 @@ void main() {
     });
   });
 
+  group('waitingReleases', () {
+    test('an rc above the highest tag is waiting to ship', () {
+      expect(
+        waitingReleases(
+          ['rc/1.3.1', 'rc/dry-run', 'rc/1.4.0', 'master'],
+          ['v1.3.0', 'v1.3.1'],
+        ),
+        [const Version(1, 4, 0)],
+      );
+    });
+
+    test('a shipped or overtaken rc is not waiting', () {
+      expect(waitingReleases(['rc/1.3.0', 'rc/1.2.5'], ['v1.3.0']), isEmpty);
+      expect(waitingReleases(['rc/dry-run'], ['v1.3.0']), isEmpty);
+    });
+
+    test('lists several waiting releases lowest first', () {
+      expect(waitingReleases(['rc/1.5.0', 'rc/1.4.1'], ['v1.4.0']), [
+        const Version(1, 4, 1),
+        const Version(1, 5, 0),
+      ]);
+    });
+  });
+
   group('cherryPickSources', () {
     test('reads every cherry-pick trailer as a full commit hash', () {
       const a = '1111111111111111111111111111111111111111';

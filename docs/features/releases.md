@@ -1,23 +1,26 @@
 # Releases
 
 Releases to Google Play, the App Store and the website's APK download are
-automated. On the 1st of each
-month, everything on `master` since the last release is tested, built,
-signed and submitted straight to production for every user at once, with
-no human step; any failure stops the release. Hotfixes run through the same pipeline when
-started by hand. Commit subjects decide the version, and a draft file
-supplies the store notes.
+automated. On the 25th of each
+month, everything on `master` since the last release is cut onto a release
+branch; on the 1st, that branch is tested, built, signed and submitted
+straight to production for every user at once, with no human step; any
+failure stops the release. The week between is for picking fixes onto the
+cut, and whatever lands on `master` after it waits for the next month.
+Hotfixes run through the same pipeline when started by hand. Commit
+subjects decide the version, and a draft file supplies the store notes.
 
 ```mermaid
 flowchart LR
-  cut["cut-release<br>1st of the month"] --> rc["rc/X.Y.Z"]
-  hotfix["start-hotfix<br>by hand"] --> rc
-  rc --> gate["guards, analyze<br>and all test suites"]
+  cut["cut-release<br>the 25th"] --> rc["rc/X.Y.Z"]
+  rc --> ship["ship-release<br>the 1st"]
+  ship --> gate
+  hotfix["start-hotfix<br>by hand"] --> gate["guards, analyze<br>and all test suites"]
   gate --> builds["Android and<br>iOS builds"]
   builds --> tag["tag vX.Y.Z"]
   tag --> web["Website APK<br>to R2"]
-  web --> ios["App Store<br>upload"]
-  ios --> play["Play upload"]
+  tag --> ios["App Store<br>upload"]
+  tag --> play["Play upload"]
 ```
 
 The logic (versions, build numbers, commit types, guards) is pure Dart in
@@ -45,9 +48,10 @@ upload is a job in `release.yml`.
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `cut-release` | Cron on the 1st, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master`, pushes `rc/X.Y.Z` and dispatches `release` |
+| `cut-release` | Cron on the 25th, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master` and pushes `rc/X.Y.Z` |
+| `ship-release` | Cron on the 1st, or by hand to ship a cut early | Dispatches `release` on the one rc branch above the highest tag; does nothing when none waits, and stops when several do |
 | `start-hotfix` | By hand, with master commit SHAs and notes | Branches `rc/X.Y.Z` from the highest tag as the next patch, cherry-picks with `-x`, commits the bump and notes on the rc branch, dispatches `release` |
-| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds and their scans → tag `vX.Y.Z` → website APK → iOS upload → Android upload |
+| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds and their scans → tag `vX.Y.Z` → website APK, iOS and Android uploads side by side |
 
 - **The release branch name is the version.**
 - **The tag spends the version before any channel holds its binary**: it
@@ -64,14 +68,17 @@ upload is a job in `release.yml`.
   or Apple's SensitiveContentAnalysis (framework or entitlement) fails the
   run, because Zuno must never ship one and a dependency can bring one in
   unseen.
-- **Uploads run most reversible first**: the website (its manifest can be
-  pointed back), then iOS (a submission can be withdrawn), then Play (a
-  production commit can only be halted).
+- **The three uploads run side by side** once the tag is pushed, so one
+  channel's failure never holds back the others and each is re-run alone.
 - **No staged rollout**: Play ships at 100% and iOS skips the phased
   release, so a bad release reaches everyone and the fix is a hotfix.
 - **The next monthly cut skips commits named in a `cherry picked from`
-  trailer**, so a fix shipped as a hotfix is not counted twice. Take a
-  shipped hotfix's fixes off the bug count in `next.txt` for the same reason.
+  trailer**, so a fix shipped as a hotfix or picked onto a waiting cut is
+  not counted twice. Take such fixes off the bug count in `next.txt` for the
+  same reason.
+- **`start-hotfix` refuses while a cut waits to ship**: pick the fix onto
+  the waiting rc with `-x` and run `ship-release` to ship it now, so two
+  releases never race for the next version.
 - **`start-hotfix` stops before pushing anything** when a commit is not on
   `master`, is a merge commit (pass the commits it merged instead), fails or
   conflicts on the pick, or when the base already has every change.
@@ -89,7 +96,9 @@ upload is a job in `release.yml`.
   other; a different key would force an uninstall, wiping the session and
   E2EE keys.
 - **The Android build fails unless the APK carries the pinned certificate**,
-  because the website upload runs before Play could catch a wrong key.
+  because nothing else checks the website APK's key before users install it;
+  the check hashes the certificate itself, since `apksigner`'s printed text
+  changes between build-tools versions.
 - **The website's contract is `android/latest.json`** in the R2 bucket,
   uncached: the current version, the APK's path relative to it, its SHA-256
   and size. Each version's APK is its own immutable object, uploaded before
@@ -110,17 +119,21 @@ green without FCM or crash reporting.
 | A gate or build fails | Nothing was tagged or uploaded. Fix on `master`, `git cherry-pick -x` onto the rc branch, re-dispatch `release` |
 | An upload fails | "Re-run failed jobs", never "Re-run all jobs": the guard refuses a tagged version. A build Apple already holds is that run's, so the iOS lane submits it without re-uploading |
 | A store rejects the binary | The version is spent. Ship the fix as the next patch through `start-hotfix` |
+| Play refuses the commit until a new permission or foreground-service type is declared | Upload that run's AAB by hand in Play Console, which only then asks for the declaration, and roll it out there. Never re-run the Play job: its version code is taken |
 | A bad release is live | Halt the Play release, which works at 100% too, then `start-hotfix`. iOS has nothing to pause |
 | `cut-release` failed partway | Re-run it. It resumes without dropping new notes |
-| A failed rc is still untagged on the next 1st (a gate or build failure) | The cut fails on the name clash. Delete the stale branch |
+| A failed rc is still untagged on the next 25th (a gate or build failure) | The cut fails on the name clash. Delete the stale branch |
 | A run is abandoned after its tag | Nothing. The version is spent and the next cut moves past it |
 
 ## Gotchas
 
 - **A real release's failure emails nobody**, because the bot dispatched it,
   so check Actions after the 1st and after a hotfix.
+- **GitHub can drop a scheduled run under load without a trace**, so
+  confirm `cut-release` ran on the 25th and `ship-release` on the 1st, and
+  start a missed one by hand.
 - **A hotfix must be done by hand** when its base tag predates the pipeline
   (`v1.3.0` and earlier) or the fix touches `.github/workflows/`, which
   `GITHUB_TOKEN` cannot push.
 - **A public repo disables scheduled workflows after 60 days** without
-  commits, so re-enable `cut-release` after a quiet spell.
+  commits, so re-enable `cut-release` and `ship-release` after a quiet spell.

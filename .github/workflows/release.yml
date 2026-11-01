@@ -207,7 +207,7 @@ jobs:
           fi
 
   upload-ios:
-    needs: [prepare, upload-website]
+    needs: [prepare, tag]
     runs-on: xcode-27
     timeout-minutes: 120
     environment: release
@@ -236,7 +236,7 @@ jobs:
             build_number:"$BUILD_NUMBER" dry_run:"$DRY_RUN"
 
   upload-android:
-    needs: [prepare, upload-ios]
+    needs: [prepare, tag]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: release

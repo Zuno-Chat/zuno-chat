@@ -43,8 +43,7 @@ main() {
     return 1
   fi
 
-  gh workflow run release.yml --ref "$branch"
-  echo "Cut $branch."
+  echo "Cut $branch. ship-release ships it on the 1st."
 }
 
 main "$@"

@@ -81,6 +81,17 @@ Version? highestRelease(Iterable<String> tags) {
   return highest;
 }
 
+List<Version> waitingReleases(
+  Iterable<String> branches,
+  Iterable<String> tags,
+) {
+  final highest = highestRelease(tags);
+  return [
+    for (final version in branches.map(Version.fromBranch).nonNulls)
+      if (highest == null || version.compareTo(highest) > 0) version,
+  ]..sort();
+}
+
 Version? nextRelease(Version latest, Iterable<String> subjects) {
   final types = subjects.expand(commitTypes).toSet();
   if (types.contains('feat')) return latest.nextMinor();

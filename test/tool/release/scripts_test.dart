@@ -70,35 +70,35 @@ void main() {
   tearDown(() => root.deleteSync(recursive: true));
 
   group('cut.sh', () {
-    test('cuts a minor release onto master and rc, then dispatches', () async {
-      write('docs/release-notes/next.txt', 'Maps in chats.\n');
-      commit('feat: maps');
-      push();
+    test(
+      'cuts a minor release onto master and rc without shipping it',
+      () async {
+        write('docs/release-notes/next.txt', 'Maps in chats.\n');
+        commit('feat: maps');
+        push();
 
-      final result = await script('cut.sh');
+        final result = await script('cut.sh');
 
-      expect(result.exitCode, 0, reason: '${result.stderr}');
-      expect(
-        git(origin, ['log', '-1', '--format=%s', 'master']),
-        'chore: release 1.4.0',
-      );
-      expect(
-        remote('master', 'pubspec.yaml'),
-        'name: zuno\nversion: 1.4.0+1004000',
-      );
-      expect(
-        remote('master', 'docs/release-notes/1.4.0.txt'),
-        'Maps in chats.',
-      );
-      expect(remote('master', 'docs/release-notes/next.txt'), '');
-      expect(head('rc/1.4.0'), head('master'));
-      expect(
-        ghLog.readAsStringSync(),
-        'workflow run release.yml --ref rc/1.4.0\n',
-      );
-    });
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(
+          git(origin, ['log', '-1', '--format=%s', 'master']),
+          'chore: release 1.4.0',
+        );
+        expect(
+          remote('master', 'pubspec.yaml'),
+          'name: zuno\nversion: 1.4.0+1004000',
+        );
+        expect(
+          remote('master', 'docs/release-notes/1.4.0.txt'),
+          'Maps in chats.',
+        );
+        expect(remote('master', 'docs/release-notes/next.txt'), '');
+        expect(head('rc/1.4.0'), head('master'));
+        expect(ghLog.existsSync(), isFalse);
+      },
+    );
 
-    test('a re-run reuses the cut and dispatches again', () async {
+    test('a re-run reuses the cut', () async {
       write('docs/release-notes/next.txt', 'Maps.\n');
       commit('feat: maps');
       push();
@@ -109,7 +109,8 @@ void main() {
 
       expect(rerun.exitCode, 0, reason: '${rerun.stderr}');
       expect(head('master'), cut);
-      expect(ghLog.readAsLinesSync(), hasLength(2));
+      expect(head('rc/1.4.0'), cut);
+      expect(ghLog.existsSync(), isFalse);
     });
 
     test('a month with only chores cuts nothing', () async {
@@ -172,7 +173,64 @@ void main() {
     });
   });
 
+  group('ship.sh', () {
+    test('ships the release the cut left waiting', () async {
+      write('docs/release-notes/next.txt', 'Maps.\n');
+      commit('feat: maps');
+      push();
+      await script('cut.sh');
+
+      final result = await script('ship.sh');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(
+        ghLog.readAsStringSync(),
+        'workflow run release.yml --ref rc/1.4.0\n',
+      );
+    });
+
+    test('ships nothing when no release is waiting', () async {
+      push(['master:refs/heads/rc/1.3.0', 'master:refs/heads/rc/dry-run']);
+
+      final result = await script('ship.sh');
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect(result.stdout, contains('nothing to ship'));
+      expect(ghLog.existsSync(), isFalse);
+    });
+
+    test('two waiting releases stop the ship', () async {
+      push(['master:refs/heads/rc/1.3.1', 'master:refs/heads/rc/1.4.0']);
+
+      final result = await script('ship.sh');
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('rc/1.3.1 rc/1.4.0'));
+      expect(ghLog.existsSync(), isFalse);
+    });
+  });
+
   group('hotfix.sh', () {
+    test('refuses while a cut release waits to ship', () async {
+      write('docs/release-notes/next.txt', 'Maps.\n');
+      commit('feat: maps');
+      push();
+      await script('cut.sh');
+      write('lib/a.txt', 'fixed\n');
+      commit('fix: crash');
+      push();
+
+      final result = await script('hotfix.sh', {
+        'COMMITS': git(work, ['rev-parse', 'HEAD']),
+        'NOTES': 'Fixes a crash.',
+      });
+
+      expect(result.exitCode, isNot(0));
+      expect(result.stderr, contains('rc/1.4.0 is waiting to ship'));
+      expect(git(origin, ['branch', '--list', 'rc/1.3.1']), '');
+      expect(ghLog.existsSync(), isFalse);
+    });
+
     test('cherry-picks onto rc/1.3.1 from v1.3.0 and dispatches', () async {
       write('lib/a.txt', 'fixed\n');
       commit('fix: crash');

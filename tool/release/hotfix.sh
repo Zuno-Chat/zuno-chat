@@ -10,15 +10,18 @@ main() {
   release() { dart "$tool/cli.dart" "$@"; }
   conflicted() { [ -n "$(git diff --name-only --diff-filter=U)" ]; }
 
+  local waiting
+  waiting=$(release waiting)
+  if [ "$waiting" != none ]; then
+    echo "rc/$waiting is waiting to ship. Cherry-pick -x the fix onto it, then run ship-release to ship it now." >&2
+    return 1
+  fi
+
   local plan version base
   plan=$(release hotfix)
   read -r version base <<<"$plan"
   local branch="rc/$version"
 
-  if git ls-remote --exit-code --heads origin "$branch" >/dev/null; then
-    echo "$branch already exists. Finish or delete it first." >&2
-    return 1
-  fi
   if ! git cat-file -e "$base:.github/workflows/release.yml" 2>/dev/null; then
     echo "$base predates the release pipeline; hotfix it by hand." >&2
     return 1
