@@ -149,7 +149,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0")
     implementation("com.google.android.gms:play-services-base:18.11.1")
     implementation("com.google.android.gms:play-services-location:21.4.0")
-    implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
+    implementation(platform("com.google.firebase:firebase-bom:35.1.0"))
     implementation("com.google.firebase:firebase-messaging")
     compileOnly("io.github.webrtc-sdk:android:150.7871.04")
     // Required by compileOptions.isCoreLibraryDesugaringEnabled above.
