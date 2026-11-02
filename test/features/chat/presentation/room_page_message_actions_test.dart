@@ -116,7 +116,12 @@ void main() {
   }
 
   Future<void> openActions(WidgetTester tester, String body) async {
-    await tester.longPress(find.textContaining(body, findRichText: true).first);
+    await tester.longPress(
+      find.ancestor(
+        of: find.textContaining(body, findRichText: true).first,
+        matching: find.byType(MessageBubble),
+      ),
+    );
     await harness.settle(tester);
   }
 
@@ -684,7 +689,12 @@ void main() {
           tester,
           () => [ownPhoto(r'$p3', 2), ownPhoto(r'$p2', 1), ownPhoto(r'$p1', 0)],
         );
-        await tester.longPress(find.byType(GalleryMessage));
+        await tester.longPress(
+          find.ancestor(
+            of: find.byType(GalleryMessage),
+            matching: find.byType(MessageBubble),
+          ),
+        );
         await harness.settle(tester);
         await tapAction(tester, 'Delete all (3)');
         expect(find.text('Delete 3 items?'), findsOneWidget);
@@ -1325,7 +1335,12 @@ void main() {
     Future<void> openPhotoActions(WidgetTester tester) async {
       await tester.longPress(
         find
-            .byWidgetPredicate((w) => w is ImageMessage || w is GalleryMessage)
+            .ancestor(
+              of: find.byWidgetPredicate(
+                (w) => w is ImageMessage || w is GalleryMessage,
+              ),
+              matching: find.byType(MessageBubble),
+            )
             .first,
       );
       await harness.settle(tester);

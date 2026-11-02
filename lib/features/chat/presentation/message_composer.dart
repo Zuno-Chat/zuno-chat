@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
@@ -53,8 +54,60 @@ class MessageComposer extends StatelessWidget {
                 color: colors.surfaceContainerHigh,
                 borderRadius: BorderRadius.circular(24),
               ),
-              child: isRecording
-                  ? SizedBox(
+              child: Stack(
+                children: [
+                  Visibility(
+                    visible: !isRecording,
+                    maintainState: true,
+                    maintainFocusability: true,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        IconButton(
+                          icon: attaching
+                              ? const InlineSpinner()
+                              : const Icon(Icons.attach_file_outlined),
+                          color: hintColor,
+                          onPressed: attaching ? null : onAttach,
+                        ),
+                        Expanded(
+                          child: ZunoTextField(
+                            autofillHints: null,
+                            controller: controller,
+                            inputFormatters: isRecording
+                                ? [
+                                    TextInputFormatter.withFunction(
+                                      (oldValue, _) => oldValue,
+                                    ),
+                                  ]
+                                : null,
+                            minLines: 1,
+                            maxLines: 5,
+                            keyboardType: TextInputType.multiline,
+                            textInputAction: TextInputAction.newline,
+                            textCapitalization: TextCapitalization.sentences,
+                            style: textStyle,
+                            decoration: InputDecoration(
+                              hintText: l10n.commonMessageHint,
+                              hintStyle: textStyle.copyWith(color: hintColor),
+                              filled: false,
+                              border: InputBorder.none,
+                              enabledBorder: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              disabledBorder: InputBorder.none,
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 13,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                      ],
+                    ),
+                  ),
+                  if (isRecording)
+                    SizedBox(
                       height: 48,
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -112,45 +165,9 @@ class MessageComposer extends StatelessWidget {
                           ],
                         ),
                       ),
-                    )
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        IconButton(
-                          icon: attaching
-                              ? const InlineSpinner()
-                              : const Icon(Icons.attach_file_outlined),
-                          color: hintColor,
-                          onPressed: attaching ? null : onAttach,
-                        ),
-                        Expanded(
-                          child: ZunoTextField(
-                            autofillHints: null,
-                            controller: controller,
-                            minLines: 1,
-                            maxLines: 5,
-                            keyboardType: TextInputType.multiline,
-                            textInputAction: TextInputAction.newline,
-                            textCapitalization: TextCapitalization.sentences,
-                            style: textStyle,
-                            decoration: InputDecoration(
-                              hintText: l10n.commonMessageHint,
-                              hintStyle: textStyle.copyWith(color: hintColor),
-                              filled: false,
-                              border: InputBorder.none,
-                              enabledBorder: InputBorder.none,
-                              focusedBorder: InputBorder.none,
-                              disabledBorder: InputBorder.none,
-                              isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 13,
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 14),
-                      ],
                     ),
+                ],
+              ),
             ),
           ),
           const SizedBox(width: 8),

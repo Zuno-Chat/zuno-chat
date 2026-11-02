@@ -313,6 +313,84 @@ void main() {
     expect(leftoverRecordings(), isEmpty);
   });
 
+  group('with the keyboard open', () {
+    Future<void> openRoomTyping(WidgetTester tester) async {
+      await openRoom(tester);
+      await tester.showKeyboard(find.byType(TextField));
+      await tester.pump();
+    }
+
+    bool keyboardOpen(WidgetTester tester) => tester.testTextInput.isVisible;
+
+    String draft(WidgetTester tester) => tester
+        .widget<TextField>(find.byType(TextField, skipOffstage: false))
+        .controller!
+        .text;
+
+    testWidgets('holding to record keeps it open, and so does sending', (
+      tester,
+    ) async {
+      await openRoomTyping(tester);
+
+      final gesture = await holdMic(tester);
+      expect(find.text('Slide up to cancel'), findsOneWidget);
+      expect(keyboardOpen(tester), isTrue);
+
+      await tester.pump(const Duration(milliseconds: 350));
+      await gesture.up();
+      await pumpUntil(
+        tester,
+        () => voiceMessages().isNotEmpty && recordingDone(),
+        reason: 'the voice message to be sent',
+      );
+
+      expect(keyboardOpen(tester), isTrue);
+    });
+
+    testWidgets('a tap to record hands-free keeps it open', (tester) async {
+      await openRoomTyping(tester);
+
+      await tapMic(tester);
+      expect(find.byTooltip('Cancel recording'), findsOneWidget);
+      expect(keyboardOpen(tester), isTrue);
+
+      await tester.pump(const Duration(milliseconds: 200));
+      await tapMic(tester);
+      await pumpUntil(
+        tester,
+        () => voiceMessages().isNotEmpty,
+        reason: 'the voice message to be sent',
+      );
+
+      expect(keyboardOpen(tester), isTrue);
+    });
+
+    testWidgets('typing while recording leaves the hidden draft alone', (
+      tester,
+    ) async {
+      await openRoomTyping(tester);
+
+      await tapMic(tester);
+      tester.testTextInput.enterText('typed blind');
+      await tester.pump();
+
+      expect(draft(tester), isEmpty);
+
+      await tester.tap(find.byTooltip('Cancel recording'));
+      await pumpUntil(
+        tester,
+        () =>
+            recordingDone() &&
+            find.byTooltip('Cancel recording').evaluate().isEmpty,
+        reason: 'the recording to be thrown away',
+      );
+      tester.testTextInput.enterText('typed after');
+      await tester.pump();
+
+      expect(draft(tester), 'typed after');
+    });
+  });
+
   testWidgets('an interrupted hold throws the recording away', (tester) async {
     await openRoom(tester);
 

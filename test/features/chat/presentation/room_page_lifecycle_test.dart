@@ -18,6 +18,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/share/inbound_share.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
+import 'package:zuno/features/chat/presentation/message_list_view.dart';
 import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
@@ -182,7 +183,7 @@ void main() {
       await openRoom(tester, messages: 40);
       expect(find.byTooltip('Scroll to latest'), findsNothing);
 
-      await tester.drag(find.byType(ListView), const Offset(0, 900));
+      await tester.drag(find.byType(MessageListView), const Offset(0, 900));
       await harness.settle(tester);
       expect(find.byTooltip('Scroll to latest'), findsOneWidget);
 

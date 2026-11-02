@@ -231,6 +231,9 @@ one rule for what counts.
 - **A press that has to ask for the microphone only asks**, and the next
   press records, because the system prompt takes the touch away
   mid-gesture.
+- **The keyboard** closes on a tap on empty space in the message list and
+  stays open through taps on messages, scrolling and recording. Typing
+  during a recording does nothing, since the message box is hidden.
 
 ## Unsent messages
 
@@ -644,6 +647,12 @@ flowchart TD
   paint time**, so accent edges are separate strips in a `Stack`.
 - **The send/mic swap is keyed on the button, not the icon**, because a
   key change mid-gesture kills the hold-to-record pointer stream.
+- **The message box stays mounted while recording, only hidden**, because
+  unmounting it drops the keyboard and the mic jumps from under a held
+  finger.
+- **The keyboard-closing tap sits inside the list's viewport**, because
+  the list blocks taps on its contents only while it moves; outside it,
+  the tap that stops a fling would close the keyboard too.
 - **Never load members from `onRoomState`**: loading members fires it
   once per member, and the re-entrant chain starves the main isolate.
 - **The member fetch is one `database.transaction` that never throws**,

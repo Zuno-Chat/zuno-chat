@@ -1,1 +1,4 @@
-Fixed 7 bugs.
+New
+• Tap an empty part of a chat to close the keyboard.
+
+Fixed 8 bugs.

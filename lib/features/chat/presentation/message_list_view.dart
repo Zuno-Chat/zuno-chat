@@ -1,6 +1,7 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/format/date_labels.dart';
@@ -10,6 +11,7 @@ import '../../../core/matrix/media_gallery_group.dart';
 import '../../../core/matrix/room_changes.dart';
 import '../../../core/matrix/room_updates.dart';
 import '../../../core/ui/inline_feedback.dart';
+import '../../../core/ui/keyboard.dart';
 import '../../../core/ui/row_memo.dart';
 import '../data/message_row_data.dart';
 import '../data/pending_attachment_send.dart';
@@ -296,7 +298,7 @@ class _MessageListViewState extends State<MessageListView> {
           labels: labels,
         );
 
-    return ListView.builder(
+    return _MessageScrollView(
       controller: widget.controller,
       reverse: true,
       padding: const EdgeInsets.only(bottom: 8),
@@ -399,6 +401,30 @@ class _MessageListViewState extends State<MessageListView> {
       },
     );
   }
+}
+
+class _MessageScrollView extends ListView {
+  _MessageScrollView({
+    super.controller,
+    super.reverse,
+    super.padding,
+    super.itemCount,
+    super.findChildIndexCallback,
+    required super.itemBuilder,
+  }) : super.builder();
+
+  @override
+  Widget buildViewport(
+    BuildContext context,
+    ViewportOffset offset,
+    AxisDirection axisDirection,
+    List<Widget> slivers,
+  ) => GestureDetector(
+    behavior: HitTestBehavior.opaque,
+    excludeFromSemantics: true,
+    onTap: closeKeyboard,
+    child: super.buildViewport(context, offset, axisDirection, slivers),
+  );
 }
 
 class _EndRow extends StatelessWidget {
