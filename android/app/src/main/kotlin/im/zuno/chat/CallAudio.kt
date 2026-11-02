@@ -18,9 +18,14 @@ import androidx.annotation.RequiresApi
 import androidx.core.content.ContextCompat
 import java.util.concurrent.Executor
 
-class CallAudio(private val context: Context, private val report: (Map<String, Any?>) -> Unit) {
+class CallAudio(
+    private val context: Context,
+    private val report: (Map<String, Any?>) -> Unit,
+    private val onPhoneCall: () -> Unit,
+) {
     private val audioManager = context.getSystemService(AudioManager::class.java)
     private val main = Handler(Looper.getMainLooper())
+    private val phoneCalls = PhoneCallWatch(context) { phoneCallTookOver() }
     private val callAttributes = AudioAttributes.Builder()
         .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
@@ -87,6 +92,7 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         }
         this.route = route
         active = true
+        phoneCalls.start()
         savedMicrophoneMute = audioManager.isMicrophoneMute
         audioManager.isMicrophoneMute = false
         holdsFocus = CallAudioDecision.focusGranted(audioManager.requestAudioFocus(focusRequest))
@@ -109,9 +115,17 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
         updateTone()
     }
 
-    fun stop() {
+    fun stop() = end(ownsDevice = true)
+
+    private fun phoneCallTookOver() {
+        end(ownsDevice = false)
+        onPhoneCall()
+    }
+
+    private fun end(ownsDevice: Boolean) {
         if (!active) return
         active = false
+        phoneCalls.stop()
         updateTone()
         audioManager.unregisterAudioDeviceCallback(devicesChanged)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
@@ -121,9 +135,9 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
             awaitedDevice = null
         } else {
             context.unregisterReceiver(scoChanged)
-            clearLegacyRouting()
+            clearLegacyRouting(ownsDevice)
         }
-        audioManager.isMicrophoneMute = savedMicrophoneMute
+        if (ownsDevice) audioManager.isMicrophoneMute = savedMicrophoneMute
         audioManager.mode = AudioManager.MODE_NORMAL
         if (holdsFocus) audioManager.abandonAudioFocusRequest(focusRequest)
         holdsFocus = false
@@ -192,13 +206,13 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
     }
 
     @Suppress("DEPRECATION")
-    private fun clearLegacyRouting() {
-        requestSco(false)
-        audioManager.isSpeakerphoneOn = false
+    private fun clearLegacyRouting(ownsDevice: Boolean) {
+        requestSco(false, ownsDevice)
+        if (ownsDevice) audioManager.isSpeakerphoneOn = false
     }
 
     @Suppress("DEPRECATION")
-    private fun requestSco(wanted: Boolean) {
+    private fun requestSco(wanted: Boolean, ownsDevice: Boolean = true) {
         when (CallAudioDecision.scoAction(wanted, scoRequested)) {
             ScoAction.Start -> {
                 scoState = AudioManager.SCO_AUDIO_STATE_DISCONNECTED
@@ -209,7 +223,7 @@ class CallAudio(private val context: Context, private val report: (Map<String, A
             }
 
             ScoAction.Stop -> {
-                audioManager.isBluetoothScoOn = false
+                if (ownsDevice) audioManager.isBluetoothScoOn = false
                 audioManager.stopBluetoothSco()
                 scoRequested = false
             }

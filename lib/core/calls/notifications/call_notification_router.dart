@@ -89,7 +89,7 @@ class CallNotificationRouter extends Notifier<void> {
       _log('hang up with no active call; nothing to end');
       return;
     }
-    _log('hanging up ${session.callId} from the ongoing-call notification');
+    _log("hanging up ${session.callId} at the system's request");
     await session.hangUp();
   }
 

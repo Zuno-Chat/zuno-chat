@@ -449,6 +449,7 @@ session to CallKit.
 | Microphone mute | A stale system-wide mute is cleared for the call and restored after it |
 | Headsets | Device and route changes are reported to Dart |
 | Call tones | Played as call audio, only while wanted, while call audio is active and once the chosen device is active (or after a short wait for one that never comes up); the waiting tone wins, so the two never play at once |
+| Phone calls | A phone call that starts while call audio is active releases it at once and hangs the call up (below); the microphone mute, speakerphone and Bluetooth SCO switches then belong to the phone call and are left alone, or restoring them could mute it or pull it off a headset |
 
 ### Ringing
 
@@ -514,6 +515,14 @@ understand.
 - **The push paths leave a waiting call to sync**: a call keeps the app
   engine syncing, so the gate rings a waiting call from sync while push
   engines, Android's instant ring and iOS `RingDecision` skip it.
+
+**Phone calls.** A phone call during a call ends it, the same no-hold rule
+as call waiting. On iOS CallKit offers End & Accept. On Android the phone
+app knows nothing of a Zuno call and offers no choice, so answering or
+placing a phone call hangs the call up as soon as the phone takes the
+audio: the in-call audio mode on Android 12+, the off-hook call state on
+8–11, neither needing a permission. A phone call already on when the call
+starts never ends it.
 
 **Ring names.** One rule names a ring on every surface (the Android ring,
 CallKit and the ring screen): a one-to-one call by the caller, a group call
@@ -714,6 +723,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | New mid-call facts ride `fociInfo`; new signaling that must push or show is an `im.zuno.*` msgtype, and signaling that must stay invisible is its own `im.zuno.*` event type | Both sides already reconcile `fociInfo`, a msgtype gets timeline plumbing for free, and an unknown event type is hidden by older versions and other clients, where an unknown msgtype shows as text |
 | A call-lifetime controller outside the call screen, drawn by an app-level layer | A lock-screen answer may never build the screen, and the screen, the bar, the window and picture-in-picture share one set of renderers |
 | Microphone and camera open at call start, not at join | The controls act on them before the call connects |
+| Android calls are not registered with Telecom, so a phone call is watched for instead | Telecom would let Android offer a choice between the two calls, but Signal, the one peer that built it, still holds it back to Android 17+ |
 | Android call audio is native, not flutter_webrtc's AudioSwitch | AudioSwitch entered call mode only on microphone capture and stuck to the last chosen device, so ringback and the route waited on the microphone |
 | Call tones are generated sound files (`tool/generate_tones.py`) that Dart names and native plays, never `ToneGenerator` | One sound on both platforms, and Android plays a voice-call `ToneGenerator` as a dial tone on its own output, which a stereo-speaker phone sent to the earpiece during speaker calls |
 | A minimized call is a bar for voice and a window for video, and a tap only opens it | One tap target, never a second set of controls |

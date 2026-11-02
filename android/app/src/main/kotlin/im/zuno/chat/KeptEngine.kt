@@ -20,9 +20,11 @@ class HostState(context: Context) {
     var pipEligible = false
     var pipAspect = Rational(3, 4)
     var pipCamera = false
-    val callAudio = CallAudio(this.context) { state ->
-        AppEngine.callsChannel?.invokeMethod("audioRouteChanged", state)
-    }
+    val callAudio = CallAudio(
+        this.context,
+        report = { state -> AppEngine.callsChannel?.invokeMethod("audioRouteChanged", state) },
+        onPhoneCall = { CallActionReceiver.requestHangUp(this.context) },
+    )
     private var proximityWakeLock: PowerManager.WakeLock? = null
 
     fun setProximityScreenOff(enabled: Boolean) {
