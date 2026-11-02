@@ -8,11 +8,12 @@ partials with a soft attack — a calm chime, not a "ringtone".
 
     python3 tool/generate_tones.py
 
-Each tone is written in the most compact format its player takes: Ogg
-Vorbis for Android's media players (stored uncompressed in the APK, as
-they need), 8 kHz mu-law WAV for call tones (Android decodes them itself
-into call audio) and IMA4 CAF for iOS alert and CallKit sounds. Needs
-macOS for afconvert and vorbis-tools (brew install vorbis-tools).
+Each tone is written in the most compact format its player takes that
+keeps a pure tone clean: Ogg Vorbis for Android's media players (stored
+uncompressed in the APK, as they need), 8 kHz 16-bit PCM WAV for call
+tones (Android decodes them itself into call audio) and 16-bit PCM CAF
+for iOS alert and CallKit sounds. Needs macOS for afconvert and
+vorbis-tools (brew install vorbis-tools).
 """
 
 import math
@@ -31,19 +32,22 @@ IOS_SOUND_LIMIT = 30.0
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 
 
+def edges(i, total, rise, fall):
+    def ease(x):
+        return 0.5 - 0.5 * math.cos(math.pi * min(1.0, x))
+    return ease(i / rise) * ease((total - i) / fall)
+
+
 def note(freq, seconds, amplitude=0.5, decay=6.0, harmonic=0.25, rate=RATE):
-    """One struck note: sine plus a quiet octave, exponential decay."""
+    """One struck note: sine plus a quiet octave that fades first, exponential decay."""
     out = []
-    attack = int(0.006 * rate)  # a few ms, so it doesn't click
     total = int(seconds * rate)
+    rise, fall = int(0.01 * rate), int(0.03 * rate)
     for i in range(total):
         t = i / rate
-        env = math.exp(-decay * t)
-        if i < attack:
-            env *= i / attack
-        sample = math.sin(2 * math.pi * freq * t)
-        sample += harmonic * math.sin(4 * math.pi * freq * t)
-        out.append(amplitude * env * sample / (1 + harmonic))
+        sample = math.exp(-decay * t) * math.sin(2 * math.pi * freq * t)
+        sample += harmonic * math.exp(-2 * decay * t) * math.sin(4 * math.pi * freq * t)
+        out.append(amplitude * edges(i, total, rise, fall) * sample / (1 + harmonic))
     return out
 
 
@@ -51,12 +55,11 @@ def tone(freqs, seconds, amplitude=0.25, fade=0.02, rate=RATE):
     """A steady, level tone (telephony-style), with fades at both ends."""
     out = []
     total = int(seconds * rate)
-    fade_samples = max(1, int(fade * rate))
+    ramp = max(1, int(fade * rate))
     for i in range(total):
         t = i / rate
-        env = min(1.0, i / fade_samples, (total - i) / fade_samples)
         sample = sum(math.sin(2 * math.pi * f * t) for f in freqs) / len(freqs)
-        out.append(amplitude * env * sample)
+        out.append(amplitude * edges(i, total, ramp, ramp) * sample)
     return out
 
 
@@ -73,15 +76,15 @@ def mix(length_seconds, parts, rate=RATE):
 
 
 def vorbis(source, target):
-    return ['oggenc', '-Q', '-q', '10', '--serial', '1', '-o', target, source]
+    subprocess.run(['oggenc', '-Q', '-q', '10', '--serial', '1', '-o', target, source], check=True)
 
 
-def mu_law_wav(source, target):
-    return ['afconvert', '-f', 'WAVE', '-d', 'ulaw', '--no-filler', source, target]
+def pcm_wav(source, target):
+    shutil.copyfile(source, target)
 
 
-def ima4_caf(source, target):
-    return ['afconvert', '-f', 'caff', '-d', 'ima4', '--no-filler', source, target]
+def pcm_caf(source, target):
+    subprocess.run(['afconvert', '-f', 'caff', '-d', 'LEI16', '--no-filler', source, target], check=True)
 
 
 def write_pcm(path, samples, rate):
@@ -101,7 +104,7 @@ def write(path, samples, encoder, rate=RATE):
     with tempfile.TemporaryDirectory() as scratch:
         source = os.path.join(scratch, 'tone.wav')
         write_pcm(source, samples, rate)
-        subprocess.run(encoder(source, path), check=True)
+        encoder(source, path)
     print(f'{path} ({os.path.getsize(path) / 1024:.1f} KB)')
 
 
@@ -128,8 +131,8 @@ ringtone = mix(RING_SECONDS, [
 ])
 write('assets/sounds/ringtone.ogg', ringtone, vorbis)
 fallback_loops = math.ceil(IOS_SOUND_LIMIT / RING_SECONDS) - 1
-write('ios/Runner/fallback_ring.caf', ringtone * fallback_loops, ima4_caf)
-write('ios/Runner/silent_ring.caf', [0.0] * CALL_TONE_RATE, ima4_caf, rate=CALL_TONE_RATE)
+write('ios/Runner/fallback_ring.caf', ringtone * fallback_loops, pcm_caf)
+write('ios/Runner/silent_ring.caf', [0.0] * CALL_TONE_RATE, pcm_caf, rate=CALL_TONE_RATE)
 
 # New message: two notes, over almost as soon as it starts.
 message_tone = mix(0.75, [
@@ -137,19 +140,19 @@ message_tone = mix(0.75, [
     (0.13, note(F6, 0.55, amplitude=0.45, decay=7.0)),
 ])
 write('android/app/src/main/res/raw/message_tone.ogg', message_tone, vorbis)
-write('ios/Runner/message_tone.caf', message_tone, ima4_caf)
+write('ios/Runner/message_tone.caf', message_tone, pcm_caf)
 
 conversation_in = mix(0.30, [
     (0.00, note(G5, 0.28, amplitude=0.22, decay=16.0)),
 ])
 write('android/app/src/main/res/raw/conversation_in.ogg', conversation_in, vorbis)
-write('ios/Runner/conversation_in.caf', conversation_in, ima4_caf)
+write('ios/Runner/conversation_in.caf', conversation_in, pcm_caf)
 
 conversation_out = mix(0.16, [
     (0.00, note(E6, 0.14, amplitude=0.16, decay=28.0)),
 ])
 write('android/app/src/main/res/raw/conversation_out.ogg', conversation_out, vorbis)
-write('ios/Runner/conversation_out.caf', conversation_out, ima4_caf)
+write('ios/Runner/conversation_out.caf', conversation_out, pcm_caf)
 
 
 def call_tone(start, seconds):
@@ -161,7 +164,7 @@ def cue_note(start, freq):
 
 
 def write_call_sound(path, seconds, parts):
-    write(path, mix(seconds, parts, rate=CALL_TONE_RATE), mu_law_wav, rate=CALL_TONE_RATE)
+    write(path, mix(seconds, parts, rate=CALL_TONE_RATE), pcm_wav, rate=CALL_TONE_RATE)
 
 
 write_call_sound('assets/sounds/ringback.wav', 5.0, [call_tone(0.0, 1.0)])

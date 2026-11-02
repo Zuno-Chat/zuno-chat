@@ -2,4 +2,4 @@ New
 • Tap an empty part of a chat to close the keyboard.
 • A soft tone when someone joins your call.
 
-Fixed 12 bugs.
+Fixed 13 bugs.

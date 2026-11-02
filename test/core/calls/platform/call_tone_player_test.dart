@@ -205,13 +205,6 @@ void main() {
   });
 
   group('the call tone sounds', () {
-    int muLaw(int code) {
-      final bits = ~code & 0xFF;
-      final magnitude =
-          ((((bits & 0x0F) << 3) + 0x84) << ((bits >> 4) & 0x07)) - 0x84;
-      return bits & 0x80 == 0 ? magnitude : -magnitude;
-    }
-
     Future<({int rate, List<int> samples})> sound(String asset) async {
       final bytes = (await rootBundle.load(asset)).buffer.asByteData();
       int? rate;
@@ -220,14 +213,21 @@ void main() {
         final size = bytes.getUint32(at + 4, Endian.little);
         final body = at + 8;
         if (id == 'fmt ') {
-          expect(bytes.getUint16(body, Endian.little), 7, reason: 'mu-law');
+          expect(
+            (
+              bytes.getUint16(body, Endian.little),
+              bytes.getUint16(body + 14, Endian.little),
+            ),
+            (1, 16),
+            reason: '$asset is not 16-bit PCM, so its tone would hiss',
+          );
           rate = bytes.getUint32(body + 4, Endian.little);
         } else if (id == 'data') {
           return (
             rate: rate!,
             samples: [
-              for (final code in bytes.buffer.asUint8List(body, size))
-                muLaw(code),
+              for (var at = body; at + 2 <= body + size; at += 2)
+                bytes.getInt16(at, Endian.little),
             ],
           );
         }
