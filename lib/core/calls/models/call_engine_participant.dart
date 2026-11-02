@@ -12,6 +12,7 @@ class CallEngineParticipant {
   final bool encrypted;
   final bool weakConnection;
   final bool frontCamera;
+  final bool sendingMedia;
 
   const CallEngineParticipant({
     required this.id,
@@ -23,6 +24,7 @@ class CallEngineParticipant {
     this.encrypted = false,
     this.weakConnection = false,
     this.frontCamera = false,
+    this.sendingMedia = false,
   });
 
   @override
@@ -37,7 +39,8 @@ class CallEngineParticipant {
           videoEnabled == other.videoEnabled &&
           encrypted == other.encrypted &&
           weakConnection == other.weakConnection &&
-          frontCamera == other.frontCamera;
+          frontCamera == other.frontCamera &&
+          sendingMedia == other.sendingMedia;
 
   @override
   int get hashCode => Object.hash(
@@ -50,5 +53,6 @@ class CallEngineParticipant {
     encrypted,
     weakConnection,
     frontCamera,
+    sendingMedia,
   );
 }

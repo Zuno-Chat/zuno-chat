@@ -169,6 +169,7 @@ CallEngineParticipant remoteParticipant({
   bool camera = false,
   bool encrypted = true,
   bool muted = false,
+  bool sendingMedia = true,
 }) => CallEngineParticipant(
   id: VoipParticipantId(userId: userId, deviceId: 'ANN'),
   isLocal: false,
@@ -176,6 +177,7 @@ CallEngineParticipant remoteParticipant({
   videoEnabled: camera,
   videoStream: camera ? FakeMediaStream('$userId-video') : null,
   encrypted: encrypted,
+  sendingMedia: sendingMedia,
 );
 
 Room buildCallRoom() {

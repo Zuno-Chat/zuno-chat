@@ -406,6 +406,36 @@ void main() {
       );
     });
 
+    test('a caller whose call was just answered is connecting until the '
+        'other side\'s media arrives, then talking', () async {
+      CallChannelMocks();
+      final container = containerWithControllers();
+      final caller = FakeCallSession(
+        room: buildCallRoom(),
+        kind: CallKind.voice,
+        role: CallSessionRole.caller,
+      );
+      container.read(activeCallProvider.notifier).set(caller);
+      await pumpEventQueue();
+      caller.moveTo(CallSessionPhase.active);
+      caller.remoteJoins();
+      caller.engine.setParticipants([
+        localParticipant(),
+        remoteParticipant(sendingMedia: false),
+      ]);
+      await pumpEventQueue();
+      final controller = container.read(activeCallControllerProvider)!;
+
+      expect(controller.status, CallStatus.connecting);
+      expect(controller.talkingSince, isNull);
+
+      caller.engine.setParticipants([localParticipant(), remoteParticipant()]);
+      await pumpEventQueue();
+
+      expect(controller.status, CallStatus.talking);
+      expect(controller.talkingSince, isNotNull);
+    });
+
     test('a live call with nobody else there is waiting', () async {
       expect(
         await statusOf(voiceCall(), participants: [localParticipant()]),
@@ -459,6 +489,19 @@ void main() {
       await pumpEventQueue();
       return (call, container.read(activeCallControllerProvider)!);
     }
+
+    test('a call already talking stays talking while the other side '
+        'rejoins with no media yet', () async {
+      final (call, controller) = await talking();
+
+      call.engine.setParticipants([
+        localParticipant(),
+        remoteParticipant(sendingMedia: false),
+      ]);
+      await pumpEventQueue();
+
+      expect(controller.status, CallStatus.talking);
+    });
 
     test('a call hanging up says it ended at once, and still does once its '
         'teardown drops the other person', () async {

@@ -1733,5 +1733,6 @@ class _RemoteParticipant {
       final CallQuality rating => rating != CallQuality.good,
       null => legacyWeak,
     },
+    sendingMedia: advertisedTracks.isNotEmpty,
   );
 }

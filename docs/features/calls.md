@@ -125,14 +125,14 @@ stateDiagram-v2
 - **A malformed entry is skipped, and a malformed `fociInfo` field reads
   as absent, never cast**, because one client's bad state would otherwise
   break the call for everyone in the room.
-- **Membership is published only once the session listens for to-device
-  call keys**, so a key sent in reply is never lost; refreshes before that
-  are ignored. The one exception is a caller's first publish, made as soon
-  as its SFU session exists, before its tracks: the module rings on that
-  membership, so the ring never waits on the caller's camera, and nobody
-  in a new call can send a key before answering. After that it is republished periodically and on every
-  change, with user toggles coalesced, because state events are permanent
-  room history.
+- **Membership is first published as soon as the SFU session exists,
+  before its tracks, and only once the session listens for to-device call
+  keys**, so a key sent in reply is never lost. The module rings on a
+  caller's, so the ring never waits on the caller's camera; an answerer's
+  is the answer, so the caller stops ringing and sends the key while the
+  answerer is still connecting. After that it is republished periodically
+  and on every change, with user toggles coalesced, because state events
+  are permanent room history.
 - **One serial writer per room carries all of our membership writes**, each
   waited on for a bounded time, and the latest membership is written again
   if a stale write lands late, so a quick redial is never wiped by the
@@ -156,7 +156,7 @@ stateDiagram-v2
   | Anyone with others still in the room's live memberships | Nothing: the last one out posts the summary |
   | A caller whose invite was never delivered | Nothing, so hanging up during the microphone prompt is silent |
   | A callee that never joined | A decline |
-  | A callee whose connect failed before it joined | Nothing, so its other phones can still answer |
+  | A callee whose connect failed before its SFU session opened | Nothing, so its other phones can still answer |
   | A callee removed before it joined | Nothing, since it is out of the call either way |
   | A callee the summary reached before anyone joined | Nothing: the call is already summarized |
   | A caller giving up its call for a crossed one (see Ringing) | Nothing, so no false missed call is posted |
@@ -311,8 +311,8 @@ upload bandwidth.
   delivered, because the SDK silently skips a device it has no session
   with.
 - **A participant that receives the key late relays it to every device it
-  already knows**, so the key spreads even when its first sender could not
-  reach everyone.
+  already knows, never back to its sender**, so the key spreads even when
+  its first sender could not reach everyone.
 - **A device that starts a new Olm session is sent the key again**, since a
   new session means it could not decrypt over the old one.
 - **Device keys are fetched only when that user's device list is unknown or
@@ -339,6 +339,10 @@ upload bandwidth.
   | Three or more people | A two-column grid |
 
   A new call state extends `CallStatus` and `CallView`, never a new screen.
+- **"Connecting…" lasts until someone else's media first reaches the
+  call**, on the caller's screen too, and the call timer starts then; a
+  later rejoin never brings it back, since an answer is announced before
+  its media flows.
 - **Confirming the other person**: in a one-to-one call, a pill offers to
   confirm someone unconfirmed or changed, once both ends can finish it
   (`security-verification.md`).

@@ -171,6 +171,7 @@ class ActiveCallController extends ChangeNotifier {
       calling: session.role == CallSessionRole.caller && !session.everHadRemote,
       connecting: connecting,
       someoneHere: !connecting && _remotes.isNotEmpty,
+      mediaArrived: _talkingSince != null,
       keysPending:
           local == null || encrypting(local) || _remotes.any(encrypting),
     );
@@ -466,7 +467,8 @@ class ActiveCallController extends ChangeNotifier {
       for (final participant in participants)
         if (!participant.isLocal) participant,
     ];
-    if (_remotes.isNotEmpty && _talkingSince == null) {
+    if (_remotes.any((remote) => remote.sendingMedia) &&
+        _talkingSince == null) {
       _talkingSince = clock.now();
       _talkedLongEnoughTimer = Timer(_callConfirmPromptDelay, () {
         _talkedLongEnough = true;

@@ -130,6 +130,7 @@ class CallSession {
   Stream<void> get remoteJoinedStream => _remoteJoinedController.stream;
 
   Uint8List? _encryptionKey;
+  VoipParticipantId? _keySender;
   bool get isEncrypted => _encryptionKey != null;
 
   final Map<VoipParticipantId, Uint8List> _pendingKeys = {};
@@ -371,7 +372,7 @@ class CallSession {
     }
     if (ending) return;
     try {
-      await _connect(publishOnSession: true);
+      await _connect();
       _hangUpIfStillAlone(after: ringTimeout);
     } catch (e, s) {
       if (!_shownToUser(e)) reportCaught('connect an outgoing call', e, s);
@@ -531,7 +532,7 @@ class CallSession {
     }
   }
 
-  Future<void> _connect({bool publishOnSession = false}) async {
+  Future<void> _connect() async {
     _setPhase(CallSessionPhase.connecting);
     StreamSubscription<void>? sessionWatch;
     try {
@@ -541,20 +542,19 @@ class CallSession {
       final built = engine;
       if (_encryptionKey case final key?) await built.setEncryptionKey(key);
       if (await _abandonEngineIfEnded()) return;
-      if (publishOnSession) sessionWatch = _publishOnceSessionOpens(built);
+      _toDeviceSub = client.onToDeviceEvent.stream.listen(_handleToDeviceEvent);
+      sessionWatch = _publishOnceSessionOpens(built);
       await built.join();
       if (await _abandonEngineIfEnded()) return;
 
       _statusSub = built.statusStream.listen(_followEngineStatus);
       _followEngineStatus(built.status);
       if (ending) return;
-      _toDeviceSub = client.onToDeviceEvent.stream.listen(_handleToDeviceEvent);
       _localStateSub = built.localStateChangedStream.listen(
         (_) => unawaited(
           runBestEffort(_publishOwnMembership, label: 'republish membership'),
         ),
       );
-      _membershipLive = true;
 
       await _publishOwnMembership();
       if (ending) return;
@@ -579,7 +579,7 @@ class CallSession {
       }
       rethrow;
     } finally {
-      await sessionWatch?.cancel();
+      unawaited(sessionWatch?.cancel());
     }
   }
 
@@ -740,6 +740,7 @@ class CallSession {
   void _applyEncryptionKey(Uint8List key, {required VoipParticipantId from}) {
     if (_encryptionKey != null) return;
     _encryptionKey = key;
+    _keySender = from;
     _pendingKeys.clear();
     if (_engine case final engine?) {
       unawaited(_applyEncryptionKeyToEngine(engine, key));
@@ -933,7 +934,7 @@ class CallSession {
       final isNewDevice = _knownRemote.add(id);
       if (isNewDevice || _knownRemoteSessions[id] != remoteSessionId) {
         _knownRemoteSessions[id] = remoteSessionId;
-        _relayEncryptionKeyTo(id);
+        if (!isNewDevice || id != _keySender) _relayEncryptionKeyTo(id);
       }
       if (!_everHadRemote) {
         _everHadRemote = true;

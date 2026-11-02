@@ -5,6 +5,7 @@ CallStatus callStatus({
   required bool calling,
   required bool connecting,
   required bool someoneHere,
+  required bool mediaArrived,
   required bool keysPending,
 }) {
   if (ending) return CallStatus.ended;
@@ -12,5 +13,6 @@ CallStatus callStatus({
     if (calling) return CallStatus.calling;
     return connecting ? CallStatus.connecting : CallStatus.waiting;
   }
+  if (!mediaArrived) return CallStatus.connecting;
   return keysPending ? CallStatus.encrypting : CallStatus.talking;
 }

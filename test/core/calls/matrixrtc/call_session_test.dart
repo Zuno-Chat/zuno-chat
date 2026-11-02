@@ -1119,6 +1119,7 @@ void main() {
       _KeyRelayClient? over,
       Uint8List? key,
       Map<String, String> inCall = const {_bob: 'BOBDEVICE'},
+      CallEngine? engine,
     }) {
       final c = over ?? _KeyRelayClient();
       final r = buildTestRoom(c);
@@ -1126,8 +1127,42 @@ void main() {
         setSelfSignedTestDevices(c, userId, [deviceId]);
         joinTheCall(r, userId, deviceId: deviceId);
       }
-      return (session: incoming(inRoom: r, key: key), client: c, room: r);
+      return (
+        session: incoming(inRoom: r, key: key, engine: engine),
+        client: c,
+        room: r,
+      );
     }
+
+    test('a key that arrives while we join is passed on to the others in the '
+        'call but never back to the device it came from, until that device '
+        'rejoins', () async {
+      final joinGate = Completer<void>();
+      final call = keyRelayCall(
+        inCall: const {_caller: 'CALLERDEV', _bob: 'BOBDEVICE'},
+        engine: FakeCallEngine(joinGate: joinGate),
+      );
+      final accepting = call.session.accept();
+      await pumpEventQueue();
+
+      call.client.onToDeviceEvent.add(keyEvent());
+      await pumpEventQueue();
+      joinGate.complete();
+      await accepting;
+      await pumpEventQueue();
+
+      expect(call.client.tries, ['BOBDEVICE']);
+
+      joinTheCall(
+        call.room,
+        _caller,
+        deviceId: 'CALLERDEV',
+        fociActive: {'sessionId': 'caller-session-2'},
+      );
+      await sync(call.client);
+
+      expect(call.client.tries, ['BOBDEVICE', 'CALLERDEV']);
+    });
 
     test(
       'a known device that re-joins with a new sessionId is sent the key again',
@@ -2065,28 +2100,86 @@ void main() {
     });
   });
 
+  group('an answered call joins as soon as it has an SFU session', () {
+    test('publishes its membership once the session opens, before its media '
+        'is published, then again with its tracks', () async {
+      final c = _PublishCountingClient();
+      final r = buildTestRoom(c);
+      joinTheCall(r, _caller, deviceId: 'CALLERDEV');
+      final joinGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate);
+      final session = incoming(inRoom: r, engine: engine);
+      final accepting = session.accept();
+      await pumpEventQueue();
+      expect(c.publishes, isEmpty);
+
+      engine.openSession();
+      await pumpEventQueue();
+      expect(c.publishes.single, contains('"sessionId":"opening-session"'));
+      expect(session.phase, CallSessionPhase.connecting);
+
+      joinGate.complete();
+      await accepting;
+
+      expect(session.phase, CallSessionPhase.active);
+      expect(c.publishes, hasLength(2));
+      expect(c.publishes.last, contains('"audio":"audio"'));
+    });
+
+    test('a callee whose join fails after its session opened takes its '
+        'membership back, and posts nothing while the caller is still '
+        'there', () async {
+      final c = _PublishCountingClient();
+      final r = sendRoom(c);
+      joinTheCall(r, _caller, deviceId: 'CALLERDEV');
+      final joinGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate, failJoin: true);
+      final session = incoming(inRoom: r, engine: engine);
+      final accepting = session.accept();
+      await pumpEventQueue();
+
+      engine.openSession();
+      await pumpEventQueue();
+      joinGate.complete();
+      await expectLater(accepting, throwsStateError);
+      await session.hangUpFinished;
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(c.publishes.last, contains('"memberships":[]'));
+      expect(r.attempts, isEmpty);
+    });
+  });
+
   group('our membership goes public only once the call hears its key', () {
-    test('a refresh while connecting publishes nothing, and joining publishes '
-        'once, with the latest state', () {
-      fakeAsync((async) {
-        final c = _PublishCountingClient();
-        final joinGate = Completer<void>();
-        final engine = _EarlySessionEngine(joinGate: joinGate);
-        final session = incoming(inRoom: buildTestRoom(c), engine: engine);
-        unawaited(session.accept());
-        async.flushMicrotasks();
+    test('a key the caller sends in reply to our first membership is '
+        'applied while the join is still going', () async {
+      late final Client logging;
+      final published = <String>[];
+      logging = loggingMemberPuts(
+        published,
+        onPut: (_) async {
+          logging.onToDeviceEvent.add(keyEvent());
+          return null;
+        },
+      );
+      final r = buildTestRoom(logging);
+      setSelfSignedTestDevices(logging, _caller, ['CALLERDEV']);
+      joinTheCall(r, _caller, deviceId: 'CALLERDEV');
+      final joinGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate);
+      final session = incoming(inRoom: r, engine: engine);
+      final accepting = session.accept();
+      await pumpEventQueue();
 
-        engine.micMuted = true;
-        unawaited(session.refreshMembership());
-        async.elapse(const Duration(seconds: 2));
-        expect(c.publishes, isEmpty);
+      engine.openSession();
+      await pumpEventQueue();
 
-        joinGate.complete();
-        async.elapse(const Duration(seconds: 2));
+      expect(published, hasLength(1));
+      expect(engine.appliedKey, testKey());
+      expect(session.phase, CallSessionPhase.connecting);
 
-        expect(session.phase, CallSessionPhase.active);
-        expect(c.publishes.single, contains('"audioMuted":true'));
-      });
+      joinGate.complete();
+      await accepting;
     });
 
     test('a callee whose membership write fails clears it on the way out, '
@@ -3552,16 +3645,4 @@ class _OpeningSessionEngine extends FakeCallEngine {
       : _sessionOpen
       ? {'sessionId': 'opening-session', 'tracks': const <String, Object?>{}}
       : null;
-}
-
-class _EarlySessionEngine extends FakeCallEngine {
-  _EarlySessionEngine({super.joinGate});
-
-  @override
-  Map<String, Object?>? get localFociInfo => {
-    'sessionId': 'early-session',
-    'tracks': const {'audio': 'audio'},
-    'audioMuted': micMuted,
-    'encrypted': appliedKey != null,
-  };
 }

@@ -55,6 +55,24 @@ void main() {
       expect(emissions.last.last.audioMuted, isTrue);
     });
 
+    test('a participant is sending media once its membership advertises '
+        'tracks, not before', () async {
+      final engine = _buildEngine();
+      CallEngineParticipant remote() =>
+          engine.participants.singleWhere((p) => !p.isLocal);
+
+      engine.updateRemoteParticipant(remoteId, {
+        'sessionId': 'remote-session',
+        'tracks': const <String, Object?>{},
+      });
+      await pumpEventQueue();
+      expect(remote().sendingMedia, isFalse);
+
+      engine.updateRemoteParticipant(remoteId, remoteFoci);
+      await pumpEventQueue();
+      expect(remote().sendingMedia, isTrue);
+    });
+
     test(
       'a membership with no key leaves the participant unencrypted',
       () async {
