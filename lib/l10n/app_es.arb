@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Se muestra mientras estás en una llamada",
   "callsConnecting": "Conectando…",
   "callsConnectionPoor": "Mala conexión",
-  "callsConnectionPoorVideoReduced": "Mala conexión, vídeo reducido",
   "callsConnectionWeak": "Conexión débil",
   "callsCouldNotOpenCall": "No se ha podido abrir esa llamada. La sala no está disponible.",
   "callsCouldNotOpenCallScreen": "No se ha podido abrir la pantalla de llamada.",

@@ -10,12 +10,7 @@ import '../../../helpers/zuno_app.dart';
 void main() {
   testWidgets('good quality renders nothing', (tester) async {
     await tester.pumpWidget(
-      inZunoApp(
-        const ConnectionQualityPill(
-          quality: CallQuality.good,
-          sendingVideo: true,
-        ),
-      ),
+      inZunoApp(const ConnectionQualityPill(quality: CallQuality.good)),
     );
     expect(find.byType(Text), findsNothing);
   });
@@ -24,39 +19,16 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      inZunoApp(
-        const ConnectionQualityPill(
-          quality: CallQuality.degraded,
-          sendingVideo: true,
-        ),
-      ),
+      inZunoApp(const ConnectionQualityPill(quality: CallQuality.degraded)),
     );
     expect(find.text('Weak connection'), findsOneWidget);
     expect(find.bySemanticsLabel('Weak connection'), findsOneWidget);
   });
 
-  testWidgets('poor while sending video says the video is reduced', (
-    tester,
-  ) async {
+  testWidgets('poor says Poor connection and never claims the video is '
+      'reduced, which it cannot know', (tester) async {
     await tester.pumpWidget(
-      inZunoApp(
-        const ConnectionQualityPill(
-          quality: CallQuality.poor,
-          sendingVideo: true,
-        ),
-      ),
-    );
-    expect(find.text('Poor connection, video reduced'), findsOneWidget);
-  });
-
-  testWidgets('poor without video never mentions video', (tester) async {
-    await tester.pumpWidget(
-      inZunoApp(
-        const ConnectionQualityPill(
-          quality: CallQuality.poor,
-          sendingVideo: false,
-        ),
-      ),
+      inZunoApp(const ConnectionQualityPill(quality: CallQuality.poor)),
     );
     expect(find.text('Poor connection'), findsOneWidget);
     expect(find.textContaining('video'), findsNothing);

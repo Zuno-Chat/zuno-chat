@@ -1,11 +1,11 @@
-import 'call_quality_policy.dart';
+import '../media/call_quality_policy.dart';
+import '../media/video_codec.dart';
 
 const _opusParams = {'useinbandfec': '1', 'usedtx': '0'};
 const _videoParams = {'x-google-start-bitrate': '$startBitrateKbps'};
 const _videoHelpers = {'rtx', 'red', 'ulpfec', 'flexfec-03'};
 const _directionsWeDontSend = {'a=sendonly', 'a=inactive'};
 
-final _rtpmap = RegExp(r'^a=rtpmap:(\d+) ([^/]+)/');
 final _fmtp = RegExp(r'^a=fmtp:(\d+)(?: (.*))?$');
 
 String withSendParams(String sdp) {
@@ -27,9 +27,14 @@ List<String> _tuneSection(List<String> lines) {
   final video =
       (lines.firstOrNull?.startsWith('m=video') ?? false) &&
       !lines.any(_directionsWeDontSend.contains);
+  final tuned = _withCodecParams(lines, video: video);
+  return video ? withSentVideoCodecFirst(tuned) : tuned;
+}
+
+List<String> _withCodecParams(List<String> lines, {required bool video}) {
   final params = <String, Map<String, String>>{
     for (final line in lines)
-      if (_rtpmap.firstMatch(line) case final rtpmap?)
+      if (sdpRtpmap.firstMatch(line) case final rtpmap?)
         rtpmap.group(1)!: ?_paramsFor(rtpmap.group(2)!, video: video),
   };
   if (params.isEmpty) return lines;
@@ -47,7 +52,7 @@ List<String> _tuneSection(List<String> lines) {
       continue;
     }
     tuned.add(line);
-    final pt = _rtpmap.firstMatch(line)?.group(1);
+    final pt = sdpRtpmap.firstMatch(line)?.group(1);
     final missing = pt == null || described.contains(pt) ? null : params[pt];
     if (missing != null) tuned.add('a=fmtp:$pt ${_merged('', missing)}');
   }

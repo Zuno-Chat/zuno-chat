@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/calls/cloudflare/call_quality_policy.dart';
 import 'package:zuno/core/calls/cloudflare/send_params.dart';
+import 'package:zuno/core/calls/media/call_quality_policy.dart';
 
 String sdp(List<String> lines) => '${lines.join('\r\n')}\r\n';
 
@@ -153,5 +153,43 @@ void main() {
 
   test('passes anything that is not an SDP through untouched', () {
     expect(withSendParams('sfu answer 1'), 'sfu answer 1');
+  });
+
+  group('the codec we send', () {
+    List<String> videoWeSend(String mLine, {String direction = 'a=recvonly'}) =>
+        [
+          ...session,
+          mLine,
+          direction,
+          'a=rtpmap:102 H264/90000',
+          'a=rtpmap:103 rtx/90000',
+          'a=fmtp:103 apt=102',
+          'a=rtpmap:96 VP8/90000',
+          'a=rtpmap:97 rtx/90000',
+          'a=fmtp:97 apt=96',
+        ];
+
+    test('the video section we send on lists VP8 first, keeping every other '
+        'payload in its order, since WebRTC sends the first codec the answer '
+        'lists', () {
+      final result = withSendParams(
+        sdp(videoWeSend('m=video 9 UDP/TLS/RTP/SAVPF 102 103 96 97')),
+      );
+
+      expect(result, contains('m=video 9 UDP/TLS/RTP/SAVPF 96 102 103 97\r\n'));
+    });
+
+    test('a pulled video section keeps the order Cloudflare gives', () {
+      final result = withSendParams(
+        sdp(
+          videoWeSend(
+            'm=video 9 UDP/TLS/RTP/SAVPF 102 103 96 97',
+            direction: 'a=sendonly',
+          ),
+        ),
+      );
+
+      expect(result, contains('m=video 9 UDP/TLS/RTP/SAVPF 102 103 96 97\r\n'));
+    });
   });
 }

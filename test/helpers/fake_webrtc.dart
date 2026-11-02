@@ -133,6 +133,7 @@ class FakeTransceiver extends RTCRtpTransceiver {
     required this.sender,
     required this.receiver,
     this.direction,
+    this.sendEncodings,
   });
 
   @override
@@ -142,16 +143,45 @@ class FakeTransceiver extends RTCRtpTransceiver {
   @override
   final FakeReceiver receiver;
   final TransceiverDirection? direction;
-  List<RTCRtpCodecCapability>? codecPreferences;
-
-  @override
-  Future<void> setCodecPreferences(List<RTCRtpCodecCapability> codecs) async {
-    if (sender.closed) throw StateError('peerConnection is null');
-    codecPreferences = codecs;
-  }
+  final List<RTCRtpEncoding>? sendEncodings;
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class FakeDataChannel extends RTCDataChannel {
+  FakeDataChannel(this._label, this._id, {required this.negotiated});
+
+  final String _label;
+  final int _id;
+  final bool negotiated;
+  final sent = <String>[];
+  RTCDataChannelState _state = RTCDataChannelState.RTCDataChannelOpen;
+  bool closed = false;
+
+  @override
+  String? get label => _label;
+
+  @override
+  int? get id => _id;
+
+  @override
+  RTCDataChannelState? get state => _state;
+
+  @override
+  int? get bufferedAmount => 0;
+
+  @override
+  Future<void> send(RTCDataChannelMessage message) async =>
+      sent.add(message.text);
+
+  void receive(String text) => onMessage?.call(RTCDataChannelMessage(text));
+
+  @override
+  Future<void> close() async {
+    closed = true;
+    _state = RTCDataChannelState.RTCDataChannelClosed;
+  }
 }
 
 class FakePeerConnection extends RTCPeerConnection {
@@ -169,6 +199,7 @@ class FakePeerConnection extends RTCPeerConnection {
   final rtpTransceivers = <FakeTransceiver>[];
   final remoteDescriptions = <RTCSessionDescription>[];
   final pendingRemoteMids = <String, String>{};
+  final dataChannels = <FakeDataChannel>[];
   List<StatsReport> stats = [];
   Object? setRemoteDescriptionError;
   Object? createAnswerError;
@@ -258,11 +289,20 @@ class FakePeerConnection extends RTCPeerConnection {
     await transceiverGate?.future;
     if (disposed) throw StateError('peerConnection is null');
     final mid = '${rtpTransceivers.length}';
+    final sender = FakeSender('sender-$mid', track, owner: this)
+      ..parameters = RTCRtpParameters(
+        encodings: [
+          for (final e in init?.sendEncodings ?? const <RTCRtpEncoding>[])
+            RTCRtpEncoding(rid: e.rid),
+        ],
+        degradationPreference: RTCDegradationPreference.BALANCED,
+      );
     final transceiver = FakeTransceiver(
       mid: mid,
-      sender: FakeSender('sender-$mid', track, owner: this),
+      sender: sender,
       receiver: FakeReceiver('receiver-$mid', null),
       direction: init?.direction,
+      sendEncodings: init?.sendEncodings,
     );
     rtpTransceivers.add(transceiver);
     return transceiver;
@@ -270,6 +310,23 @@ class FakePeerConnection extends RTCPeerConnection {
 
   @override
   Future<List<StatsReport>> getStats([MediaStreamTrack? track]) async => stats;
+
+  @override
+  Future<RTCDataChannel> createDataChannel(
+    String label,
+    RTCDataChannelInit dataChannelDict,
+  ) async {
+    final channel = FakeDataChannel(
+      label,
+      dataChannelDict.id,
+      negotiated: dataChannelDict.negotiated,
+    );
+    dataChannels.add(channel);
+    return channel;
+  }
+
+  FakeDataChannel? dataChannel(String label) =>
+      dataChannels.where((c) => c.label == label && !c.closed).lastOrNull;
 
   @override
   Future<void> close() async => closed = true;
@@ -502,19 +559,6 @@ class FakeWebRtcBackend implements WebRtcBackend {
     releasedPlaceholders.add(placeholder);
   }
 
-  Completer<void>? senderCapabilitiesGate;
-
-  @override
-  Future<RTCRtpCapabilities> getRtpSenderCapabilities(String kind) async {
-    await senderCapabilitiesGate?.future;
-    return RTCRtpCapabilities(
-      codecs: [
-        for (final mime in ['video/AV1', 'video/H264', 'video/VP8'])
-          RTCRtpCodecCapability(clockRate: 90000, mimeType: mime),
-      ],
-    );
-  }
-
   @override
   FrameCryptorFactory get frameCryptorFactory => cryptors;
 
@@ -524,3 +568,34 @@ class FakeWebRtcBackend implements WebRtcBackend {
     return false;
   }
 }
+
+StatsReport candidatePair(
+  String id, {
+  double rttSeconds = 0.04,
+  bool nominated = true,
+  bool succeeded = true,
+  double? uploadBps,
+}) => StatsReport(id, 'candidate-pair', 0, {
+  'state': succeeded ? 'succeeded' : 'in-progress',
+  'nominated': nominated,
+  'currentRoundTripTime': rttSeconds,
+  'availableOutgoingBitrate': ?uploadBps,
+});
+
+StatsReport outboundRtp(String id, {String kind = 'audio', int? packetsSent}) =>
+    StatsReport(id, 'outbound-rtp', 0, {
+      'kind': kind,
+      'packetsSent': ?packetsSent,
+    });
+
+StatsReport remoteInboundRtp(String localId, double fractionLost) =>
+    StatsReport('remote-$localId', 'remote-inbound-rtp', 0, {
+      'localId': localId,
+      'fractionLost': fractionLost,
+    });
+
+StatsReport inboundRtp(String id, {required int lost, required int received}) =>
+    StatsReport(id, 'inbound-rtp', 0, {
+      'packetsLost': lost,
+      'packetsReceived': received,
+    });

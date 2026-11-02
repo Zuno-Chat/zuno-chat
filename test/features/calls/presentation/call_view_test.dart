@@ -753,7 +753,7 @@ void main() {
         'a video call with the camera on',
         CallKind.video,
         true,
-        'Poor connection, video reduced',
+        'Poor connection',
       ),
     ]) {
       testWidgets('a poor connection in $call says "$label"', (tester) async {

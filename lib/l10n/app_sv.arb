@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Visas medan du är i ett samtal",
   "callsConnecting": "Ansluter…",
   "callsConnectionPoor": "Dålig anslutningskvalitet",
-  "callsConnectionPoorVideoReduced": "Dålig anslutningskvalitet, sämre video",
   "callsConnectionWeak": "Svag anslutning",
   "callsCouldNotOpenCall": "Det gick inte att öppna samtalet. Rummet är inte tillgängligt.",
   "callsCouldNotOpenCallScreen": "Det gick inte att öppna samtalsskärmen.",

@@ -29,6 +29,11 @@ class SfuRequest {
 
   Map<String, dynamic>? get sessionDescription =>
       body?['sessionDescription'] as Map<String, dynamic>?;
+
+  List<Map<String, dynamic>> get dataChannels =>
+      (body?['dataChannels'] as List? ?? const []).cast<Map<String, dynamic>>();
+
+  String get session => path.split('/')[2];
 }
 
 class FakeSfu {
@@ -47,15 +52,20 @@ class FakeSfu {
   bool connectOnPush = false;
   bool reuseMids = false;
   bool removedFromCall = false;
+  bool refuseDataChannels = false;
+  final refusedChannelSessions = <String>{};
   String? answerSdp;
   String? offerSdp;
   Completer<void>? sessionGate;
   Completer<void>? pullGate;
   Completer<void>? closeGate;
+  Completer<void>? channelGate;
   var _sessions = 0;
   var _answers = 0;
   var _offers = 0;
   var _nextMid = 100;
+  var _nextChannelId = 1;
+  var _channelOffers = 0;
   final _midByTrack = <String, String>{};
   final _awaitingAnswer = <String>{};
 
@@ -74,6 +84,12 @@ class FakeSfu {
   ];
   List<SfuRequest> get renegotiations => _where('PUT', '/renegotiate').toList();
   List<SfuRequest> get closes => _where('PUT', '/tracks/close').toList();
+  List<SfuRequest> get establishes =>
+      _where('POST', '/datachannels/establish').toList();
+  List<SfuRequest> get channelOpens =>
+      _where('POST', '/datachannels/new').toList();
+  List<SfuRequest> get channelCloses =>
+      _where('PUT', '/datachannels/close').toList();
 
   static http.Response _json(Object body, [int status = 200]) =>
       http.Response(jsonEncode(body), status);
@@ -99,7 +115,7 @@ class FakeSfu {
       }
       return _json({'sessionId': 's${++_sessions}'});
     }
-    final session = path.split('/')[2];
+    final session = recorded.session;
     if (!path.endsWith('/renegotiate') && _awaitingAnswer.contains(session)) {
       return _json({'errorCode': 'invalid_session_description'}, 406);
     }
@@ -166,6 +182,37 @@ class FakeSfu {
       }
       _awaitingAnswer.remove(session);
       return _json({});
+    }
+    if (path.contains('/datachannels/')) {
+      if (refuseDataChannels) {
+        return _json({
+          'errcode': 'M_UNRECOGNIZED',
+          'error': 'Unrecognized',
+        }, 404);
+      }
+      if (path.endsWith('/datachannels/establish')) {
+        _awaitingAnswer.add(session);
+        return _json({
+          'requiresImmediateRenegotiation': true,
+          'dataChannel': {'dataChannelName': 'server-events', 'id': 0},
+          'sessionDescription': {
+            'type': 'offer',
+            'sdp': 'sfu datachannel offer ${++_channelOffers}',
+          },
+        });
+      }
+      if (path.endsWith('/datachannels/new')) {
+        await channelGate?.future;
+        return _json({
+          'dataChannels': [
+            for (final channel in recorded.dataChannels)
+              refusedChannelSessions.contains(channel['sessionId'])
+                  ? {...channel, 'errorCode': 'IM.ZUNO.TRACK_NOT_IN_CALL'}
+                  : {...channel, 'id': _nextChannelId++},
+          ],
+        });
+      }
+      return _json({'dataChannels': []});
     }
     if (path.endsWith('/tracks/close')) {
       await closeGate?.future;
@@ -290,6 +337,7 @@ class EngineHarness {
     bool audioMuted = false,
     bool lowBandwidth = false,
     bool weakConnection = false,
+    bool advertisesQuality = false,
   }) {
     engine.updateRemoteParticipant(id, {
       'sessionId': sessionId,
@@ -299,18 +347,19 @@ class EngineHarness {
       'encrypted': encrypted,
       'lowBandwidth': lowBandwidth,
       'weakConnection': weakConnection,
+      if (advertisesQuality) 'dataChannels': {'quality': 'quality'},
     });
     flush();
   }
 
   void leave() => wait(engine.leave());
 
-  static StatsReport outbound(String kind, {double? targetBitrate}) =>
-      StatsReport('out-$kind', 'outbound-rtp', 0, {
-        'kind': kind,
-        'bytesSent': 1200,
-        'targetBitrate': ?targetBitrate,
-      });
+  static StatsReport outbound(String kind) => StatsReport(
+    'out-$kind',
+    'outbound-rtp',
+    0,
+    {'kind': kind, 'bytesSent': 1200},
+  );
 
   void mediaFlows({Set<String> kinds = const {'audio', 'video'}}) {
     pc.stats = [for (final kind in kinds) outbound(kind)];

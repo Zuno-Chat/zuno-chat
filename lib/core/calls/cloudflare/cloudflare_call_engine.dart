@@ -11,18 +11,20 @@ import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
+import '../media/call_quality_policy.dart';
+import '../media/quality_report.dart';
+import '../media/simulcast_layers.dart';
 import '../models/call_engine_participant.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_kind.dart';
 import '../models/call_quality.dart';
 import '../models/voip_participant_id.dart';
 import '../module/calls_module.dart';
-import 'call_quality_policy.dart';
 import 'cloudflare_api_client.dart';
+import 'cloudflare_quality_channel.dart';
 import 'local_media.dart';
 import 'remote_track_plan.dart';
 import 'send_params.dart';
-import 'video_codec_preference.dart';
 import 'webrtc_backend.dart';
 
 CfSessionDescription _cfDescription(RTCSessionDescription description) =>
@@ -78,8 +80,8 @@ class CloudflareCallEngine implements CallEngine {
 
   Timer? _statsTimer;
   StatsCounters? _lastCounters;
-  final _downlink = CallQualityClassifier();
-  final _uplink = CallQualityClassifier();
+  final _link = CallQualityClassifier();
+  late final _quality = CloudflareQualityChannel(onRating: _onPeerRating);
   final _localStateController = StreamController<void>.broadcast();
 
   final _negotiationLock = SerialLock();
@@ -316,20 +318,6 @@ class CloudflareCallEngine implements CallEngine {
     _setStatus(CallEngineStatus.removed);
   }
 
-  Future<void> _preferVideoCodecs(
-    RTCPeerConnection pc,
-    RTCRtpTransceiver transceiver,
-  ) async {
-    final order = _capabilities.videoCodecOrder;
-    if (order == null) return;
-    await _bestEffortOn(pc, () async {
-      final supported = await _webRtc.getRtpSenderCapabilities('video');
-      await transceiver.setCodecPreferences(
-        orderVideoCodecs(supported.codecs ?? const [], preferred: order),
-      );
-    }, label: 'set video codec preferences');
-  }
-
   Future<void> _wrapReceiver(
     String label,
     RTCRtpReceiver receiver,
@@ -395,7 +383,7 @@ class CloudflareCallEngine implements CallEngine {
   CallKind get kind => _kind;
 
   @override
-  CallQuality get quality => _downlink.current.worse(_uplink.current);
+  CallQuality get quality => _link.current;
   @override
   Stream<void> get localStateChangedStream => _localStateController.stream;
 
@@ -404,13 +392,8 @@ class CloudflareCallEngine implements CallEngine {
     _localStateController.add(null);
   }
 
-  VideoEncodingLimits get _videoLimits =>
-      videoEncodingFor(_combinedQuality, lowDataMode: lowDataMode);
-
-  CallQuality get _combinedQuality => combineQuality(
-    local: quality,
-    anyRemoteLowBandwidth: _remote.values.any((r) => r.lowBandwidth),
-  );
+  List<SimulcastLayer> get _videoLayers =>
+      simulcastLayersFor(lowDataMode: lowDataMode);
 
   void _setStatus(CallEngineStatus status) {
     if (_removed &&
@@ -639,6 +622,7 @@ class CloudflareCallEngine implements CallEngine {
     if (!_isLiveConnection(pc)) return;
     final sendOnly = RTCRtpTransceiverInit(
       direction: TransceiverDirection.SendOnly,
+      sendEncodings: simulcastEncodingsFor(lowDataMode: lowDataMode),
     );
     final videoTransceiver = videoTrack == null
         ? await pc.addTransceiver(
@@ -648,8 +632,6 @@ class CloudflareCallEngine implements CallEngine {
         : await pc.addTransceiver(track: videoTrack, init: sendOnly);
     if (!_isLiveConnection(pc)) return;
     _localVideoTransceiver = videoTransceiver;
-    await _preferVideoCodecs(pc, videoTransceiver);
-    if (!_isLiveConnection(pc)) return;
     if (_keyProvider case final keyProvider?) {
       await _wrapSender(_videoSender, videoTransceiver.sender, pc, keyProvider);
     }
@@ -673,6 +655,166 @@ class CloudflareCallEngine implements CallEngine {
     if (!_isLiveConnection(pc)) return;
     _watchFirstMedia(pc);
     await _reapplyVideoEncoding();
+  }
+
+  void _openQualityChannelOnce() {
+    final pc = _pc;
+    final sessionId = _sessionId;
+    if (pc == null ||
+        sessionId == null ||
+        !_peerConnected ||
+        !_quality.claimPublish()) {
+      return;
+    }
+    unawaited(_establishQualityChannel(pc, sessionId));
+  }
+
+  Future<void> _establishQualityChannel(
+    RTCPeerConnection pc,
+    String sessionId,
+  ) async {
+    await _negotiationLock.run(() async {
+      if (!_isLiveConnection(pc)) return;
+      var answering = false;
+      try {
+        final offer = await _api.establishDataChannels(sessionId: sessionId);
+        if (!_isLiveConnection(pc)) return;
+        if (offer != null) {
+          answering = true;
+          await _answerSfuOffer(pc, sessionId, offer);
+          answering = false;
+          if (!_isLiveConnection(pc)) return;
+        }
+        final published = (await _api.newDataChannels(
+          sessionId: sessionId,
+          channels: const [CfDataChannel.local(qualityChannelName)],
+        )).firstOrNull;
+        final id = published?.id;
+        if (id == null) {
+          throw CallsModuleException(
+            'quality channel refused: ${published?.errorCode}',
+          );
+        }
+        if (!_isLiveConnection(pc)) return;
+        final channel = await _qualityChannel(pc, id);
+        if (!_isLiveConnection(pc)) return;
+        _quality.publish(channel);
+      } catch (e, s) {
+        if (!_isLiveConnection(pc)) return;
+        _quality.giveUp();
+        reportCaught('open the quality channel', e, s);
+        if (answering) _replaceBrokenSession(pc);
+        return;
+      }
+      _notifyLocalStateChanged();
+      for (final remote in _remote.values.toList()) {
+        unawaited(_subscribeToRatings(remote));
+      }
+    });
+  }
+
+  Future<RTCDataChannel> _qualityChannel(RTCPeerConnection pc, int id) =>
+      pc.createDataChannel(
+        qualityChannelName,
+        RTCDataChannelInit()
+          ..negotiated = true
+          ..id = id,
+      );
+
+  Future<void> _closeAtCloudflare(
+    RTCPeerConnection pc,
+    String sessionId,
+    int channelId,
+  ) => _bestEffortOn(pc, () async {
+    if (!_isLiveConnection(pc)) return;
+    await _api.closeDataChannels(sessionId: sessionId, ids: [channelId]);
+  }, label: 'close a quality subscription');
+
+  void _sendRating(CallQuality rating) => _quality.send(rating);
+
+  bool _carriesRatingsTo(_RemoteParticipant remote) =>
+      _quality.isPublished && remote.advertisesRatings;
+
+  bool get _needsLegacyFlags =>
+      _remote.values.any((r) => !_carriesRatingsTo(r));
+
+  void _onPeerRating(VoipParticipantId id, CallQuality? rating) {
+    final remote = _remote[id];
+    if (remote == null || remote.reported == rating) return;
+    remote.reported = rating;
+    _notifyParticipants();
+  }
+
+  void _ratingsRefused(
+    VoipParticipantId peer,
+    String peerSession,
+    Object error, [
+    StackTrace? stack,
+  ]) {
+    if (_quality.fail(peer, peerSession) && error != callRemovedErrorCode) {
+      reportCaught('subscribe to call quality', error, stack);
+    }
+  }
+
+  Future<void> _subscribeToRatings(_RemoteParticipant remote) async {
+    final pc = _pc;
+    final sessionId = _sessionId;
+    final peer = remote.id;
+    final peerSession = remote.sessionId;
+    if (pc == null || sessionId == null || !_carriesRatingsTo(remote)) return;
+    final claim = _quality.claim(peer, peerSession);
+    if (claim == null) return;
+    bool stillWanted() =>
+        _isLiveConnection(pc) &&
+        _isLiveRemote(remote) &&
+        remote.sessionId == peerSession;
+    try {
+      await _negotiationLock.run(() async {
+        if (!stillWanted()) return;
+        final granted = (await _api.newDataChannels(
+          sessionId: sessionId,
+          channels: [
+            CfDataChannel.remote(
+              sessionId: peerSession,
+              name: qualityChannelName,
+            ),
+          ],
+        )).firstOrNull;
+        final id = granted?.id;
+        if (id == null) {
+          if (stillWanted()) {
+            _ratingsRefused(peer, peerSession, granted?.errorCode ?? 'none');
+          }
+          return;
+        }
+        if (!stillWanted()) return _closeAtCloudflare(pc, sessionId, id);
+        final channel = await _qualityChannel(pc, id);
+        if (!stillWanted()) {
+          await closeQualityChannel(channel);
+          return _closeAtCloudflare(pc, sessionId, id);
+        }
+        _quality.subscribe(
+          peer,
+          peerSession: peerSession,
+          id: id,
+          channel: channel,
+        );
+      });
+    } catch (e, s) {
+      if (_isLiveConnection(pc)) _ratingsRefused(peer, peerSession, e, s);
+    } finally {
+      _quality.release(peer, claim);
+    }
+  }
+
+  Future<void> Function()? _dropRatings(VoipParticipantId peer) {
+    final pc = _pc;
+    final sessionId = _sessionId;
+    final channelId = _quality.drop(peer);
+    if (channelId == null || pc == null || sessionId == null) return null;
+    return () => _negotiationLock.run(
+      () => _closeAtCloudflare(pc, sessionId, channelId),
+    );
   }
 
   static const _disconnectGrace = Duration(seconds: 5);
@@ -775,6 +917,7 @@ class CloudflareCallEngine implements CallEngine {
     _peerConnected = false;
     _detachConnectionCallbacks(oldPc);
     _sessionId = null;
+    await _quality.reset();
     final senderCryptors = _forgetLocalSenders();
     _lastCounters = null;
     _firstMediaTimer?.cancel();
@@ -879,20 +1022,14 @@ class CloudflareCallEngine implements CallEngine {
       _noteSendingTracks(reports);
       final previous = _lastCounters;
       _lastCounters = counters;
-      if (previous == null) return;
-      final limits = _videoLimits;
-      final downlinkChanged = _downlink.observe(
-        counters.downlinkSampleSince(previous),
-      );
-      final uplinkChanged = _uplink.observe(
-        counters.uplinkSampleSince(
-          previous,
-          videoCapBps: _sendingCamera ? limits.maxBitrate : null,
-        ),
-      );
-      if (downlinkChanged == null && uplinkChanged == null) return;
-      if (_videoLimits != limits) await _reapplyVideoEncoding();
-      _notifyLocalStateChanged();
+      if (previous != null) {
+        final changed = _link.observe(
+          counters.linkSampleSince(previous, cameraSending: _sendingCamera),
+        );
+        if (changed != null) _notifyLocalStateChanged();
+      }
+      _sendRating(quality);
+      _openQualityChannelOnce();
     }, label: 'poll call stats');
   }
 
@@ -958,7 +1095,7 @@ class CloudflareCallEngine implements CallEngine {
     final pc = _pc;
     final sender = _localVideoTransceiver?.sender;
     if (pc == null || sender == null || !_sendingCamera) return;
-    final params = applyVideoEncodingLimits(sender.parameters, _videoLimits);
+    final params = applySimulcastLayers(sender.parameters, _videoLayers);
     await _bestEffortOn(
       pc,
       () => sender.setParameters(params),
@@ -1012,6 +1149,7 @@ class CloudflareCallEngine implements CallEngine {
     final pc = _pc;
     _pc = null;
     _sessionId = null;
+    await _quality.reset();
     final senderCryptors = _forgetLocalSenders();
     if (pc != null) await _disposePeerConnection(pc);
 
@@ -1218,8 +1356,10 @@ class CloudflareCallEngine implements CallEngine {
       'audioMuted': _media.microphoneMuted,
       'videoEnabled': _sendingCamera,
       'encrypted': _keyProvider != null,
-      'lowBandwidth': _downlink.current != CallQuality.good,
-      'weakConnection': quality != CallQuality.good,
+      if (_needsLegacyFlags && quality != CallQuality.good)
+        'weakConnection': true,
+      if (_quality.isPublished)
+        'dataChannels': const {qualityChannelName: qualityChannelName},
     };
   }
 
@@ -1231,6 +1371,7 @@ class CloudflareCallEngine implements CallEngine {
     if (_left) return;
     final remoteSessionId = fociInfo['sessionId'];
     if (remoteSessionId is! String) return;
+    final neededLegacyFlags = _needsLegacyFlags;
     final tracks = switch (fociInfo['tracks']) {
       final Map tracks => tracks.cast<String, Object?>(),
       _ => const <String, Object?>{},
@@ -1245,17 +1386,25 @@ class CloudflareCallEngine implements CallEngine {
       ..audioMuted = fociInfo['audioMuted'] == true
       ..videoEnabled = fociInfo['videoEnabled'] == true
       ..encrypted = fociInfo['encrypted'] == true;
-    final lowBandwidth = fociInfo['lowBandwidth'] == true;
-    remote.weakConnection = lowBandwidth || fociInfo['weakConnection'] == true;
-    if (remote.lowBandwidth != lowBandwidth) {
-      remote.lowBandwidth = lowBandwidth;
-      unawaited(_reapplyVideoEncoding());
-    }
+    remote
+      ..legacyWeak =
+          fociInfo['lowBandwidth'] == true || fociInfo['weakConnection'] == true
+      ..advertisesRatings = switch (fociInfo['dataChannels']) {
+        {qualityChannelName: _} => true,
+        _ => false,
+      };
+    final closeDroppedRatings = sessionChanged || !remote.advertisesRatings
+        ? _dropRatings(id)
+        : null;
+    if (_needsLegacyFlags != neededLegacyFlags) _notifyLocalStateChanged();
     unawaited(
       runBestEffort(() async {
         if (sessionChanged) await _dropRemoteMedia(remote);
         await _syncRemoteTracks(remote);
-      }, label: 'sync remote tracks'),
+      }, label: 'sync remote tracks').then((_) async {
+        await closeDroppedRatings?.call();
+        await _subscribeToRatings(remote);
+      }),
     );
     _notifyParticipants();
   }
@@ -1386,16 +1535,27 @@ class CloudflareCallEngine implements CallEngine {
       return;
     }
 
-    await pc.setRemoteDescription(_remoteDescription(offered));
-    if (!_isLiveConnection(pc)) return;
-    await _adoptRemoteTransceivers(remote, pc);
-    if (!_isLiveConnection(pc)) return;
-    final localDescription = await _liveLocalAnswer(pc);
-    if (localDescription == null) return;
-    await _api.renegotiate(
-      sessionId: sessionId,
-      offer: _cfDescription(localDescription),
+    await _answerSfuOffer(
+      pc,
+      sessionId,
+      offered,
+      onApplied: () => _adoptRemoteTransceivers(remote, pc),
     );
+  }
+
+  Future<void> _answerSfuOffer(
+    RTCPeerConnection pc,
+    String sessionId,
+    CfSessionDescription offer, {
+    Future<void> Function()? onApplied,
+  }) async {
+    await pc.setRemoteDescription(_remoteDescription(offer));
+    if (!_isLiveConnection(pc)) return;
+    await onApplied?.call();
+    if (!_isLiveConnection(pc)) return;
+    final answer = await _liveLocalAnswer(pc);
+    if (answer == null) return;
+    await _api.renegotiate(sessionId: sessionId, offer: _cfDescription(answer));
   }
 
   void _notePullError(
@@ -1486,14 +1646,17 @@ class CloudflareCallEngine implements CallEngine {
   @override
   void removeRemoteParticipant(VoipParticipantId id) {
     if (_left) return;
+    final neededLegacyFlags = _needsLegacyFlags;
     final remote = _remote.remove(id);
     if (remote == null) return;
+    final closeDroppedRatings = _dropRatings(id);
     unawaited(
       runBestEffort(
         () => _dropRemoteMedia(remote),
         label: 'close tracks for a departed participant',
-      ),
+      ).then((_) => closeDroppedRatings?.call()),
     );
+    if (_needsLegacyFlags != neededLegacyFlags) _notifyLocalStateChanged();
     _notifyParticipants();
   }
 
@@ -1524,8 +1687,9 @@ class _RemoteParticipant {
   MediaStream? videoStream;
   bool audioMuted = false;
   bool videoEnabled = false;
-  bool lowBandwidth = false;
-  bool weakConnection = false;
+  bool legacyWeak = false;
+  bool advertisesRatings = false;
+  CallQuality? reported;
   bool encrypted = false;
 
   bool pulling = false;
@@ -1565,6 +1729,9 @@ class _RemoteParticipant {
     audioMuted: audioMuted,
     videoEnabled: videoEnabled,
     encrypted: encrypted,
-    weakConnection: weakConnection,
+    weakConnection: switch (reported) {
+      final CallQuality rating => rating != CallQuality.good,
+      null => legacyWeak,
+    },
   );
 }

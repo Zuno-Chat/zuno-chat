@@ -14,6 +14,9 @@ class CfSessionDescription {
         type: json['type'] as String,
       );
 
+  static CfSessionDescription? maybeFromJson(Object? json) =>
+      json is Map<String, dynamic> ? CfSessionDescription.fromJson(json) : null;
+
   Map<String, Object?> toJson() => {'sdp': sdp, 'type': type};
 }
 
@@ -76,16 +79,50 @@ class CfTracksResult {
   factory CfTracksResult.fromJson(Map<String, dynamic> json) => CfTracksResult(
     requiresImmediateRenegotiation:
         json['requiresImmediateRenegotiation'] as bool? ?? false,
-    sessionDescription: json['sessionDescription'] == null
-        ? null
-        : CfSessionDescription.fromJson(
-            json['sessionDescription'] as Map<String, dynamic>,
-          ),
+    sessionDescription: CfSessionDescription.maybeFromJson(
+      json['sessionDescription'],
+    ),
     tracks: (json['tracks'] as List<dynamic>? ?? [])
         .map((t) => CfTrack.fromJson(t as Map<String, dynamic>))
         .toList(),
     errorCode: json['errorCode'] as String?,
   );
+}
+
+class CfDataChannel {
+  final String? location;
+  final String? dataChannelName;
+  final String? sessionId;
+  final int? id;
+  final String? errorCode;
+
+  const CfDataChannel({
+    required this.location,
+    required this.dataChannelName,
+    this.sessionId,
+    this.id,
+    this.errorCode,
+  });
+
+  const CfDataChannel.local(String name)
+    : this(location: 'local', dataChannelName: name);
+
+  const CfDataChannel.remote({required String sessionId, required String name})
+    : this(location: 'remote', dataChannelName: name, sessionId: sessionId);
+
+  factory CfDataChannel.fromJson(Map<String, dynamic> json) => CfDataChannel(
+    location: json['location'] as String?,
+    dataChannelName: json['dataChannelName'] as String?,
+    sessionId: json['sessionId'] as String?,
+    id: (json['id'] as num?)?.toInt(),
+    errorCode: json['errorCode'] as String?,
+  );
+
+  Map<String, Object?> toJson() => {
+    if (location != null) 'location': location,
+    if (dataChannelName != null) 'dataChannelName': dataChannelName,
+    if (sessionId != null) 'sessionId': sessionId,
+  };
 }
 
 class _Endpoint {
@@ -106,6 +143,23 @@ const _renegotiate = _Endpoint('PUT', '/sessions/$_sessionSegment/renegotiate');
 const _closeTracks = _Endpoint(
   'PUT',
   '/sessions/$_sessionSegment/tracks/close',
+);
+
+const _establishDataChannels = _Endpoint(
+  'POST',
+  '/sessions/$_sessionSegment/datachannels/establish',
+);
+const _newDataChannels = _Endpoint(
+  'POST',
+  '/sessions/$_sessionSegment/datachannels/new',
+);
+const _closeDataChannels = _Endpoint(
+  'PUT',
+  '/sessions/$_sessionSegment/datachannels/close',
+);
+const _serverEvents = CfDataChannel(
+  location: 'remote',
+  dataChannelName: 'server-events',
 );
 
 void _throwIfRefused(Map<String, dynamic> json, _Endpoint endpoint) {
@@ -225,11 +279,7 @@ class CloudflareApiClient {
       body: {'sessionDescription': offer.toJson()},
     );
     _throwIfRefused(json, _renegotiate);
-    final sessionDescription = json['sessionDescription'];
-    if (sessionDescription == null) return null;
-    return CfSessionDescription.fromJson(
-      sessionDescription as Map<String, dynamic>,
-    );
+    return CfSessionDescription.maybeFromJson(json['sessionDescription']);
   }
 
   Future<void> closeTracks({
@@ -245,6 +295,50 @@ class CloudflareApiClient {
       },
     );
     _throwIfRefused(json, _closeTracks);
+  }
+
+  Future<CfSessionDescription?> establishDataChannels({
+    required String sessionId,
+  }) async {
+    final json = await _send(
+      _establishDataChannels,
+      sessionId: sessionId,
+      body: {'dataChannel': _serverEvents.toJson()},
+    );
+    _throwIfRefused(json, _establishDataChannels);
+    if (json['requiresImmediateRenegotiation'] != true) return null;
+    return CfSessionDescription.maybeFromJson(json['sessionDescription']);
+  }
+
+  Future<List<CfDataChannel>> newDataChannels({
+    required String sessionId,
+    required List<CfDataChannel> channels,
+  }) async {
+    final json = await _send(
+      _newDataChannels,
+      sessionId: sessionId,
+      body: {'dataChannels': channels.map((c) => c.toJson()).toList()},
+    );
+    _throwIfRefused(json, _newDataChannels);
+    return (json['dataChannels'] as List<dynamic>? ?? [])
+        .map((c) => CfDataChannel.fromJson(c as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<void> closeDataChannels({
+    required String sessionId,
+    required List<int> ids,
+  }) async {
+    final json = await _send(
+      _closeDataChannels,
+      sessionId: sessionId,
+      body: {
+        'dataChannels': [
+          for (final id in ids) {'id': id},
+        ],
+      },
+    );
+    _throwIfRefused(json, _closeDataChannels);
   }
 
   void close() {

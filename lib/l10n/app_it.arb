@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Visibile durante una chiamata",
   "callsConnecting": "Connessione in corso…",
   "callsConnectionPoor": "Connessione scarsa",
-  "callsConnectionPoorVideoReduced": "Connessione scarsa, video ridotto",
   "callsConnectionWeak": "Connessione debole",
   "callsCouldNotOpenCall": "Impossibile aprire la chiamata. La stanza non è disponibile.",
   "callsCouldNotOpenCallScreen": "Impossibile aprire la schermata della chiamata.",

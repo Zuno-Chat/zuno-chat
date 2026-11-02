@@ -42,7 +42,6 @@ class PlatformCapabilities {
   final bool callKit;
   final bool pictureInPicture;
   final bool playerNeedsMediaType;
-  final List<String>? videoCodecOrder;
   final bool recorderWritesOgg;
   final bool callMuteByInputMixer;
   final bool signOutWipeKeepsProcess;
@@ -102,7 +101,6 @@ class PlatformCapabilities {
     required this.callKit,
     required this.pictureInPicture,
     required this.playerNeedsMediaType,
-    required this.videoCodecOrder,
     required this.recorderWritesOgg,
     required this.callMuteByInputMixer,
     required this.signOutWipeKeepsProcess,
@@ -169,7 +167,6 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         callKit: false,
         pictureInPicture: true,
         playerNeedsMediaType: false,
-        videoCodecOrder: ['video/VP8', 'video/H264'],
         recorderWritesOgg: true,
         callMuteByInputMixer: false,
         signOutWipeKeepsProcess: false,
@@ -233,7 +230,6 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         callKit: true,
         pictureInPicture: true,
         playerNeedsMediaType: true,
-        videoCodecOrder: null,
         recorderWritesOgg: false,
         callMuteByInputMixer: true,
         signOutWipeKeepsProcess: true,

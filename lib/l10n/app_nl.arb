@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Wordt getoond terwijl je in een oproep zit",
   "callsConnecting": "Verbinden…",
   "callsConnectionPoor": "Slechte verbindingskwaliteit",
-  "callsConnectionPoorVideoReduced": "Slechte verbindingskwaliteit, video beperkt",
   "callsConnectionWeak": "Zwakke verbinding",
   "callsCouldNotOpenCall": "Kon die oproep niet openen. De kamer is niet beschikbaar.",
   "callsCouldNotOpenCallScreen": "Kon het oproepscherm niet openen.",

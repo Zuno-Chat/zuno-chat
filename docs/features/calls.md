@@ -114,8 +114,8 @@ stateDiagram-v2
 - **`m.call.member` state is the only roster**, never a client-local list:
   each account's state event holds one entry, for its device in the call.
   Each entry's `fociInfo` carries the Cloudflare session, the published
-  tracks and media flags such as `videoEnabled`, `encrypted`,
-  `lowBandwidth` and `weakConnection`. The room's "call in progress"
+  tracks, media flags such as `videoEnabled` and `encrypted`, and
+  `dataChannels`, which names the quality channel. The room's "call in progress"
   banner reads the same state, so a missed ring or a closed app still
   finds the call.
 - **An account is in a call from one device at a time.** Each device
@@ -229,7 +229,7 @@ sequenceDiagram
 | A black placeholder stands in whenever the camera is not sending, and a track is advertised only once it has sent bytes | Cloudflare drops a published track that receives no packets for 30 s, and advertising earlier lets someone pull a track the SFU does not have yet |
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
 | Every track swap is `replaceTrack`, never a mid-call re-offer | A re-offer recreates the receive streams, and Android's flutter_webrtc then renders nothing (flutter-webrtc#2124) |
-| Android pins VP8, then H264. iOS sets no codec order and gets hardware H264 | Only VP8 has a software fallback on Android, and every receiver decodes both |
+| Every phone sends VP8 | iOS's hardware H264 sends far below its target bitrate, so its video went out blocky, while VP8 meets its target on both platforms and every receiver decodes it |
 
 **The placeholder** is a tiny native black video, Cloudflare's own pattern
 (partytracks sends black video for a device that is off). The video slot
@@ -244,45 +244,55 @@ is published at join, and the placeholder fills it in three cases:
 
 ### Quality and data use
 
-The engine samples `getStats()` every few seconds and rates each direction
-of this device's connection as good, degraded or poor, with hysteresis so
-one bad sample never flaps a tier. The download reads incoming loss and
-RTT. The upload reads the loss Cloudflare reports on what we send and,
-while the camera sends, the bitrate WebRTC gives the video. The worse
-direction is the call's quality.
+**Each phone rates only its own link and tells the others.** The engine
+samples `getStats()` every few seconds and rates the link good, degraded
+or poor, with hysteresis so one bad sample never flaps a tier. It reads
+the loss Cloudflare reports on what we send, the RTT of the selected
+candidate pair and, while the camera sends, WebRTC's estimate of the
+upload bandwidth.
 
-- **Each tier writes explicit encoder limits** (resolution, frame rate,
-  bitrate) to the video sender through `setParameters`, with no
-  renegotiation. Weak links lose resolution before smoothness.
-- **A starved upload shows in the video's target bitrate, not in loss or
-  RTT**, because congestion control lowers the bitrate before packets are
-  lost; reading only loss and RTT once sent smooth, blocky video with no
-  notice. The lines are WebRTC's own minimums to start 360p and 240p.
-- **The target counts only when the link, not our own cap, holds it
-  under the cap**, and a tier is left once our cap is what holds it, so
-  every tier's cap must sit above the line that enters it.
+- **Incoming loss is never read**, because Cloudflare passes a sender's
+  lost packets on to every viewer as gaps, so one person's weak upload
+  once showed a weak badge on everyone. A download that loses packets
+  with no added delay therefore leaves its own badge off; Cloudflare
+  lowers the video it sends that phone instead.
+- **A starved upload shows in the bandwidth estimate, not in loss or
+  RTT**, because congestion control slows the sender before packets are
+  lost.
 - **Upload loss is the server's per-report loss share, weighted by packets
   sent**, because its running loss total moves only when a report arrives
   and would swing between samples.
-- **Two flags go out in `fociInfo`.** `weakConnection` (either direction)
-  shows others the weak badge; `lowBandwidth` (download only) caps everyone
-  sending to us at degraded, so one side's struggling downlink stops the
-  other from sending more than it can absorb, while a weak upload never
-  makes others send less. Apps up to 1.3.0 send only `lowBandwidth`, read
-  as both. Audio is never scaled.
+- **Ratings travel on a Cloudflare data channel named `quality`**, as
+  `{"quality":"<tier>"}` on every sample, never in `m.call.member`, whose
+  every write is slow, stored for good and federated. Each phone
+  advertises its channel in `fociInfo.dataChannels` and subscribes to
+  every peer that does; a peer's badge is the rating it last sent. The
+  channel carries only a tier, so it is not end-to-end encrypted.
+- **The channel opens once the connection first reports connected**,
+  because Cloudflare allocates data channels only on a connected
+  transport, and a failed setup gives up for the rest of the call, since
+  ratings must never end one.
+- **Versions up to 1.4.0 still get a weak badge.** While any peer cannot
+  get our ratings, `weakConnection: true` goes in `fociInfo` whenever our
+  rating is not good, and their flags are read only from peers we get no
+  ratings from. `lowBandwidth` is never sent, because 1.4.0 lowers its
+  video for everyone when it sees it.
+- **Video goes out in two simulcast layers**, `q` (half size, 15 fps) and
+  `h` (full size), and pulls name no layer, so Cloudflare picks one per
+  viewer and a weak viewer gets `q` while everyone else keeps `h`. WebRTC
+  drops `h` on its own when our upload cannot carry it. The names are
+  LiveKit's, whose server maps layers by position in `q,h,f`, and they
+  sort best-first for Cloudflare's `asciibetical` fallback.
+- **Layers keep their frame rate and lose resolution first**
+  (`MAINTAIN_FRAMERATE`). Audio is never scaled.
 - **WebRTC's bandwidth estimate starts above the weak line**
   (`x-google-start-bitrate` on our sending video in Cloudflare's answer),
   because WebRTC's default start reads as a weak upload until it has
   measured the link.
-- **The poorest tier also drops the frame rate**, because at its bitrate
-  motion otherwise breaks into blocks, and fewer frames leave each one
-  more bits.
-- **The poor-connection notice says video is reduced only while this
-  device sends its camera**, since the tiers cap nothing else.
 - **Low-data calls are on by default, by design** (Settings → Data &
-  storage): 360p capture and a 500 kbps cap, so soft video is expected, not
-  a bug. The setting is read once per call, since switching mid-call would
-  mean re-capturing the camera.
+  storage): 360p capture and a 500 kbps cap on the full layer, so soft
+  video is expected, not a bug. The setting is read once per call, since
+  switching mid-call would mean re-capturing the camera.
 
 ### Encryption
 
@@ -746,13 +756,14 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - A rejoin is done only once its re-pulls finish, and the retry budget
   resets only after a rejoin that ends connected, because a failure that
   repeats on every new session would otherwise rejoin forever.
-- Every quality tier writes explicit caps, because a null limit never
-  reaches Android's encoder and so never lifts a cap.
+- Layer limits are written only onto the encodings the video sender
+  already has, matched by rid, because adding or dropping one makes WebRTC
+  refuse the whole change.
 - RTT comes only from the transport's selected candidate pair, because
   unused TURN relay pairs keep stale RTTs that read as a weak link.
-- Send settings (Opus FEC and DTX, the video start bitrate) are written
-  into every SDP Cloudflare sends us, because WebRTC takes a sender's codec
-  settings from the remote description.
+- Send settings (Opus FEC and DTX, the video start bitrate, the sent
+  codec) are written into every SDP Cloudflare sends us, because WebRTC
+  takes a sender's codec settings from the remote description.
 - Only the video section we send on carries the start bitrate, because
   every audio section clears WebRTC's shared start value on each
   description, so a start on a newly pulled video section would restart
@@ -771,8 +782,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   (`crash-reporting.md`).
 - After a flutter_webrtc bump, check the Android placeholder on a device,
   because it reaches plugin internals by reflection and fails quietly.
-- iOS sets no codec preferences, because flutter_webrtc's iOS side would
-  find the transceiver by its still-empty mid and hit the audio one.
+- The sent codec is chosen by listing it first in Cloudflare's answer,
+  never through codec preferences, because flutter_webrtc's iOS side finds
+  the transceiver by its still-empty mid and hits the audio one.
 - Re-verify the `CallStyle` intents on a flutter_local_notifications
   major, because they copy its undocumented intent shape and a mis-wire
   fails only on a real tap.

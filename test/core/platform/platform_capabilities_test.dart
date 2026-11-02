@@ -240,12 +240,6 @@ final _capabilities = <_Capability>[
     ios: false,
   ),
   _Capability(
-    'videoCodecOrder',
-    read: (c) => c.videoCodecOrder,
-    android: ['video/VP8', 'video/H264'],
-    ios: null,
-  ),
-  _Capability(
     'playerNeedsMediaType',
     read: (c) => c.playerNeedsMediaType,
     android: false,

@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Widoczne podczas połączenia",
   "callsConnecting": "Łączenie…",
   "callsConnectionPoor": "Niska jakość połączenia",
-  "callsConnectionPoorVideoReduced": "Niska jakość połączenia, ograniczone wideo",
   "callsConnectionWeak": "Słabe połączenie",
   "callsCouldNotOpenCall": "Nie udało się otworzyć połączenia. Pokój jest niedostępny.",
   "callsCouldNotOpenCallScreen": "Nie udało się otworzyć ekranu połączenia.",

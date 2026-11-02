@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Εμφανίζεται όσο βρίσκεστε σε κλήση",
   "callsConnecting": "Σύνδεση…",
   "callsConnectionPoor": "Κακή σύνδεση",
-  "callsConnectionPoorVideoReduced": "Κακή σύνδεση, μειωμένη ποιότητα βίντεο",
   "callsConnectionWeak": "Αδύναμη σύνδεση",
   "callsCouldNotOpenCall": "Δεν ήταν δυνατό το άνοιγμα της κλήσης. Η αίθουσα δεν είναι διαθέσιμη.",
   "callsCouldNotOpenCallScreen": "Δεν ήταν δυνατό το άνοιγμα της οθόνης κλήσης.",

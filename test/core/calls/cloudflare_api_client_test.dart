@@ -568,6 +568,187 @@ void main() {
     });
   });
 
+  group('data channels', () {
+    test('establishing asks Cloudflare for the server-events channel and '
+        'returns its offer', () async {
+      final mock = FakeHttpClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '$_base/sessions/s1/datachannels/establish');
+        expect(jsonDecode(request.body), {
+          'dataChannel': {
+            'location': 'remote',
+            'dataChannelName': 'server-events',
+          },
+        });
+        return http.Response(
+          jsonEncode({
+            'requiresImmediateRenegotiation': true,
+            'dataChannel': {'dataChannelName': 'server-events', 'id': 0},
+            'sessionDescription': {'type': 'offer', 'sdp': 'sfu offer'},
+          }),
+          200,
+        );
+      });
+
+      final offer = await _client(mock).establishDataChannels(sessionId: 's1');
+
+      expect(offer?.type, 'offer');
+      expect(offer?.sdp, 'sfu offer');
+    });
+
+    test('publishing and subscribing send every entry and return the ids '
+        'Cloudflare gives', () async {
+      final mock = FakeHttpClient((request) async {
+        expect(request.method, 'POST');
+        expect(request.url.path, '$_base/sessions/s1/datachannels/new');
+        expect(jsonDecode(request.body), {
+          'dataChannels': [
+            {'location': 'local', 'dataChannelName': 'quality'},
+            {
+              'location': 'remote',
+              'sessionId': 'peer',
+              'dataChannelName': 'quality',
+            },
+          ],
+        });
+        return http.Response(
+          jsonEncode({
+            'dataChannels': [
+              {'location': 'local', 'dataChannelName': 'quality', 'id': 1},
+              {
+                'location': 'remote',
+                'sessionId': 'peer',
+                'dataChannelName': 'quality',
+                'id': 2,
+              },
+            ],
+          }),
+          200,
+        );
+      });
+
+      final channels = await _client(mock).newDataChannels(
+        sessionId: 's1',
+        channels: [
+          CfDataChannel.local('quality'),
+          CfDataChannel.remote(sessionId: 'peer', name: 'quality'),
+        ],
+      );
+
+      expect([for (final c in channels) c.id], [1, 2]);
+      expect(channels.last.sessionId, 'peer');
+      expect(channels.every((c) => c.errorCode == null), isTrue);
+    });
+
+    test(
+      'a refused channel comes back with its error code, not thrown',
+      () async {
+        final mock = FakeHttpClient(
+          (_) async => http.Response(
+            jsonEncode({
+              'dataChannels': [
+                {
+                  'location': 'remote',
+                  'sessionId': 'peer',
+                  'dataChannelName': 'quality',
+                  'errorCode': 'IM.ZUNO.TRACK_NOT_IN_CALL',
+                },
+              ],
+            }),
+            200,
+          ),
+        );
+
+        final channels = await _client(mock).newDataChannels(
+          sessionId: 's1',
+          channels: [CfDataChannel.remote(sessionId: 'peer', name: 'quality')],
+        );
+
+        expect(channels.single.errorCode, 'IM.ZUNO.TRACK_NOT_IN_CALL');
+        expect(channels.single.id, isNull);
+      },
+    );
+
+    test('closing sends the ids of the channels to close', () async {
+      final mock = FakeHttpClient((request) async {
+        expect(request.method, 'PUT');
+        expect(request.url.path, '$_base/sessions/s1/datachannels/close');
+        expect(jsonDecode(request.body), {
+          'dataChannels': [
+            {'id': 2},
+          ],
+        });
+        return http.Response(jsonEncode({'dataChannels': []}), 200);
+      });
+
+      await _client(mock).closeDataChannels(sessionId: 's1', ids: [2]);
+    });
+
+    test('a removal refusal throws like every other route', () async {
+      final mock = FakeHttpClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'errcode': 'IM.ZUNO.CALL_REMOVED',
+            'error': 'Removed from this call',
+          }),
+          403,
+        ),
+      );
+      final api = _client(mock);
+
+      await expectLater(
+        api.establishDataChannels(sessionId: 's1'),
+        throwsA(isA<CallRemovedException>()),
+      );
+      await expectLater(
+        api.newDataChannels(
+          sessionId: 's1',
+          channels: [CfDataChannel.local('quality')],
+        ),
+        throwsA(isA<CallRemovedException>()),
+      );
+      await expectLater(
+        api.closeDataChannels(sessionId: 's1', ids: [2]),
+        throwsA(isA<CallRemovedException>()),
+      );
+    });
+
+    test('a refused request throws', () async {
+      final refused = FakeHttpClient(
+        (_) async => http.Response(jsonEncode({'errorCode': 'nope'}), 200),
+      );
+
+      await expectLater(
+        _client(refused).establishDataChannels(sessionId: 's1'),
+        throwsA(isA<CallsModuleException>()),
+      );
+      await expectLater(
+        _client(refused).newDataChannels(
+          sessionId: 's1',
+          channels: [CfDataChannel.local('quality')],
+        ),
+        throwsA(isA<CallsModuleException>()),
+      );
+    });
+
+    test('an answer that needs no renegotiation brings no offer', () async {
+      final settled = FakeHttpClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'requiresImmediateRenegotiation': false,
+            'dataChannel': {'dataChannelName': 'server-events', 'id': 0},
+          }),
+          200,
+        ),
+      );
+
+      expect(
+        await _client(settled).establishDataChannels(sessionId: 's1'),
+        isNull,
+      );
+    });
+  });
+
   test('close leaves an injected http client open', () async {
     final injected = _RecordingClient(
       FakeHttpClient(

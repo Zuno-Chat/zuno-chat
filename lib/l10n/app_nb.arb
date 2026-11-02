@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Vises mens du er i et anrop",
   "callsConnecting": "Kobler til…",
   "callsConnectionPoor": "Dårlig tilkoblingskvalitet",
-  "callsConnectionPoorVideoReduced": "Dårlig tilkoblingskvalitet, redusert video",
   "callsConnectionWeak": "Svak tilkobling",
   "callsCouldNotOpenCall": "Kunne ikke åpne anropet. Rommet er ikke tilgjengelig.",
   "callsCouldNotOpenCallScreen": "Kunne ikke åpne anropsskjermen.",

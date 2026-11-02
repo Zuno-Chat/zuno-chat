@@ -147,7 +147,6 @@ class _CallViewState extends State<CallView> {
     final qualityLabel = ConnectionQualityPill.labelFor(
       context.l10n,
       shownQuality,
-      sendingVideo: sendingVideo,
     );
     final pill = !widget.reconnecting && qualityLabel != null;
     final confirmName = widget.confirmName;
@@ -247,7 +246,6 @@ class _CallViewState extends State<CallView> {
                     ConnectionQualityPill(
                       key: const ValueKey('quality'),
                       quality: shownQuality,
-                      sendingVideo: sendingVideo,
                     ),
                   if (confirm)
                     Padding(

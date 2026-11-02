@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "S’affiche pendant un appel",
   "callsConnecting": "Connexion…",
   "callsConnectionPoor": "Mauvaise connexion",
-  "callsConnectionPoorVideoReduced": "Mauvaise connexion, vidéo réduite",
   "callsConnectionWeak": "Connexion faible",
   "callsCouldNotOpenCall": "Impossible d’ouvrir cet appel. Le salon n’est pas disponible.",
   "callsCouldNotOpenCallScreen": "Impossible d’ouvrir l’écran d’appel.",

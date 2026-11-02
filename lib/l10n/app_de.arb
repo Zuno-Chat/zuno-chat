@@ -82,7 +82,6 @@
   "callsChannelOngoingCallDescription": "Wird angezeigt, während du in einem Anruf bist",
   "callsConnecting": "Verbindung wird hergestellt…",
   "callsConnectionPoor": "Schlechte Verbindung",
-  "callsConnectionPoorVideoReduced": "Schlechte Verbindung, Video reduziert",
   "callsConnectionWeak": "Schwache Verbindung",
   "callsCouldNotOpenCall": "Anruf konnte nicht geöffnet werden. Der Raum ist nicht verfügbar.",
   "callsCouldNotOpenCallScreen": "Anrufbildschirm konnte nicht geöffnet werden.",

@@ -89,7 +89,6 @@ PlatformCapabilities capabilitiesLike(
   callKit: callKit ?? base.callKit,
   pictureInPicture: pictureInPicture ?? base.pictureInPicture,
   playerNeedsMediaType: base.playerNeedsMediaType,
-  videoCodecOrder: base.videoCodecOrder,
   recorderWritesOgg: base.recorderWritesOgg,
   callMuteByInputMixer: base.callMuteByInputMixer,
   signOutWipeKeepsProcess:

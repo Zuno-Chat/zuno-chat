@@ -4,6 +4,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
+import 'package:zuno/core/calls/media/simulcast_layers.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/call_quality.dart';
@@ -35,8 +36,15 @@ void main() {
     capabilities: capabilities,
   );
 
-  RTCRtpEncoding encoding(FakeSender sender) =>
-      sender.appliedParameters.last.encodings!.first;
+  StatsReport roundTrip(double seconds) =>
+      candidatePair('pair', rttSeconds: seconds);
+
+  List<List<StatsReport>> polls(int count, List<StatsReport> stats) => [
+    for (var poll = 0; poll < count; poll++) stats,
+  ];
+
+  RTCRtpEncoding layer(FakeSender sender, String rid) =>
+      sender.appliedParameters.last.encodings!.firstWhere((e) => e.rid == rid);
 
   group('joining', () {
     test('announces its local state as soon as its SFU session opens, before '
@@ -93,8 +101,6 @@ void main() {
           'audioMuted': false,
           'videoEnabled': false,
           'encrypted': false,
-          'lowBandwidth': false,
-          'weakConnection': false,
         });
       });
     });
@@ -155,13 +161,13 @@ void main() {
       },
     );
 
-    for (final (lowData, width, height, fps, bitrate) in [
-      (false, 854, 480, 30, 950000),
-      (true, 640, 360, 30, 500000),
+    for (final (lowData, width, height, fps) in [
+      (false, 854, 480, 30),
+      (true, 640, 360, 30),
     ]) {
       test('a video call${lowData ? ' in low data mode' : ''} captures the '
-          'camera at ${width}x$height, $fps fps, prefers VP8 then H264, and '
-          'caps the encoder at $bitrate bps', () {
+          'camera at ${width}x$height, $fps fps, and sends its full layer '
+          'at the layer set\'s limits', () {
         inCall(
           (call) {
             call.join();
@@ -173,15 +179,11 @@ void main() {
               'frameRate': fps,
             });
             expect(call.videoSlot.sender.track, call.camera);
-            expect(call.videoSlot.codecPreferences!.map((c) => c.mimeType), [
-              'video/VP8',
-              'video/H264',
-              'video/AV1',
-            ]);
-            final limits = encoding(call.videoSlot.sender);
-            expect(limits.maxBitrate, bitrate);
-            expect(limits.maxFramerate, fps);
-            expect(limits.scaleResolutionDownBy, 1.0);
+            final full = layer(call.videoSlot.sender, 'h');
+            final expected = simulcastLayersFor(lowDataMode: lowData).last;
+            expect(full.maxBitrate, expected.maxBitrate);
+            expect(full.maxFramerate, expected.maxFramerate);
+            expect(full.scaleResolutionDownBy, expected.scaleResolutionDownBy);
             expect(call.local.frontCamera, isTrue);
           },
           kind: CallKind.video,
@@ -266,35 +268,29 @@ void main() {
     });
   });
 
-  group('video codec order', () {
-    test('where the platform keeps WebRTC\'s own order, none is set and the '
-        'call still publishes its camera', () {
-      inCall(
-        (call) {
-          call.join();
+  group('video codec', () {
+    const answer =
+        'v=0\r\n'
+        'o=- 1 2 IN IP4 127.0.0.1\r\n'
+        's=-\r\n'
+        't=0 0\r\n'
+        'm=video 9 UDP/TLS/RTP/SAVPF 102 96\r\n'
+        'a=recvonly\r\n'
+        'a=rtpmap:102 H264/90000\r\n'
+        'a=rtpmap:96 VP8/90000\r\n';
 
-          expect(call.videoSlot.codecPreferences, isNull);
-          expect(call.videoSlot.sender.track, call.camera);
-        },
-        kind: CallKind.video,
-        capabilities: iosCapabilities,
-      );
-    });
-
-    test('a call that ends while its codec order is being set reports '
-        'nothing', () {
+    test('every phone sends VP8, whatever order Cloudflare\'s answer '
+        'lists', () {
       inCall((call) {
-        final gate = Completer<void>();
-        call.backend.senderCapabilitiesGate = gate;
-        final joining = call.engine.join();
-        call.flush();
-        expect(call.pc.rtpTransceivers, hasLength(2));
+        call.sfu.answerSdp = answer;
 
-        call.leave();
-        gate.complete();
-        call.wait(joining);
+        call.join();
 
-        expect(caught(), isEmpty);
+        expect(
+          call.pc.remoteDescriptions.single.sdp,
+          contains('m=video 9 UDP/TLS/RTP/SAVPF 96 102\r\n'),
+        );
+        expect(call.videoSlot.sender.track, call.camera);
       }, kind: CallKind.video);
     });
   });
@@ -1195,95 +1191,108 @@ void main() {
   });
 
   group('call quality', () {
-    StatsReport inbound(int lost, int received) => StatsReport(
-      'in',
-      'inbound-rtp',
-      0,
-      {'packetsLost': lost, 'packetsReceived': received},
-    );
+    List<StatsReport> uploadLoss(int sent, double fractionLost) => [
+      outboundRtp('out-audio', packetsSent: sent),
+      remoteInboundRtp('out-audio', fractionLost),
+    ];
 
-    test(
-      'sustained packet loss lowers the video encoding and tells everyone',
-      () {
-        inCall((call) {
-          call.joinEncrypted();
-          final sender = call.videoSlot.sender;
-          final changesBefore = call.localStateChanges;
+    test('incoming loss on anyone\'s streams never rates our connection', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.remoteJoins(id: ann, sessionId: 'remote-1');
+        call.remoteJoins(id: bob, sessionId: 'remote-2');
+        List<StatsReport> poll(int annLost, int bobLost, int received) => [
+          inboundRtp('in-ann', lost: annLost, received: received),
+          inboundRtp('in-bob', lost: bobLost, received: received),
+        ];
+        final changesBefore = call.localStateChanges;
 
-          call.pollStats([
-            [inbound(0, 1000)],
-            [inbound(100, 1900)],
-            [inbound(200, 2800)],
-          ]);
+        call.pollStats([
+          poll(0, 0, 1000),
+          poll(300, 0, 1700),
+          poll(600, 0, 2400),
+          poll(700, 100, 3300),
+          poll(800, 200, 4200),
+        ]);
 
-          expect(encoding(sender).maxBitrate, 400000);
-          expect(encoding(sender).scaleResolutionDownBy, 2.0);
-          expect(encoding(sender).maxFramerate, 30);
-          expect(call.engine.quality, CallQuality.degraded);
-          expect(call.engine.localFociInfo?['lowBandwidth'], isTrue);
-          expect(call.engine.localFociInfo?['weakConnection'], isTrue);
-          expect(call.localStateChanges, greaterThan(changesBefore));
-        }, kind: CallKind.video);
-      },
-    );
+        expect(call.engine.quality, CallQuality.good);
+        expect(call.localStateChanges, changesBefore);
+        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
+        expect(
+          call.engine.localFociInfo?.containsKey('weakConnection'),
+          isFalse,
+        );
+      }, kind: CallKind.video);
+    });
+
+    test('a round trip over 700 ms on our own link rates it poor and tells '
+        'everyone', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.remoteJoins();
+        final changesBefore = call.localStateChanges;
+
+        call.pollStats(polls(3, [roundTrip(0.9)]));
+
+        expect(call.engine.quality, CallQuality.poor);
+        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
+        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
+        expect(call.localStateChanges, greaterThan(changesBefore));
+      }, kind: CallKind.video);
+    });
+
+    test('loss Cloudflare reports on our upload still rates it', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.remoteJoins();
+
+        call.pollStats([
+          uploadLoss(1000, 0.2),
+          uploadLoss(1150, 0.2),
+          uploadLoss(1300, 0.2),
+        ]);
+
+        expect(call.engine.quality, CallQuality.poor);
+        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
+        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
+      }, kind: CallKind.video);
+    });
+
+    test('with the camera off, loss and round trip still count', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.pollStats(polls(3, [roundTrip(0.5)]));
+
+        expect(call.engine.quality, CallQuality.degraded);
+      });
+    });
 
     test('a single bad sample changes nothing', () {
       inCall((call) {
         call.joinEncrypted();
         final applied = call.videoSlot.sender.appliedParameters.length;
 
-        call.pollStats([
-          [inbound(0, 1000)],
-          [inbound(100, 1900)],
-        ]);
+        call.pollStats(polls(2, [roundTrip(0.9)]));
 
         expect(call.videoSlot.sender.appliedParameters, hasLength(applied));
         expect(call.engine.quality, CallQuality.good);
       }, kind: CallKind.video);
     });
 
-    test('loss while a newly pulled stream starts up does not mark the '
-        'connection weak', () {
+    List<List<StatsReport>> cameraHeldTo(double uploadBps) =>
+        polls(3, [candidatePair('pair', uploadBps: uploadBps)]);
+
+    test('a starved upload shows everyone the weak connection', () {
       inCall((call) {
         call.joinEncrypted();
-        StatsReport pulled(int lost, int received) => StatsReport(
-          'pulled',
-          'inbound-rtp',
-          0,
-          {'packetsLost': lost, 'packetsReceived': received},
-        );
-
-        call.pollStats([
-          [inbound(0, 1000)],
-          [inbound(0, 1100), pulled(10, 90)],
-          [inbound(0, 1200), pulled(20, 180)],
-          [inbound(0, 1300), pulled(20, 280)],
-        ]);
-
-        expect(call.engine.quality, CallQuality.good);
-        expect(call.engine.localFociInfo?['lowBandwidth'], isFalse);
-      }, kind: CallKind.video);
-    });
-
-    List<List<StatsReport>> cameraHeldTo(double targetBitrate) => [
-      for (final received in [1000, 1900, 2800])
-        [
-          inbound(0, received),
-          EngineHarness.outbound('video', targetBitrate: targetBitrate),
-        ],
-    ];
-
-    test('a starved upload lowers the video encoding and shows everyone the '
-        'weak connection without asking them to send less', () {
-      inCall((call) {
-        call.joinEncrypted();
+        call.remoteJoins();
 
         call.pollStats(cameraHeldTo(180000));
 
-        expect(encoding(call.videoSlot.sender).maxBitrate, 400000);
         expect(call.engine.quality, CallQuality.degraded);
         expect(call.engine.localFociInfo?['weakConnection'], isTrue);
-        expect(call.engine.localFociInfo?['lowBandwidth'], isFalse);
+        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
       }, kind: CallKind.video);
     });
 
@@ -1291,35 +1300,424 @@ void main() {
         'upload', () {
       inCall((call) {
         call.joinEncrypted();
+        call.remoteJoins();
 
         call.pollStats(cameraHeldTo(50000));
 
         expect(call.engine.quality, CallQuality.good);
-        expect(call.engine.localFociInfo?['weakConnection'], isFalse);
+        expect(
+          call.engine.localFociInfo?.containsKey('weakConnection'),
+          isFalse,
+        );
       });
     });
 
-    test('someone on a weak link lowers our video too', () {
+    test('a peer on a weak link shows as weak and no longer lowers our '
+        'video', () {
       inCall((call) {
         call.joinEncrypted();
+        final applied = call.videoSlot.sender.appliedParameters.length;
 
         call.remoteJoins(lowBandwidth: true);
 
-        expect(encoding(call.videoSlot.sender).maxBitrate, 400000);
-        expect(encoding(call.videoSlot.sender).maxFramerate, 30);
+        expect(call.remote()?.weakConnection, isTrue);
+        expect(call.videoSlot.sender.appliedParameters, hasLength(applied));
+        expect(layer(call.videoSlot.sender, 'h').maxBitrate, 950000);
+      }, kind: CallKind.video);
+    });
+  });
+
+  group('simulcast', () {
+    List<(String?, double?, int?, int?)> described(
+      List<RTCRtpEncoding> encodings,
+    ) => [
+      for (final e in encodings)
+        (e.rid, e.scaleResolutionDownBy, e.maxFramerate, e.maxBitrate),
+    ];
+
+    final layers = described(simulcastEncodingsFor(lowDataMode: false));
+
+    test('the video sender is created with both layers', () {
+      inCall((call) {
+        call.join();
+
+        expect(described(call.videoSlot.sendEncodings!), layers);
+        expect(
+          described(call.videoSlot.sender.appliedParameters.last.encodings!),
+          layers,
+        );
+      }, kind: CallKind.video);
+    });
+
+    test('a camera swap writes both layers again', () {
+      inCall((call) {
+        call.joinEncrypted();
+        final applied = call.videoSlot.sender.appliedParameters.length;
+
+        call.wait(call.engine.setCameraEnabled(false));
+        call.wait(call.engine.setCameraEnabled(true));
+
+        expect(
+          call.videoSlot.sender.appliedParameters.length,
+          greaterThan(applied),
+        );
+        expect(
+          described(call.videoSlot.sender.appliedParameters.last.encodings!),
+          layers,
+        );
+      }, kind: CallKind.video);
+    });
+
+    test('a voice call\'s placeholder gets both layers without error', () {
+      inCall((call) {
+        call.join();
+
+        expect(call.videoSlot.sender.track, isNotNull);
+        expect(
+          [for (final e in call.videoSlot.sendEncodings!) e.rid],
+          ['q', 'h'],
+        );
+        expect(caught(), isEmpty);
+      });
+    });
+
+    test('video and audio pulls carry no simulcast object', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.remoteJoins();
+
+        expect(call.sfu.pulls.single.tracks, isNotEmpty);
+        expect(
+          call.sfu.pulls.single.tracks.where((t) => t.containsKey('simulcast')),
+          isEmpty,
+        );
+      }, kind: CallKind.video);
+    });
+  });
+
+  group('quality channel', () {
+    void joinConnected(EngineHarness call) {
+      call.sfu.connectOnPush = true;
+      call.joinEncrypted();
+      call.pollStats([[]]);
+    }
+
+    Iterable<SfuRequest> subscriptions(EngineHarness call) => call
+        .sfu
+        .channelOpens
+        .where((r) => r.dataChannels.any((c) => c['location'] == 'remote'));
+
+    test('the quality channel opens at the first stats poll once the '
+        'connection is up, and is advertised', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.pollStats([[]]);
+        expect(call.sfu.establishes, isEmpty);
+        expect(call.engine.localFociInfo?.containsKey('dataChannels'), isFalse);
+
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+        );
+        call.flush();
+        expect(call.sfu.establishes, isEmpty);
+
+        call.pollStats([[]]);
+
+        expect(call.sfu.establishes.single.body, {
+          'dataChannel': {
+            'location': 'remote',
+            'dataChannelName': 'server-events',
+          },
+        });
+        expect(
+          call.sfu.renegotiations.last.sessionDescription?['type'],
+          'answer',
+        );
+        expect(call.sfu.channelOpens.single.dataChannels, [
+          {'location': 'local', 'dataChannelName': 'quality'},
+        ]);
+        final channel = call.pc.dataChannel('quality')!;
+        expect(channel.negotiated, isTrue);
+        expect(channel.id, 1);
+        expect(call.engine.localFociInfo?['dataChannels'], {
+          'quality': 'quality',
+        });
+      }, kind: CallKind.video);
+    });
+
+    test('the connection coming back up opens no second channel', () {
+      inCall((call) {
+        joinConnected(call);
+
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateDisconnected,
+        );
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+        );
+        call.flush();
+
+        expect(call.sfu.establishes, hasLength(1));
+      }, kind: CallKind.video);
+    });
+
+    test('every stats poll sends our rating', () {
+      inCall((call) {
+        joinConnected(call);
+        final channel = call.pc.dataChannel('quality')!;
+
+        call.pollStats(polls(3, [roundTrip(0.5)]));
+
+        expect(channel.sent, [
+          '{"quality":"good"}',
+          '{"quality":"degraded"}',
+          '{"quality":"degraded"}',
+        ]);
+      }, kind: CallKind.video);
+    });
+
+    test('a rejoin opens the channel again on the new session', () {
+      inCall((call) {
+        joinConnected(call);
+
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
+        call.async.elapse(const Duration(seconds: 2));
+        call.flush();
+        call.pollStats([[]]);
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect([for (final r in call.sfu.establishes) r.session], ['s1', 's2']);
+        expect(call.pc.dataChannel('quality'), isNotNull);
+        expect(call.engine.localFociInfo?['dataChannels'], {
+          'quality': 'quality',
+        });
+      }, kind: CallKind.video);
+    });
+
+    test('a channel setup that fails after Cloudflare\'s offer replaces the '
+        'session once and is not tried again in this call', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.sfu
+          ..renegotiateStatus = 500
+          ..connectOnPush = true;
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateConnected,
+        );
+        call.pollStats([[]]);
+
+        call.sfu.renegotiateStatus = null;
+        call.pollStats([[]]);
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect(call.sfu.establishes, hasLength(1));
+        expect(call.engine.status, CallEngineStatus.connected);
+        expect(call.engine.localFociInfo?.containsKey('dataChannels'), isFalse);
+        expect(
+          caught().where((line) => line.contains('quality channel')),
+          hasLength(1),
+        );
+      }, kind: CallKind.video);
+    });
+
+    test('a peer\'s reported rating drives its badge, and its legacy flags '
+        'only until its first report', () {
+      inCall((call) {
+        joinConnected(call);
+
+        call.remoteJoins(advertisesQuality: true, weakConnection: true);
+
+        expect(subscriptions(call).single.dataChannels, [
+          {
+            'location': 'remote',
+            'sessionId': 'remote-1',
+            'dataChannelName': 'quality',
+          },
+        ]);
+        final subscription = call.pc.dataChannels.last;
+        expect(subscription.negotiated, isTrue);
+        expect(subscription.id, 2);
+        expect(call.remote()?.weakConnection, isTrue);
+
+        subscription.receive('{"quality":"good"}');
+        call.flush();
+        expect(call.remote()?.weakConnection, isFalse);
+
+        subscription.receive('{"quality":"poor"}');
+        call.flush();
         expect(call.remote()?.weakConnection, isTrue);
       }, kind: CallKind.video);
     });
 
-    test('someone with a weak upload shows as weak without lowering our '
-        'video', () {
+    test('never subscribes to a peer that does not advertise the channel, '
+        'and reads its legacy flags', () {
       inCall((call) {
-        call.joinEncrypted();
+        joinConnected(call);
 
         call.remoteJoins(weakConnection: true);
 
+        expect(subscriptions(call), isEmpty);
         expect(call.remote()?.weakConnection, isTrue);
-        expect(encoding(call.videoSlot.sender).maxBitrate, 950000);
+      }, kind: CallKind.video);
+    });
+
+    test('a peer that replaces its session or leaves takes its rating with '
+        'it', () {
+      inCall((call) {
+        joinConnected(call);
+        call.remoteJoins(advertisesQuality: true);
+        final first = call.pc.dataChannels.last;
+        first.receive('{"quality":"poor"}');
+        call.flush();
+
+        call.remoteJoins(sessionId: 'remote-2', advertisesQuality: true);
+
+        expect(first.closed, isTrue);
+        expect(call.sfu.channelCloses.single.dataChannels, [
+          {'id': 2},
+        ]);
+        expect(call.remote()?.weakConnection, isFalse);
+        expect(
+          subscriptions(call).last.dataChannels.single['sessionId'],
+          'remote-2',
+        );
+
+        final second = call.pc.dataChannels.last;
+        call.engine.removeRemoteParticipant(ann);
+        call.flush();
+
+        expect(second.closed, isTrue);
+        expect(call.sfu.channelCloses, hasLength(2));
+      }, kind: CallKind.video);
+    });
+
+    test('a subscription dropped before our own rejoin is never closed on the '
+        'new session, where its number may belong to someone else', () {
+      inCall((call) {
+        joinConnected(call);
+        call.remoteJoins(advertisesQuality: true);
+        final gate = Completer<void>();
+        call.sfu.pullGate = gate;
+        call.remoteJoins(sessionId: 'remote-2', advertisesQuality: true);
+
+        call.engine.handleConnectionStateForTest(
+          RTCPeerConnectionState.RTCPeerConnectionStateFailed,
+        );
+        call.async.elapse(const Duration(seconds: 2));
+        call.flush();
+        gate.complete();
+        call.flush();
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect(call.sfu.channelCloses.where((r) => r.session == 's2'), isEmpty);
+      }, kind: CallKind.video);
+    });
+
+    test('a subscription Cloudflare grants after the peer left is closed '
+        'there', () {
+      inCall((call) {
+        joinConnected(call);
+        final gate = Completer<void>();
+        call.sfu.channelGate = gate;
+        call.remoteJoins(advertisesQuality: true);
+
+        call.engine.removeRemoteParticipant(ann);
+        call.flush();
+        gate.complete();
+        call.flush();
+
+        expect(call.sfu.channelCloses.single.dataChannels, [
+          {'id': 2},
+        ]);
+        expect(
+          call.pc.dataChannels.where((c) => c.id == 2 && !c.closed),
+          isEmpty,
+        );
+      }, kind: CallKind.video);
+    });
+
+    test('a refused subscription is asked for and reported once per peer '
+        'session', () {
+      inCall((call) {
+        joinConnected(call);
+        call.sfu.refusedChannelSessions.add('remote-1');
+
+        call.remoteJoins(advertisesQuality: true);
+        call.remoteJoins(advertisesQuality: true);
+        call.remoteJoins(advertisesQuality: true);
+
+        expect(subscriptions(call), hasLength(1));
+        expect(
+          caught().where((line) => line.contains('subscribe to call quality')),
+          hasLength(1),
+        );
+
+        call.remoteJoins(sessionId: 'remote-2', advertisesQuality: true);
+
+        expect(subscriptions(call), hasLength(2));
+      }, kind: CallKind.video);
+    });
+
+    test('a peer that advertises before our channel opens is subscribed once '
+        'it does', () {
+      inCall((call) {
+        call.remoteJoins(advertisesQuality: true);
+
+        joinConnected(call);
+
+        expect(subscriptions(call), hasLength(1));
+      }, kind: CallKind.video);
+    });
+
+    test('a legacy flag goes out only while someone without the channel is in '
+        'the call, and only to say we are weak', () {
+      inCall((call) {
+        joinConnected(call);
+        call.remoteJoins(advertisesQuality: true);
+        call.remoteJoins(id: bob, sessionId: 'remote-2');
+        expect(
+          call.engine.localFociInfo?.containsKey('weakConnection'),
+          isFalse,
+        );
+
+        call.pollStats(polls(3, [roundTrip(0.9)]));
+
+        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
+        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
+
+        final changes = call.localStateChanges;
+        call.engine.removeRemoteParticipant(bob);
+        call.flush();
+
+        expect(
+          call.engine.localFociInfo?.containsKey('weakConnection'),
+          isFalse,
+        );
+        expect(call.localStateChanges, greaterThan(changes));
+      }, kind: CallKind.video);
+    });
+
+    test('a module without data-channel routes leaves the call working, '
+        'reports once, and legacy flags carry the badges', () {
+      inCall((call) {
+        call.sfu.refuseDataChannels = true;
+        joinConnected(call);
+        call.remoteJoins(advertisesQuality: true, weakConnection: true);
+
+        call.pollStats(polls(3, [roundTrip(0.9)]));
+
+        expect(call.engine.status, CallEngineStatus.connected);
+        expect(call.backend.peerConnections, hasLength(1));
+        expect(call.engine.localFociInfo?.containsKey('dataChannels'), isFalse);
+        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
+        expect(call.remote()?.weakConnection, isTrue);
+        expect(
+          caught().where((line) => line.contains('quality channel')),
+          hasLength(1),
+        );
       }, kind: CallKind.video);
     });
   });
