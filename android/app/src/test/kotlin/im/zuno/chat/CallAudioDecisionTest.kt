@@ -34,7 +34,7 @@ class CallAudioDecisionTest {
     }
 
     @Test
-    fun `a tone waits for the call's route to switch, so a speaker call never rings in the earpiece`() {
+    fun `a tone waits for the call's route to switch, so a speaker call never rings at the ear`() {
         assertEquals(
             ToneAction.None,
             CallAudioDecision.tone(
@@ -215,5 +215,21 @@ class CallAudioDecisionTest {
     @Test
     fun `refused focus is not held`() {
         assertFalse(CallAudioDecision.focusGranted(AudioManager.AUDIOFOCUS_REQUEST_FAILED))
+    }
+
+    @Test
+    fun `a cue plays at once while call audio runs on the call's route`() {
+        assertEquals(CueAction.Play, CallAudioDecision.cue(active = true, routeSettled = true))
+    }
+
+    @Test
+    fun `a cue waits for the call's route to switch, so it never sounds on the old device`() {
+        assertEquals(CueAction.Wait, CallAudioDecision.cue(active = true, routeSettled = false))
+    }
+
+    @Test
+    fun `a cue without call audio is dropped, so it never plays over a phone call`() {
+        assertEquals(CueAction.Drop, CallAudioDecision.cue(active = false, routeSettled = true))
+        assertEquals(CueAction.Drop, CallAudioDecision.cue(active = false, routeSettled = false))
     }
 }

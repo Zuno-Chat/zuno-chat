@@ -31,13 +31,13 @@ IOS_SOUND_LIMIT = 30.0
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 
 
-def note(freq, seconds, amplitude=0.5, decay=6.0, harmonic=0.25):
+def note(freq, seconds, amplitude=0.5, decay=6.0, harmonic=0.25, rate=RATE):
     """One struck note: sine plus a quiet octave, exponential decay."""
     out = []
-    attack = int(0.006 * RATE)  # a few ms, so it doesn't click
-    total = int(seconds * RATE)
+    attack = int(0.006 * rate)  # a few ms, so it doesn't click
+    total = int(seconds * rate)
     for i in range(total):
-        t = i / RATE
+        t = i / rate
         env = math.exp(-decay * t)
         if i < attack:
             env *= i / attack
@@ -110,7 +110,7 @@ if missing:
     sys.exit(f'Missing {", ".join(missing)}: run on macOS with vorbis-tools installed.')
 
 
-A5, CS6, E6 = 880.0, 1108.73, 1318.51
+E5, A5, CS6, E6 = 659.25, 880.0, 1108.73, 1318.51
 C6, F6 = 1046.50, 1396.91
 G5 = 783.99
 CALL_TONE = 425.0
@@ -156,11 +156,20 @@ def call_tone(start, seconds):
     return (start, tone([CALL_TONE], seconds, amplitude=0.3, rate=CALL_TONE_RATE))
 
 
-write('assets/sounds/ringback.wav', mix(5.0, [
-    call_tone(0.0, 1.0),
-], rate=CALL_TONE_RATE), mu_law_wav, rate=CALL_TONE_RATE)
+def cue_note(start, freq):
+    return (start, note(freq, 0.34, amplitude=0.3, decay=13.0, rate=CALL_TONE_RATE))
 
-write('assets/sounds/call_waiting.wav', mix(4.0, [
+
+def write_call_sound(path, seconds, parts):
+    write(path, mix(seconds, parts, rate=CALL_TONE_RATE), mu_law_wav, rate=CALL_TONE_RATE)
+
+
+write_call_sound('assets/sounds/ringback.wav', 5.0, [call_tone(0.0, 1.0)])
+write_call_sound('assets/sounds/call_waiting.wav', 4.0, [
     call_tone(0.0, 0.2),
     call_tone(0.8, 0.2),
-], rate=CALL_TONE_RATE), mu_law_wav, rate=CALL_TONE_RATE)
+])
+
+# Someone joining a call: two quick notes rising a fourth. Played once, as
+# call audio.
+write_call_sound('assets/sounds/call_joined.wav', 0.5, [cue_note(0.0, E5), cue_note(0.12, A5)])

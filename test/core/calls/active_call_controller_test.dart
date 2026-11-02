@@ -40,6 +40,19 @@ void main() {
     return container;
   }
 
+  Future<FakeCallSession> liveCall(
+    ProviderContainer container,
+    List<CallEngineParticipant> remotes,
+  ) async {
+    final call = voiceCall();
+    container.read(activeCallProvider.notifier).set(call);
+    await pumpEventQueue();
+    call.moveTo(CallSessionPhase.active);
+    call.engine.setParticipants([localParticipant(), ...remotes]);
+    await pumpEventQueue();
+    return call;
+  }
+
   test('a call takes the ongoing-call notice as soon as it is set, with no '
       'frame drawn', () async {
     final mocks = CallChannelMocks();
@@ -283,6 +296,90 @@ void main() {
     });
   });
 
+  group('the join cue', () {
+    late _RecordingTones tones;
+    late ProviderContainer container;
+
+    CallEngineParticipant bob() =>
+        remoteParticipant(userId: '@bob:example.org');
+
+    Future<FakeCallSession> live(List<CallEngineParticipant> remotes) =>
+        liveCall(container, remotes);
+
+    setUp(() {
+      CallChannelMocks();
+      tones = _RecordingTones();
+      container = ProviderContainer(
+        overrides: [callTonePlayerProvider.overrideWithValue(tones)],
+      );
+      addTearDown(container.dispose);
+      container.read(activeCallControllerProvider);
+    });
+
+    test('is readied as the call starts', () async {
+      container.read(activeCallProvider.notifier).set(voiceCall());
+      await pumpEventQueue();
+
+      expect(tones.calls, ['prepare']);
+    });
+
+    test('plays when the other side shows up, only once the call is '
+        'live', () async {
+      final call = voiceCall();
+      container.read(activeCallProvider.notifier).set(call);
+      await pumpEventQueue();
+      call.engine.setParticipants([localParticipant(), remoteParticipant()]);
+      await pumpEventQueue();
+      expect(tones.calls, ['prepare']);
+
+      call.moveTo(CallSessionPhase.active);
+      await pumpEventQueue();
+
+      expect(tones.calls, ['prepare', 'joined']);
+    });
+
+    test('plays once for a call that already has several people on '
+        'it', () async {
+      await live([remoteParticipant(), bob()]);
+
+      expect(tones.calls, ['prepare', 'joined']);
+    });
+
+    test('plays for each arrival during the call, and never for someone '
+        'leaving or the call ending', () async {
+      final call = await live([remoteParticipant()]);
+
+      call.engine.setParticipants([
+        localParticipant(),
+        remoteParticipant(),
+        bob(),
+      ]);
+      await pumpEventQueue();
+      call.engine.setParticipants([localParticipant(), remoteParticipant()]);
+      await pumpEventQueue();
+      call.end();
+      await pumpEventQueue();
+
+      expect(tones.calls, ['prepare', 'joined', 'joined']);
+    });
+
+    test('never plays on a call nobody else joined', () async {
+      final caller = FakeCallSession(
+        room: buildCallRoom(),
+        kind: CallKind.voice,
+        role: CallSessionRole.caller,
+      );
+      container.read(activeCallProvider.notifier).set(caller);
+      await pumpEventQueue();
+
+      unawaited(caller.hangUp(byUser: true));
+      caller.end();
+      await pumpEventQueue();
+
+      expect(tones.calls, ['prepare']);
+    });
+  });
+
   test('a call that ends before it starts never undoes the next call\'s '
       'device state', () async {
     final mocks = CallChannelMocks();
@@ -481,12 +578,7 @@ void main() {
     Future<(FakeCallSession, ActiveCallController)> talking() async {
       CallChannelMocks();
       final container = containerWithControllers();
-      final call = voiceCall();
-      container.read(activeCallProvider.notifier).set(call);
-      await pumpEventQueue();
-      call.moveTo(CallSessionPhase.active);
-      call.engine.setParticipants([localParticipant(), remoteParticipant()]);
-      await pumpEventQueue();
+      final call = await liveCall(container, [remoteParticipant()]);
       return (call, container.read(activeCallControllerProvider)!);
     }
 
@@ -610,4 +702,20 @@ class _EngineCountingSession extends FakeCallSession {
     engineReads++;
     return super.engine;
   }
+}
+
+class _RecordingTones implements CallTonePlayer {
+  final calls = <String>[];
+
+  @override
+  Future<void> start(CallTone tone) async {}
+
+  @override
+  Future<void> stop(CallTone tone) async {}
+
+  @override
+  Future<void> prepareJoinCue() async => calls.add('prepare');
+
+  @override
+  Future<void> playJoinCue() async => calls.add('joined');
 }

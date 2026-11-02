@@ -14,6 +14,12 @@ enum class ToneAction {
     None,
 }
 
+enum class CueAction {
+    Play,
+    Wait,
+    Drop,
+}
+
 enum class ScoAction {
     Start,
     Stop,
@@ -38,6 +44,12 @@ object CallAudioDecision {
         !routeSettled -> if (playing != null) ToneAction.Stop else ToneAction.None
         playing == null -> ToneAction.Start
         else -> ToneAction.Restart
+    }
+
+    fun cue(active: Boolean, routeSettled: Boolean): CueAction = when {
+        !active -> CueAction.Drop
+        !routeSettled -> CueAction.Wait
+        else -> CueAction.Play
     }
 
     fun routeSettled(awaitedDevice: Int?, activeDevice: Int?): Boolean =

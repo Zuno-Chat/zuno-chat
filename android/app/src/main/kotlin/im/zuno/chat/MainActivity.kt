@@ -337,6 +337,16 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
+                "prepareCallCue" -> {
+                    toneAssetPath(call)?.let(host.callAudio::prepareCue)
+                    result.success(null)
+                }
+
+                "playCallCue" -> {
+                    toneAssetPath(call)?.let(host.callAudio::playCue)
+                    result.success(null)
+                }
+
                 "canUseFullScreenIntent" -> {
                     val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                     val allowed = if (Build.VERSION.SDK_INT >=

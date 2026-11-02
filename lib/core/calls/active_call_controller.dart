@@ -130,6 +130,7 @@ class ActiveCallController extends ChangeNotifier {
   List<CallEngineParticipant> _participants = const [];
   CallEngineParticipant? _local;
   List<CallEngineParticipant> _remotes = const [];
+  Set<VoipParticipantId> _present = const {};
   CallEngineStatus? _engineStatus;
   late CallAudioRoute _audioRoute = startingRoute(session.kind, const {});
   Set<CallAudioRoute> _headsets = const {};
@@ -238,6 +239,7 @@ class ActiveCallController extends ChangeNotifier {
       scheduleMicrotask(leave);
       return;
     }
+    unawaited(_tones.prepareJoinCue());
     unawaited(session.endingStarted.then((_) => _onEnding()));
     unawaited(_attachEngine());
     unawaited(_init());
@@ -358,6 +360,7 @@ class ActiveCallController extends ChangeNotifier {
     if (_finished) return;
     _notify();
     _syncRingback();
+    _syncPresence();
     if (phase == CallSessionPhase.ended) leave();
   }
 
@@ -467,6 +470,7 @@ class ActiveCallController extends ChangeNotifier {
       for (final participant in participants)
         if (!participant.isLocal) participant,
     ];
+    _syncPresence();
     if (_remotes.any((remote) => remote.sendingMedia) &&
         _talkingSince == null) {
       _talkingSince = clock.now();
@@ -566,6 +570,17 @@ class ActiveCallController extends ChangeNotifier {
 
   void _tone(CallTone tone, {required bool on}) =>
       unawaited(on ? _tones.start(tone) : _tones.stop(tone));
+
+  void _syncPresence() {
+    if (_finished || session.ending) return;
+    final before = _present;
+    final present = _present = connecting
+        ? const <VoipParticipantId>{}
+        : {for (final remote in _remotes) remote.id};
+    if (!before.containsAll(present) && _ownsDevice()) {
+      unawaited(_tones.playJoinCue());
+    }
+  }
 
   void _onAudioDevicesChanged() {
     _headsetSync = _headsetSync.then((_) => _syncHeadsets());

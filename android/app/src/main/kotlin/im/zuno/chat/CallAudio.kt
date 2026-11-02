@@ -63,8 +63,9 @@ class CallAudio(
     private var awaitedDevice: Int? = null
     private val routeWaitOver = Runnable {
         awaitedDevice = null
-        updateTone()
+        updateSounds()
     }
+    private val cueOver = Runnable { stopCue() }
     private var holdsFocus = false
     private var savedMicrophoneMute = false
     private var scoRequested = false
@@ -76,6 +77,9 @@ class CallAudio(
     private var previousScoState = AudioManager.SCO_AUDIO_STATE_DISCONNECTED
     private val wantedTones = mutableMapOf<CallTone, String>()
     private var playing: PlayingTone? = null
+    private val cueWaves = mutableMapOf<String, CallToneWave>()
+    private var pendingCue: String? = null
+    private var cue: AudioTrack? = null
     private var reportedRoute: CallAudioRoute? = null
     private var reportedHeadsets = emptySet<CallAudioRoute>()
 
@@ -105,14 +109,14 @@ class CallAudio(
         applyRoute()
         rememberState()
         audioManager.registerAudioDeviceCallback(devicesChanged, main)
-        updateTone()
+        updateSounds()
     }
 
     fun setRoute(route: CallAudioRoute) {
         this.route = route
         if (!active) return
         applyRoute()
-        updateTone()
+        updateSounds()
     }
 
     fun stop() = end(ownsDevice = true)
@@ -126,7 +130,8 @@ class CallAudio(
         if (!active) return
         active = false
         phoneCalls.stop()
-        updateTone()
+        updateSounds()
+        stopCue()
         audioManager.unregisterAudioDeviceCallback(devicesChanged)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             stopFollowingCommunicationDevice()
@@ -148,10 +153,22 @@ class CallAudio(
         updateTone()
     }
 
+    fun prepareCue(assetPath: String) {
+        cueWave(assetPath)
+    }
+
+    fun playCue(assetPath: String) {
+        when (CallAudioDecision.cue(active, routeSettled())) {
+            CueAction.Play -> startCue(assetPath)
+            CueAction.Wait -> pendingCue = assetPath
+            CueAction.Drop -> Unit
+        }
+    }
+
     fun release() {
         wantedTones.clear()
         updateTone()
-        stop()
+        end(ownsDevice = true)
     }
 
     private fun currentRoute(headsets: Set<CallAudioRoute>): CallAudioRoute =
@@ -245,7 +262,7 @@ class CallAudio(
     @RequiresApi(Build.VERSION_CODES.S)
     private fun followCommunicationDevice() {
         val listener = AudioManager.OnCommunicationDeviceChangedListener {
-            updateTone()
+            updateSounds()
             reportState()
         }
         audioManager.addOnCommunicationDeviceChangedListener(Executor { main.post(it) }, listener)
@@ -286,6 +303,14 @@ class CallAudio(
         return CallAudioRouting.state(current, headsets)
     }
 
+    private fun updateSounds() {
+        pendingCue?.let { assetPath ->
+            pendingCue = null
+            playCue(assetPath)
+        }
+        updateTone()
+    }
+
     private fun updateTone() {
         val wanted = CallAudioDecision.wantedTone(wantedTones.keys)
         when (CallAudioDecision.tone(wanted, active, routeSettled(), playing?.tone)) {
@@ -304,15 +329,41 @@ class CallAudio(
 
     private fun startTone(wanted: CallTone) {
         playing = try {
-            PlayingTone(wanted, playTone(wantedTones.getValue(wanted)))
+            PlayingTone(wanted, play(readWave(wantedTones.getValue(wanted)), loop = true))
         } catch (error: Exception) {
             CaughtErrors.record(context, "call tone", error)
             null
         }
     }
 
-    private fun playTone(assetPath: String): AudioTrack {
-        val tone = context.assets.open(assetPath).use { CallToneWave.parse(it.readBytes()) }
+    private fun readWave(assetPath: String): CallToneWave =
+        context.assets.open(assetPath).use { CallToneWave.parse(it.readBytes()) }
+
+    private fun cueWave(assetPath: String): CallToneWave? = cueWaves[assetPath] ?: try {
+        readWave(assetPath).also { cueWaves[assetPath] = it }
+    } catch (error: Exception) {
+        CaughtErrors.record(context, "call cue", error)
+        null
+    }
+
+    private fun startCue(assetPath: String) {
+        stopCue()
+        val wave = cueWave(assetPath) ?: return
+        try {
+            cue = play(wave, loop = false)
+            main.postDelayed(cueOver, wave.samples.size * 1_000L / wave.sampleRate + CUE_MARGIN_MS)
+        } catch (error: RuntimeException) {
+            CaughtErrors.record(context, "call cue", error)
+        }
+    }
+
+    private fun stopCue() {
+        main.removeCallbacks(cueOver)
+        cue?.release()
+        cue = null
+    }
+
+    private fun play(tone: CallToneWave, loop: Boolean): AudioTrack {
         val pcm = tone.samples
         val track = AudioTrack.Builder()
             .setAudioAttributes(callAttributes)
@@ -328,7 +379,7 @@ class CallAudio(
             .build()
         try {
             check(track.write(pcm, 0, pcm.size) == pcm.size) { "call tone not written" }
-            check(track.setLoopPoints(0, pcm.size, -1) == AudioTrack.SUCCESS) {
+            check(!loop || track.setLoopPoints(0, pcm.size, -1) == AudioTrack.SUCCESS) {
                 "call tone not looped"
             }
             track.play()
@@ -348,5 +399,6 @@ class CallAudio(
 
     private companion object {
         const val ROUTE_WAIT_MS = 2_000L
+        const val CUE_MARGIN_MS = 150L
     }
 }

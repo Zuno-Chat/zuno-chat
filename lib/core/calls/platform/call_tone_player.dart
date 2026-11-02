@@ -36,10 +36,16 @@ enum CallTone {
   final String asset;
 }
 
+const _joinCueSound = 'assets/sounds/call_joined.wav';
+
 abstract interface class CallTonePlayer {
   Future<void> start(CallTone tone);
 
   Future<void> stop(CallTone tone);
+
+  Future<void> prepareJoinCue();
+
+  Future<void> playJoinCue();
 }
 
 CallTonePlayer callTonePlayerFor(PlatformCapabilities capabilities) {
@@ -80,6 +86,14 @@ class NativeCallTonePlayer implements CallTonePlayer {
     await _invokeCallChannel(tone._stop);
   }
 
+  @override
+  Future<void> prepareJoinCue() =>
+      _invokeCallChannel('prepareCallCue', {'asset': _joinCueSound});
+
+  @override
+  Future<void> playJoinCue() =>
+      _invokeCallChannel('playCallCue', {'asset': _joinCueSound});
+
   @visibleForTesting
   Set<CallTone> get playing => {..._playing};
 
@@ -98,4 +112,10 @@ class NoopCallTonePlayer implements CallTonePlayer {
 
   @override
   Future<void> stop(CallTone tone) async {}
+
+  @override
+  Future<void> prepareJoinCue() async {}
+
+  @override
+  Future<void> playJoinCue() async {}
 }

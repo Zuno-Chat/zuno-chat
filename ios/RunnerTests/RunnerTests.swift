@@ -428,13 +428,19 @@ final class CallToneSourceTests: XCTestCase {
     return engine
   }
 
-  private func loudest(_ engine: AVAudioEngine) throws -> Float {
+  private func chunkPeaks(_ engine: AVAudioEngine, chunks: Int) throws -> [Float] {
     try engine.start()
     defer { engine.stop() }
     let out = try XCTUnwrap(
       AVAudioPCMBuffer(pcmFormat: engine.manualRenderingFormat, frameCapacity: 256))
-    _ = try engine.renderOffline(256, to: out)
-    return (0..<Int(out.frameLength)).map { abs(out.floatChannelData![0][$0]) }.max() ?? 0
+    return try (0..<chunks).map { _ in
+      _ = try engine.renderOffline(256, to: out)
+      return (0..<Int(out.frameLength)).map { abs(out.floatChannelData![0][$0]) }.max() ?? 0
+    }
+  }
+
+  private func loudest(_ engine: AVAudioEngine) throws -> Float {
+    try chunkPeaks(engine, chunks: 1)[0]
   }
 
   private func joined(_ source: CallToneSource) throws -> AVAudioEngine {
@@ -493,6 +499,46 @@ final class CallToneSourceTests: XCTestCase {
 
   func testAMissingFileGivesNoTone() {
     XCTAssertNil(CallToneSource(contentsOf: URL(fileURLWithPath: "/nonexistent/ringback.wav")))
+  }
+
+  func testALoopingToneKeepsSoundingPastItsEnd() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    source.setPlaying(true)
+    let peaks = try chunkPeaks(joined(source), chunks: 6)
+    XCTAssertTrue(peaks.allSatisfy { $0 > 0.1 }, "\(peaks)")
+  }
+
+  func testACueSoundsOnceThenFallsSilent() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    source.playOnce()
+    let peaks = try chunkPeaks(joined(source), chunks: 6)
+    XCTAssertTrue(peaks[0..<4].allSatisfy { $0 > 0.1 }, "\(peaks)")
+    XCTAssertEqual(Array(peaks[4...]), [0, 0])
+  }
+
+  func testPlayingACueAgainPlaysItFromTheStart() throws {
+    let source = try XCTUnwrap(CallToneSource(contentsOf: toneFile()))
+    let engine = try joined(source)
+    source.playOnce()
+    _ = try chunkPeaks(engine, chunks: 5)
+    source.playOnce()
+    let peaks = try chunkPeaks(engine, chunks: 5)
+    XCTAssertTrue(peaks[0..<4].allSatisfy { $0 > 0.1 }, "\(peaks)")
+    XCTAssertEqual(peaks[4], 0)
+  }
+
+  func testASoundLoadedTwiceIsOneSource() throws {
+    let tones = CallTones()
+    let url = try toneFile()
+    let first = try XCTUnwrap(tones.load(url))
+    XCTAssertTrue(tones.load(url) === first)
+    XCTAssertEqual(tones.sources.count, 1)
+  }
+
+  func testAMissingSoundLoadsNothingAndCanBeTriedAgain() throws {
+    let tones = CallTones()
+    XCTAssertNil(tones.load(URL(fileURLWithPath: "/nonexistent/cue.wav")))
+    XCTAssertTrue(tones.sources.isEmpty)
   }
 }
 

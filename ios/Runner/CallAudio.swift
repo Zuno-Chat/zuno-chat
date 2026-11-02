@@ -138,6 +138,7 @@ final class CallToneSource: @unchecked Sendable {
     let samples: UnsafeMutableBufferPointer<Float>
     let playing = Atomic<Bool>(false)
     let rewind = Atomic<Bool>(false)
+    let looping = Atomic<Bool>(true)
     var position = 0
 
     init(samples: UnsafeMutableBufferPointer<Float>) {
@@ -169,22 +170,29 @@ final class CallToneSource: @unchecked Sendable {
     self.format = format
     node = AVAudioSourceNode(format: format) { isSilence, _, frameCount, data in
       let buffers = UnsafeMutableAudioBufferListPointer(data)
-      guard render.playing.load(ordering: .acquiring) else {
+      let playing = render.playing.load(ordering: .acquiring)
+      if playing, render.rewind.exchange(false, ordering: .relaxed) { render.position = 0 }
+      let loops = render.looping.load(ordering: .relaxed)
+      let count = render.samples.count
+      guard playing, loops || render.position < count else {
         isSilence.pointee = true
         for buffer in buffers {
           if let bytes = buffer.mData { memset(bytes, 0, Int(buffer.mDataByteSize)) }
         }
         return noErr
       }
-      if render.rewind.exchange(false, ordering: .relaxed) { render.position = 0 }
-      let count = render.samples.count
       var position = render.position
       for buffer in buffers {
         guard let out = buffer.mData?.assumingMemoryBound(to: Float.self) else { continue }
         position = render.position
         for frame in 0..<Int(frameCount) {
+          guard position < count else {
+            out[frame] = 0
+            continue
+          }
           out[frame] = render.samples[position]
-          position = position + 1 == count ? 0 : position + 1
+          position += 1
+          if loops, position == count { position = 0 }
         }
       }
       render.position = position
@@ -196,7 +204,14 @@ final class CallToneSource: @unchecked Sendable {
     if playing, !render.playing.load(ordering: .relaxed) {
       render.rewind.store(true, ordering: .relaxed)
     }
+    render.looping.store(true, ordering: .relaxed)
     render.playing.store(playing, ordering: .releasing)
+  }
+
+  func playOnce() {
+    render.looping.store(false, ordering: .relaxed)
+    render.rewind.store(true, ordering: .relaxed)
+    render.playing.store(true, ordering: .releasing)
   }
 
   func join(_ engine: AVAudioEngine, mixer: AVAudioMixerNode) {
@@ -217,26 +232,37 @@ final class CallToneSource: @unchecked Sendable {
   }
 }
 
-final class CallToneSlot: Sendable {
-  private let loaded = Mutex<CallToneSource?>(nil)
+final class CallTones: Sendable {
+  private let loaded = Mutex<[URL: CallToneSource]>([:])
 
-  var source: CallToneSource? { loaded.withLock { $0 } }
+  var sources: [CallToneSource] { loaded.withLock { Array($0.values) } }
 
   func load(_ url: URL) -> CallToneSource? {
-    loaded.withLock { current in
-      if current == nil { current = CallToneSource(contentsOf: url) }
-      return current
+    loaded.withLock { sources in
+      if let source = sources[url] { return source }
+      let source = CallToneSource(contentsOf: url)
+      sources[url] = source
+      return source
     }
+  }
+
+  func load(asset: String) -> CallToneSource? {
+    Self.bundledURL(forAsset: asset).flatMap(load)
+  }
+
+  static func bundledURL(forAsset asset: String) -> URL? {
+    Bundle.main.path(forResource: FlutterDartProject.lookupKey(forAsset: asset), ofType: nil)
+      .map(URL.init(fileURLWithPath:))
   }
 }
 
 final class CallAudioEngineObserver: NSObject, RTCAudioDeviceModuleDelegate, @unchecked Sendable {
-  private let tone: CallToneSlot
+  private let tones: CallTones
   private weak var plugin: FlutterWebRTCPlugin?
 
-  init(plugin: FlutterWebRTCPlugin?, tone: CallToneSlot) {
+  init(plugin: FlutterWebRTCPlugin?, tones: CallTones) {
     self.plugin = plugin
-    self.tone = tone
+    self.tones = tones
   }
 
   func audioDeviceModule(
@@ -268,7 +294,9 @@ final class CallAudioEngineObserver: NSObject, RTCAudioDeviceModuleDelegate, @un
   func audioDeviceModule(
     _ audioDeviceModule: RTCAudioDeviceModule, willReleaseEngine engine: AVAudioEngine
   ) -> Int {
-    tone.source?.leave(engine)
+    for source in tones.sources {
+      source.leave(engine)
+    }
     return 0
   }
 
@@ -284,7 +312,9 @@ final class CallAudioEngineObserver: NSObject, RTCAudioDeviceModuleDelegate, @un
     format: AVAudioFormat, context: [AnyHashable: Any]
   ) -> Int {
     if let mixer = source as? AVAudioMixerNode {
-      tone.source?.join(engine, mixer: mixer)
+      for tone in tones.sources {
+        tone.join(engine, mixer: mixer)
+      }
     }
     return 0
   }
@@ -301,10 +331,10 @@ final class CallAudioEngineGate: @unchecked Sendable {
   private var observer: CallAudioEngineObserver?
   private var available = false
   private var applied: Bool?
-  private let tone: CallToneSlot
+  private let tones: CallTones
 
-  init(tone: CallToneSlot) {
-    self.tone = tone
+  init(tones: CallTones) {
+    self.tones = tones
   }
 
   func attach(_ factory: RTCPeerConnectionFactory?, plugin: FlutterWebRTCPlugin?) {
@@ -315,7 +345,7 @@ final class CallAudioEngineGate: @unchecked Sendable {
         module = box.value.0?.audioDeviceModule
         module?.duckingLevel = .min
         observer = module.map { _ in
-          CallAudioEngineObserver(plugin: box.value.1, tone: tone)
+          CallAudioEngineObserver(plugin: box.value.1, tones: tones)
         }
         module?.observer = observer
         applied = nil
@@ -347,23 +377,24 @@ final class CallAudioEngineGate: @unchecked Sendable {
 
 @MainActor
 final class CallRingback {
-  let tone = CallToneSlot()
+  private let tones: CallTones
+  private var source: CallToneSource?
+
+  init(tones: CallTones) {
+    self.tones = tones
+  }
 
   func start(asset: String?) {
-    guard let url = asset.flatMap(Self.bundledURL(forAsset:)), let source = tone.load(url) else {
+    guard let source = asset.flatMap(tones.load(asset:)) else {
       CaughtErrors.record("call ringback tone", CocoaError(.fileNoSuchFile))
       return
     }
+    self.source = source
     source.setPlaying(true)
   }
 
   func stop() {
-    tone.source?.setPlaying(false)
-  }
-
-  nonisolated static func bundledURL(forAsset asset: String) -> URL? {
-    Bundle.main.path(forResource: FlutterDartProject.lookupKey(forAsset: asset), ofType: nil)
-      .map(URL.init(fileURLWithPath:))
+    source?.setPlaying(false)
   }
 }
 
@@ -378,11 +409,12 @@ final class CallAudio {
     return bridged.domain == NSOSStatusErrorDomain && bridged.code == code.rawValue
   }
 
-  let ringback = CallRingback()
+  private let tones = CallTones()
+  lazy var ringback = CallRingback(tones: tones)
   var onRouteChange: ((CallAudioState) -> Void)?
   var onMediaServicesReset: (() -> Void)?
   private(set) var isActive = false
-  private lazy var gate = CallAudioEngineGate(tone: ringback.tone)
+  private lazy var gate = CallAudioEngineGate(tones: tones)
   private weak var webRTC: FlutterWebRTCPlugin?
   private var observers: [NSObjectProtocol] = []
   private var forwardedActivation = false
@@ -570,6 +602,22 @@ final class CallAudio {
     if let route {
       apply(route)
     }
+  }
+
+  func prepareCue(asset: String) {
+    _ = cueSource(asset)
+  }
+
+  func playCue(asset: String) {
+    cueSource(asset)?.playOnce()
+  }
+
+  private func cueSource(_ asset: String) -> CallToneSource? {
+    guard let source = tones.load(asset: asset) else {
+      CaughtErrors.record("call cue", CocoaError(.fileNoSuchFile))
+      return nil
+    }
+    return source
   }
 
   private func deactivated() {

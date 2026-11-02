@@ -99,6 +99,16 @@ final class CallsChannelPlugin: NSObject, @preconcurrency FlutterPlugin {
     case "stopRingbackTone":
       calls.audio.ringback.stop()
       result(nil)
+    case "prepareCallCue":
+      if let asset = args?["asset"] as? String {
+        calls.audio.prepareCue(asset: asset)
+      }
+      result(nil)
+    case "playCallCue":
+      if let asset = args?["asset"] as? String {
+        calls.audio.playCue(asset: asset)
+      }
+      result(nil)
     case "reportIncomingCall":
       guard let roomId, let callId else { return badArguments(result) }
       calls.reportIncoming(

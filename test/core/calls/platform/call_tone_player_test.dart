@@ -112,6 +112,48 @@ void main() {
     });
   });
 
+  group('the native join cue', () {
+    late RecordedMethodCalls native;
+
+    setUp(() => native = installFakeCallsChannel());
+
+    test('is readied and played on the native side, on both '
+        'platforms', () async {
+      for (final player in [
+        NativeCallTonePlayer.callAudio,
+        NativeCallTonePlayer.callKit,
+      ]) {
+        await player.prepareJoinCue();
+        await player.playJoinCue();
+      }
+
+      expect(native.argsOf('prepareCallCue'), [
+        for (var i = 0; i < 2; i++) {'asset': 'assets/sounds/call_joined.wav'},
+      ]);
+      expect(native.argsOf('playCallCue'), [
+        for (var i = 0; i < 2; i++) {'asset': 'assets/sounds/call_joined.wav'},
+      ]);
+    });
+
+    test('plays with the ringtone preference off', () async {
+      SharedPreferences.setMockInitialValues({ringtoneEnabledKey: false});
+
+      await NativeCallTonePlayer.callAudio.playJoinCue();
+
+      expect(native.methods, ['playCallCue']);
+    });
+
+    test('a failing platform side never fails the call', () async {
+      installFakeCallsChannel(
+        reply: (_) => throw PlatformException(code: 'cue'),
+      );
+      final player = NativeCallTonePlayer.callAudio;
+
+      await expectLater(player.prepareJoinCue(), completes);
+      await expectLater(player.playJoinCue(), completes);
+    });
+  });
+
   group('picking the player', () {
     test('android and ios each play the one native player every caller '
         'shares', () {
@@ -135,6 +177,8 @@ void main() {
       await none.start(CallTone.ringback);
       await none.start(CallTone.waiting);
       await none.stop(CallTone.ringback);
+      await none.prepareJoinCue();
+      await none.playJoinCue();
 
       expect(none, isA<NoopCallTonePlayer>());
       expect(native.calls, isEmpty);
@@ -168,8 +212,8 @@ void main() {
       return bits & 0x80 == 0 ? magnitude : -magnitude;
     }
 
-    Future<({int rate, List<int> samples})> sound(CallTone tone) async {
-      final bytes = (await rootBundle.load(tone.asset)).buffer.asByteData();
+    Future<({int rate, List<int> samples})> sound(String asset) async {
+      final bytes = (await rootBundle.load(asset)).buffer.asByteData();
       int? rate;
       for (var at = 12; at + 8 <= bytes.lengthInBytes;) {
         final id = String.fromCharCodes(bytes.buffer.asUint8List(at, 4));
@@ -189,7 +233,7 @@ void main() {
         }
         at = body + size + size % 2;
       }
-      throw StateError('${tone.asset} has no samples');
+      throw StateError('$asset has no samples');
     }
 
     List<int> between(
@@ -207,7 +251,7 @@ void main() {
         samples.map((sample) => sample.abs()).reduce(max) / 32767;
 
     test('ringback rings for a second, then rests for four', () async {
-      final ringback = await sound(CallTone.ringback);
+      final ringback = await sound(CallTone.ringback.asset);
 
       expect(ringback.samples, hasLength(5 * ringback.rate));
       expect(silent(between(ringback, 0, 1)), isFalse);
@@ -217,7 +261,7 @@ void main() {
     test(
       'the waiting tone is two short beeps, then a three-second rest',
       () async {
-        final waiting = await sound(CallTone.waiting);
+        final waiting = await sound(CallTone.waiting.asset);
 
         expect(waiting.samples, hasLength(4 * waiting.rate));
         expect(silent(between(waiting, 0, 0.2)), isFalse);
@@ -227,25 +271,56 @@ void main() {
       },
     );
 
-    test('each beep is a 425 Hz tone at the set level', () async {
-      final beep = between(await sound(CallTone.ringback), 0, 1);
+    double pitch(List<int> samples, int rate) {
       var signChanges = 0;
-      for (var i = 1; i < beep.length; i++) {
-        if ((beep[i - 1] < 0) != (beep[i] < 0)) signChanges++;
+      for (var i = 1; i < samples.length; i++) {
+        if ((samples[i - 1] < 0) != (samples[i] < 0)) signChanges++;
       }
+      return signChanges / 2 / (samples.length / rate);
+    }
 
-      expect(signChanges, closeTo(850, 4));
+    test('each beep is a 425 Hz tone at the set level', () async {
+      final ringback = await sound(CallTone.ringback.asset);
+      final beep = between(ringback, 0, 1);
+
+      expect(pitch(beep, ringback.rate), closeTo(425, 2));
       expect(peak(beep), closeTo(0.3, 0.01));
     });
 
     test('each beep fades in and out, so it never clicks', () async {
-      final waiting = await sound(CallTone.waiting);
+      final waiting = await sound(CallTone.waiting.asset);
 
       for (final (from, to) in [(0.0, 0.2), (0.8, 1.0)]) {
         final beep = between(waiting, from, to);
         expect(peak(beep.sublist(0, 4)), lessThan(0.02));
         expect(peak(beep.sublist(beep.length - 4)), lessThan(0.02));
       }
+    });
+
+    double firstToSecondNote(({int rate, List<int> samples}) cue) =>
+        pitch(between(cue, 0.32, 0.42), cue.rate) /
+        pitch(between(cue, 0.01, 0.11), cue.rate);
+
+    const joinCue = 'assets/sounds/call_joined.wav';
+
+    test('the join cue rises a fourth', () async {
+      expect(firstToSecondNote(await sound(joinCue)), closeTo(4 / 3, 0.04));
+    });
+
+    test('the join cue sounds at once and is over within half a second, at '
+        'the beeps\' level', () async {
+      final played = await sound(joinCue);
+
+      expect(played.samples.length, lessThanOrEqualTo(played.rate ~/ 2));
+      expect(silent(between(played, 0, 0.01)), isFalse);
+      expect(peak(played.samples), closeTo(0.3, 0.05));
+    });
+
+    test('the join cue fades in and out, so it never clicks', () async {
+      final samples = (await sound(joinCue)).samples;
+
+      expect(peak(samples.sublist(0, 4)), lessThan(0.04));
+      expect(peak(samples.sublist(samples.length - 4)), lessThan(0.02));
     });
   });
 }

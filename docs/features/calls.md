@@ -43,7 +43,7 @@ plays for a call goes through one of six interfaces, each built by a
 |---|---|---|
 | `IncomingCallPresenter` | `CallStyle` notification with a native ring | CallKit |
 | `OngoingCallPresenter` | `CallForegroundService` | No-op: CallKit shows the call |
-| `CallTonePlayer` | Ringback and the call-waiting tone, played as call audio by native `CallAudio` | Ringback inside WebRTC's audio engine in CallKit's session; CallKit plays its own waiting tone |
+| `CallTonePlayer` | Ringback, the call-waiting tone and the join cue, played as call audio by native `CallAudio` | Ringback and the join cue inside WebRTC's audio engine in CallKit's session; CallKit plays its own waiting tone |
 | `SystemCall` | No-op | The CallKit call |
 | `CallAudioOutput` | Native `CallAudio` owns focus, mode and route | Native routes in CallKit's session |
 | `PushRingBridge` | No-op | Binds pushed rings to their calls |
@@ -448,7 +448,7 @@ session to CallKit.
 | Route | `setCommunicationDevice` on Android 12+; speakerphone plus paired Bluetooth SCO on 8–11, where the effective route comes from SCO state broadcasts |
 | Microphone mute | A stale system-wide mute is cleared for the call and restored after it |
 | Headsets | Device and route changes are reported to Dart |
-| Call tones | Played as call audio, only while wanted, while call audio is active and once the chosen device is active (or after a short wait for one that never comes up); the waiting tone wins, so the two never play at once |
+| Call tones | Played as call audio, only while wanted, while call audio is active and once the chosen device is active (or after a short wait for one that never comes up); the waiting tone wins, so the two never play at once, and the join cue plays once beside either under the same rules |
 | Phone calls | A phone call that starts while call audio is active releases it at once and hangs the call up (below); the microphone mute, speakerphone and Bluetooth SCO switches then belong to the phone call and are left alone, or restoring them could mute it or pull it off a headset |
 
 ### Ringing
@@ -591,6 +591,11 @@ group alone.
   it starts once the call's audio is up. A separate player raced the
   engine's start: its first tone was lost on the speaker, or played
   quieter until echo cancellation began.
+- **A join cue plays whenever someone new appears on a live call**, the
+  first one being the call connecting, and several at once play one; it
+  always plays, whatever the sound settings. On iOS it is a one-shot source
+  in the same engine, loaded as the call starts, because a source joins the
+  engine only when WebRTC sets up the engine's output.
 - **Hang up from the ongoing notification or the PiP window** goes to the
   live engine, because teardown needs the live session. Only the ring's
   Decline can run headless.
@@ -727,6 +732,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | Android call audio is native, not flutter_webrtc's AudioSwitch | AudioSwitch entered call mode only on microphone capture and stuck to the last chosen device, so ringback and the route waited on the microphone |
 | Call tones are generated sound files (`tool/generate_tones.py`) that Dart names and native plays, never `ToneGenerator` | One sound on both platforms, and Android plays a voice-call `ToneGenerator` as a dial tone on its own output, which a stereo-speaker phone sent to the earpiece during speaker calls |
 | A minimized call is a bar for voice and a window for video, and a tap only opens it | One tap target, never a second set of controls |
+| A join cue, but no leave or end tone | On iOS a call tone follows call volume only inside WebRTC's voice engine, which stops with the call's media and when the last remote audio closes, so an end tone was either near-silent or cut short |
 
 ## Gotchas
 
@@ -740,7 +746,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   and choosing the earpiece drops it, because a session that starts on the
   earpiece moves only after CallKit has activated it, under the first tone.
 - Native iOS owns WebRTC's audio-module observer, the one slot for engine
-  callbacks, to add the ringback, and forwards device changes to
+  callbacks, to add the call tones, and forwards device changes to
   flutter_webrtc, which held it before.
 - Native iOS call audio restores the pre-call category only while the
   session is still in its call configuration, so a voice message started
