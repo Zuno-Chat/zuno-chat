@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
 import '../../l10n/l10n.dart';
+import '../../matrix/finished_syncs.dart';
 import '../../matrix/matrix_client_provider.dart';
 import '../../settings/app_preferences_provider.dart';
 import '../account_security_status.dart';
@@ -31,11 +32,6 @@ final knownIdentityStoreProvider = Provider<KnownIdentityStore>((ref) {
 final securityAlertStoreProvider = Provider<SecurityAlertStore>((ref) {
   return SecurityAlertStore(ref.watch(sharedPreferencesProvider));
 });
-
-Stream<SyncStatusUpdate> _onSyncFinished(Client client) => client
-    .onSyncStatus
-    .stream
-    .where((update) => update.status == SyncStatus.finished);
 
 final ownIdentityResetHoldProvider =
     NotifierProvider<OwnIdentityResetHold, bool>(OwnIdentityResetHold.new);
@@ -104,7 +100,7 @@ class SecurityAlertsNotifier extends Notifier<List<RecordedSecurityAlert>> {
   List<RecordedSecurityAlert> build() {
     ref.watch(isLoggedInProvider);
     final client = ref.watch(matrixClientProvider);
-    final sub = _onSyncFinished(client)
+    final sub = finishedSyncs(client)
         .listen((_) => unawaited(_check(client)));
     ref.onDispose(sub.cancel);
     unawaited(_check(client));

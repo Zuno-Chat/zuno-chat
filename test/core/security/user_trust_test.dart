@@ -4,6 +4,9 @@ import 'package:zuno/core/security/user_trust.dart';
 
 import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_encryption.dart';
+import '../../helpers/fake_matrix.dart';
+
+const _me = '@me:example.org';
 
 class _OwnerSignedKeys extends DeviceKeys {
   _OwnerSignedKeys(Client client, {required this.signedByOwner})
@@ -22,12 +25,12 @@ class _OwnerSignedKeys extends DeviceKeys {
 
 UserTrustState _state({
   String? currentIdentityKey = 'KEY_A',
-  bool identityDirectlyVerified = false,
+  bool identityConfirmed = false,
   bool hasUnsignedDevices = false,
   String? confirmedIdentityKey,
 }) => userTrustState(
   currentIdentityKey: currentIdentityKey,
-  identityDirectlyVerified: identityDirectlyVerified,
+  identityConfirmed: identityConfirmed,
   hasUnsignedDevices: hasUnsignedDevices,
   confirmedIdentityKey: confirmedIdentityKey,
 );
@@ -45,7 +48,7 @@ void main() {
 
     test('a confirmed identity with everything signed is confirmed', () {
       expect(
-        _state(identityDirectlyVerified: true, confirmedIdentityKey: 'KEY_A'),
+        _state(identityConfirmed: true, confirmedIdentityKey: 'KEY_A'),
         UserTrustState.confirmed,
       );
     });
@@ -53,7 +56,7 @@ void main() {
     test('a confirmed person with an unsigned device stays confirmed', () {
       expect(
         _state(
-          identityDirectlyVerified: true,
+          identityConfirmed: true,
           hasUnsignedDevices: true,
           confirmedIdentityKey: 'KEY_A',
         ),
@@ -70,7 +73,7 @@ void main() {
 
     test('a replaced identity outranks it having been re-verified', () {
       expect(
-        _state(identityDirectlyVerified: true, confirmedIdentityKey: 'KEY_OLD'),
+        _state(identityConfirmed: true, confirmedIdentityKey: 'KEY_OLD'),
         UserTrustState.identityChanged,
       );
     });
@@ -98,7 +101,7 @@ void main() {
       final facts = userTrustFactsOf(null);
 
       expect(facts.currentIdentityKey, isNull);
-      expect(facts.identityDirectlyVerified, isFalse);
+      expect(facts.identityConfirmed, isFalse);
       expect(facts.hasUnsignedDevices, isFalse);
     });
 
@@ -109,18 +112,61 @@ void main() {
       final facts = userTrustFactsOf(list);
 
       expect(facts.currentIdentityKey, master.ed25519Key);
-      expect(facts.identityDirectlyVerified, isFalse);
+      expect(facts.identityConfirmed, isFalse);
       expect(facts.hasUnsignedDevices, isTrue);
     });
 
-    test('an identity I confirmed reads as directly verified', () async {
+    test('an identity I confirmed here reads as confirmed', () async {
       final list = setTestDevices(client, alice, {});
       await testMasterKey(client, alice).setVerified(true, false);
 
       final facts = userTrustFactsOf(list);
 
-      expect(facts.identityDirectlyVerified, isTrue);
+      expect(facts.identityConfirmed, isTrue);
       expect(facts.hasUnsignedDevices, isFalse);
+    });
+  });
+
+  group('confirmedByOwnAccount', () {
+    const bob = '@bob:example.org';
+    late Client client;
+    late CrossSigningKey mine;
+    late CrossSigningKey bobs;
+
+    setUp(() {
+      client = buildTestClient(userId: _me, encrypting: true);
+      mine = testTrustedOwnIdentity(client);
+      bobs = testMasterKey(client, bob);
+    });
+
+    test('an identity my account signed on another device is confirmed', () {
+      testConfirmByMyAccount(bobs);
+      expect(confirmedByOwnAccount(bobs), isTrue);
+    });
+
+    test('an identity vouched for only by their own device I checked is not, '
+        'so starting over on that device still reads as a changed '
+        'identity', () {
+      final phone = SelfSignedTestDeviceKeys(
+        testDeviceKeysJson(bob, 'PHONE'),
+        client,
+      )..setDirectVerified(true);
+      client.userDeviceKeys[bob]!.deviceKeys = {'PHONE': phone};
+      testSign(bobs, by: phone);
+
+      expect(bobs.verified, isTrue);
+      expect(confirmedByOwnAccount(bobs), isFalse);
+    });
+
+    test('my signature counts only while this device trusts my own '
+        'identity', () {
+      testConfirmByMyAccount(bobs);
+      mine.setDirectVerified(false);
+      expect(confirmedByOwnAccount(bobs), isFalse);
+    });
+
+    test('an identity nobody confirmed is not', () {
+      expect(confirmedByOwnAccount(bobs), isFalse);
     });
   });
 

@@ -51,7 +51,7 @@ final userTrustProvider = Provider.family<UserTrustState, String>((
   final facts = userTrustFactsOf(client.userDeviceKeys[userId]);
   return userTrustState(
     currentIdentityKey: facts.currentIdentityKey,
-    identityDirectlyVerified: facts.identityDirectlyVerified,
+    identityConfirmed: facts.identityConfirmed,
     hasUnsignedDevices: facts.hasUnsignedDevices,
     confirmedIdentityKey: ref
         .watch(confirmedIdentityStoreProvider)

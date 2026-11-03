@@ -66,7 +66,7 @@ void main() {
     expect(container.read(encryptToVerifiedSessionsOnlyProvider), isTrue);
     expect(
       container.read(matrixClientProvider).shareKeysWith,
-      ShareKeysWith.directlyVerifiedOnly,
+      ShareKeysWith.verifiedOnly,
     );
   });
 

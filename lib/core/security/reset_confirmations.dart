@@ -7,11 +7,6 @@ Future<void> forgetConfirmationsAfterIdentityReset(
   Client client,
   ConfirmedIdentityStore store,
 ) async {
-  await runBestEffort(
-    store.forgetAll,
-    label: 'forget confirmed identities after a reset',
-  );
-
   final ownId = client.userID;
   for (final list in List.of(client.userDeviceKeys.values)) {
     if (list.userId == ownId) continue;
@@ -22,4 +17,9 @@ Future<void> forgetConfirmationsAfterIdentityReset(
       label: 'unverify an identity after a reset',
     );
   }
+
+  await runBestEffort(
+    store.forgetAll,
+    label: 'forget confirmed identities after a reset',
+  );
 }

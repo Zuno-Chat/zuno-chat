@@ -15,6 +15,19 @@ class _BrokenStore extends ConfirmedIdentityStore {
   Future<void> forgetAll() async => throw StateError('disk full');
 }
 
+class _WatchingStore extends ConfirmedIdentityStore {
+  _WatchingStore(super.prefs, this.watched);
+
+  final DeviceKeysList watched;
+  bool? confirmedWhenForgotten;
+
+  @override
+  Future<void> forgetAll() async {
+    confirmedWhenForgotten = watched.masterKey!.directVerified;
+    await super.forgetAll();
+  }
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -79,6 +92,17 @@ void main() {
       expect(client.encryptionDatabase.verifiedCrossSigningKeys, {
         alice: false,
       });
+    });
+
+    test('are unmarked before the store is cleared, so a sync in between '
+        'cannot remember them again', () async {
+      await confirm(alice);
+      final prefs = await SharedPreferences.getInstance();
+      final store = _WatchingStore(prefs, client.userDeviceKeys[alice]!);
+
+      await forgetConfirmationsAfterIdentityReset(client, store);
+
+      expect(store.confirmedWhenForgotten, isFalse);
     });
 
     test('one key that cannot be updated does not stop the rest', () async {

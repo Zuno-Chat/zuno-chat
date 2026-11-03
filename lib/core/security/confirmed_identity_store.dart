@@ -1,4 +1,3 @@
-import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const _prefix = 'security.confirmed_identity.';
@@ -17,12 +16,17 @@ class ConfirmedIdentityStore {
     return stored == null ? null : DateTime.fromMillisecondsSinceEpoch(stored);
   }
 
-  Future<void> remember(String userId, String identityKey) async {
+  Future<void> remember(
+    String userId,
+    String identityKey, {
+    DateTime? at,
+  }) async {
     await _prefs.setString('$_prefix$userId', identityKey);
-    await _prefs.setInt(
-      '$_atPrefix$userId',
-      clock.now().millisecondsSinceEpoch,
-    );
+    if (at == null) {
+      await _prefs.remove('$_atPrefix$userId');
+    } else {
+      await _prefs.setInt('$_atPrefix$userId', at.millisecondsSinceEpoch);
+    }
   }
 
   Future<void> forget(String userId) async {

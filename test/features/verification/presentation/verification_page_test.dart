@@ -10,14 +10,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/security/confirmed_identity_store.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/qr_image.dart' as app_qr;
 import 'package:zuno/features/verification/presentation/qr_scanner_page.dart';
 import 'package:zuno/features/verification/presentation/verification_page.dart';
 
-import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
 import '../../../helpers/route_launcher.dart';
@@ -26,7 +24,6 @@ import 'verification_harness.dart';
 const _waiting = 'Waiting for the other device…';
 const _compare = 'Not together? Compare pictures instead';
 const _me = '@me:example.org';
-const _bob = '@bob:example.org';
 
 void main() {
   late Client client;
@@ -597,67 +594,6 @@ void main() {
       await settle(tester);
 
       expect(find.byType(VerificationPage), findsNothing);
-    });
-  });
-
-  group('remembering who was confirmed', () {
-    String? remembered(String userId) =>
-        ConfirmedIdentityStore(preferences).confirmedIdentityKey(userId);
-
-    for (final finish in [
-      KeyVerificationState.done,
-      KeyVerificationState.askSSSS,
-    ]) {
-      testWidgets('a match with someone else at ${finish.name} remembers '
-          'their identity, whoever started the check', (tester) async {
-        final identity = testMasterKey(client, _bob);
-        final verification = FakeKeyVerification(userId: _bob);
-        await open(tester, verification);
-
-        identity.setDirectVerified(true);
-        verification.moveTo(finish);
-        await settle(tester);
-
-        expect(remembered(_bob), identity.ed25519Key);
-      });
-    }
-
-    testWidgets('a finish that did not confirm their identity remembers '
-        'nobody', (tester) async {
-      testMasterKey(client, _bob);
-      final verification = FakeKeyVerification(userId: _bob);
-      await open(tester, verification);
-
-      verification.moveTo(KeyVerificationState.done);
-      await settle(tester);
-
-      expect(remembered(_bob), isNull);
-    });
-
-    testWidgets('a check that stopped remembers nobody', (tester) async {
-      final identity = testMasterKey(client, _bob);
-      final verification = FakeKeyVerification(userId: _bob);
-      await open(tester, verification);
-
-      identity.setDirectVerified(true);
-      verification.stopWith('m.user');
-      await settle(tester);
-
-      expect(remembered(_bob), isNull);
-    });
-
-    testWidgets('an own-device check never remembers this account', (
-      tester,
-    ) async {
-      final identity = testMasterKey(client, _me);
-      final verification = FakeKeyVerification(userId: _me);
-      await open(tester, verification);
-
-      identity.setDirectVerified(true);
-      verification.moveTo(KeyVerificationState.done);
-      await settle(tester);
-
-      expect(remembered(_me), isNull);
     });
   });
 

@@ -13,6 +13,7 @@ import 'package:zuno/core/push/fcm/fcm_availability_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../helpers/fake_device_keys.dart';
 import '../../helpers/fake_matrix.dart';
 import '../../helpers/fake_privacy_channel.dart';
 import '../../helpers/native_method_calls.dart';
@@ -497,7 +498,7 @@ void main() {
         expect(container.read(encryptToVerifiedSessionsOnlyProvider), isTrue);
         expect(
           container.read(matrixClientProvider).shareKeysWith,
-          ShareKeysWith.directlyVerifiedOnly,
+          ShareKeysWith.verifiedOnly,
         );
         final prefs = container.read(sharedPreferencesProvider);
         expect(
@@ -512,7 +513,7 @@ void main() {
         'settings.encrypt_to_verified_sessions_only': true,
       });
       container.read(matrixClientProvider).shareKeysWith =
-          ShareKeysWith.directlyVerifiedOnly;
+          ShareKeysWith.verifiedOnly;
       await container
           .read(encryptToVerifiedSessionsOnlyProvider.notifier)
           .set(false);
@@ -524,12 +525,37 @@ void main() {
   });
 
   group('shareKeysWithFor', () {
-    test('true maps to directlyVerifiedOnly', () {
-      expect(shareKeysWithFor(true), ShareKeysWith.directlyVerifiedOnly);
+    late Client client;
+
+    setUp(() {
+      client = buildTestClient(userId: '@me:test', encrypting: true)
+        ..shareKeysWith = shareKeysWithFor(true);
+      testTrustedOwnIdentity(client);
     });
+
+    DeviceKeys deviceApprovedBy(CrossSigningKey identity, String deviceId) {
+      final device = SelfSignedTestDeviceKeys(
+        testDeviceKeysJson(identity.userId, deviceId),
+        client,
+      );
+      testSign(device, by: identity);
+      return device;
+    }
 
     test('false maps to the SDK default, crossVerifiedIfEnabled', () {
       expect(shareKeysWithFor(false), ShareKeysWith.crossVerifiedIfEnabled);
+    });
+
+    test('true reaches every device a confirmed person approved', () {
+      final identity = testMasterKey(client, '@bob:test');
+      testConfirmByMyAccount(identity);
+      expect(deviceApprovedBy(identity, 'PHONE').encryptToDevice, isTrue);
+    });
+
+    test('true skips someone never confirmed, even on a device they '
+        'approved', () {
+      final identity = testMasterKey(client, '@carol:test');
+      expect(deviceApprovedBy(identity, 'LAPTOP').encryptToDevice, isFalse);
     });
   });
 

@@ -160,17 +160,22 @@ account and minting a sign-in code all ask for the password (UIA) through
 recovery on this device it first offers to set it up inline, because the
 device cannot sign the result otherwise. It then runs the in-room check (in
 person, scan their code; apart, compare pictures on a call in the app).
-When any check with another account completes and leaves its master key
-directly verified, the verification page records that key in
-`ConfirmedIdentityStore`, whichever side started the check.
 
-`userTrustState` compares the contact's master key, the SDK's verification of
-it, their devices' signatures and the key we stored:
+Confirmation is account-wide. A contact counts as confirmed when our account
+vouched for their master key: this device checked it, or our user-signing
+key signed it from another of our devices, which every approved device of
+ours trusts. After each finished sync, each device records every identity
+our account confirmed in `ConfirmedIdentityStore`, so any of them can later
+tell that the identity changed; only the device that ran the check records
+the date room info shows.
+
+`userTrustState` compares the contact's master key, our account's
+confirmation of it, their devices' signatures and the key we stored:
 
 | State | Meaning | Shown as |
 |---|---|---|
 | `noIdentity` | They never set up recovery | Nothing to confirm; a new device of theirs raises an alert |
-| `unconfirmed` | Not confirmed by us | A confirm row in room info, a note in an empty one-to-one chat, the call pill |
+| `unconfirmed` | Not confirmed by our account | A confirm row in room info, a note in an empty one-to-one chat, the call pill |
 | `confirmed` | Confirmed, every device signed | A muted check in the chat header |
 | `confirmedWithPendingDevice` | Confirmed, but one of their devices is not approved by them | The check plus a passive line in room info |
 | `identityChanged` | Their master key differs from the one we confirmed | A banner in the chat, the call pill |
@@ -228,13 +233,13 @@ protections.
 
 As built, a per-device switch in Security → On this device picks the SDK's
 key policy: off is the default `ShareKeysWith.crossVerifiedIfEnabled`, and
-on is `directlyVerifiedOnly`, so new room keys from this device reach only
-confirmed people and the user's own approved devices. Every client takes the
-stored choice when it is built, background ones included, because a
-notification reply is sent from a background client. Turning it on needs
-recovery and an approved device, since without them this device trusts
-nobody and its messages would reach no one; turning it off is always
-allowed.
+on is `verifiedOnly`, so new room keys from this device reach only the
+devices confirmed people approved and the user's own approved devices.
+Every client takes the stored choice when it is built, background ones
+included, because a notification reply is sent from a background client.
+Turning it on needs recovery and an approved device, since without them
+this device trusts nobody and its messages would reach no one; turning it
+off is always allowed.
 
 ### Undecryptable messages
 
@@ -406,9 +411,16 @@ the commonest words of ordinary prose break any run.
   so the chat list preview only tries a locked last message once more when
   it shows, in case its key is already here, and takes no place among the
   events the watcher waits on.
-- **Starting over mints a new identity**, so it must clear both the
-  confirmed-identity store and the SDK's `directVerified` flags, or a stale
-  confirmation or a false `identityChanged` follows. Restoring clears nothing.
+- **Starting over mints a new identity**, so it must clear the SDK's
+  `directVerified` flags and then the confirmed-identity store, in that order,
+  or a stale confirmation or a false `identityChanged` follows; clearing the
+  store first lets the next sync record the old confirmations again.
+  Restoring clears nothing.
+- **The SDK's `verified` trusts a contact's master key that one of their own
+  devices we checked has signed**, and starting over signs the new key with
+  the device that did it, so confirmation reads only this device's check or
+  our user-signing key, or a contact who started over would skip
+  `identityChanged`.
 - **Whether a message was encrypted is read from its decryption, never its
   send status**, because the SDK's timeline swaps a decrypted message back to
   its plaintext local copy (still marked synced) when sync beats the send's
@@ -418,10 +430,6 @@ the commonest words of ordinary prose break any run.
 - **A contact with a master key gets no room keys on an unapproved device**,
   so messages stay undecryptable there until they approve it, which is the
   default key policy working, not a bug.
-- **matrix's `directlyVerifiedOnly` counts only devices checked one by
-  one**, not a confirmed person's other devices as its own doc promises, so
-  Confirmed people only reaches fewer devices than it says until
-  famedly/matrix-dart-sdk#2518 ships.
 - **A background isolate holds a stale copy of `SharedPreferences`**, so a
   client built there reloads them before reading the key policy.
 - **The file picker leaves a copy of an opened file in the app's temporary

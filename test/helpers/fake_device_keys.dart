@@ -95,16 +95,45 @@ CrossSigningKey testMasterKey(
   Client client,
   String userId, {
   String? publicKey,
-}) {
-  publicKey ??= 'master-$userId';
+}) => _crossSigningKey(client, userId, 'master', publicKey ?? 'master-$userId');
+
+CrossSigningKey testTrustedOwnIdentity(Client client) =>
+    testMasterKey(client, client.userID!)..setDirectVerified(true);
+
+void testConfirmByMyAccount(CrossSigningKey identity) {
+  final client = identity.client;
+  final ownId = client.userID!;
+  final userSigning = _crossSigningKey(
+    client,
+    ownId,
+    'user_signing',
+    'user-signing-$ownId',
+  );
+  testSign(userSigning, by: client.userDeviceKeys[ownId]!.masterKey!);
+  testSign(identity, by: userSigning);
+}
+
+CrossSigningKey _crossSigningKey(
+  Client client,
+  String userId,
+  String usage,
+  String publicKey,
+) {
   final key = CrossSigningKey.fromJson({
     'user_id': userId,
-    'usage': ['master'],
+    'usage': [usage],
     'keys': {'ed25519:$publicKey': publicKey},
     'signatures': <String, Object?>{},
   }, client);
   _keysOf(client, userId).crossSigningKeys
-    ..removeWhere((_, existing) => existing.usage.contains('master'))
+    ..removeWhere((_, existing) => existing.usage.contains(usage))
     ..[publicKey] = key;
   return key;
+}
+
+void testSign(SignableKey key, {required SignableKey by}) {
+  final keyId = 'ed25519:${by.identifier}';
+  ((key.signatures ??= {})[by.userId] ??= {})[keyId] = 'signature';
+  ((key.validSignatures ??= {})[by.userId] ??= <String, dynamic>{})[keyId] =
+      true;
 }

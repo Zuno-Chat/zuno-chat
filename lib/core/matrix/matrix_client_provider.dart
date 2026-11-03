@@ -28,6 +28,7 @@ import 'database_compaction.dart';
 import 'database_key.dart';
 import 'database_raw_key.dart';
 import 'ephemeral_to_device.dart';
+import 'finished_syncs.dart';
 import 'fresh_token_http_client.dart';
 import 'refresh_deadline_http_client.dart';
 import 'sdk_logs.dart';
@@ -76,9 +77,7 @@ final firstSyncProvider = FutureProvider<void>((ref) async {
   final client = ref.watch(matrixClientProvider);
   ref.watch(isLoggedInProvider);
   if (client.prevBatch != null) return;
-  await client.onSyncStatus.stream.firstWhere(
-    (update) => update.status == SyncStatus.finished,
-  );
+  await finishedSyncs(client).first;
 });
 
 final incomingKeyVerificationProvider = StreamProvider<KeyVerification>((ref) {

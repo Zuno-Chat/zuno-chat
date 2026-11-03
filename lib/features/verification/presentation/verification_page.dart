@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart' show QrCode, QrErrorCorrectLevel;
@@ -10,17 +9,15 @@ import 'package:qr_flutter/qr_flutter.dart' show QrCode, QrErrorCorrectLevel;
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/security/security_emphasis.dart';
-import '../../../core/security/security_providers.dart';
 import '../../../core/security/verification_cancel_message.dart';
 import '../../../core/ui/notice.dart';
 import '../../../core/ui/qr_image.dart';
 import '../../../core/ui/status_message.dart';
 import 'qr_scanner_page.dart';
 
-class VerificationPage extends ConsumerStatefulWidget {
+class VerificationPage extends StatefulWidget {
   final KeyVerification keyVerification;
   final bool isOwnDevice;
   final bool picturesFirst;
@@ -33,10 +30,10 @@ class VerificationPage extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<VerificationPage> createState() => _VerificationPageState();
+  State<VerificationPage> createState() => _VerificationPageState();
 }
 
-class _VerificationPageState extends ConsumerState<VerificationPage> {
+class _VerificationPageState extends State<VerificationPage> {
   bool _methodChosen = false;
   bool _sending = false;
   QRCode? _qrSource;
@@ -68,27 +65,6 @@ class _VerificationPageState extends ConsumerState<VerificationPage> {
     if (!mounted) return;
     setState(() {});
     _maybeAutoChooseMethod();
-    _rememberConfirmedPerson();
-  }
-
-  void _rememberConfirmedPerson() {
-    final kv = widget.keyVerification;
-    if (kv.state != KeyVerificationState.done &&
-        kv.state != KeyVerificationState.askSSSS) {
-      return;
-    }
-    final client = ref.read(matrixClientProvider);
-    if (kv.userId == client.userID) return;
-    final identity = client.userDeviceKeys[kv.userId]?.masterKey;
-    final key = identity?.ed25519Key;
-    if (identity == null || key == null || !identity.directVerified) return;
-    final store = ref.read(confirmedIdentityStoreProvider);
-    unawaited(
-      runBestEffort(
-        () => store.remember(kv.userId, key),
-        label: 'remember a confirmed person',
-      ),
-    );
   }
 
   Future<void> _send(String label, Future<void> Function() request) async {

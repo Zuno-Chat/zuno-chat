@@ -16,6 +16,7 @@ import 'push/apns/apns_delivery_provider.dart';
 import 'push/delivery/delivery_auto_fallback.dart';
 import 'push/nse/nse_services.dart';
 import 'security/alerts/security_alerts_provider.dart';
+import 'security/confirmed_identities.dart';
 import 'shortcuts/conversation_shortcuts.dart';
 
 final appServicesProvider = Provider<void>((ref) {
@@ -48,6 +49,7 @@ final List<ProviderListenable<Object?>> _signedIn = [
   pushRuleMaintenanceProvider,
   deliveryAutoFallbackProvider,
   securityAlertsProvider,
+  confirmedIdentityTrackerProvider,
   apnsMessageToneProvider,
   conversationTonePlayerProvider,
 ];

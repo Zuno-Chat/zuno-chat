@@ -10,7 +10,7 @@ enum UserTrustState {
 
 UserTrustState userTrustState({
   required String? currentIdentityKey,
-  required bool identityDirectlyVerified,
+  required bool identityConfirmed,
   required bool hasUnsignedDevices,
   required String? confirmedIdentityKey,
 }) {
@@ -19,24 +19,33 @@ UserTrustState userTrustState({
       confirmedIdentityKey != currentIdentityKey) {
     return UserTrustState.identityChanged;
   }
-  if (!identityDirectlyVerified) return UserTrustState.unconfirmed;
+  if (!identityConfirmed) return UserTrustState.unconfirmed;
   return hasUnsignedDevices
       ? UserTrustState.confirmedWithPendingDevice
       : UserTrustState.confirmed;
 }
 
-({
-  String? currentIdentityKey,
-  bool identityDirectlyVerified,
-  bool hasUnsignedDevices,
-})
+({String? currentIdentityKey, bool identityConfirmed, bool hasUnsignedDevices})
 userTrustFactsOf(DeviceKeysList? keys) {
   final master = keys?.masterKey;
   return (
     currentIdentityKey: master?.ed25519Key,
-    identityDirectlyVerified: master?.directVerified ?? false,
+    identityConfirmed: master != null && confirmedByOwnAccount(master),
     hasUnsignedDevices: keys?.deviceKeys.values.any((d) => !d.signed) ?? false,
   );
+}
+
+bool confirmedByOwnAccount(CrossSigningKey identity) {
+  if (identity.directVerified) return true;
+  final client = identity.client;
+  final ownId = client.userID;
+  final ownSignatures = identity.signatures?[ownId];
+  if (ownId == null || ownSignatures == null) return false;
+  final vouched = CrossSigningKey.fromJson({
+    ...identity.toJson(),
+    'signatures': {ownId: ownSignatures},
+  }, client)..validSignatures = identity.validSignatures ??= {};
+  return vouched.hasValidSignatureChain();
 }
 
 bool deviceApprovedByOwner(DeviceKeys? device) =>
