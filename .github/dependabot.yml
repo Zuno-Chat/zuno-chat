@@ -5,6 +5,7 @@ updates:
     directories:
       - /
       - /packages/*
+      - /tool/zuno_lints
     schedule:
       interval: weekly
       day: monday
