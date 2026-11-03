@@ -55,22 +55,68 @@ void main() {
     },
   );
 
-  test('a MetricKit summary is reported as a crash', () async {
+  test(
+    'a MetricKit report is a crash grouped by its kind and reason',
+    () async {
+      nativeHolds([
+        {
+          'kind': 'metrickit',
+          'source': 'crash',
+          'reason': 'signal=11',
+          'summary': 'crash exception=1 signal=11',
+        },
+      ]);
+
+      await drainNativeErrors();
+      await reportsSent();
+
+      final event = transport.sentEvent;
+      expect(
+        event.throwable,
+        isA<IosDiagnostic>().having(
+          (d) => d.summary,
+          'summary',
+          'crash exception=1 signal=11',
+        ),
+      );
+      expect(event.fingerprint, ['metrickit', 'crash', 'signal=11']);
+    },
+  );
+
+  test('each MetricKit reason is its own issue, whatever its count', () async {
     nativeHolds([
-      {'kind': 'crash', 'summary': 'crash exception=1 signal=11'},
+      {
+        'kind': 'metrickit',
+        'source': 'exits',
+        'reason': 'memory',
+        'summary': 'exits memory=2',
+      },
+      {
+        'kind': 'metrickit',
+        'source': 'exits',
+        'reason': 'watchdog',
+        'summary': 'exits watchdog=1',
+      },
     ]);
 
     await drainNativeErrors();
     await reportsSent();
 
-    expect(
-      transport.sentEvent.throwable,
-      isA<IosDiagnostic>().having(
-        (d) => d.summary,
-        'summary',
-        'crash exception=1 signal=11',
-      ),
-    );
+    expect(transport.events.map((e) => e.fingerprint), [
+      ['metrickit', 'exits', 'memory'],
+      ['metrickit', 'exits', 'watchdog'],
+    ]);
+  });
+
+  test('a MetricKit report missing its reason is dropped', () async {
+    nativeHolds([
+      {'kind': 'metrickit', 'source': 'exits', 'summary': 'exits memory=2'},
+    ]);
+
+    await drainNativeErrors();
+    await reportsSent();
+
+    expect(transport.events, isEmpty);
   });
 
   test(

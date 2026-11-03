@@ -144,10 +144,12 @@ final class CaughtErrorsTests: XCTestCase {
 
 @MainActor
 final class ErrorsPluginTests: XCTestCase {
-  func testTakeHandsOverCrashSummariesAndCaughtErrorsOnce() throws {
+  func testTakeHandsOverMetricKitReportsAndCaughtErrorsOnce() throws {
     let defaults = UserDefaults(suiteName: "errors-\(UUID().uuidString)")!
     let metrics = MetricsSubscriber(defaults: defaults, log: { _ in })
-    metrics.record(["crash exception=1 signal=11"])
+    metrics.record([
+      MetricReport(source: "crash", reason: "signal=11", summary: "crash exception=1 signal=11")
+    ])
     let directory = try makeTemporaryDirectory()
     addTeardownBlock { try? FileManager.default.removeItem(at: directory) }
     let caught = CaughtErrors(directory: directory, process: "nse")
@@ -157,7 +159,9 @@ final class ErrorsPluginTests: XCTestCase {
     let first = immediateReply(from: plugin, method: "take") as? [[String: Any]]
     let second = immediateReply(from: plugin, method: "take") as? [[String: Any]]
 
-    XCTAssertEqual(first?.compactMap { $0["kind"] as? String }, ["crash", "caught"])
+    XCTAssertEqual(first?.compactMap { $0["kind"] as? String }, ["metrickit", "caught"])
+    XCTAssertEqual(first?[0]["source"] as? String, "crash")
+    XCTAssertEqual(first?[0]["reason"] as? String, "signal=11")
     XCTAssertEqual(first?[0]["summary"] as? String, "crash exception=1 signal=11")
     XCTAssertEqual(first?[1]["label"] as? String, "nse fetch")
     XCTAssertEqual(first?[1]["process"] as? String, "nse")

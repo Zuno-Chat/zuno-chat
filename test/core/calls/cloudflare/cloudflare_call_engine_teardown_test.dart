@@ -26,14 +26,17 @@ void main() {
     'tracks': {'audio': 'audio'},
   };
 
+  void update(CloudflareCallEngine engine, Map<String, Object?> foci) =>
+      engine.updateRemoteParticipant(remoteId, foci, membershipEventId: null);
+
   group('happy path', () {
     test('an unchanged membership does not re-emit participants', () async {
       final engine = _buildEngine();
       final emissions = <List<CallEngineParticipant>>[];
       engine.participantsStream.listen(emissions.add);
 
-      engine.updateRemoteParticipant(remoteId, remoteFoci);
-      engine.updateRemoteParticipant(remoteId, remoteFoci);
+      update(engine, remoteFoci);
+      update(engine, remoteFoci);
       await pumpEventQueue();
 
       expect(emissions, hasLength(1));
@@ -44,11 +47,8 @@ void main() {
       final emissions = <List<CallEngineParticipant>>[];
       engine.participantsStream.listen(emissions.add);
 
-      engine.updateRemoteParticipant(remoteId, remoteFoci);
-      engine.updateRemoteParticipant(remoteId, {
-        ...remoteFoci,
-        'audioMuted': true,
-      });
+      update(engine, remoteFoci);
+      update(engine, {...remoteFoci, 'audioMuted': true});
       await pumpEventQueue();
 
       expect(emissions, hasLength(2));
@@ -61,14 +61,14 @@ void main() {
       CallEngineParticipant remote() =>
           engine.participants.singleWhere((p) => !p.isLocal);
 
-      engine.updateRemoteParticipant(remoteId, {
+      update(engine, {
         'sessionId': 'remote-session',
         'tracks': const <String, Object?>{},
       });
       await pumpEventQueue();
       expect(remote().sendingMedia, isFalse);
 
-      engine.updateRemoteParticipant(remoteId, remoteFoci);
+      update(engine, remoteFoci);
       await pumpEventQueue();
       expect(remote().sendingMedia, isTrue);
     });
@@ -78,7 +78,7 @@ void main() {
       () async {
         final engine = _buildEngine();
 
-        engine.updateRemoteParticipant(remoteId, remoteFoci);
+        update(engine, remoteFoci);
         await pumpEventQueue();
 
         final remote = engine.participants.firstWhere((p) => !p.isLocal);
@@ -92,10 +92,10 @@ void main() {
         'never thrown on', () async {
       final engine = _buildEngine();
 
-      engine.updateRemoteParticipant(remoteId, {'sessionId': 7});
+      update(engine, {'sessionId': 7});
       expect(engine.participants.where((p) => !p.isLocal), isEmpty);
 
-      engine.updateRemoteParticipant(remoteId, {
+      update(engine, {
         'sessionId': 'remote-session',
         'tracks': ['audio'],
         'audioMuted': 'yes',
@@ -134,7 +134,7 @@ void main() {
       'disposing while participants are still held does not throw',
       () async {
         final engine = _buildEngine();
-        engine.updateRemoteParticipant(remoteId, remoteFoci);
+        update(engine, remoteFoci);
 
         engine.dispose();
         await pumpEventQueue();
@@ -149,7 +149,7 @@ void main() {
       engine.dispose();
       await pumpEventQueue();
 
-      engine.updateRemoteParticipant(remoteId, remoteFoci);
+      update(engine, remoteFoci);
       await pumpEventQueue();
 
       expect(engine.participants.where((p) => !p.isLocal), isEmpty);
@@ -157,7 +157,7 @@ void main() {
 
     test('a departure arriving after teardown is a no-op', () async {
       final engine = _buildEngine();
-      engine.updateRemoteParticipant(remoteId, remoteFoci);
+      update(engine, remoteFoci);
       await engine.leave();
       engine.dispose();
       await pumpEventQueue();

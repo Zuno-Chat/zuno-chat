@@ -69,6 +69,7 @@ native journal, drained ─────────┘     │ network failure? 
 | An expected outcome (a user cancel, a denied permission, a 404 meaning absent, a parse fallback) narrows its catch and is not reported | A report must mean a defect |
 | An error whose text can carry a location or message content is sent as its type only | The scrubber cannot recognize every shape of either (`location-sharing.md`) |
 | An error native code hands to Dart is reported only by Dart | Otherwise it is sent twice |
+| A plain-text error is sent as its own exception, still grouped as text | Sentry drops an event whose error equals a recent one, so one code reported under two labels would lose the second |
 
 - **Matrix SDK logs** at `error` and `wtf` are reported, labelled by the
   SDK file and line that logged them, since log titles interpolate IDs. A
@@ -78,8 +79,13 @@ native journal, drained ─────────┘     │ network failure? 
 - **Native errors** (Kotlin and Swift catches) go into an on-device
   journal, which the app drains over `zuno/errors` at startup and on every
   resume, in the main app only. iOS MetricKit summaries (crashes, exits,
-  memory) ride the same drain as crashes and still feed the push
-  Diagnostics hub (`notifications.md`).
+  memory) ride the same drain as crashes, one Sentry issue per reason, and
+  still feed the push Diagnostics hub (`notifications.md`).
+  - Background exits count only kills that point at a defect; iOS
+    reclaiming memory from a suspended app is routine and dropped.
+  - MetricKit crash reports stay although Sentry's native handler also
+    catches crashes, because that handler starts only once Dart starts
+    Sentry, after native code such as a call push has already run.
   - The journal is bounded, keeps one entry per label until drained, and
     is written whatever the opt-in says; the drain drops it when reporting
     is off.

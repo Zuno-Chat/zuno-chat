@@ -228,6 +228,7 @@ sequenceDiagram
 | TURN credentials are minted through the module when the engine is built at call start, and a failed mint means no TURN, not a failed call | Only some networks need TURN |
 | A black placeholder stands in whenever the camera is not sending, and a track is advertised only once it has sent bytes | Cloudflare drops a published track that receives no packets for 30 s, and advertising earlier lets someone pull a track the SFU does not have yet |
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
+| A pull the SFU cannot find is retried on every sync and reported only once the remote has published a newer membership and the pull still fails | During a reconnect the remote's last-advertised session may already be gone, so an early not-found is a race, not a defect |
 | Every track swap is `replaceTrack`, never a mid-call re-offer | A re-offer recreates the receive streams, and Android's flutter_webrtc then renders nothing (flutter-webrtc#2124) |
 | Every phone sends VP8 | iOS's hardware H264 sends far below its target bitrate, so its video went out blocky, while VP8 meets its target on both platforms and every receiver decodes it |
 
@@ -709,7 +710,7 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | CallKit is the only ring UI; `IncomingCallPage` shows only when CallKit is unavailable | No double ring UI, and a ring filtered by Focus stays silent |
 | The system call follows `activeCallProvider`, not `CallPage` | Nothing renders while locked, so a lock-screen answer may never build the page |
 | A system call dropped from `activeCallProvider` ends with its session's own reason once the session is hanging up or has ended, and as failed only otherwise | The call controller may clear the active call before the system call hears of the end, answering a waiting call drops the one it hangs up, and the lock screen shows a failed end as "Call Failed" |
-| The audio engine starts only from CallKit's `didActivate`, with flutter_webrtc's own session management off | Audio must start in the session CallKit activates |
+| The audio engine runs only while a call is on and CallKit's audio is on: it starts from CallKit's `didActivate` and stops as the last call ends, with flutter_webrtc's own session management off | Audio must start in the session CallKit activates, and CallKit's teardown tells a still-enabled engine its interruption ended, so it restarts and turns the session back on in the background, keeping other apps' audio paused |
 | Mute goes through the input mixer and mirrors CallKit's mute | A track mute would outlive the call, and CallKit's mute holds the uplink system-wide |
 | A native backstop ends a ring before CallKit's own timeout | CallKit's own end looks like a decline |
 | Recents are off, and the handle is an opaque room token | Recents sync through iCloud, and nothing handles a redial |

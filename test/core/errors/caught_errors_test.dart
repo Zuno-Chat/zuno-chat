@@ -35,6 +35,22 @@ void main() {
     ]);
   });
 
+  test('the same message under two labels reaches Sentry for both, grouped '
+      'as text', () async {
+    await captureCaught('pull audio', 'not_found_track_error', null);
+    await captureCaught('pull video', 'not_found_track_error', null);
+
+    expect(transport.events.map((e) => e.tags?['caught']), [
+      'pull audio',
+      'pull video',
+    ]);
+    expect(transport.events.last.fingerprint, ['pull video', 'String']);
+    expect(
+      transport.events.last.throwable.toString(),
+      'not_found_track_error',
+    );
+  });
+
   test('never sends a network failure', () async {
     await captureCaught('sync', const SocketException('offline'), null);
 

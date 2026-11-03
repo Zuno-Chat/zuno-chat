@@ -80,9 +80,51 @@ final class MetricSummariesTests: XCTestCase {
     XCTAssertNil(MetricSummaries.crashKey(terminationReason: nil))
   }
 
-  func testASummaryLineCarriesOnlyItsKindAndCounts() {
-    XCTAssertEqual(
-      MetricSummary(kind: "exits", endMs: 1, counts: ["watchdog": 1, "memory": 2]).line,
-      "exits memory=2 watchdog=1")
+  func testRoutineMemoryReclaimsAreNotReported() {
+    let exits = FakeBackgroundExits(cumulativeMemoryPressureExitCount: 3)
+    XCTAssertNil(MetricSummaries.exits(exits, end: Date(timeIntervalSince1970: 10)))
   }
+
+  func testGoingOverTheMemoryLimitIsCountedAsOutOfMemory() {
+    let exits = FakeBackgroundExits(
+      cumulativeMemoryResourceLimitExitCount: 1, cumulativeMemoryPressureExitCount: 3)
+    XCTAssertEqual(
+      MetricSummaries.exits(exits, end: Date(timeIntervalSince1970: 10)),
+      MetricSummary(kind: "exits", endMs: 10_000, counts: ["memory": 1]))
+  }
+
+  func testEveryOtherBackgroundExitKeepsItsCount() {
+    let exits = FakeBackgroundExits(
+      cumulativeSuspendedWithLockedFileExitCount: 1, cumulativeAppWatchdogExitCount: 2,
+      cumulativeBackgroundTaskAssertionTimeoutExitCount: 3, cumulativeCPUResourceLimitExitCount: 4,
+      cumulativeBadAccessExitCount: 5, cumulativeIllegalInstructionExitCount: 6,
+      cumulativeAbnormalExitCount: 7)
+    XCTAssertEqual(
+      MetricSummaries.exits(exits, end: Date(timeIntervalSince1970: 10))?.counts,
+      [
+        "locked_file": 1, "watchdog": 2, "task_timeout": 3, "cpu": 4, "bad_access": 11,
+        "abnormal": 7,
+      ])
+  }
+
+  func testEachCountedReasonIsReportedOnItsOwn() {
+    XCTAssertEqual(
+      MetricSummary(kind: "exits", endMs: 1, counts: ["watchdog": 1, "memory": 2]).reports,
+      [
+        MetricReport(source: "exits", reason: "memory", summary: "exits memory=2"),
+        MetricReport(source: "exits", reason: "watchdog", summary: "exits watchdog=1"),
+      ])
+  }
+}
+
+private struct FakeBackgroundExits: BackgroundExitCounts {
+  var cumulativeSuspendedWithLockedFileExitCount = 0
+  var cumulativeMemoryResourceLimitExitCount = 0
+  var cumulativeMemoryPressureExitCount = 0
+  var cumulativeAppWatchdogExitCount = 0
+  var cumulativeBackgroundTaskAssertionTimeoutExitCount = 0
+  var cumulativeCPUResourceLimitExitCount = 0
+  var cumulativeBadAccessExitCount = 0
+  var cumulativeIllegalInstructionExitCount = 0
+  var cumulativeAbnormalExitCount = 0
 }

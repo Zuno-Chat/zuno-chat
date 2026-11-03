@@ -1,24 +1,29 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/media_audio_session.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/core/ui/page_dots.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
 
+import '../../../helpers/fake_audio_session.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/pump_until.dart';
 import '../../../helpers/route_launcher.dart';
 
 void main() {
   late FakeVideoPlayer player;
+  late FakeAudioSessionPort port;
   List<ComposedMedia>? result;
   var closed = false;
 
   setUp(() {
     player = installFakeVideoPlayer();
+    port = FakeAudioSessionPort();
     result = null;
     closed = false;
   });
@@ -29,15 +34,22 @@ void main() {
     bool settle = true,
   }) async {
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: routeLauncher<List<ComposedMedia>>(
-          (_) => MediaCaptionComposerPage(items: items),
-          onResult: (composed) {
-            result = composed;
-            closed = true;
-          },
+      ProviderScope(
+        overrides: [
+          mediaAudioSessionProvider.overrideWithValue(
+            fakeMediaAudioSession(port),
+          ),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: routeLauncher<List<ComposedMedia>>(
+            (_) => MediaCaptionComposerPage(items: items),
+            onResult: (composed) {
+              result = composed;
+              closed = true;
+            },
+          ),
         ),
       ),
     );
@@ -175,6 +187,48 @@ void main() {
     expect(find.byIcon(Icons.play_arrow), findsOneWidget);
   });
 
+  testWidgets('the preview leaves audio focus to the app', (tester) async {
+    await open(tester, [clip('clip.mp4')]);
+
+    expect(player.calls, contains('mixWithOthers true'));
+  });
+
+  testWidgets('playing the preview holds the media session, and pausing '
+      'gives it back', (tester) async {
+    await open(tester, [clip('clip.mp4')]);
+
+    await tester.tap(find.byType(VideoPlayer));
+    await tester.pump();
+    expect(port.log, ['configure video', 'active']);
+
+    await tester.tap(find.byType(VideoPlayer));
+    await tester.pump();
+    expect(port.log.last, 'inactive');
+  });
+
+  testWidgets('closing the screen while the preview plays gives the media '
+      'session back', (tester) async {
+    await open(tester, [clip('clip.mp4')]);
+    await tester.tap(find.byType(VideoPlayer));
+    await tester.pump();
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(port.log.last, 'inactive');
+  });
+
+  testWidgets('an interruption pauses the preview', (tester) async {
+    await open(tester, [clip('clip.mp4')]);
+    await tester.tap(find.byType(VideoPlayer));
+    await tester.pump();
+
+    port.interrupt();
+    await tester.pump();
+
+    expect(player.calls.last, 'pause');
+  });
+
   testWidgets('one video goes out with its size, length and trimmed '
       'caption', (tester) async {
     await open(tester, [clip('clip.mp4')]);
@@ -292,6 +346,21 @@ void main() {
     () => disposed() >= count,
     reason: '$count players to be let go',
   );
+
+  testWidgets('swiping on while the preview is starting leaves the closed '
+      'player alone', (tester) async {
+    final configuring = Completer<void>();
+    port.holdConfigure = configuring;
+    await open(tester, [clip('a.mp4'), clip('b.mp4')]);
+
+    await tester.tap(find.byType(VideoPlayer));
+    await swipeNext(tester);
+    await untilDisposed(tester, 1);
+    configuring.complete();
+    await tester.pump();
+
+    expect(port.log.last, 'inactive');
+  });
 
   testWidgets('only the video on screen holds a player', (tester) async {
     await open(tester, [clip('a.mp4'), clip('b.mp4'), clip('c.mp4')]);

@@ -36,11 +36,12 @@ void main() {
     String msgtype = MessageTypes.Image,
     Map<String, Object?> info = const {'w': 400, 'h': 300},
     Map<String, Object?> extra = const {},
+    EventStatus status = EventStatus.synced,
   }) => buildTestEvent(
     server.room,
     eventId: '\$$id',
     senderId: '@bob:example.org',
-    status: EventStatus.synced,
+    status: status,
     content: {
       'msgtype': msgtype,
       'body': '$id.jpg',
@@ -55,11 +56,13 @@ void main() {
     int index,
     int count, {
     String msgtype = MessageTypes.Image,
+    EventStatus status = EventStatus.synced,
   }) => media(
     id,
     msgtype: msgtype,
     info: {'w': 400, 'h': 300, 'thumbnail_url': 'mxc://example.org/$id-thumb'},
     extra: galleryGroupContent(id: 'g', index: index, count: count),
+    status: status,
   );
 
   void thumbnailOnPhone(Event event) => AttachmentCache.instance.put(
@@ -244,7 +247,7 @@ void main() {
 
     testWidgets('while sending it shows the local preview and progress, '
         'and cannot be opened', (tester) async {
-      final event = media('photo');
+      final event = media('photo', status: EventStatus.sending);
       await pumpIn(
         tester,
         ImageMessage(
@@ -263,12 +266,35 @@ void main() {
       expect(find.byType(AttachmentProgressBar), findsOneWidget);
       expect(opened, isEmpty);
     });
+
+    for (final status in [EventStatus.sending, EventStatus.error]) {
+      testWidgets('a photo the server does not have yet cannot be opened '
+          '(${status.name})', (tester) async {
+        await pumpIn(
+          tester,
+          ImageMessage(
+            event: media('photo', status: status),
+            mediaMeta: _meta,
+            onOpen: opened.add,
+            showTimeOverlay: true,
+          ),
+        );
+
+        await tester.tap(find.byType(AspectRatio));
+
+        expect(opened, isEmpty);
+      });
+    }
   });
 
   group('VideoMessage', () {
-    Event video({Map<String, Object?>? info}) => media(
+    Event video({
+      Map<String, Object?>? info,
+      EventStatus status = EventStatus.synced,
+    }) => media(
       'clip',
       msgtype: MessageTypes.Video,
+      status: status,
       info:
           info ??
           const {
@@ -375,7 +401,7 @@ void main() {
 
     testWidgets('while sending it shows the local preview, no play button, '
         'and cannot be opened', (tester) async {
-      final event = video();
+      final event = video(status: EventStatus.sending);
       await pumpIn(
         tester,
         VideoMessage(
@@ -402,7 +428,7 @@ void main() {
     testWidgets('while sending without a preview it holds the shape empty', (
       tester,
     ) async {
-      final event = video();
+      final event = video(status: EventStatus.sending);
       await pumpIn(
         tester,
         VideoMessage(
@@ -425,7 +451,7 @@ void main() {
     testWidgets('while sending without a preview or shape it waits for the '
         'thumbnail', (tester) async {
       server.holdDownloads();
-      final event = video();
+      final event = video(status: EventStatus.sending);
       await pumpIn(
         tester,
         VideoMessage(
@@ -441,6 +467,24 @@ void main() {
 
       server.releaseDownloads();
       await tester.pump();
+    });
+
+    testWidgets('a video the server does not have yet cannot be opened', (
+      tester,
+    ) async {
+      await pumpIn(
+        tester,
+        VideoMessage(
+          event: video(status: EventStatus.error),
+          mediaMeta: _meta,
+          onOpen: opened.add,
+          showTimeOverlay: true,
+        ),
+      );
+
+      await tester.tap(find.byType(AspectRatio));
+
+      expect(opened, isEmpty);
     });
   });
 
@@ -583,7 +627,10 @@ void main() {
 
     testWidgets('an item still sending shows its preview and progress, and '
         'cannot be opened', (tester) async {
-      final events = items(2);
+      final events = [
+        galleryItem('g0', 0, 2, status: EventStatus.sending),
+        galleryItem('g1', 1, 2),
+      ];
       await pumpIn(tester, gallery(events, pending: sending(events.first)));
 
       await tester.tap(find.byType(AspectRatio).first);
@@ -593,6 +640,20 @@ void main() {
       );
       expect(spinner.value, 0.75);
       expect(opened, isEmpty);
+    });
+
+    testWidgets('an item waiting its turn to send cannot be opened, while a '
+        'sent one beside it can', (tester) async {
+      final events = [
+        galleryItem('g0', 0, 2),
+        galleryItem('g1', 1, 2, status: EventStatus.sending),
+      ];
+      await pumpIn(tester, gallery(events));
+
+      await tester.tap(find.byType(AspectRatio).at(1));
+      await tester.tap(find.byType(AspectRatio).at(0));
+
+      expect(opened, [same(events[0])]);
     });
   });
 

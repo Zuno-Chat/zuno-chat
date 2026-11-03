@@ -15,6 +15,20 @@ enum MetricKitLine {
     }
     return fields.joined(separator: " ")
   }
+
+  static func report(terminationReason: String?, exceptionType: Int?, signal: Int?)
+    -> MetricReport
+  {
+    let cause =
+      MetricSummaries.crashKey(terminationReason: terminationReason)
+      ?? signal.map { "signal=\($0)" }
+      ?? exceptionType.map { "exception=\($0)" }
+      ?? "unknown"
+    return MetricReport(
+      source: "crash", reason: cause,
+      summary: line(
+        terminationReason: terminationReason, exceptionType: exceptionType, signal: signal))
+  }
 }
 
 final class MetricsSubscriber: NSObject, MXMetricManagerSubscriber, @unchecked Sendable {
@@ -51,44 +65,53 @@ final class MetricsSubscriber: NSObject, MXMetricManagerSubscriber, @unchecked S
               kind: "memory", end: report.timeRange.end, counts: [key: 1])
           else { continue }
           MetricSummaryStore.standard.append([summary])
-          self?.record([summary.line])
+          self?.record(summary.reports)
         }
       }
     }
   }
 
   func didReceive(_ payloads: [MXDiagnosticPayload]) {
-    let lines = payloads.flatMap { payload in
+    let reports = payloads.flatMap { payload in
       (payload.crashDiagnostics ?? []).map {
-        MetricKitLine.line(
+        MetricKitLine.report(
           terminationReason: $0.terminationReason, exceptionType: $0.exceptionType?.intValue,
           signal: $0.signal?.intValue)
       }
     }
-    record(lines)
+    record(reports)
     MetricSummaryStore.standard.append(payloads.compactMap(MetricSummaries.crashes(from:)))
   }
 
   func didReceive(_ payloads: [MXMetricPayload]) {
     let summaries = payloads.compactMap(MetricSummaries.exits(from:))
     MetricSummaryStore.standard.append(summaries)
-    record(summaries.map(\.line))
+    record(summaries.flatMap(\.reports))
   }
 
-  func record(_ lines: [String]) {
-    guard !lines.isEmpty else { return }
+  func record(_ reports: [MetricReport]) {
+    guard !reports.isEmpty else { return }
     lock.lock()
-    let pending = (defaults.stringArray(forKey: Self.pendingKey) ?? []) + lines
-    defaults.set(Array(pending.suffix(Self.pendingLimit)), forKey: Self.pendingKey)
+    let pending = Array((loadPending() + reports).suffix(Self.pendingLimit))
+    CaughtErrors.attempt("metric reports write") {
+      defaults.set(try JSONEncoder().encode(pending), forKey: Self.pendingKey)
+    }
     lock.unlock()
-    for line in lines { log(line) }
+    for report in reports { log(report.summary) }
   }
 
-  func takePending() -> [String] {
+  func takePending() -> [MetricReport] {
     lock.lock()
     defer { lock.unlock() }
-    let pending = defaults.stringArray(forKey: Self.pendingKey) ?? []
+    let pending = loadPending()
     defaults.removeObject(forKey: Self.pendingKey)
     return pending
+  }
+
+  private func loadPending() -> [MetricReport] {
+    guard let data = defaults.data(forKey: Self.pendingKey) else { return [] }
+    return CaughtErrors.attempt("metric reports read") {
+      try JSONDecoder().decode([MetricReport].self, from: data)
+    } ?? []
   }
 }

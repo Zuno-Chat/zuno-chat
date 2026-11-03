@@ -17,6 +17,15 @@ class CaughtErrorType implements Exception {
   String toString() => '$type';
 }
 
+class CaughtMessage implements Exception {
+  CaughtMessage(this.message);
+
+  final String message;
+
+  @override
+  String toString() => message;
+}
+
 void reportCaught(String label, Object error, [StackTrace? stack]) {
   debugPrint('zuno/caught: $label: $error');
   unawaited(captureCaught(label, error, stack));
@@ -54,7 +63,11 @@ Future<void> _captureCaught(
   if (!Sentry.isEnabled || isConnectionError(error)) return;
   if (!_reportedLabels.add(label)) return;
   await Sentry.captureException(
-    typeOnly ? CaughtErrorType(error.runtimeType) : error,
+    typeOnly
+        ? CaughtErrorType(error.runtimeType)
+        : error is String
+        ? CaughtMessage(error)
+        : error,
     stackTrace: stack,
     message: detail == null ? null : SentryMessage(detail),
     withScope: (scope) async {

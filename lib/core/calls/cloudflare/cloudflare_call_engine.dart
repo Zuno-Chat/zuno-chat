@@ -35,6 +35,7 @@ RTCSessionDescription _remoteDescription(CfSessionDescription description) =>
 
 const _audioSender = 'local-audio';
 const _videoSender = 'local-video';
+const _missingTrackCode = 'not_found_track_error';
 
 typedef _SenderCryptor = ({RTCRtpSender sender, FrameCryptor cryptor});
 
@@ -1366,8 +1367,9 @@ class CloudflareCallEngine implements CallEngine {
   @override
   void updateRemoteParticipant(
     VoipParticipantId id,
-    Map<String, Object?> fociInfo,
-  ) {
+    Map<String, Object?> fociInfo, {
+    required String? membershipEventId,
+  }) {
     if (_left) return;
     final remoteSessionId = fociInfo['sessionId'];
     if (remoteSessionId is! String) return;
@@ -1380,8 +1382,10 @@ class CloudflareCallEngine implements CallEngine {
         _remote[id] ?? _RemoteParticipant(id: id, sessionId: remoteSessionId);
     _remote[id] = remote;
     final sessionChanged = remote.sessionId != remoteSessionId;
+    if (sessionChanged) remote.pullFailures.clear();
     remote
       ..sessionId = remoteSessionId
+      ..membershipEventId = membershipEventId
       ..advertisedTracks = tracks
       ..audioMuted = fociInfo['audioMuted'] == true
       ..videoEnabled = fociInfo['videoEnabled'] == true
@@ -1564,14 +1568,19 @@ class CloudflareCallEngine implements CallEngine {
     String? errorCode,
   ) {
     if (errorCode == null) {
-      remote.pullErrors.remove(trackName);
+      remote.pullFailures.remove(trackName);
       return;
     }
-    if (remote.pullErrors[trackName] == errorCode) return;
-    remote.pullErrors[trackName] = errorCode;
-    if (errorCode != callRemovedErrorCode) {
-      reportCaught('pull $trackName', errorCode);
+    var failure = remote.pullFailures[trackName];
+    if (failure == null || failure.code != errorCode) {
+      failure = _PullFailure(errorCode, seenWith: remote.membershipEventId);
+      remote.pullFailures[trackName] = failure;
     }
+    if (failure.reported || !failure.isDefect(remote.membershipEventId)) {
+      return;
+    }
+    failure.reported = true;
+    reportCaught('pull $trackName', errorCode);
   }
 
   Future<void> _adoptRemoteTransceivers(
@@ -1675,6 +1684,21 @@ class CloudflareCallEngine implements CallEngine {
 Future<void> _disposeAdoptedStream(MediaStream? stream) =>
     runBestEffort(stream?.dispose, label: 'dispose an adopted stream');
 
+class _PullFailure {
+  _PullFailure(this.code, {required this.seenWith});
+
+  final String code;
+  final String? seenWith;
+  bool reported = false;
+
+  bool isDefect(String? latestMembership) => switch (code) {
+    callRemovedErrorCode => false,
+    _missingTrackCode =>
+      latestMembership != null && latestMembership != seenWith,
+    _ => true,
+  };
+}
+
 class _RemoteParticipant {
   final VoipParticipantId id;
   String sessionId;
@@ -1682,7 +1706,8 @@ class _RemoteParticipant {
   final Set<String> pulledTrackNames = {};
   final Map<String, RTCRtpTransceiver> recvTransceivers = {};
   final Map<String, MediaStream> adoptedStreams = {};
-  final Map<String, String> pullErrors = {};
+  final Map<String, _PullFailure> pullFailures = {};
+  String? membershipEventId;
   MediaStream? audioStream;
   MediaStream? videoStream;
   bool audioMuted = false;
@@ -1715,7 +1740,7 @@ class _RemoteParticipant {
     adoptedStreams.clear();
     recvTransceivers.clear();
     pulledTrackNames.clear();
-    pullErrors.clear();
+    pullFailures.clear();
     audioStream = null;
     videoStream = null;
     resyncPending = false;

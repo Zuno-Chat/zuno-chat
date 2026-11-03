@@ -243,6 +243,7 @@ void main() {
     String deviceId = 'DEVICE',
     String callId = 'call1',
     Map<String, Object?> fociActive = const {},
+    String? eventId,
   }) => r.setState(
     callMemberEvent(
       r,
@@ -251,6 +252,7 @@ void main() {
       callId: callId,
       fociActive: fociActive,
       expiresIn: const Duration(minutes: 5),
+      eventId: eventId,
     ),
   );
 
@@ -3156,6 +3158,32 @@ void main() {
       expect(session.phase, CallSessionPhase.active);
       return (session, engine);
     }
+
+    test('each membership a remote publishes reaches the engine with its '
+        'own event', () async {
+      client.rooms.add(room);
+      final (_, engine) = await activeIn(room);
+
+      joinTheCall(
+        room,
+        '@ann:example.org',
+        deviceId: 'ANN',
+        fociActive: {'sessionId': 'remote'},
+        eventId: r'$first',
+      );
+      await sync();
+      expect(engine.updatedMembershipEventIds.last, r'$first');
+
+      joinTheCall(
+        room,
+        '@ann:example.org',
+        deviceId: 'ANN',
+        fociActive: {'sessionId': 'remote'},
+        eventId: r'$refreshed',
+      );
+      await sync();
+      expect(engine.updatedMembershipEventIds.last, r'$refreshed');
+    });
 
     test('a cache rebuild mid-call keeps following the rebuilt room', () async {
       client.rooms.add(room);

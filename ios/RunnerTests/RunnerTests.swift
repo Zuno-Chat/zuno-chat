@@ -1,6 +1,8 @@
 import AVFoundation
 import CallKit
+import WebRTC
 import XCTest
+import flutter_webrtc
 
 @testable import Runner
 
@@ -403,6 +405,58 @@ final class CallAudioRoutingTests: XCTestCase {
     XCTAssertEqual(
       CallAudioRouting.preferredInput(for: .wiredHeadset, available: [.builtInMic, .bluetoothHFP]),
       .unchanged)
+  }
+}
+
+@MainActor
+final class CallAudioEngineTests: XCTestCase {
+  private final class EngineSwitch: CallAudioEngineSwitch {
+    var available: [Bool] = []
+
+    func attach(_ factory: RTCPeerConnectionFactory?, plugin: FlutterWebRTCPlugin?) {}
+
+    func setAvailable(_ value: Bool) {
+      available.append(value)
+    }
+  }
+
+  private let session = AVAudioSession.sharedInstance()
+
+  func testTheEngineStopsAsSoonAsTheLastCallEndsWithoutWaitingForCallKit() {
+    let engine = EngineSwitch()
+    let audio = CallAudio(engine: engine)
+    audio.prepareForCall(isVideo: false)
+    audio.didActivate(session)
+    XCTAssertEqual(engine.available.last, true)
+
+    audio.callsEnded()
+
+    XCTAssertEqual(engine.available.last, false)
+    audio.didDeactivate(session)
+  }
+
+  func testACallStartingBeforeCallKitTurnsTheLastCallsAudioOffRunsTheEngine() {
+    let engine = EngineSwitch()
+    let audio = CallAudio(engine: engine)
+    audio.prepareForCall(isVideo: false)
+    audio.didActivate(session)
+    audio.callsEnded()
+
+    audio.prepareForCall(isVideo: false)
+
+    XCTAssertEqual(engine.available.last, true)
+    audio.callsEnded()
+    audio.didDeactivate(session)
+  }
+
+  func testAudioCallKitTurnsOnWithoutACallLeavesTheEngineOff() {
+    let engine = EngineSwitch()
+    let audio = CallAudio(engine: engine)
+
+    audio.didActivate(session)
+
+    XCTAssertFalse(engine.available.contains(true))
+    audio.didDeactivate(session)
   }
 }
 

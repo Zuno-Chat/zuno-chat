@@ -917,7 +917,7 @@ class CallSession {
     if (_roomSeen && client.getRoomById(_roomId) == null) return;
     final seenThisPass = <VoipParticipantId>{};
 
-    for (final (:userId, :membership, eventId: _) in callJoins(room, callId)) {
+    for (final (:userId, :membership, :eventId) in callJoins(room, callId)) {
       if (userId == _myUserId) continue;
       final id = VoipParticipantId(
         userId: userId,
@@ -943,7 +943,11 @@ class CallSession {
         }
       }
       _aloneTimer?.cancel();
-      eng.updateRemoteParticipant(id, membership.fociActive);
+      eng.updateRemoteParticipant(
+        id,
+        membership.fociActive,
+        membershipEventId: eventId,
+      );
     }
 
     final departed = _knownRemote.difference(seenThisPass);

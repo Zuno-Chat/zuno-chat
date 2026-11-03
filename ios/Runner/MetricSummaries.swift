@@ -8,10 +8,36 @@ struct MetricSummary: Codable, Equatable, Sendable {
 
   var channelValue: [String: Any] { ["kind": kind, "end_ms": endMs, "counts": counts] }
 
-  var line: String {
-    ([kind] + counts.keys.sorted().map { "\($0)=\(counts[$0] ?? 0)" }).joined(separator: " ")
+  var reports: [MetricReport] {
+    counts.keys.sorted().map {
+      MetricReport(source: kind, reason: $0, summary: "\(kind) \($0)=\(counts[$0] ?? 0)")
+    }
   }
 }
+
+struct MetricReport: Codable, Equatable, Sendable {
+  let source: String
+  let reason: String
+  let summary: String
+
+  var channelValue: [String: Any] {
+    ["kind": "metrickit", "source": source, "reason": reason, "summary": summary]
+  }
+}
+
+protocol BackgroundExitCounts {
+  var cumulativeSuspendedWithLockedFileExitCount: Int { get }
+  var cumulativeMemoryResourceLimitExitCount: Int { get }
+  var cumulativeMemoryPressureExitCount: Int { get }
+  var cumulativeAppWatchdogExitCount: Int { get }
+  var cumulativeBackgroundTaskAssertionTimeoutExitCount: Int { get }
+  var cumulativeCPUResourceLimitExitCount: Int { get }
+  var cumulativeBadAccessExitCount: Int { get }
+  var cumulativeIllegalInstructionExitCount: Int { get }
+  var cumulativeAbnormalExitCount: Int { get }
+}
+
+extension MXBackgroundExitData: BackgroundExitCounts {}
 
 enum MetricSummaries {
   static let pushkitUnreported = "pushkit_unreported"
@@ -33,12 +59,15 @@ enum MetricSummaries {
 
   static func exits(from payload: MXMetricPayload) -> MetricSummary? {
     guard let exits = payload.applicationExitMetrics?.backgroundExitData else { return nil }
-    return make(
-      kind: "exits", end: payload.timeStampEnd,
+    return self.exits(exits, end: payload.timeStampEnd)
+  }
+
+  static func exits(_ exits: some BackgroundExitCounts, end: Date) -> MetricSummary? {
+    make(
+      kind: "exits", end: end,
       counts: [
         "locked_file": exits.cumulativeSuspendedWithLockedFileExitCount,
-        "memory": exits.cumulativeMemoryResourceLimitExitCount
-          + exits.cumulativeMemoryPressureExitCount,
+        "memory": exits.cumulativeMemoryResourceLimitExitCount,
         "watchdog": exits.cumulativeAppWatchdogExitCount,
         "task_timeout": exits.cumulativeBackgroundTaskAssertionTimeoutExitCount,
         "cpu": exits.cumulativeCPUResourceLimitExitCount,

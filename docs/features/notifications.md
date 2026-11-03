@@ -243,7 +243,7 @@ What the app relies on:
 
 Settings → Notifications → Diagnostics, on both platforms. `push_diagnostics_report.dart` builds its sections from a native snapshot (`zuno/push_diag`) and server checks, chosen by the data present and the capability flags, never by a platform check.
 
-Both platforms show the permission, this device's registration and the module's health. iOS adds the VoIP registration and recent rings, the extension's recent runs, and MetricKit exit and crash summaries.
+Both platforms show the permission, this device's registration and the module's health. iOS adds the VoIP registration and recent rings, the extension's recent runs, and MetricKit exit and crash summaries, where exits count only kills that point at a defect (`crash-reporting.md`).
 
 - **Every native read is best-effort.** A failed read shows as unknown, never as a denial.
 - **A missing or disabled module** is informational on Android, which still rings from the call's message without it, and a problem on iOS.

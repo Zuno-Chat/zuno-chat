@@ -12,6 +12,7 @@ class FakeAudioSessionPort implements AudioSessionPort {
   final _interruptions = StreamController<void>.broadcast();
   final _unplugged = StreamController<void>.broadcast();
   bool refuse = false;
+  Completer<void>? holdConfigure;
 
   void interrupt() => _interruptions.add(null);
 
@@ -26,6 +27,7 @@ class FakeAudioSessionPort implements AudioSessionPort {
   @override
   Future<void> configure(AudioSessionConfiguration configuration) async {
     log.add('configure ${_nameOf(configuration)}');
+    await holdConfigure?.future;
     if (refuse) throw PlatformException(code: 'refused');
   }
 

@@ -6,6 +6,7 @@ import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/cover_image.dart';
 import '../../../../core/matrix/media_gallery_group.dart';
 import '../../../../core/matrix/media_size.dart';
+import '../../../../core/matrix/room_media_feed.dart';
 import '../../../../core/ui/media_pill.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_theme.dart';
@@ -186,7 +187,7 @@ class _GalleryThumbnail extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     final pending = pendingSend?.eventId == event.eventId ? pendingSend : null;
     return GestureDetector(
-      onTap: pending != null ? null : onOpen,
+      onTap: opensInViewer(event) ? onOpen : null,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -317,7 +318,7 @@ class ImageMessage extends StatelessWidget {
     return _MediaBubbleBody(
       aspectRatio: aspectRatio,
       pending: pending,
-      onTap: pending != null ? null : () => onOpen(event),
+      onTap: opensInViewer(event) ? () => onOpen(event) : null,
       media: Stack(
         children: [
           Positioned.fill(
@@ -367,7 +368,7 @@ class VideoMessage extends StatelessWidget {
     return _MediaBubbleBody(
       aspectRatio: aspectRatio,
       pending: pending,
-      onTap: pending != null ? null : () => onOpen(event),
+      onTap: opensInViewer(event) ? () => onOpen(event) : null,
       media: Stack(
         alignment: Alignment.center,
         children: [

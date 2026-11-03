@@ -8,7 +8,13 @@ import 'event_display.dart';
 import 'late_decryptions.dart';
 import 'redactions.dart';
 
-enum RoomMediaKind { photo, video, file }
+enum RoomMediaKind {
+  photo,
+  video,
+  file;
+
+  bool get isVisual => this != file;
+}
 
 RoomMediaKind? roomMediaKindOf(Event event) {
   if (event.redacted ||
@@ -23,6 +29,8 @@ RoomMediaKind? roomMediaKindOf(Event event) {
     _ => null,
   };
 }
+
+bool opensInViewer(Event event) => roomMediaKindOf(event)?.isVisual ?? false;
 
 typedef RoomMediaBatch = ({List<Event> events, String? nextBatch});
 typedef RoomMediaBatchFetcher = Future<RoomMediaBatch> Function(
@@ -71,7 +79,7 @@ class RoomMediaFeed extends ChangeNotifier {
 
   List<Event> get visuals => [
     for (final event in _items)
-      if (_kinds[event.eventId] != RoomMediaKind.file) event,
+      if (_kinds[event.eventId]?.isVisual ?? true) event,
   ];
 
   List<Event> get files => [

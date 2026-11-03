@@ -166,12 +166,25 @@ Future<void> reportsSent() async {
   }
 }
 
-Future<void> captureCrash(Object error, StackTrace? stack) =>
-    trackReport(_captureCrash(error, stack));
+Future<void> captureCrash(
+  Object error,
+  StackTrace? stack, {
+  List<String>? fingerprint,
+}) => trackReport(_captureCrash(error, stack, fingerprint));
 
-Future<void> _captureCrash(Object error, StackTrace? stack) async {
+Future<void> _captureCrash(
+  Object error,
+  StackTrace? stack,
+  List<String>? fingerprint,
+) async {
   if (!Sentry.isEnabled) return;
-  await Sentry.captureException(error, stackTrace: stack);
+  await Sentry.captureException(
+    error,
+    stackTrace: stack,
+    withScope: fingerprint == null
+        ? null
+        : (scope) => scope.fingerprint = fingerprint,
+  );
 }
 
 Future<String> readOrCreateInstallId(SharedPreferences prefs) async {

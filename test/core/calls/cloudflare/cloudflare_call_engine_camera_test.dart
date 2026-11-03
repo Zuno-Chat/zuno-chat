@@ -520,21 +520,76 @@ void main() {
       }, kind: CallKind.voice);
     });
 
-    test('a pull the SFU cannot find, once rather than on every retry', () {
+    Iterable<String> pullReports(
+      String track, [
+      String code = 'not_found_track_error',
+    ]) => caught(logs).where((l) => l == 'zuno/caught: pull $track: $code');
+
+    test('a pull the SFU cannot find waits for the remote to announce '
+        'itself again before it is reported', () {
       inCall((call) {
         call.joinEncrypted();
         call.sfu.missingTracks.add('video');
 
-        call.remoteJoins();
-        call.remoteJoins();
+        call.remoteJoins(membershipEventId: r'$first');
+        call.remoteJoins(membershipEventId: r'$first');
 
-        expect(
-          logs.where(
-            (l) =>
-                l.contains('pull video') && l.contains('not_found_track_error'),
-          ),
-          hasLength(1),
-        );
+        expect(pullReports('video'), isEmpty);
+      });
+    });
+
+    test('a pull still missing after the remote announces itself again is '
+        'reported once, for each track', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.sfu.missingTracks.addAll(['audio', 'video']);
+
+        call.remoteJoins(membershipEventId: r'$first');
+        call.remoteJoins(membershipEventId: r'$refreshed');
+        call.remoteJoins(membershipEventId: r'$again');
+
+        expect(pullReports('audio'), hasLength(1));
+        expect(pullReports('video'), hasLength(1));
+      });
+    });
+
+    test('a pull found again by the next announcement is never reported', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.sfu.missingTracks.add('video');
+        call.remoteJoins(membershipEventId: r'$first');
+
+        call.sfu.missingTracks.clear();
+        call.remoteJoins(membershipEventId: r'$refreshed');
+
+        expect(pullReports('video'), isEmpty);
+      });
+    });
+
+    test('a remote that moves to a new session starts waiting over', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.sfu.missingTracks.add('video');
+        call.remoteJoins(sessionId: 'old', membershipEventId: r'$first');
+
+        call.remoteJoins(sessionId: 'new', membershipEventId: r'$moved');
+        expect(pullReports('video'), isEmpty);
+
+        call.remoteJoins(sessionId: 'new', membershipEventId: r'$refreshed');
+        expect(pullReports('video'), hasLength(1));
+      });
+    });
+
+    test('any other pull error is reported straight away, once', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.sfu.missingTracks.add('video');
+        call.sfu.missingTrackCode = 'internal_error';
+
+        call.remoteJoins(membershipEventId: r'$first');
+        call.remoteJoins(membershipEventId: r'$refreshed');
+
+        expect(pullReports('video', 'internal_error'), hasLength(1));
       });
     });
   });

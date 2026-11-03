@@ -34,9 +34,10 @@ Event callMemberEvent(
   Duration expiresIn = const Duration(seconds: 30),
   int createdAtMs = 0,
   Map<String, Object?> fociActive = const {},
+  String? eventId,
 }) => buildTestEvent(
   room,
-  eventId: '\$member-$userId-$deviceId-$callId',
+  eventId: eventId ?? '\$member-$userId-$deviceId-$callId',
   senderId: userId,
   stateKey: userId,
   type: callMemberEventType,

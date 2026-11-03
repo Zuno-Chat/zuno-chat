@@ -324,7 +324,12 @@ final class CallAudioEngineObserver: NSObject, RTCAudioDeviceModuleDelegate, @un
   }
 }
 
-final class CallAudioEngineGate: @unchecked Sendable {
+protocol CallAudioEngineSwitch: AnyObject {
+  func attach(_ factory: RTCPeerConnectionFactory?, plugin: FlutterWebRTCPlugin?)
+  func setAvailable(_ value: Bool)
+}
+
+final class CallAudioEngineGate: CallAudioEngineSwitch, @unchecked Sendable {
   private let queue = DispatchQueue(label: "im.zuno.calls.audio-gate")
   private var factory: RTCPeerConnectionFactory?
   private var module: RTCAudioDeviceModule?
@@ -409,17 +414,21 @@ final class CallAudio {
     return bridged.domain == NSOSStatusErrorDomain && bridged.code == code.rawValue
   }
 
-  private let tones = CallTones()
+  private let tones: CallTones
   lazy var ringback = CallRingback(tones: tones)
   var onRouteChange: ((CallAudioState) -> Void)?
   var onMediaServicesReset: (() -> Void)?
-  private(set) var isActive = false
-  private lazy var gate = CallAudioEngineGate(tones: tones)
+  private(set) var isActive = false {
+    didSet { syncEngine() }
+  }
+  private let gate: any CallAudioEngineSwitch
   private weak var webRTC: FlutterWebRTCPlugin?
   private var observers: [NSObjectProtocol] = []
   private var forwardedActivation = false
   private var selfManaged = false
-  private var inCall = false
+  private var inCall = false {
+    didSet { syncEngine() }
+  }
   private var videoCall = false
   private var saved:
     (
@@ -430,6 +439,12 @@ final class CallAudio {
   private var speakerFirst = false
   private var reported: CallAudioState?
   private var rebalance: Task<Void, Never>?
+
+  init(engine: (any CallAudioEngineSwitch)? = nil) {
+    let tones = CallTones()
+    self.tones = tones
+    gate = engine ?? CallAudioEngineGate(tones: tones)
+  }
 
   func setUp() {
     FlutterWebRTCPlugin.setAudioSessionManagementEnabled(false)
@@ -463,7 +478,7 @@ final class CallAudio {
   func armEngine() {
     let plugin = webRTC ?? FlutterWebRTCPlugin.sharedSingleton()
     gate.attach(plugin?.peerConnectionFactory, plugin: plugin)
-    gate.setAvailable(isActive)
+    syncEngine()
   }
 
   func prepareForCall(isVideo: Bool) {
@@ -506,12 +521,16 @@ final class CallAudio {
   }
 
   func didDeactivate(_ session: AVAudioSession) {
-    deactivated()
+    released(session)
+    restoreIfIdle(after: "CallKit turned audio off")
+  }
+
+  private func released(_ session: AVAudioSession) {
+    isActive = false
     if forwardedActivation {
       RTCAudioSession.sharedInstance().audioSessionDidDeactivate(session)
       forwardedActivation = false
     }
-    restoreIfIdle()
   }
 
   func beginSelfManaged(isVideo: Bool) {
@@ -548,7 +567,7 @@ final class CallAudio {
     } else if isActive {
       scheduleRebalance()
     } else {
-      restoreIfIdle()
+      restoreIfIdle(after: "the last call ended")
     }
   }
 
@@ -581,8 +600,6 @@ final class CallAudio {
 
   private func activated() {
     isActive = true
-    RTCAudioSession.sharedInstance().isAudioEnabled = true
-    gate.setAvailable(true)
     applyStartingRoute()
     report()
   }
@@ -620,20 +637,20 @@ final class CallAudio {
     return source
   }
 
-  private func deactivated() {
-    isActive = false
-    gate.setAvailable(false)
-    RTCAudioSession.sharedInstance().isAudioEnabled = false
+  private func syncEngine() {
+    let runs = inCall && isActive
+    RTCAudioSession.sharedInstance().isAudioEnabled = runs
+    gate.setAvailable(runs)
   }
 
   private func endSelfManaged() {
     selfManaged = false
-    deactivated()
+    isActive = false
     let rtc = RTCAudioSession.sharedInstance()
     rtc.lockForConfiguration()
     CaughtErrors.attempt("call audio self-managed deactivation") { try rtc.setActive(false) }
     rtc.unlockForConfiguration()
-    restoreIfIdle()
+    restoreIfIdle(after: "a call without CallKit")
   }
 
   private func scheduleRebalance() {
@@ -642,7 +659,8 @@ final class CallAudio {
       try? await Task.sleep(nanoseconds: 5_000_000_000)
       guard let self, !Task.isCancelled, !self.inCall, self.isActive else { return }
       Self.log.notice("no deactivation after the last call; rebalancing")
-      self.didDeactivate(.sharedInstance())
+      self.released(.sharedInstance())
+      self.restoreIfIdle(after: "the deactivation fallback")
     }
   }
 
@@ -678,7 +696,7 @@ final class CallAudio {
     }
   }
 
-  private func restoreIfIdle() {
+  private func restoreIfIdle(after reason: String) {
     guard !inCall, !isActive, let saved else { return }
     self.saved = nil
     guard sessionInCallConfiguration else { return }
@@ -688,7 +706,7 @@ final class CallAudio {
     let rtc = RTCAudioSession.sharedInstance()
     rtc.lockForConfiguration()
     defer { rtc.unlockForConfiguration() }
-    CaughtErrors.attempt("call audio restore category") {
+    CaughtErrors.attempt("call audio restore category after \(reason)") {
       try rtc.setCategory(saved.category, mode: saved.mode, options: saved.options)
     }
   }
@@ -735,7 +753,7 @@ final class CallAudio {
     onMediaServicesReset?()
     guard isActive else { return }
     gate.setAvailable(false)
-    gate.setAvailable(true)
+    syncEngine()
     if reconfigured {
       restoreRoute()
     }

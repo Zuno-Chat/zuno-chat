@@ -25,11 +25,11 @@ final class ErrorsPlugin: NSObject, @preconcurrency FlutterPlugin {
       result(FlutterMethodNotImplemented)
       return
     }
-    result(Self.entries(crashes: diagnostics.takePending(), caught: caught()))
+    result(Self.entries(reports: diagnostics.takePending(), caught: caught()))
   }
 
-  static func entries(crashes: [String], caught: [CaughtError]) -> [[String: Any]] {
-    crashes.map { ["kind": "crash", "summary": $0] }
+  static func entries(reports: [MetricReport], caught: [CaughtError]) -> [[String: Any]] {
+    reports.map(\.channelValue)
       + caught.map {
         [
           "kind": "caught", "label": $0.label, "process": $0.process, "type": $0.type,

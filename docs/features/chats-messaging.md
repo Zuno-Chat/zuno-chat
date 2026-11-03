@@ -404,8 +404,9 @@ sends stops the batch (Unsent messages).
 
 ### Audio session
 
-One owner sets the audio session for voice messages, video sound, iOS
-recording and iOS chat tones (`media_audio_session.dart`).
+One owner sets the audio session for voice messages, video sound (the
+viewer and the caption screen's preview), iOS recording and iOS chat tones
+(`media_audio_session.dart`).
 
 - **Voice plays with a speech profile and video with a film profile.** A
   video holds the session only while it plays with sound, and starting a
@@ -451,6 +452,9 @@ the chat too.
 - **The room's media feed is the source** (`rooms-membership.md`). The
   tapped item shows at once, alone until the feed has loaded back to its
   send time; then its neighbors appear.
+- **Only sent media opens it.** A photo or video still sending or not sent
+  can't be tapped open, and a tap on a not-sent one resends it, because its
+  local ID changes when it lands and the viewer would keep the stale copy.
 - **Older items load near the oldest edge.** After a failed or empty page
   only a swipe at that edge tries again (`rooms-membership.md`).
 - **The item on screen never jumps.** New media, older pages and deletions

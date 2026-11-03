@@ -30,8 +30,9 @@ abstract class CallEngine {
 
   void updateRemoteParticipant(
     VoipParticipantId id,
-    Map<String, Object?> fociInfo,
-  );
+    Map<String, Object?> fociInfo, {
+    required String? membershipEventId,
+  });
   void removeRemoteParticipant(VoipParticipantId id);
   void dispose();
 }

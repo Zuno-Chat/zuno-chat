@@ -113,15 +113,35 @@ final class MetricKitLineTests: XCTestCase {
       "crash exception=1 signal=11")
   }
 
-  func testOnlyTheNewestTwentyLinesWaitAndTakingThemEmptiesTheQueue() {
+  func testACrashIsGroupedByItsKnownCauseElseByItsCodes() {
+    func reason(_ terminationReason: String?, _ exceptionType: Int?, _ signal: Int?) -> String {
+      MetricKitLine.report(
+        terminationReason: terminationReason, exceptionType: exceptionType, signal: signal
+      ).reason
+    }
+
+    XCTAssertEqual(reason("Namespace FRONTBOARD, Code 0x8badf00d", 10, 9), "watchdog")
+    XCTAssertEqual(reason(nil, 1, 11), "signal=11")
+    XCTAssertEqual(reason(nil, 1, nil), "exception=1")
+    XCTAssertEqual(reason(nil, nil, nil), "unknown")
+  }
+
+  func testACrashReportCarriesItsLine() {
+    XCTAssertEqual(
+      MetricKitLine.report(terminationReason: nil, exceptionType: 1, signal: 11),
+      MetricReport(source: "crash", reason: "signal=11", summary: "crash exception=1 signal=11"))
+  }
+
+  func testOnlyTheNewestTwentyReportsWaitAndTakingThemEmptiesTheQueue() {
     let defaults = UserDefaults(suiteName: "metrics-\(UUID().uuidString)")!
     let metrics = MetricsSubscriber(defaults: defaults, log: { _ in })
 
-    metrics.record((0..<25).map { "crash n=\($0)" })
+    metrics.record(
+      (0..<25).map { MetricReport(source: "crash", reason: "n\($0)", summary: "crash n=\($0)") })
 
     let pending = metrics.takePending()
     XCTAssertEqual(pending.count, 20)
-    XCTAssertEqual(pending.first, "crash n=5")
+    XCTAssertEqual(pending.first?.summary, "crash n=5")
     XCTAssertEqual(metrics.takePending(), [])
   }
 }

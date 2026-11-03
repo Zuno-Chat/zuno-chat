@@ -46,6 +46,7 @@ void main() {
   late StoredEventsFakeDatabaseApi db;
   late int lookups;
   final resent = <Event>[];
+  final opened = <Event>[];
   final noon = DateTime(2026, 9, 20, 12);
 
   setUp(() {
@@ -58,6 +59,7 @@ void main() {
     room.setState(User(me, membership: 'join', displayName: 'Me', room: room));
     lookups = 0;
     resent.clear();
+    opened.clear();
   });
 
   Event text(
@@ -129,7 +131,7 @@ void main() {
                 onSwipeReply: record.canRespond ? () {} : null,
                 onResend: resent.add,
                 onRetryFailedSend: (_) {},
-                onOpenMedia: (_) {},
+                onOpenMedia: opened.add,
               ),
             ),
           ),
@@ -272,6 +274,30 @@ void main() {
 
     await tester.tap(find.text('hello'));
     expect(resent, [failed]);
+  });
+
+  testWidgets('a failed photo resends on tap instead of opening', (
+    tester,
+  ) async {
+    final failed = buildTestEvent(
+      room,
+      eventId: 'txn-photo',
+      senderId: me,
+      originServerTs: noon,
+      status: EventStatus.error,
+      content: {
+        'msgtype': 'm.image',
+        'body': 'photo.jpg',
+        'url': 'mxc://example.org/photo',
+        'info': {'w': 400, 'h': 300, 'mimetype': 'image/jpeg', 'size': 3},
+      },
+    );
+    await pumpTile(tester, failed);
+
+    await tester.tap(find.byType(ImageMessage));
+
+    expect(resent, [failed]);
+    expect(opened, isEmpty);
   });
 
   group('a message drawn from an edit', () {

@@ -338,6 +338,7 @@ class EngineHarness {
     bool lowBandwidth = false,
     bool weakConnection = false,
     bool advertisesQuality = false,
+    String membershipEventId = r'$membership',
   }) {
     engine.updateRemoteParticipant(id, {
       'sessionId': sessionId,
@@ -348,7 +349,7 @@ class EngineHarness {
       'lowBandwidth': lowBandwidth,
       'weakConnection': weakConnection,
       if (advertisesQuality) 'dataChannels': {'quality': 'quality'},
-    });
+    }, membershipEventId: membershipEventId);
     flush();
   }
 

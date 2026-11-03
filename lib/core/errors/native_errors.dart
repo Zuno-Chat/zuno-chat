@@ -29,9 +29,19 @@ Future<void> drainNativeErrors() async {
   }
   for (final entry in entries.whereType<Map<Object?, Object?>>()) {
     switch (entry['kind']) {
-      case 'crash':
-        if (entry['summary'] case final String summary) {
-          unawaited(captureCrash(IosDiagnostic(summary), null));
+      case 'metrickit':
+        if (entry case {
+          'source': final String source,
+          'reason': final String reason,
+          'summary': final String summary,
+        }) {
+          unawaited(
+            captureCrash(
+              IosDiagnostic(summary),
+              null,
+              fingerprint: ['metrickit', source, reason],
+            ),
+          );
         }
       case 'caught':
         if (entry['label'] case final String label) {

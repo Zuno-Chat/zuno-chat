@@ -1,9 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/media_audio_session.dart';
 import '../../../core/ui/page_dots.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../data/composed_media.dart';
@@ -26,22 +30,23 @@ class PickedVideo extends PickedMedia {
   const PickedVideo({required super.path, required super.name});
 }
 
-class MediaCaptionComposerPage extends StatefulWidget {
+class MediaCaptionComposerPage extends ConsumerStatefulWidget {
   final List<PickedMedia> items;
 
   const MediaCaptionComposerPage({required this.items, super.key});
 
   @override
-  State<MediaCaptionComposerPage> createState() =>
+  ConsumerState<MediaCaptionComposerPage> createState() =>
       _MediaCaptionComposerPageState();
 }
 
-class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
+class _MediaCaptionComposerPageState
+    extends ConsumerState<MediaCaptionComposerPage> {
   late final List<PickedMedia> _items;
   late final List<TextEditingController> _captionControllers;
   final _seenVideos = <PickedVideo, VideoPlayerValue>{};
   PickedVideo? _shownVideo;
-  VideoPlayerController? _player;
+  _PreviewPlayback? _player;
   Future<void>? _playerReady;
   final _pageController = PageController();
   int _page = 0;
@@ -71,18 +76,28 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     if (identical(item, _shownVideo)) return;
     _releasePlayer();
     if (item is! PickedVideo) return;
-    final player = VideoPlayerController.file(fileSystem.file(item.path));
+    final player = _PreviewPlayback(
+      VideoPlayerController.file(
+        fileSystem.file(item.path),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      ),
+      ref.read(mediaAudioSessionProvider),
+    );
     _shownVideo = item;
     _player = player;
-    _playerReady = reportFailureOf(player.initialize(), label: 'preview video')
-      ..ignore();
+    _playerReady = reportFailureOf(
+      player.controller.initialize(),
+      label: 'preview video',
+    )..ignore();
   }
 
   void _releasePlayer() {
     final shown = _shownVideo;
     final player = _player;
-    if (shown != null && player != null && player.value.isInitialized) {
-      _seenVideos[shown] = player.value;
+    if (shown != null &&
+        player != null &&
+        player.controller.value.isInitialized) {
+      _seenVideos[shown] = player.controller.value;
     }
     player?.dispose();
     _shownVideo = null;
@@ -91,7 +106,9 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
   }
 
   VideoPlayerValue _valueOf(PickedVideo video) {
-    final live = identical(video, _shownVideo) ? _player?.value : null;
+    final live = identical(video, _shownVideo)
+        ? _player?.controller.value
+        : null;
     if (live != null && live.isInitialized) return live;
     return _seenVideos[video] ?? const VideoPlayerValue.uninitialized();
   }
@@ -206,26 +223,57 @@ class _MediaCaptionComposerPageState extends State<MediaCaptionComposerPage> {
     if (!identical(item, _shownVideo) || player == null) {
       return const Center(child: CircularProgressIndicator());
     }
-    return _VideoPreview(controller: player, loading: _playerReady);
+    return _VideoPreview(player: player, loading: _playerReady);
+  }
+}
+
+class _PreviewPlayback implements MediaPlayback {
+  _PreviewPlayback(this.controller, this._audio) {
+    controller.addListener(_followController);
+  }
+
+  final VideoPlayerController controller;
+  final MediaAudioSession _audio;
+  bool _wasPlaying = false;
+  bool _disposed = false;
+
+  @override
+  MediaSound get sound => MediaSound.video;
+
+  @override
+  Future<void> pause() => controller.pause();
+
+  Future<void> togglePlay() async {
+    if (controller.value.isPlaying) return controller.pause();
+    await _audio.beginPlayback(this);
+    if (_disposed) return;
+    await controller.play();
+  }
+
+  void _followController() {
+    final playing = controller.value.isPlaying;
+    if (playing == _wasPlaying) return;
+    _wasPlaying = playing;
+    if (!playing) unawaited(_audio.endPlayback(this));
+  }
+
+  void dispose() {
+    _disposed = true;
+    controller.removeListener(_followController);
+    unawaited(_audio.endPlayback(this));
+    unawaited(controller.dispose());
   }
 }
 
 class _VideoPreview extends StatelessWidget {
-  final VideoPlayerController controller;
+  final _PreviewPlayback player;
   final Future<void>? loading;
 
-  const _VideoPreview({required this.controller, required this.loading});
-
-  void _togglePlay() {
-    if (controller.value.isPlaying) {
-      controller.pause();
-    } else {
-      controller.play();
-    }
-  }
+  const _VideoPreview({required this.player, required this.loading});
 
   @override
   Widget build(BuildContext context) {
+    final controller = player.controller;
     return FutureBuilder<void>(
       future: loading,
       builder: (context, snapshot) {
@@ -245,7 +293,7 @@ class _VideoPreview extends StatelessWidget {
         }
         return Center(
           child: GestureDetector(
-            onTap: _togglePlay,
+            onTap: () => unawaited(player.togglePlay()),
             child: AspectRatio(
               aspectRatio: controller.value.aspectRatio,
               child: Stack(

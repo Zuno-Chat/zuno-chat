@@ -143,14 +143,17 @@ class FakeCallEngine implements CallEngine {
       : null;
 
   final updatedRemotes = <VoipParticipantId>[];
+  final updatedMembershipEventIds = <String?>[];
   final removedRemotes = <VoipParticipantId>[];
 
   @override
   void updateRemoteParticipant(
     VoipParticipantId id,
-    Map<String, Object?> fociInfo,
-  ) {
+    Map<String, Object?> fociInfo, {
+    required String? membershipEventId,
+  }) {
     updatedRemotes.add(id);
+    updatedMembershipEventIds.add(membershipEventId);
   }
 
   @override
