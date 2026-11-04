@@ -1,14 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import '../security/password_strength.dart';
-import 'homeserver.dart';
-import 'matrix_client_provider.dart';
 import 'username_field.dart';
 
 const registrationTokenStage = 'm.login.registration_token';
@@ -28,8 +25,6 @@ class RegistrationSupport {
     this.availability, {
     this.requiresRegistrationToken = false,
   });
-
-  bool get isAvailable => availability == RegistrationAvailability.available;
 }
 
 bool isUiaSessionMismatch(MatrixException exception) {
@@ -82,15 +77,14 @@ RegistrationSupport registrationSupportFrom(
 
 const registrationProbeTimeout = Duration(seconds: 35);
 
-Future<RegistrationSupport> fetchRegistrationSupport(Client client) async {
-  final homeserver = client.homeserver;
-  if (homeserver == null) {
-    return const RegistrationSupport(RegistrationAvailability.unknown);
-  }
+Future<RegistrationSupport> fetchRegistrationSupport(
+  Client client,
+  Uri target,
+) async {
   try {
     final response = await client.httpClient
         .post(
-          homeserver.resolve('_matrix/client/v3/register'),
+          target.resolve('_matrix/client/v3/register'),
           headers: const {'content-type': 'application/json'},
           body: jsonEncode(const <String, Object?>{}),
         )
@@ -145,22 +139,6 @@ String? registrationInputError(
   if (password != confirmPassword) return l10n.matrixSignupPasswordsDiffer;
   return null;
 }
-
-class RegistrationProbeInconclusive implements Exception {
-  const RegistrationProbeInconclusive();
-}
-
-final registrationSupportProvider =
-    FutureProvider.autoDispose<RegistrationSupport>((ref) async {
-      ref.watch(homeserverProvider);
-      final support = await fetchRegistrationSupport(
-        ref.watch(matrixClientProvider),
-      );
-      if (support.availability == RegistrationAvailability.unknown) {
-        throw const RegistrationProbeInconclusive();
-      }
-      return support;
-    });
 
 sealed class RegistrationStep {
   const RegistrationStep();

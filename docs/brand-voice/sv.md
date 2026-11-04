@@ -120,7 +120,7 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | leave | Lämna | "{people} left" → «{people} lämnade». |
 | ban | Bannlys / Häv bannlysning · bannlysning | "Banned" heading → «Bannlysta». "{sender} unbanned {people}" → «{sender} hävde bannlysningen av {people}». Never «blockera». |
 | report | Rapportera · rapport | Reasons: «Trakasserier», «Olagligt innehåll», «Skräppost», «Annat skäl». |
-| the people who run your server | de som driver din server · till dem som driver din server | Who receives reports, never Zuno. "They" → «de». Put it last, so a following «och …» cannot read as part of it: «Rapporten namnger … och skickas till dem som driver din server.» |
+| the people who run your server | de som driver din server · till dem som driver din server | Who receives reports and hands out sign-up codes, never Zuno. "They" → «de». Put it last, so a following «och …» cannot read as part of it: «Rapporten namnger … och skickas till dem som driver din server.» |
 | public / private | offentlig / privat | Agree with the noun («ett offentligt rum», «en privat gemenskap»); a label serving both is «Offentlig åtkomst» / «Privat åtkomst» / «Åtkomst via förfrågan» / «Åtkomst för gemenskapen». "Make public" → «Gör offentlig». |
 | topic, description, address, ID | ämne · beskrivning · adress · ID | Room alias → «rumsadress». |
 | hostname | servernamn | |

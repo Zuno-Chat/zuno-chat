@@ -27,7 +27,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
   @override
   void initState() {
     super.initState();
-    final current = ref.read(homeserverProvider).value;
+    final current = ref.read(homeserverProvider).value?.homeserver;
     final text = current == null ? '' : homeserverInputText(current);
     _homeserver = TextEditingController(text: text)
       ..selection = TextSelection(baseOffset: 0, extentOffset: text.length);
@@ -70,32 +70,35 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return AuthScaffold(
-      title: l10n.authConnectToServer,
-      children: [
-        ZunoTextField(
-          autofillHints: null,
-          controller: _homeserver,
-          enabled: !_loading,
-          keyboardType: TextInputType.url,
-          autocorrect: false,
-          onSubmitted: (_) => _continue(),
-          decoration: InputDecoration(
-            labelText: l10n.authServerLabel,
-            hintText: l10n.authHomeserverHint,
-            helperText: l10n.authServerHelper,
+    return PopScope(
+      canPop: !_loading,
+      child: AuthScaffold(
+        title: l10n.authConnectToServer,
+        children: [
+          ZunoTextField(
+            autofillHints: null,
+            controller: _homeserver,
+            enabled: !_loading,
+            keyboardType: TextInputType.url,
+            autocorrect: false,
+            onSubmitted: (_) => _continue(),
+            decoration: InputDecoration(
+              labelText: l10n.authServerLabel,
+              hintText: l10n.authHomeserverHint,
+              helperText: l10n.authServerHelper,
+            ),
           ),
-        ),
-        if (_error case final error?) ...[
-          const SizedBox(height: 16),
-          InlineError(error),
+          if (_error case final error?) ...[
+            const SizedBox(height: 16),
+            InlineError(error),
+          ],
+          const SizedBox(height: 24),
+          FilledButton(
+            onPressed: _loading ? null : _continue,
+            child: Text(_loading ? l10n.authConnecting : l10n.commonContinue),
+          ),
         ],
-        const SizedBox(height: 24),
-        FilledButton(
-          onPressed: _loading ? null : _continue,
-          child: Text(_loading ? l10n.authConnecting : l10n.commonContinue),
-        ),
-      ],
+      ),
     );
   }
 }

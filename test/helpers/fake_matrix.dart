@@ -137,6 +137,25 @@ class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
   ) async {}
 }
 
+class CachingFakeDatabaseApi extends FakeDatabaseApi {
+  final Map<String, ({Map<String, Object?> content, DateTime savedAt})> cache =
+      {};
+  bool failSave = false;
+
+  @override
+  Future<({Map<String, Object?> content, DateTime savedAt})?>
+  getCustomCacheObject(String cacheKey) async => cache[cacheKey];
+
+  @override
+  Future<void> cacheCustomObject(
+    String cacheKey,
+    Map<String, Object?> content,
+  ) async {
+    if (failSave) throw StateError('disk full');
+    cache[cacheKey] = (content: content, savedAt: clock.now());
+  }
+}
+
 class UploadingFakeDatabaseApi extends MediaCapableFakeDatabaseApi {
   @override
   Future<({Map<String, Object?> content, DateTime savedAt})?>

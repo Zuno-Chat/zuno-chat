@@ -31,6 +31,7 @@ class SignedOutEntry extends ConsumerWidget {
       }
     }
     return homeserver.when(
+      skipLoadingOnRefresh: false,
       data: (_) => const LoginPage(),
       loading: () =>
           const Scaffold(body: Center(child: CircularProgressIndicator())),

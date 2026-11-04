@@ -11,6 +11,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
 
 import '../../../helpers/caught_reports.dart';
@@ -21,7 +22,7 @@ import '../../../helpers/preferences_container.dart';
 
 class _UnreachableHomeserver extends HomeserverNotifier {
   @override
-  Future<Uri> build() async => throw http.ClientException('offline');
+  Future<ServerChoice> build() async => throw http.ClientException('offline');
 }
 
 void main() {
@@ -61,7 +62,13 @@ void main() {
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         homeserverProvider.overrideWith(
-          homeserver ?? () => FixedHomeserver(Uri.https('example.org')),
+          homeserver ??
+              () => FixedHomeserver(
+                ServerChoice(
+                  Uri.https('example.org'),
+                  apiHost: Uri.https('example.org'),
+                ),
+              ),
         ),
       ],
     );
@@ -276,7 +283,12 @@ void main() {
       tester,
       client: clientRecording(bodies),
       scan: (_) async => bytesOf(code.encode()),
-      homeserver: () => FixedHomeserver(Uri.http('localhost:8008')),
+      homeserver: () => FixedHomeserver(
+        ServerChoice(
+          Uri.http('localhost:8008'),
+          apiHost: Uri.http('localhost:8008'),
+        ),
+      ),
     );
 
     await tester.tap(find.widgetWithText(FilledButton, 'Scan code'));
@@ -292,7 +304,12 @@ void main() {
     await pumpPage(
       tester,
       client: clientRecording(bodies),
-      homeserver: () => FixedHomeserver(Uri.parse('https://[::1]:8448')),
+      homeserver: () => FixedHomeserver(
+        ServerChoice(
+          Uri.parse('https://[::1]:8448'),
+          apiHost: Uri.parse('https://[::1]:8448'),
+        ),
+      ),
     );
 
     await tester.enterText(field('Code'), '[::1]:8448 syl_ abcd efgh');

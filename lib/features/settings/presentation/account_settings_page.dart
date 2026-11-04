@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/app_language.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/account_capabilities.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -285,15 +286,18 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
             ],
           ),
           if (languageRow != null) CardGroup(children: [languageRow]),
-          CardGroup(
-            children: [
-              ListTile(
-                leading: const Icon(Icons.password_outlined),
-                title: Text(l10n.settingsAccountChangePassword),
-                onTap: _changePassword,
-              ),
-            ],
-          ),
+          if ((ref.watch(accountCapabilitiesProvider).value ??
+                  const AccountCapabilities())
+              .canChangePassword)
+            CardGroup(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.password_outlined),
+                  title: Text(l10n.settingsAccountChangePassword),
+                  onTap: _changePassword,
+                ),
+              ],
+            ),
         ],
       ),
     );

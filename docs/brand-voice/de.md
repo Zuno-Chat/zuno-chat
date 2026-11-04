@@ -116,7 +116,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | remove (a person) | Entfernen / entfernen | The kick action. |
 | ban | Sperren / Sperre aufheben | "Banned" heading → «Gesperrte Personen». "{sender} unbanned {people}" → «{sender} hat die Sperre für {people} aufgehoben». |
 | report | Melden · die Meldung | Reasons: «Belästigung», «Illegale Inhalte», «Spam», «Anderer Grund». |
-| the people who run your server | die Betreiber deines Servers | Who receives reports, never Zuno. A role, generic masculine like the role badges. "They" → «die Betreiber», since «Sie» reads as formal address. |
+| the people who run your server | die Betreiber deines Servers | Who receives reports and hands out sign-up codes, never Zuno. A role, generic masculine like the role badges. "They" → «die Betreiber», since «Sie» reads as formal address. |
 | public / private | öffentlich / privat | As labels: «Öffentlich», «Privat». |
 | topic, description, address, ID | das Thema · die Beschreibung · die Adresse · die ID | Room alias → «die Raumadresse». |
 | hostname | der Servername | |

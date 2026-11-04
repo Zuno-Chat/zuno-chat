@@ -9,6 +9,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/homeserver_input.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 
 import '../../../helpers/caught_reports.dart';
@@ -46,7 +47,9 @@ void main() {
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         homeserverProvider.overrideWith(
-          () => FixedHomeserver(officialHomeserver),
+          () => FixedHomeserver(
+            ServerChoice(officialHomeserver, apiHost: officialHomeserver),
+          ),
         ),
       ],
     );
@@ -119,7 +122,7 @@ void main() {
 
     expect(find.byType(HomeserverPage), findsNothing);
     expect(
-      container.read(homeserverProvider).value,
+      container.read(homeserverProvider).value?.homeserver,
       Uri.parse('https://example.org'),
     );
   });
@@ -161,6 +164,37 @@ void main() {
       findsOneWidget,
     );
     expect(reports, isEmpty);
+  });
+
+  testWidgets('Back is refused while the server is being checked', (
+    tester,
+  ) async {
+    final answer = Completer<http.Response>();
+    await pumpHomeserverPage(
+      tester,
+      httpClient: FakeHttpClient((_) => answer.future),
+      pushed: true,
+    );
+
+    await tester.enterText(find.byType(TextField), 'example.org');
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pump();
+    await tester.state<NavigatorState>(find.byType(Navigator)).maybePop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeserverPage), findsOneWidget);
+
+    answer.complete(
+      http.Response(
+        jsonEncode({
+          'versions': ['v1.1', 'v1.5'],
+        }),
+        200,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeserverPage), findsNothing);
   });
 
   testWidgets('a failure that lands after the page is gone is dropped', (

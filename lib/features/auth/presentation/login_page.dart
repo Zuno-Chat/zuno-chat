@@ -6,8 +6,9 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
+import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/registration_support.dart';
+import '../../../core/matrix/server_choice.dart';
 import '../../../core/matrix/server_name.dart';
 import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
@@ -38,6 +39,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
   final _username = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
+  ServerChoice? _askingSignUpOf;
   String? _error;
 
   @override
@@ -95,28 +97,69 @@ class _LoginPageState extends ConsumerState<LoginPage>
     Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
   }
 
-  Widget _createAccountPage(RegistrationSupport? registration) {
-    if (registration?.requiresRegistrationToken ?? false) {
-      return const RegistrationCodePage();
+  Future<void> _createAccount(ServerChoice server, SignUpPath shown) async {
+    final path = shown == SignUpPath.unknown
+        ? await _askSignUpPath(server)
+        : shown;
+    if (path == null || !mounted) return;
+    final l10n = context.l10n;
+    switch (path) {
+      case SignUpPath.open:
+        _open(const RegisterPage());
+      case SignUpPath.emailedCode:
+        _open(const RegistrationCodePage());
+      case SignUpPath.adminCode:
+        _open(const RegisterPage(code: SignUpCode.admin));
+      case SignUpPath.closed:
+        setState(() => _error = l10n.matrixCodeUnavailable);
+      case SignUpPath.unknown:
+        setState(() => _error = l10n.matrixHomeserverUnreachable);
     }
-    return const RegisterPage();
+  }
+
+  Future<SignUpPath?> _askSignUpPath(ServerChoice server) async {
+    closeKeyboard();
+    setState(() {
+      _askingSignUpOf = server;
+      if (!waitingToRetry) _error = null;
+    });
+    try {
+      final answer = await ref.refresh(signUpPathProvider(server).future);
+      if (!mounted || ref.read(homeserverProvider).value != server) return null;
+      return answer;
+    } finally {
+      if (mounted && _askingSignUpOf == server) {
+        setState(() => _askingSignUpOf = null);
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(homeserverProvider, (_, _) {
+      if (_error != null && !waitingToRetry) setState(() => _error = null);
+    });
     final serverName = ref.watch(serverNameProvider);
-    final registration = ref.watch(registrationSupportProvider).value;
+    final server = ref.watch(homeserverProvider).value;
+    final signUpPath = server == null
+        ? null
+        : ref.watch(signUpPathProvider(server)).value;
+    final askingSignUp = server != null && _askingSignUpOf == server;
     final l10n = context.l10n;
 
     return AuthScaffold(
       title: l10n.authSignIn,
       footer: [
-        if (registration?.isAvailable ?? false)
+        if (server != null &&
+            signUpPath != null &&
+            signUpPath != SignUpPath.closed)
           OutlinedButton(
-            onPressed: _loading
+            onPressed: _loading || askingSignUp
                 ? null
-                : () => _open(_createAccountPage(registration)),
-            child: Text(l10n.authCreateAccount),
+                : () => _createAccount(server, signUpPath),
+            child: Text(
+              askingSignUp ? l10n.authConnecting : l10n.authCreateAccount,
+            ),
           ),
         if (serverName != null)
           Row(

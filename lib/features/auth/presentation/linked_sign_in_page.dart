@@ -82,7 +82,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
     if (_busy) return;
     final Uri chosen;
     try {
-      chosen = await ref.read(homeserverProvider.future);
+      chosen = (await ref.read(homeserverProvider.future)).homeserver;
     } catch (e) {
       if (mounted) {
         setState(() => _error = linkedSignInErrorMessage(context.l10n, e));

@@ -54,6 +54,7 @@
   "authSignIn": "Accedi",
   "authSignInWithCode": "Accedi con il codice",
   "authSignInWithOtherDevice": "Accedi con il tuo altro dispositivo",
+  "authSignUpCodeFromAdmin": "Dalle persone che gestiscono il tuo server",
   "authSignUpCodeHelper": "Dall’email di registrazione",
   "authSignUpCodeLabel": "Codice di registrazione",
   "authSigningIn": "Accesso in corso…",

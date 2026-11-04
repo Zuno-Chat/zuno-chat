@@ -116,7 +116,7 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | remove (a person) | Rimuovi / rimuovere | The kick action. |
 | ban | Banna / revoca il ban | "Banned" heading → «Persone bannate». |
 | report | Segnala · la segnalazione | Reasons: «Molestie», «Contenuti illegali», «Spam», «Altro motivo». |
-| the people who run your server | le persone che gestiscono il tuo server | Who receives reports. "They" drops out: «Non possono leggere…». |
+| the people who run your server | le persone che gestiscono il tuo server | Who receives reports and hands out sign-up codes. "They" drops out: «Non possono leggere…». |
 | public / private | pubblica / privata | Feminine, agreeing with stanza and comunità. |
 | topic, description, address, ID | l’argomento · la descrizione · l’indirizzo · l’ID | Room alias → «l’indirizzo della stanza». |
 | hostname | il nome del server | |

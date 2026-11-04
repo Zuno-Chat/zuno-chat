@@ -54,6 +54,7 @@
   "authSignIn": "Zaloguj się",
   "authSignInWithCode": "Zaloguj się kodem",
   "authSignInWithOtherDevice": "Zaloguj się przez inne urządzenie",
+  "authSignUpCodeFromAdmin": "Od osób, które prowadzą Twój serwer",
   "authSignUpCodeHelper": "Z e-maila rejestracyjnego",
   "authSignUpCodeLabel": "Kod rejestracyjny",
   "authSigningIn": "Logowanie…",

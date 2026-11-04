@@ -73,7 +73,7 @@ class _RegistrationCodePageState extends ConsumerState<RegistrationCodePage> {
     closeKeyboard();
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RegisterPage(requiresCode: true, email: email),
+        builder: (_) => RegisterPage(code: SignUpCode.emailed, email: email),
       ),
     );
   }

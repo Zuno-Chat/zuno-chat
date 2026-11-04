@@ -153,6 +153,31 @@ void main() {
       });
     });
 
+    test(
+      'a saved discovery file answers without asking the server again',
+      () async {
+        var asked = 0;
+        final client = buildTestClient(
+          userId: '@a:example.org',
+          database: CachingFakeDatabaseApi(),
+          httpClient: FakeHttpClient((_) async {
+            asked++;
+            return _wellKnown({
+              'im.zuno.tiles': {'url': _template},
+            });
+          }),
+        )..homeserver = Uri.parse('https://api.example.org');
+        client.bearerToken = 'token';
+
+        final first = await fetchTileSource(client);
+        final second = await fetchTileSource(client);
+
+        expect(first?.urlTemplate, _template);
+        expect(second?.urlTemplate, _template);
+        expect(asked, 1);
+      },
+    );
+
     test('is none before a homeserver is known', () async {
       expect(await fetchTileSource(buildTestClient()), isNull);
     });

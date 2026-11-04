@@ -1,12 +1,13 @@
 import 'dart:async';
 
 import 'package:zuno/core/matrix/homeserver.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
 
 class FixedHomeserver extends HomeserverNotifier {
-  final FutureOr<Uri> _homeserver;
+  final FutureOr<ServerChoice> _choice;
 
-  FixedHomeserver(this._homeserver);
+  FixedHomeserver(this._choice);
 
   @override
-  FutureOr<Uri> build() => _homeserver;
+  FutureOr<ServerChoice> build() => _choice;
 }

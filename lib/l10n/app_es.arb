@@ -54,6 +54,7 @@
   "authSignIn": "Iniciar sesión",
   "authSignInWithCode": "Iniciar sesión con el código",
   "authSignInWithOtherDevice": "Iniciar sesión con tu otro dispositivo",
+  "authSignUpCodeFromAdmin": "De las personas que gestionan tu servidor",
   "authSignUpCodeHelper": "Del correo de registro",
   "authSignUpCodeLabel": "Código de registro",
   "authSigningIn": "Iniciando sesión…",

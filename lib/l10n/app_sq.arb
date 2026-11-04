@@ -54,6 +54,7 @@
   "authSignIn": "Identifikohu",
   "authSignInWithCode": "Identifikohu me kodin",
   "authSignInWithOtherDevice": "Identifikohu me pajisjen tjetër",
+  "authSignUpCodeFromAdmin": "Nga njerëzit që menaxhojnë serverin tënd",
   "authSignUpCodeHelper": "Nga email-i i regjistrimit",
   "authSignUpCodeLabel": "Kodi i regjistrimit",
   "authSigningIn": "Po identifikohesh…",

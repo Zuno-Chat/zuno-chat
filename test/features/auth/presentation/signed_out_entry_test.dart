@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -19,10 +20,12 @@ import '../../../helpers/fake_matrix.dart';
 void main() {
   final contacted = <Uri>[];
   var checks = 0;
+  Completer<void>? holdZuno;
 
   setUp(() {
     contacted.clear();
     checks = 0;
+    holdZuno = null;
     SharedPreferences.setMockInitialValues({});
   });
 
@@ -32,6 +35,7 @@ void main() {
         if (down.contains(request.url.host)) {
           throw http.ClientException('offline');
         }
+        if (request.url.host == 'zuno.chat') await holdZuno?.future;
         final path = request.url.path;
         if (path.endsWith('/versions')) {
           return http.Response(
@@ -125,6 +129,34 @@ void main() {
     expect(find.text('Username'), findsOneWidget);
     expect(find.text('example.org'), findsOneWidget);
     expect(find.text('Try again'), findsNothing);
+  });
+
+  testWidgets('a reset to zuno.chat never shows or asks the previous server '
+      'while zuno.chat is checked again', (tester) async {
+    await pumpEntry(tester);
+    await tester.tap(find.text('Change'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'example.org');
+    await tester.tap(find.text('Continue'));
+    await tester.pumpAndSettle();
+    expect(find.text('example.org'), findsOneWidget);
+
+    final held = Completer<void>();
+    holdZuno = held;
+    contacted.clear();
+    ProviderScope.containerOf(tester.element(find.byType(SignedOutEntry)))
+        .invalidate(homeserverProvider);
+    await tester.pump();
+
+    expect(find.text('example.org'), findsNothing);
+    expect(find.text('Username'), findsNothing);
+    expect(contacted.where((uri) => uri.host == 'example.org'), isEmpty);
+
+    held.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.text('zuno.chat'), findsOneWidget);
+    expect(find.text('Username'), findsOneWidget);
   });
 
   testWidgets('an unsafe device is warned before it can sign in', (

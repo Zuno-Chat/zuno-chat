@@ -9,6 +9,7 @@ import '../../../core/format/date_labels.dart';
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/account_capabilities.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
@@ -297,19 +298,22 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                         ),
                       ],
                     ),
-                  CardGroup(
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.qr_code_2_outlined),
-                        title: Text(l10n.settingsSessionsSignInOnAnother),
-                        subtitle: Text(
-                          l10n.settingsSessionsSignInOnAnotherSubtitle,
+                  if ((ref.watch(accountCapabilitiesProvider).value ??
+                          const AccountCapabilities())
+                      .canMintSignInCodes)
+                    CardGroup(
+                      children: [
+                        ListTile(
+                          leading: const Icon(Icons.qr_code_2_outlined),
+                          title: Text(l10n.settingsSessionsSignInOnAnother),
+                          subtitle: Text(
+                            l10n.settingsSessionsSignInOnAnotherSubtitle,
+                          ),
+                          trailing: const Icon(Icons.chevron_right_outlined),
+                          onTap: _showSignInCode,
                         ),
-                        trailing: const Icon(Icons.chevron_right_outlined),
-                        onTap: _showSignInCode,
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   if (others.isNotEmpty)
                     CardGroup(
                       children: [

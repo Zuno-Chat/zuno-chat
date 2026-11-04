@@ -122,7 +122,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | leave | Largohu · largim | "{people} left" → «{people} u largua». |
 | ban | Dëbo / Hiq dëbimin · dëbim | "Banned" heading → «Persona të dëbuar». Never «blloko». Timeline: «{sender} dëboi: {people}», «{sender} hoqi dëbimin: {people}», «{sender} ta hoqi dëbimin». |
 | report | Raporto · raportim | Reasons: «Ngacmim», «Përmbajtje e paligjshme», «Spam», «Arsye tjetër». |
-| the people who run your server | njerëzit që menaxhojnë serverin tënd | Who a report goes to: «Raporti shkon te njerëzit që menaxhojnë serverin tënd». Refer back with «ata». «Njerëzit», not «personat», so it never blurs with the reported «ky person». Never «Zuno», and never «administratorët», the room role. |
+| the people who run your server | njerëzit që menaxhojnë serverin tënd | Who a report goes to, and who hands out sign-up codes: «Raporti shkon te njerëzit që menaxhojnë serverin tënd». Refer back with «ata». «Njerëzit», not «personat», so it never blurs with the reported «ky person». Never «Zuno», and never «administratorët», the room role. |
 | public / private | publik / privat | Agree with the noun described; a label serving both rooms and communities is «Qasje publike» / «Qasje private» / «Qasje me kërkesë» / «Qasje për komunitetin». "Make public" → «Cakto qasje publike». |
 | topic, description, address, ID | temë · përshkrim · adresë · ID | Room alias → «adresa e dhomës». |
 | hostname | emri i serverit | |

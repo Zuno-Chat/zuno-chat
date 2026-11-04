@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
@@ -15,20 +13,13 @@ class TileSource {
 }
 
 Future<TileSource?> fetchTileSource(Client client) async {
-  final homeserver = client.homeserver;
-  if (homeserver == null) return null;
+  if (client.homeserver == null) return null;
   try {
-    final response = await client.httpClient.get(
-      Uri.https(
-        client.userID?.domain ?? homeserver.host,
-        '/.well-known/matrix/client',
-      ),
-    );
-    if (response.statusCode != 200) return null;
-    final wellKnown = jsonDecode(utf8.decode(response.bodyBytes));
-    if (wellKnown is! Map) return null;
-    return _tileSourceFrom(wellKnown[_wellKnownKey]);
+    final discovery = await client.getWellknown();
+    return _tileSourceFrom(discovery.additionalProperties[_wellKnownKey]);
   } on FormatException {
+    return null;
+  } on TypeError {
     return null;
   } catch (error, stack) {
     reportCaught('map tile source', error, stack);

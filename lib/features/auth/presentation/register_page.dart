@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'
-    show FilteringTextInputFormatter, TextInput, TextInputFormatter;
+    show
+        FilteringTextInputFormatter,
+        LengthLimitingTextInputFormatter,
+        TextInput,
+        TextInputFormatter;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
@@ -23,14 +27,36 @@ import 'password_field.dart';
 import 'password_strength_bar.dart';
 import 'retry_wait.dart';
 
+enum SignUpCode { none, emailed, admin }
+
+typedef _CodeField = ({
+  String helper,
+  String missing,
+  TextCapitalization capitalization,
+  List<TextInputFormatter> formatters,
+  bool canSendNewCode,
+});
+
+final _emailedCodeFormatters = [
+  TextInputFormatter.withFunction(
+    (_, value) => value.copyWith(text: value.text.toUpperCase()),
+  ),
+  FilteringTextInputFormatter.allow(RegExp(r'[A-HJ-NP-Z2-9]')),
+];
+
+final _adminCodeFormatters = [
+  FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9._~-]')),
+  LengthLimitingTextInputFormatter(64),
+];
+
 class RegisterPage extends ConsumerStatefulWidget {
-  final bool requiresCode;
+  final SignUpCode code;
   final String? email;
   final UrlOpener openUrl;
 
   const RegisterPage({
     super.key,
-    this.requiresCode = false,
+    this.code = SignUpCode.none,
     this.email,
     this.openUrl = openExternally,
   });
@@ -63,6 +89,24 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
     super.dispose();
   }
 
+  _CodeField? _codeField(AppLocalizations l10n) => switch (widget.code) {
+    SignUpCode.none => null,
+    SignUpCode.emailed => (
+      helper: l10n.authSignUpCodeHelper,
+      missing: l10n.authEnterEmailCode,
+      capitalization: TextCapitalization.characters,
+      formatters: _emailedCodeFormatters,
+      canSendNewCode: true,
+    ),
+    SignUpCode.admin => (
+      helper: l10n.authSignUpCodeFromAdmin,
+      missing: l10n.authEnterCode,
+      capitalization: TextCapitalization.none,
+      formatters: _adminCodeFormatters,
+      canSendNewCode: false,
+    ),
+  };
+
   void _clearError() {
     if (waitingToRetry || (_error == null && !_codeRefused)) return;
     setState(() {
@@ -79,11 +123,13 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
     final l10n = context.l10n;
     final username = _username.text.trim();
     final password = _password.text;
-    final code = widget.requiresCode ? _code.text.trim() : null;
-
-    if (code != null && code.isEmpty) {
-      setState(() => _error = l10n.authEnterEmailCode);
-      return;
+    String? code;
+    if (_codeField(l10n) case final field?) {
+      code = _code.text.trim();
+      if (code.isEmpty) {
+        setState(() => _error = field.missing);
+        return;
+      }
     }
     final inputError = registrationInputError(
       l10n,
@@ -149,6 +195,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
     final serverName = ref.watch(serverNameProvider);
     final onZuno = serverName == officialHomeserver.host;
     final l10n = context.l10n;
+    final codeField = _codeField(l10n);
 
     return PopScope(
       canPop: !_loading,
@@ -197,7 +244,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
             ),
             const SizedBox(height: 16),
           ],
-          if (widget.requiresCode) ...[
+          if (codeField != null) ...[
             ZunoTextField(
               autofillHints: null,
               controller: _code,
@@ -205,17 +252,12 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
               autocorrect: false,
               enableSuggestions: false,
               textInputAction: TextInputAction.next,
-              textCapitalization: TextCapitalization.characters,
+              textCapitalization: codeField.capitalization,
               onChanged: (_) => _clearError(),
-              inputFormatters: [
-                TextInputFormatter.withFunction(
-                  (_, value) => value.copyWith(text: value.text.toUpperCase()),
-                ),
-                FilteringTextInputFormatter.allow(RegExp(r'[A-HJ-NP-Z2-9]')),
-              ],
+              inputFormatters: codeField.formatters,
               decoration: InputDecoration(
                 labelText: l10n.authSignUpCodeLabel,
-                helperText: l10n.authSignUpCodeHelper,
+                helperText: codeField.helper,
               ),
             ),
             const SizedBox(height: 16),
@@ -280,7 +322,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
             const SizedBox(height: 16),
             InlineError(error),
           ],
-          if (_codeRefused) ...[
+          if (_codeRefused && (codeField?.canSendNewCode ?? false)) ...[
             const SizedBox(height: 8),
             TextButton(
               onPressed: _loading ? null : () => Navigator.of(context).pop(),

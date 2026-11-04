@@ -9,6 +9,6 @@ String? ownServerName(Client client) => client.userID?.domain;
 final serverNameProvider = Provider<String?>((ref) {
   final client = ref.watch(matrixClientProvider);
   return ownServerName(client) ??
-      ref.watch(homeserverProvider).value?.host ??
+      ref.watch(homeserverProvider).value?.homeserver.host ??
       client.homeserver?.host;
 });

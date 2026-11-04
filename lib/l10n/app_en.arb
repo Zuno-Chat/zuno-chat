@@ -140,10 +140,14 @@
   },
   "authSignInWithCode": "Sign in with the code",
   "authSignInWithOtherDevice": "Sign in with your other device",
+  "authSignUpCodeFromAdmin": "From the people who run your server",
+  "@authSignUpCodeFromAdmin": {
+    "description": "Helper under the sign-up code field when the code comes from the people who run the server, not from an email"
+  },
   "authSignUpCodeHelper": "From the sign-up email",
   "authSignUpCodeLabel": "Sign-up code",
   "@authSignUpCodeLabel": {
-    "description": "Field label: the code received by email to create an account"
+    "description": "Field label: the code needed to create an account, from the sign-up email or from the people who run the server"
   },
   "authSigningIn": "Signing in…",
   "@authSigningIn": {

@@ -54,6 +54,7 @@
   "authSignIn": "Σύνδεση",
   "authSignInWithCode": "Σύνδεση με τον κωδικό",
   "authSignInWithOtherDevice": "Σύνδεση με την άλλη συσκευή σας",
+  "authSignUpCodeFromAdmin": "Από όσους διαχειρίζονται τον διακομιστή σας",
   "authSignUpCodeHelper": "Από το email εγγραφής",
   "authSignUpCodeLabel": "Κωδικός εγγραφής",
   "authSigningIn": "Σύνδεση…",

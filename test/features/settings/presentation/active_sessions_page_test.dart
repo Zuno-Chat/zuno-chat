@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/account_capabilities.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -161,6 +162,7 @@ void main() {
   Future<void> pumpPage(
     WidgetTester tester, {
     bool? identityKeysHere = true,
+    Future<AccountCapabilities>? capabilities,
   }) async {
     await tester.binding.setSurfaceSize(const Size(800, 2000));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -169,6 +171,9 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          accountCapabilitiesProvider.overrideWith(
+            (ref) => capabilities ?? Future.value(const AccountCapabilities()),
+          ),
           sharedPreferencesProvider.overrideWithValue(prefs),
           accountSecurityFactsProvider.overrideWith(
             (ref) => identityKeysHere == null
@@ -598,6 +603,42 @@ void main() {
 
       expect(find.byType(VerificationPage), findsNothing);
       expect(verification.calls, ['cancel(m.user)']);
+    });
+  });
+
+  group('the account capabilities', () {
+    testWidgets('Sign in on another device is offered by default', (
+      tester,
+    ) async {
+      threeDevices();
+      await pumpPage(tester);
+
+      expect(find.text('Sign in on another device'), findsOneWidget);
+    });
+
+    testWidgets('Sign in on another device is shown while the answer loads', (
+      tester,
+    ) async {
+      threeDevices();
+      await pumpPage(
+        tester,
+        capabilities: Completer<AccountCapabilities>().future,
+      );
+
+      expect(find.text('Sign in on another device'), findsOneWidget);
+    });
+
+    testWidgets("Sign in on another device is hidden where the server can't "
+        'mint codes', (tester) async {
+      threeDevices();
+      await pumpPage(
+        tester,
+        capabilities: Future.value(
+          const AccountCapabilities(canMintSignInCodes: false),
+        ),
+      );
+
+      expect(find.text('Sign in on another device'), findsNothing);
     });
   });
 

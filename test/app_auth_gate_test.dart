@@ -20,12 +20,13 @@ import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/l10n/app_language.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/account_capabilities.dart';
 import 'package:zuno/core/matrix/cached_attachment_image.dart';
 import 'package:zuno/core/matrix/connection_monitor.dart';
 import 'package:zuno/core/matrix/connectivity_provider.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/registration_support.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
 import 'package:zuno/core/matrix/sign_out_wipe.dart';
 import 'package:zuno/core/matrix/sync_coordinator.dart';
 import 'package:zuno/core/matrix/sync_coordinator_provider.dart';
@@ -88,9 +89,9 @@ class _CountedHomeserver extends HomeserverNotifier {
   final void Function() _onCheck;
 
   @override
-  FutureOr<Uri> build() {
+  FutureOr<ServerChoice> build() {
     _onCheck();
-    return officialHomeserver;
+    return ServerChoice(officialHomeserver, apiHost: officialHomeserver);
   }
 }
 
@@ -220,11 +221,14 @@ void main() {
         if (wipeAppData != null)
           appDataWipeProvider.overrideWithValue(wipeAppData),
         homeserverProvider.overrideWith(
-          homeserver ?? () => FixedHomeserver(officialHomeserver),
+          homeserver ??
+              () => FixedHomeserver(
+                ServerChoice(officialHomeserver, apiHost: officialHomeserver),
+              ),
         ),
-        registrationSupportProvider.overrideWith(
-          (ref) async =>
-              const RegistrationSupport(RegistrationAvailability.disabled),
+        signUpPathProvider.overrideWith((ref, _) async => SignUpPath.closed),
+        accountCapabilitiesProvider.overrideWith(
+          (ref) async => const AccountCapabilities(),
         ),
       ],
     );

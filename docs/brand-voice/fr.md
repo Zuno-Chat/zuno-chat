@@ -116,7 +116,7 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | remove (a person) | Retirer / retirer | The kick action. |
 | ban | Bannir / lever le bannissement | "Banned" heading → «Personnes bannies». |
 | report | Signaler · le signalement | Reasons: «Harcèlement», «Contenu illégal», «Spam», «Autre motif». |
-| the people who run your server | les personnes qui gèrent votre serveur | Who receives reports. "They" → «elles». |
+| the people who run your server | les personnes qui gèrent votre serveur | Who receives reports and hands out sign-up codes. "They" → «elles». |
 | public / private | public / privé | Where one label serves both a salon (m.) and a communauté (f.), recast so nothing agrees: «Accès public», «Passer en privé». |
 | topic, description, address, ID | le sujet · la description · l’adresse · l’identifiant | "Room ID" → «Identifiant du salon». Room alias → «l’adresse du salon». |
 | hostname | le nom du serveur | |

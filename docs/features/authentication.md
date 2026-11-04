@@ -23,19 +23,21 @@ flowchart TD
   Entry -->|server verified| Login[LoginPage]
   Login -->|Change| Server[HomeserverPage]
   Login -->|Sign in with your other device| Linked[LinkedSignInPage]
-  Login -->|Create account, code required| Code[RegistrationCodePage]
-  Login -->|Create account, no code| Register[RegisterPage]
+  Login -->|Create account, emailed code| Code[RegistrationCodePage]
+  Login -->|Create account, open or admin code| Register[RegisterPage]
   Code --> Register
 ```
 
 | Piece | Role |
 |---|---|
 | `SignedOutEntry` | What `_AuthGate` shows when signed out: the device warning first on Android, then `LoginPage` once the server is verified, or a retry screen. |
-| `homeserverProvider` | Holds the verified server, `zuno.chat` by default in every build. `use(uri)` verifies a typed server and adopts it on success. |
-| `LoginPage` | The root signed-out screen: username and password, sign-in with another device, "Create account" when the server allows it, and "Change" for the server. |
+| `homeserverProvider` | Holds the checked `ServerChoice`: the picked server, its API address and whether it announces emailed sign-up codes. `zuno.chat` by default in every build; `use(uri)` checks a typed server and adopts it on success. |
+| `signUpPathProvider` | The sign-up path of one server choice: open, emailed code, admin code, closed or can't tell. |
+| `LoginPage` | The root signed-out screen: username and password, sign-in with another device, "Create account" unless sign-up is closed, and "Change" for the server. |
 | `LinkedSignInPage` | Signs in with a code from another device, scanned or typed. |
-| `RegistrationCodePage` | Has the server email a sign-up code. Shown only when the server's registration flow needs one. |
-| `RegisterPage` | Username, password and confirmation, plus the code when one is required. |
+| `RegistrationCodePage` | Has the server email a sign-up code. Shown only on the emailed-code path. |
+| `RegisterPage` | Username, password and confirmation, plus the emailed or admin code when one is required. |
+| `server_choice.dart` | The discovery read and how a probe answer becomes a sign-up path. |
 | `registration_support.dart` | The registration probe, input checks and the UIA stage machine (`nextRegistrationStep`, driven by `runRegistration`). |
 | `linked_sign_in.dart` | Encodes, decodes, mints and redeems sign-in codes. |
 | `session_refresh.dart` | `refreshSession`, the client's `onSoftLogout` handler. |
@@ -45,10 +47,25 @@ flowchart TD
 
 In Settings, `SignInAnotherDevicePage` mints sign-in codes,
 `ChangePasswordDialog` changes the password and `DeleteAccountTile` deletes
-the account. The password rules (`password_strength.dart`) are shared by
-registration, change password and the security phrase.
+the account; the first two show only where the server allows them
+(`account_capabilities.dart`). The password rules (`password_strength.dart`)
+are shared by registration, change password and the security phrase.
 
 ## Flows
+
+### Server check
+
+Launch while signed out checks `zuno.chat`, and picking a server checks
+that one; nothing is saved to disk.
+
+1. **Discovery.** Zuno reads the server's `/.well-known/matrix/client`
+   itself. A missing file means the server is its own API host and
+   announces nothing; an unreachable one also falls back to the typed
+   server but leaves the announcement unknown.
+2. **Check.** `checkHomeserver` on that API address, with the SDK's own
+   discovery step and its auth-metadata fetch off.
+3. **Choice.** The picked server, the checked API address and the
+   announcement become the `ServerChoice`.
 
 ### Sign-in and session refresh
 
@@ -60,20 +77,36 @@ renews the session on soft logout.
 
 ### Registration
 
-1. **Probe.** A raw POST of an empty body to `/_matrix/client/v3/register`,
-   read for its refusal. A `401` offering a flow made only of
-   `m.login.dummy` and `m.login.registration_token` is `available`, other
-   flows are `unsupportedFlow`, a `403` is `disabled`, and anything else is
-   `unknown`. Only `available` shows "Create account", and whether every
-   completable flow needs a code decides whether the email screen appears.
-2. **Code.** `POST /_synapse/client/zuno/register/token` with `{email}`
-   asks the `zuno_register` Synapse module to mail a single-use
-   registration token. `202` means go on; a `404` or `503` means sign-up is
-   closed, since a module without mail settings registers no route. The UI
-   always says "code"; the wire and the Dart code say registration token.
-3. **Register.** `runRegistration` sends one UIA stage per
-   `client.register` call, the token stage first when a code is required.
-   Without a code it is a single `m.login.dummy` call.
+1. **Probe.** Once per server choice, a raw POST of an empty body to the
+   choice's `/_matrix/client/v3/register`, read for its refusal. A `401`
+   offering a flow made only of `m.login.dummy` and
+   `m.login.registration_token` is `available`, other flows are
+   `unsupportedFlow`, a `403` is `disabled`, and anything else is
+   `unknown`.
+2. **Path.** The probe and the server's announcement decide where "Create
+   account" leads:
+
+   | Probe | Path | "Create account" |
+   |---|---|---|
+   | `available`, a flow needs no code | open | `RegisterPage` |
+   | `available`, every flow needs a code, announced | emailed code | `RegistrationCodePage`, then `RegisterPage` |
+   | `available`, every flow needs a code, nothing announced | admin code | `RegisterPage` with the code field |
+   | `disabled` or `unsupportedFlow` | closed | hidden |
+   | `unknown`, or the announcement unreadable | can't tell | shown; the tap asks once more, then routes or explains |
+
+   **Server contract**: a server running `zuno_register` announces it with
+   a `chat.zuno.register` object in its `/.well-known/matrix/client`. An
+   announcement unreadable at the server check is read once more when a
+   code turns out to be needed.
+3. **Code.** On the emailed path, `POST
+   /_synapse/client/zuno/register/token` with `{email}` asks the
+   `zuno_register` Synapse module to mail a single-use registration token.
+   `202` means go on; a `404` or `503` means sign-up is closed, since a
+   module without mail settings registers no route. The UI always says
+   "code"; the wire and the Dart code say registration token.
+4. **Register.** `runRegistration` sends one UIA stage per
+   `client.register` call, the token stage first when a code is required,
+   emailed or admin. Without a code it is a single `m.login.dummy` call.
 
 Against Synapse, a registration with a code takes three round trips:
 
@@ -120,9 +153,12 @@ What the push teardown does is in `notifications.md`.
 
 - **Any build can use another server; `zuno.chat` is the default**, a
   "Change" away from the sign-in screen, in release builds too.
-- **A server name is not the homeserver host.** `checkHomeserver` follows
-  `.well-known` to the API host, so user IDs and aliases take the domain of
-  `client.userID`, and only module URLs and push use `client.homeserver`.
+- **A server name is not the homeserver host.** Discovery leads to the API
+  host, so user IDs and aliases take the domain of `client.userID`, and
+  only module URLs and push use `client.homeserver`.
+- **Zuno reads the discovery file itself, and only once per check**,
+  because the SDK's discovery step treats a missing file and an unreachable
+  one alike, and the same file carries the sign-up announcement.
 - **A sign-in code never switches the server.** The code names the server
   that minted it and a mismatch is refused, because switching automatically
   would let a hostile code sign someone into an attacker's server.
@@ -137,6 +173,10 @@ What the push teardown does is in `notifications.md`.
   pre-sync facts.
 - **One message for a wrong username or a wrong password**, keeping
   Matrix's ambiguity against account enumeration.
+- **Settings shows Change password unless the server's `m.change_password`
+  capability is off, and Sign in on another device only when
+  `m.get_login_token` is on.** Both show while the answer loads or when it
+  can't be read, so a slow or failed read never hides a working entry.
 
 ### Sessions
 
@@ -157,6 +197,15 @@ What the push teardown does is in `notifications.md`.
 
 - **The probe is a raw HTTP POST, not `Client.register`**, which throws on
   `401` and signs the caller in on success.
+- **One probe per server choice decides the sign-up path**, kept only while
+  the signed-out screens show, so "Create account" opens the right screen
+  without another round trip and a later visit asks afresh.
+- **A failed probe never fails the server check or hides "Create
+  account"**, because sign-in needs no sign-up, and a flaky network must
+  not look like closed sign-up.
+- **The emailed path needs the announcement, not just a required code**,
+  because a plain Synapse server hands out registration tokens through its
+  admin and has no route to email one.
 - **Each real attempt opens its own UIA session.** Synapse binds a session
   to the body that opened it, so the probe's session is never reused, and a
   "changed during the UI authentication session" refusal restarts once.
@@ -170,9 +219,13 @@ What the push teardown does is in `notifications.md`.
 - **An interrupted sign-up resumes its session** while the username,
   password and code are unchanged, because the code is already spent in it.
   This is built from Synapse's documented behavior, not verified live.
-- **The code field mirrors `zuno_register`.** It uppercases and filters
-  input to the module's alphabet (`A-HJ-NP-Z2-9`), and the copy states its
-  24-hour lifetime, so the field and the module must change together.
+- **Each code field mirrors its issuer.** The emailed-code field uppercases
+  and filters input to `zuno_register`'s alphabet (`A-HJ-NP-Z2-9`) and the
+  copy states its 24-hour lifetime, so the field and the module must change
+  together; the admin-code field takes a Synapse registration token as
+  typed, within Synapse's format (`A-Za-z0-9._~-`, at most 64 characters).
+- **A refused admin code offers no "send a new code"**, since only the
+  server's admin can issue another.
 - **A `202` promises no delivery**, because the module also answers `202`
   when its rate limit suppressed the send.
 - **An email address buys a code and nothing else.** No account is tied to
@@ -258,9 +311,19 @@ What the push teardown does is in `notifications.md`.
   `Uri` misreads `@user:example.org` and fails late on spaces.
 - A failed `checkHomeserver` nulls `client.homeserver`, so `use()` restores
   the previous server before rethrowing.
+- `checkHomeserver` points the app's one client at the candidate server
+  before it passes, so the server screen refuses Back while checking and
+  the sign-up probe targets its choice's API address, never the client's;
+  otherwise a sign-in or probe would reach a server the screen no longer
+  names.
 - After a sign-out the server resets to the default, because `clear()`
   nulls `client.homeserver` and `_AuthGate` invalidates
-  `homeserverProvider`.
+  `homeserverProvider`; `SignedOutEntry` shows its spinner during that
+  check, or the previous server's sign-in screen would stay up.
+- The capability answer behind the Settings entries is saved in the client
+  database for 3 days, the SDK's lifetime for saved server answers, so a
+  server's change reaches phones within that time, or at once after
+  Settings' Clear cache, which drops it with the SDK's other saved answers.
 - Route every refusal through `auth_error_message.dart`, because these
   screens show any text they are given, raw exceptions included.
 - A mandatory captcha or terms stage hides "Create account", so ship the
@@ -274,8 +337,10 @@ What the push teardown does is in `notifications.md`.
 - `DeleteAccountTile` touches the client only in its tap handler, because
   `SettingsPage` tests render without one.
 - Tests rendering a signed-out screen override `homeserverProvider` with
-  `FixedHomeserver`, and `deviceRisksProvider`, or they hit the network or
-  stall on the splash.
+  `FixedHomeserver`, `signUpPathProvider` and `deviceRisksProvider`, and
+  tests rendering Account or Your devices override
+  `accountCapabilitiesProvider`, or they hit the network or stall on the
+  splash.
 
 ## Not built
 

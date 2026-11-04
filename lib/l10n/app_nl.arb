@@ -54,6 +54,7 @@
   "authSignIn": "Inloggen",
   "authSignInWithCode": "Inloggen met de code",
   "authSignInWithOtherDevice": "Inloggen met je andere apparaat",
+  "authSignUpCodeFromAdmin": "Van de mensen achter je server",
   "authSignUpCodeHelper": "Uit de registratie-e-mail",
   "authSignUpCodeLabel": "Registratiecode",
   "authSigningIn": "Inloggen…",

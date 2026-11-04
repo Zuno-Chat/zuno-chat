@@ -27,7 +27,7 @@ tile template, and the app fetches tiles straight from that vendor.
 
 ```mermaid
 flowchart LR
-  A["First map shown,<br>login or logout"] --> B["Read the well-known fresh"]
+  A["First map shown,<br>login or logout"] --> B["Read the well-known,<br>the SDK's 3-day copy"]
   B --> C{"Usable im.zuno.tiles entry<br>and a test tile loads?"}
   C -- yes --> D["Tiles from the vendor,<br>cached on disk"]
   C -- no --> E["Grid with pin, coordinates<br>and Open in Maps"]
@@ -52,8 +52,9 @@ adds its own.
   rotation or style change is a well-known edit, not a release, and someone
   on another homeserver never spends Zuno's quota. The key is public by
   nature, so restrict it at the vendor.
-- **The well-known is read fresh, not from the SDK's cache**, so a new or
-  fixed source shows up within minutes.
+- **The well-known is the SDK's saved copy (`getWellknown()`), not a
+  second reader of the same file**, so a new or changed source reaches
+  phones within that copy's 3-day lifetime.
 - **Degrade, never fail.** With no usable source, the map becomes a grid
   with the pin, the coordinates and Open in Maps.
 - **`flutter_map`, not `google_maps_flutter`**, which would pull in Play
@@ -88,8 +89,10 @@ adds its own.
   the two are sized together.
 - **The bubble's tap detector must be `HitTestBehavior.opaque`**, because
   the preview map sits inside an `IgnorePointer`.
-- **The probe result lasts the whole process**, so a revoked key shows grey
-  tiles until restart, and keys must be rotated with an overlap.
+- **The probe result lasts the whole process and the saved well-known 3
+  days**, so a revoked key shows grey tiles until restart, keys must be
+  rotated with an overlap longer than 3 days, and Clear cache, which drops
+  the saved copy, doesn't reach tiles already loaded this run.
 - Widget tests cover the bubble and sheet on the grid path, with
   `mapTilesProvider` overridden.
 

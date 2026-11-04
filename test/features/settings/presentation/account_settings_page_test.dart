@@ -10,6 +10,7 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/account_capabilities.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/app_settings_opener.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
@@ -106,11 +107,15 @@ void main() {
   Future<void> pumpPage(
     WidgetTester tester, {
     Future<bool> Function()? openSettings,
+    Future<AccountCapabilities>? capabilities,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          accountCapabilitiesProvider.overrideWith(
+            (ref) => capabilities ?? Future.value(const AccountCapabilities()),
+          ),
           if (openSettings != null)
             appSettingsOpenerProvider.overrideWithValue(openSettings),
         ],
@@ -128,6 +133,50 @@ void main() {
 
   String? subtitleOf(WidgetTester tester, String title) =>
       (tester.widget<ListTile>(row(title)).subtitle as Text?)?.data;
+
+  group('the account capabilities', () {
+    testWidgets('Change password is offered by default', (tester) async {
+      await pumpPage(tester);
+
+      expect(row('Change password'), findsOneWidget);
+    });
+
+    testWidgets('Change password is shown while the answer loads', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            matrixClientProvider.overrideWithValue(client),
+            accountCapabilitiesProvider.overrideWith(
+              (ref) => Completer<AccountCapabilities>().future,
+            ),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: AccountSettingsPage(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(row('Change password'), findsOneWidget);
+    });
+
+    testWidgets('Change password is hidden where the server disallows it', (
+      tester,
+    ) async {
+      await pumpPage(
+        tester,
+        capabilities: Future.value(
+          const AccountCapabilities(canChangePassword: false),
+        ),
+      );
+
+      expect(row('Change password'), findsNothing);
+    });
+  });
 
   group('the profile', () {
     testWidgets('shows the display name and the username without the '

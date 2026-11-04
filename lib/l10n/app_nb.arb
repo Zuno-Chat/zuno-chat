@@ -54,6 +54,7 @@
   "authSignIn": "Logg på",
   "authSignInWithCode": "Logg på med koden",
   "authSignInWithOtherDevice": "Logg på med den andre enheten din",
+  "authSignUpCodeFromAdmin": "Fra dem som driver serveren din",
   "authSignUpCodeHelper": "Fra e-posten om registreringen",
   "authSignUpCodeLabel": "Registreringskode",
   "authSigningIn": "Logger på…",

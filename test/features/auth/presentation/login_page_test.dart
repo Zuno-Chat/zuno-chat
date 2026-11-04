@@ -9,7 +9,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/registration_support.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/auth/presentation/auth_scaffold.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
@@ -26,6 +26,12 @@ import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
 import '../../../helpers/screen_security.dart';
 
+class _ChangingHomeserver extends FixedHomeserver {
+  _ChangingHomeserver(super.choice);
+
+  void change(ServerChoice choice) => state = AsyncData(choice);
+}
+
 void main() {
   Finder field(String label) =>
       find.ancestor(of: find.text(label), matching: find.byType(TextField));
@@ -35,24 +41,30 @@ void main() {
 
   Future<void> pumpLoginPage(
     WidgetTester tester, {
-    RegistrationSupport support = const RegistrationSupport(
-      RegistrationAvailability.disabled,
-    ),
+    SignUpPath signUpPath = SignUpPath.closed,
+    List<FutureOr<SignUpPath> Function()>? signUpAnswers,
     Client? client,
     String homeserver = 'https://example.org',
     String? chosenServerName,
     bool pushed = false,
   }) async {
+    final answers = signUpAnswers ?? [() => signUpPath];
     final container = await containerWithPreferences(
       {},
       overrides: [
         matrixClientProvider.overrideWithValue(
           (client ?? buildTestClient())..homeserver = Uri.parse(homeserver),
         ),
-        registrationSupportProvider.overrideWith((ref) async => support),
+        signUpPathProvider.overrideWith(
+          (ref, _) async =>
+              (answers.length > 1 ? answers.removeAt(0) : answers.first)(),
+        ),
         homeserverProvider.overrideWith(
-          () => FixedHomeserver(
-            Uri.https(chosenServerName ?? Uri.parse(homeserver).host),
+          () => _ChangingHomeserver(
+            ServerChoice(
+              Uri.https(chosenServerName ?? Uri.parse(homeserver).host),
+              apiHost: Uri.parse(homeserver),
+            ),
           ),
         ),
       ],
@@ -75,6 +87,20 @@ void main() {
       );
     }
     await tester.pumpAndSettle();
+  }
+
+  final createAccount = find.widgetWithText(OutlinedButton, 'Create account');
+
+  const unreachable =
+      'Cannot reach that server. Check the address and your connection.';
+
+  void changeServer(WidgetTester tester, String host) {
+    final notifier = ProviderScope.containerOf(
+      tester.element(find.byType(LoginPage)),
+    ).read(homeserverProvider.notifier);
+    (notifier as _ChangingHomeserver).change(
+      ServerChoice(Uri.https(host), apiHost: Uri.https(host)),
+    );
   }
 
   FilledButton signInButton(WidgetTester tester) =>
@@ -136,11 +162,7 @@ void main() {
 
   testWidgets('the form is on the card; Create account and the server sit '
       'under it', (tester) async {
-    await pumpLoginPage(
-      tester,
-      support: const RegistrationSupport(RegistrationAvailability.available),
-      pushed: true,
-    );
+    await pumpLoginPage(tester, signUpPath: SignUpPath.open, pushed: true);
 
     Finder inCard(Finder finder) =>
         find.descendant(of: find.byKey(authCardKey), matching: finder);
@@ -159,15 +181,8 @@ void main() {
     }
   });
 
-  testWidgets('offers nothing for a registration flow it cannot complete', (
-    tester,
-  ) async {
-    await pumpLoginPage(
-      tester,
-      support: const RegistrationSupport(
-        RegistrationAvailability.unsupportedFlow,
-      ),
-    );
+  testWidgets('a closed server shows no Create account', (tester) async {
+    await pumpLoginPage(tester, signUpPath: SignUpPath.closed);
 
     expect(find.text('Create account'), findsNothing);
     expect(find.textContaining('web'), findsNothing);
@@ -191,36 +206,208 @@ void main() {
     expect(loginBody?['refresh_token'], isTrue);
   });
 
-  testWidgets('a server that wants a code asks for the address first', (
-    tester,
-  ) async {
-    await pumpLoginPage(
-      tester,
-      support: const RegistrationSupport(
-        RegistrationAvailability.available,
-        requiresRegistrationToken: true,
-      ),
-    );
+  testWidgets('a zuno_register server asks for an email first', (tester) async {
+    await pumpLoginPage(tester, signUpPath: SignUpPath.emailedCode);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Create account'));
+    await tester.tap(createAccount);
     await tester.pumpAndSettle();
 
     expect(find.byType(RegistrationCodePage), findsOneWidget);
   });
 
-  testWidgets('a server that wants no code goes straight to the form', (
+  testWidgets('an open server opens the sign-up form without a code', (
+    tester,
+  ) async {
+    await pumpLoginPage(tester, signUpPath: SignUpPath.open);
+
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
+      SignUpCode.none,
+    );
+    expect(find.text('Sign-up code'), findsNothing);
+    expect(find.byType(RegistrationCodePage), findsNothing);
+  });
+
+  testWidgets('an admin-code server opens the form with the admin-code field', (
+    tester,
+  ) async {
+    await pumpLoginPage(tester, signUpPath: SignUpPath.adminCode);
+
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
+      SignUpCode.admin,
+    );
+    expect(find.text('Sign-up code'), findsOneWidget);
+    expect(find.byType(RegistrationCodePage), findsNothing);
+  });
+
+  testWidgets('Create account waits for the sign-up answer', (tester) async {
+    final answer = Completer<SignUpPath>();
+    await pumpLoginPage(tester, signUpAnswers: [() => answer.future]);
+
+    expect(find.text('Create account'), findsNothing);
+
+    answer.complete(SignUpPath.open);
+    await tester.pumpAndSettle();
+
+    expect(createAccount, findsOneWidget);
+  });
+
+  testWidgets('an inconclusive answer still offers Create account and asks '
+      'again on tap', (tester) async {
+    await pumpLoginPage(
+      tester,
+      signUpAnswers: [() => SignUpPath.unknown, () => SignUpPath.open],
+    );
+
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
+      SignUpCode.none,
+    );
+  });
+
+  testWidgets('asking again says it is connecting, and asks only once', (
+    tester,
+  ) async {
+    final second = Completer<SignUpPath>();
+    var asks = 0;
+    await pumpLoginPage(
+      tester,
+      signUpAnswers: [
+        () => SignUpPath.unknown,
+        () {
+          asks++;
+          return second.future;
+        },
+      ],
+    );
+
+    await tester.tap(createAccount);
+    await tester.pump();
+    final connecting = find.widgetWithText(OutlinedButton, 'Connecting…');
+    expect(tester.widget<OutlinedButton>(connecting).onPressed, isNull);
+    await tester.tap(connecting, warnIfMissed: false);
+    await tester.pump();
+
+    second.complete(SignUpPath.adminCode);
+    await tester.pumpAndSettle();
+
+    expect(asks, 1);
+    expect(
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
+      SignUpCode.admin,
+    );
+  });
+
+  testWidgets('a second inconclusive answer explains the server is '
+      'unreachable', (tester) async {
+    await pumpLoginPage(
+      tester,
+      signUpAnswers: [() => SignUpPath.unknown, () => SignUpPath.unknown],
+    );
+
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+
+    expect(find.text(unreachable), findsOneWidget);
+    expect(find.byType(RegisterPage), findsNothing);
+    expect(find.byType(RegistrationCodePage), findsNothing);
+    expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
+  });
+
+  testWidgets('a server found closed on the tap says so', (tester) async {
+    await pumpLoginPage(
+      tester,
+      signUpAnswers: [() => SignUpPath.unknown, () => SignUpPath.closed],
+    );
+
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('New accounts are not being created right now.'),
+      findsOneWidget,
+    );
+    expect(find.text('Create account'), findsNothing);
+    expect(find.byType(RegisterPage), findsNothing);
+  });
+
+  testWidgets('an answer that lands after another server is chosen opens '
+      'nothing', (tester) async {
+    final second = Completer<SignUpPath>();
+    await pumpLoginPage(
+      tester,
+      signUpAnswers: [
+        () => SignUpPath.unknown,
+        () => second.future,
+        () => SignUpPath.open,
+      ],
+    );
+
+    await tester.tap(createAccount);
+    await tester.pump();
+    changeServer(tester, 'other.org');
+    await tester.pumpAndSettle();
+    expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
+
+    second.complete(SignUpPath.open);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RegisterPage), findsNothing);
+    expect(find.text('other.org'), findsOneWidget);
+    expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
+  });
+
+  testWidgets('another server shows no Create account until it answers, then '
+      'its own', (tester) async {
+    final other = Completer<SignUpPath>();
+    await pumpLoginPage(
+      tester,
+      signUpAnswers: [() => SignUpPath.open, () => other.future],
+    );
+    expect(createAccount, findsOneWidget);
+
+    changeServer(tester, 'other.org');
+    await tester.pumpAndSettle();
+
+    expect(find.text('other.org'), findsOneWidget);
+    expect(find.text('Create account'), findsNothing);
+
+    other.complete(SignUpPath.adminCode);
+    await tester.pumpAndSettle();
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
+      SignUpCode.admin,
+    );
+  });
+
+  testWidgets('the sign-up message goes once another server is chosen', (
     tester,
   ) async {
     await pumpLoginPage(
       tester,
-      support: const RegistrationSupport(RegistrationAvailability.available),
+      signUpAnswers: [() => SignUpPath.unknown, () => SignUpPath.unknown],
     );
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+    expect(find.text(unreachable), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Create account'));
+    changeServer(tester, 'other.org');
     await tester.pumpAndSettle();
 
-    expect(find.byType(RegisterPage), findsOneWidget);
-    expect(find.byType(RegistrationCodePage), findsNothing);
+    expect(find.text(unreachable), findsNothing);
   });
 
   testWidgets('the username field lowercases what is typed, and still takes '

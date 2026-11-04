@@ -3,20 +3,15 @@ import 'dart:convert';
 import 'dart:io' show HandshakeException;
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/homeserver.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 
 import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
-import '../../helpers/fixed_homeserver.dart';
-import '../../helpers/hybrid_fake_async.dart';
 
 void main() {
   group('registrationSupportFrom', () {
@@ -127,7 +122,10 @@ void main() {
   });
 
   group('fetchRegistrationSupport', () {
-    test('POSTs an empty body to the homeserver register endpoint', () async {
+    final server = Uri.parse('https://example.org');
+
+    test('POSTs an empty body to the register endpoint of the server it is '
+        'given, not the one the client last checked', () async {
       late Uri requested;
       final client = buildTestClient(
         httpClient: FakeHttpClient((request) async {
@@ -146,15 +144,15 @@ void main() {
             401,
           );
         }),
-      )..homeserver = Uri.parse('https://example.org');
+      )..homeserver = Uri.parse('https://candidate.example');
 
-      final support = await fetchRegistrationSupport(client);
+      final support = await fetchRegistrationSupport(client, server);
 
       expect(
         requested.toString(),
         'https://example.org/_matrix/client/v3/register',
       );
-      expect(support.isAvailable, isTrue);
+      expect(support.availability, RegistrationAvailability.available);
     });
 
     for (final (label, failure) in <(String, Exception)>[
@@ -164,10 +162,10 @@ void main() {
       test('$label is inconclusive rather than thrown', () async {
         final client = buildTestClient(
           httpClient: FakeHttpClient((_) async => throw failure),
-        )..homeserver = Uri.parse('https://example.org');
+        );
 
         expect(
-          (await fetchRegistrationSupport(client)).availability,
+          (await fetchRegistrationSupport(client, server)).availability,
           RegistrationAvailability.unknown,
         );
       });
@@ -177,10 +175,13 @@ void main() {
       fakeAsync((async) {
         final client = buildTestClient(
           httpClient: FakeHttpClient((_) => Completer<http.Response>().future),
-        )..homeserver = Uri.parse('https://example.org');
+        );
 
         RegistrationSupport? support;
-        fetchRegistrationSupport(client).then((value) => support = value);
+        fetchRegistrationSupport(
+          client,
+          server,
+        ).then((value) => support = value);
         async.elapse(registrationProbeTimeout);
 
         expect(support?.availability, RegistrationAvailability.unknown);
@@ -193,11 +194,11 @@ void main() {
         httpClient: FakeHttpClient(
           (_) async => http.Response('<html>nope</html>', 401),
         ),
-      )..homeserver = Uri.parse('https://example.org');
+      );
 
       late RegistrationSupport support;
       final reports = await reportsDuring(
-        () async => support = await fetchRegistrationSupport(client),
+        () async => support = await fetchRegistrationSupport(client, server),
       );
 
       expect(support.availability, RegistrationAvailability.unknown);
@@ -207,106 +208,14 @@ void main() {
     test('a probe that fails some other way is reported', () async {
       final client = buildTestClient(
         httpClient: FakeHttpClient((_) async => throw Exception('closed')),
-      )..homeserver = Uri.parse('https://example.org');
+      );
 
       final reports = await reportsDuring(
-        () => fetchRegistrationSupport(client),
+        () => fetchRegistrationSupport(client, server),
       );
 
       expect(reports, ['probe registration support']);
     });
-  });
-
-  group('registrationSupportProvider', () {
-    ProviderContainer containerProbing(
-      Future<http.Response> Function(int probe) answer,
-    ) {
-      var probes = 0;
-      final client = buildTestClient(
-        httpClient: FakeHttpClient((_) => answer(++probes)),
-      )..homeserver = Uri.parse('https://example.org');
-      final container = ProviderContainer(
-        overrides: [
-          matrixClientProvider.overrideWithValue(client),
-          homeserverProvider.overrideWith(
-            () => FixedHomeserver(Uri.parse('https://example.org')),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
-      return container;
-    }
-
-    Future<AsyncValue<RegistrationSupport>> supportAfterFiveSeconds(
-      Future<http.Response> Function(int probe) answer,
-    ) async {
-      final time = FakeAsync();
-      late AsyncValue<RegistrationSupport> Function() support;
-      time.run((_) {
-        support = containerProbing(answer)
-            .listen(registrationSupportProvider, (_, _) {})
-            .read;
-      });
-      await time.advance(const Duration(seconds: 5));
-      return support();
-    }
-
-    test('an inconclusive probe is tried again', () async {
-      final probes = <int>[];
-
-      final support = await supportAfterFiveSeconds((probe) async {
-        probes.add(probe);
-        if (probe == 1) throw http.ClientException('offline');
-        return http.Response(
-          jsonEncode({
-            'session': 'uia1',
-            'flows': [
-              {
-                'stages': ['m.login.dummy'],
-              },
-            ],
-          }),
-          401,
-        );
-      });
-
-      expect(probes, [1, 2]);
-      expect(support.value?.isAvailable, isTrue);
-    });
-
-    test('a conclusive answer is not asked for twice', () async {
-      final probes = <int>[];
-
-      final support = await supportAfterFiveSeconds((probe) async {
-        probes.add(probe);
-        return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
-      });
-
-      expect(probes, [1]);
-      expect(support.value?.availability, RegistrationAvailability.disabled);
-    });
-
-    test(
-      'is dropped with the screen, so another server is asked afresh',
-      () async {
-        final probes = <int>[];
-        final container = containerProbing((probe) async {
-          probes.add(probe);
-          return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
-        });
-
-        final first = container.listen(registrationSupportProvider, (_, _) {});
-        await container.read(registrationSupportProvider.future);
-        first.close();
-        await container.pump();
-
-        final second = container.listen(registrationSupportProvider, (_, _) {});
-        await container.read(registrationSupportProvider.future);
-        second.close();
-
-        expect(probes, [1, 2]);
-      },
-    );
   });
 
   group('registrationInputError', () {

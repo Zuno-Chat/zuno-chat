@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
 import 'package:zuno/core/matrix/server_name.dart';
 
 import '../../helpers/fake_matrix.dart';
@@ -16,12 +17,19 @@ void main() {
       buildTestClient(userId: userId)
         ..homeserver = Uri.parse('https://matrix.example.org');
 
-  ProviderContainer containerFor(Client client, {FutureOr<Uri>? chosen}) {
+  ProviderContainer containerFor(Client client, {Uri? chosen}) {
     final container = ProviderContainer(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         homeserverProvider.overrideWith(
-          () => FixedHomeserver(chosen ?? Completer<Uri>().future),
+          () => FixedHomeserver(
+            chosen == null
+                ? Completer<ServerChoice>().future
+                : ServerChoice(
+                    chosen,
+                    apiHost: Uri.parse('https://matrix.example.org'),
+                  ),
+          ),
         ),
       ],
     );

@@ -115,7 +115,7 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | remove (a person or item) | Remover / remover | The kick action. |
 | ban | Banir / remover banimento | "Banned" heading → «Banidos». |
 | report | Denunciar · a denúncia | Reasons: «Assédio», «Conteúdo ilegal», «Spam», «Outro motivo». |
-| the people who run your server | as pessoas que gerenciam seu servidor | Who receives reports. "They" → «elas». |
+| the people who run your server | as pessoas que gerenciam seu servidor | Who receives reports and hands out sign-up codes. "They" → «elas». |
 | public / private | pública / privada | Feminine, agreeing with sala and comunidade. |
 | topic, description, address, ID | o tópico · a descrição · o endereço · o ID | |
 | hostname | o nome do servidor | |

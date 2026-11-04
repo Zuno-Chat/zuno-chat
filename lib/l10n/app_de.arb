@@ -54,6 +54,7 @@
   "authSignIn": "Anmelden",
   "authSignInWithCode": "Mit dem Code anmelden",
   "authSignInWithOtherDevice": "Mit deinem anderen Gerät anmelden",
+  "authSignUpCodeFromAdmin": "Von den Betreibern deines Servers",
   "authSignUpCodeHelper": "Aus der Registrierungs-E-Mail",
   "authSignUpCodeLabel": "Registrierungscode",
   "authSigningIn": "Wird angemeldet…",

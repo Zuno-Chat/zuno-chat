@@ -9,7 +9,7 @@ import 'package:zuno/app.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/registration_support.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
@@ -75,12 +75,11 @@ void main() {
           sharedPreferencesProvider.overrideWithValue(prefs),
           matrixClientProvider.overrideWithValue(client),
           homeserverProvider.overrideWith(
-            () => FixedHomeserver(officialHomeserver),
+            () => FixedHomeserver(
+              ServerChoice(officialHomeserver, apiHost: officialHomeserver),
+            ),
           ),
-          registrationSupportProvider.overrideWith(
-            (ref) async =>
-                const RegistrationSupport(RegistrationAvailability.disabled),
-          ),
+          signUpPathProvider.overrideWith((ref, _) async => SignUpPath.closed),
         ],
       );
       addTearDown(container.dispose);

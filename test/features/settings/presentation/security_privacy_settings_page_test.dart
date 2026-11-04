@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/account_capabilities.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
@@ -69,6 +70,9 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
+          accountCapabilitiesProvider.overrideWith(
+            (ref) async => const AccountCapabilities(),
+          ),
           sharedPreferencesProvider.overrideWithValue(sharedPrefs),
           if (capabilities != null)
             platformCapabilitiesProvider.overrideWithValue(capabilities),
@@ -315,6 +319,9 @@ void main() {
         ProviderScope(
           overrides: [
             matrixClientProvider.overrideWithValue(_NoDevicesClient()),
+            accountCapabilitiesProvider.overrideWith(
+              (ref) async => const AccountCapabilities(),
+            ),
             sharedPreferencesProvider.overrideWithValue(sharedPrefs),
             accountSecurityFactsProvider.overrideWith((ref) {
               factReads++;
