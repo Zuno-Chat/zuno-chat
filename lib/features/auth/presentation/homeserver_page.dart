@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
@@ -7,6 +6,8 @@ import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/homeserver_input.dart';
+import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/server_choice.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
@@ -54,9 +55,14 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
       _error = null;
     });
 
+    final route = ModalRoute.of(context);
     try {
-      await ref.read(homeserverProvider.notifier).use(homeserver);
-      if (!mounted) return;
+      final choice = await checkServer(
+        ref.read(matrixClientProvider),
+        homeserver,
+      );
+      if (!mounted || !(route?.isActive ?? false)) return;
+      ref.read(homeserverProvider.notifier).adopt(choice);
       Navigator.of(context).pop();
     } catch (e, s) {
       if (homeserverProblem(e).reported) reportCaught('use homeserver', e, s);
@@ -70,35 +76,32 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
-    return PopScope(
-      canPop: !_loading,
-      child: AuthScaffold(
-        title: l10n.authConnectToServer,
-        children: [
-          ZunoTextField(
-            autofillHints: null,
-            controller: _homeserver,
-            enabled: !_loading,
-            keyboardType: TextInputType.url,
-            autocorrect: false,
-            onSubmitted: (_) => _continue(),
-            decoration: InputDecoration(
-              labelText: l10n.authServerLabel,
-              hintText: l10n.authHomeserverHint,
-              helperText: l10n.authServerHelper,
-            ),
+    return AuthScaffold(
+      title: l10n.authConnectToServer,
+      children: [
+        ZunoTextField(
+          autofillHints: null,
+          controller: _homeserver,
+          enabled: !_loading,
+          keyboardType: TextInputType.url,
+          autocorrect: false,
+          onSubmitted: (_) => _continue(),
+          decoration: InputDecoration(
+            labelText: l10n.authServerLabel,
+            hintText: l10n.authHomeserverHint,
+            helperText: l10n.authServerHelper,
           ),
-          if (_error case final error?) ...[
-            const SizedBox(height: 16),
-            InlineError(error),
-          ],
-          const SizedBox(height: 24),
-          FilledButton(
-            onPressed: _loading ? null : _continue,
-            child: Text(_loading ? l10n.authConnecting : l10n.commonContinue),
-          ),
+        ),
+        if (_error case final error?) ...[
+          const SizedBox(height: 16),
+          InlineError(error),
         ],
-      ),
+        const SizedBox(height: 24),
+        FilledButton(
+          onPressed: _loading ? null : _continue,
+          child: Text(_loading ? l10n.authConnecting : l10n.commonContinue),
+        ),
+      ],
     );
   }
 }

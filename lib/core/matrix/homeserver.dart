@@ -18,47 +18,31 @@ final homeserverProvider =
 
 class HomeserverNotifier extends AsyncNotifier<ServerChoice> {
   @override
-  FutureOr<ServerChoice> build() => reportFailureOf(
-    _check(ref.watch(matrixClientProvider), officialHomeserver),
-    label: 'homeserver check',
-  );
-
-  Future<void> use(Uri homeserver) async {
-    final client = ref.read(matrixClientProvider);
-    final previous = client.homeserver;
-    final ServerChoice choice;
-    try {
-      choice = await _check(client, homeserver);
-    } catch (_) {
-      client.homeserver = previous;
-      rethrow;
-    }
-    state = AsyncData(choice);
+  FutureOr<ServerChoice> build() async {
+    final client = ref.watch(matrixClientProvider);
+    final choice = await reportFailureOf(
+      checkServer(client, officialHomeserver),
+      label: 'homeserver check',
+    );
+    return _pointed(client, choice);
   }
+
+  void adopt(ServerChoice choice) =>
+      state = AsyncData(_pointed(ref.read(matrixClientProvider), choice));
 }
 
-Future<ServerChoice> _check(Client client, Uri homeserver) async {
-  final discovered = await readDiscovery(client, homeserver);
-  await client.checkHomeserver(
-    discovered.homeserver ?? homeserver,
-    checkWellKnown: false,
-    fetchAuthMetadata: false,
-  );
-  return ServerChoice(
-    homeserver,
-    apiHost: client.homeserver!,
-    mailsSignUpCodes: discovered.mailsSignUpCodes,
-  );
+ServerChoice _pointed(Client client, ServerChoice choice) {
+  client.homeserver = choice.apiHost;
+  return choice;
 }
 
 final signUpPathProvider = FutureProvider.autoDispose
-    .family<SignUpPath, ServerChoice>((ref, choice) async {
-      final client = ref.watch(matrixClientProvider);
-      final support = await fetchRegistrationSupport(client, choice.apiHost);
-      var mailsSignUpCodes = choice.mailsSignUpCodes;
-      if (mailsSignUpCodes == null && support.requiresRegistrationToken) {
-        final discovered = await readDiscovery(client, choice.homeserver);
-        mailsSignUpCodes = discovered.mailsSignUpCodes;
-      }
-      return signUpPathFrom(support, mailsSignUpCodes: mailsSignUpCodes);
-    }, retry: (_, _) => null);
+    .family<SignUpPath, ServerChoice>(
+      (ref, choice) async => signUpPathFrom(
+        await fetchRegistrationSupport(
+          ref.watch(matrixClientProvider),
+          choice.apiHost,
+        ),
+      ),
+      retry: (_, _) => null,
+    );

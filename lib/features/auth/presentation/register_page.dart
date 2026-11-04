@@ -3,8 +3,7 @@ import 'package:flutter/services.dart'
     show
         FilteringTextInputFormatter,
         LengthLimitingTextInputFormatter,
-        TextInput,
-        TextInputFormatter;
+        TextInput;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
@@ -27,37 +26,18 @@ import 'password_field.dart';
 import 'password_strength_bar.dart';
 import 'retry_wait.dart';
 
-enum SignUpCode { none, emailed, admin }
-
-typedef _CodeField = ({
-  String helper,
-  String missing,
-  TextCapitalization capitalization,
-  List<TextInputFormatter> formatters,
-  bool canSendNewCode,
-});
-
-final _emailedCodeFormatters = [
-  TextInputFormatter.withFunction(
-    (_, value) => value.copyWith(text: value.text.toUpperCase()),
-  ),
-  FilteringTextInputFormatter.allow(RegExp(r'[A-HJ-NP-Z2-9]')),
-];
-
-final _adminCodeFormatters = [
+final _codeFormatters = [
   FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9._~-]')),
   LengthLimitingTextInputFormatter(64),
 ];
 
 class RegisterPage extends ConsumerStatefulWidget {
-  final SignUpCode code;
-  final String? email;
+  final bool requiresCode;
   final UrlOpener openUrl;
 
   const RegisterPage({
     super.key,
-    this.code = SignUpCode.none,
-    this.email,
+    this.requiresCode = false,
     this.openUrl = openExternally,
   });
 
@@ -75,7 +55,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
   final _password = TextEditingController();
   final _confirmPassword = TextEditingController();
   bool _loading = false;
-  bool _codeRefused = false;
   String? _error;
   (String, String, String?)? _progressInputs;
   var _progress = RegistrationProgress();
@@ -89,30 +68,9 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
     super.dispose();
   }
 
-  _CodeField? _codeField(AppLocalizations l10n) => switch (widget.code) {
-    SignUpCode.none => null,
-    SignUpCode.emailed => (
-      helper: l10n.authSignUpCodeHelper,
-      missing: l10n.authEnterEmailCode,
-      capitalization: TextCapitalization.characters,
-      formatters: _emailedCodeFormatters,
-      canSendNewCode: true,
-    ),
-    SignUpCode.admin => (
-      helper: l10n.authSignUpCodeFromAdmin,
-      missing: l10n.authEnterCode,
-      capitalization: TextCapitalization.none,
-      formatters: _adminCodeFormatters,
-      canSendNewCode: false,
-    ),
-  };
-
   void _clearError() {
-    if (waitingToRetry || (_error == null && !_codeRefused)) return;
-    setState(() {
-      _error = null;
-      _codeRefused = false;
-    });
+    if (waitingToRetry || _error == null) return;
+    setState(() => _error = null);
   }
 
   Future<void> _register() async {
@@ -123,13 +81,10 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
     final l10n = context.l10n;
     final username = _username.text.trim();
     final password = _password.text;
-    String? code;
-    if (_codeField(l10n) case final field?) {
-      code = _code.text.trim();
-      if (code.isEmpty) {
-        setState(() => _error = field.missing);
-        return;
-      }
+    final code = widget.requiresCode ? _code.text.trim() : null;
+    if (code != null && code.isEmpty) {
+      setState(() => _error = l10n.authEnterCode);
+      return;
     }
     final inputError = registrationInputError(
       l10n,
@@ -151,7 +106,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
 
     setState(() {
       _loading = true;
-      _codeRefused = false;
       _error = null;
     });
 
@@ -173,10 +127,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
       Navigator.of(context).popUntil((route) => route.isFirst);
     } on RegistrationCodeRefusedException catch (e) {
       if (!mounted) return;
-      setState(() {
-        _codeRefused = true;
-        _error = registrationErrorMessage(l10n, e);
-      });
+      setState(() => _error = registrationErrorMessage(l10n, e));
     } catch (e, s) {
       if (!isRegistrationRefusal(e)) reportCaught('register', e, s);
       if (!mounted) return;
@@ -195,7 +146,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
     final serverName = ref.watch(serverNameProvider);
     final onZuno = serverName == officialHomeserver.host;
     final l10n = context.l10n;
-    final codeField = _codeField(l10n);
 
     return PopScope(
       canPop: !_loading,
@@ -235,16 +185,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
             ),
             const SizedBox(height: 16),
           ],
-          if (widget.email case final email?) ...[
-            Text(
-              l10n.authCheckEmailForCode(email),
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          if (codeField != null) ...[
+          if (widget.requiresCode) ...[
             ZunoTextField(
               autofillHints: null,
               controller: _code,
@@ -252,12 +193,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
               autocorrect: false,
               enableSuggestions: false,
               textInputAction: TextInputAction.next,
-              textCapitalization: codeField.capitalization,
               onChanged: (_) => _clearError(),
-              inputFormatters: codeField.formatters,
+              inputFormatters: _codeFormatters,
               decoration: InputDecoration(
                 labelText: l10n.authSignUpCodeLabel,
-                helperText: codeField.helper,
+                helperText: l10n.authSignUpCodeFromAdmin,
               ),
             ),
             const SizedBox(height: 16),
@@ -321,13 +261,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
           if (_error case final error?) ...[
             const SizedBox(height: 16),
             InlineError(error),
-          ],
-          if (_codeRefused && (codeField?.canSendNewCode ?? false)) ...[
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: _loading ? null : () => Navigator.of(context).pop(),
-              child: Text(l10n.authSendNewCode),
-            ),
           ],
           const SizedBox(height: 24),
           FilledButton(

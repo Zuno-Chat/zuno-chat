@@ -120,7 +120,8 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | leave | Forlad · forlade | "{people} left" → «{people} er gået». |
 | ban | Udeluk / Ophæv udelukkelse · udelukkelse | "Banned" heading → «Udelukkede». "{sender} unbanned {people}" → «{sender} ophævede udelukkelsen af {people}». Never «bloker». |
 | report | Rapporter · rapport | Reasons: «Chikane», «Ulovligt indhold», «Spam», «Anden årsag». |
-| the people who run your server | dem, der driver din server | Who receives reports and hands out sign-up codes, never Zuno. "They" → «de». |
+| the people who run your server | dem, der driver din server | Who receives reports, never Zuno. "They" → «de». |
+| your server's admin | din serveradministrator | Who hands out sign-up codes. Never bare «Administrator», the room role. |
 | public / private | offentlig / privat | Agree with the noun («et offentligt rum», «et privat fællesskab»); a label serving both is «Offentlig adgang» / «Privat adgang» / «Adgang efter anmodning» / «Adgang for fællesskabet». "Make public" → «Gør offentlig». |
 | topic, description, address, ID | emne · beskrivelse · adresse · ID | Room alias → «rumadresse». |
 | hostname | servernavn | |

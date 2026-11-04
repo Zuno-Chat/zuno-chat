@@ -1,7 +1,12 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:matrix/matrix.dart';
+import 'package:zuno/core/errors/connection_error.dart';
+import 'package:zuno/core/matrix/auth_error_message.dart';
+import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 import 'package:zuno/core/matrix/server_choice.dart';
 
@@ -11,34 +16,24 @@ import '../../helpers/fake_matrix.dart';
 
 void main() {
   group('signUpPathFrom', () {
-    const open = RegistrationSupport(RegistrationAvailability.available);
-    const needsCode = RegistrationSupport(
-      RegistrationAvailability.available,
-      requiresRegistrationToken: true,
-    );
-
     test('a flow without a code is open', () {
-      expect(signUpPathFrom(open, mailsSignUpCodes: null), SignUpPath.open);
-    });
-
-    test('a code from a server announcing zuno_register is emailed', () {
       expect(
-        signUpPathFrom(needsCode, mailsSignUpCodes: true),
-        SignUpPath.emailedCode,
+        signUpPathFrom(
+          const RegistrationSupport(RegistrationAvailability.available),
+        ),
+        SignUpPath.open,
       );
     });
 
-    test('a code from a server announcing nothing comes from its admin', () {
+    test('a code needed by every flow signs up with a code', () {
       expect(
-        signUpPathFrom(needsCode, mailsSignUpCodes: false),
-        SignUpPath.adminCode,
-      );
-    });
-
-    test('a code from a server whose announcement is unknown is unknown', () {
-      expect(
-        signUpPathFrom(needsCode, mailsSignUpCodes: null),
-        SignUpPath.unknown,
+        signUpPathFrom(
+          const RegistrationSupport(
+            RegistrationAvailability.available,
+            requiresRegistrationToken: true,
+          ),
+        ),
+        SignUpPath.code,
       );
     });
 
@@ -46,17 +41,11 @@ void main() {
       RegistrationAvailability.disabled,
       RegistrationAvailability.unsupportedFlow,
     ]) {
-      test('${availability.name} is closed whatever the announcement', () {
-        for (final mails in [true, false, null]) {
-          expect(
-            signUpPathFrom(
-              RegistrationSupport(availability),
-              mailsSignUpCodes: mails,
-            ),
-            SignUpPath.closed,
-            reason: '$mails',
-          );
-        }
+      test('${availability.name} is closed', () {
+        expect(
+          signUpPathFrom(RegistrationSupport(availability)),
+          SignUpPath.closed,
+        );
       });
     }
 
@@ -64,193 +53,309 @@ void main() {
       expect(
         signUpPathFrom(
           const RegistrationSupport(RegistrationAvailability.unknown),
-          mailsSignUpCodes: true,
         ),
         SignUpPath.unknown,
       );
     });
   });
 
-  group('readDiscovery', () {
+  group('checkServer', () {
     final server = Uri.parse('https://example.org');
+    const discoveryPath = '/.well-known/matrix/client';
+    const versionsPath = '/_matrix/client/versions';
+    const loginPath = '/_matrix/client/v3/login';
+    final requests = <Uri>[];
 
-    Future<({Uri? homeserver, bool? mailsSignUpCodes})> discover(
-      FakeHttpHandler answer, {
-      List<Uri>? requested,
-    }) => readDiscovery(
-      buildTestClient(
-        httpClient: FakeHttpClient((request) {
-          requested?.add(request.url);
-          return answer(request);
+    setUp(requests.clear);
+
+    http.Response json(Object? body, [int status = 200]) =>
+        http.Response(jsonEncode(body), status);
+
+    http.Response notFound() => json({'errcode': 'M_NOT_FOUND'}, 404);
+
+    http.Response discoveryNaming(Object? base) => json({
+      'm.homeserver': {'base_url': base},
+    });
+
+    Client clientAnswering({
+      FakeHttpHandler? discovery,
+      FakeHttpHandler? versions,
+      FakeHttpHandler? login,
+    }) => buildTestClient(
+      httpClient: FakeHttpClient((request) async {
+        requests.add(request.url);
+        return switch (request.url.path) {
+          discoveryPath => discovery == null ? notFound() : discovery(request),
+          versionsPath =>
+            versions == null
+                ? json({
+                    'versions': ['v1.5', 'v1.15'],
+                  })
+                : versions(request),
+          loginPath =>
+            login == null
+                ? json({
+                    'flows': [
+                      {'type': 'm.login.password'},
+                    ],
+                  })
+                : login(request),
+          _ => notFound(),
+        };
+      }),
+    );
+
+    List<Uri> requestsTo(String path) =>
+        requests.where((url) => url.path == path).toList();
+
+    test('a discovery file naming another API host points the check '
+        'there', () async {
+      final client = clientAnswering(
+        discovery: (_) async => discoveryNaming('https://matrix.example.org/'),
+      );
+
+      final choice = await checkServer(client, server);
+
+      expect(
+        choice,
+        ServerChoice(server, apiHost: Uri.parse('https://matrix.example.org')),
+      );
+      expect(requests, [
+        Uri.parse('https://example.org$discoveryPath'),
+        Uri.parse('https://matrix.example.org$versionsPath'),
+        Uri.parse('https://matrix.example.org$loginPath'),
+      ]);
+    });
+
+    test('sign-in methods are asked for without waiting on versions', () async {
+      final versions = Completer<http.Response>();
+      final client = clientAnswering(versions: (_) => versions.future);
+
+      final checked = checkServer(client, server);
+      await pumpEventQueue();
+
+      expect(requestsTo(loginPath), hasLength(1));
+      versions.complete(
+        json({
+          'versions': ['v1.5'],
         }),
+      );
+      expect(await checked, ServerChoice(server, apiHost: server));
+    });
+
+    test('a server that is not Matrix fails as not Matrix even when its '
+        'sign-in methods are unreachable', () async {
+      final client = clientAnswering(
+        versions: (_) async => http.Response('<html></html>', 404),
+        login: (_) async => throw http.ClientException('offline'),
+      );
+
+      final error = await checkServer(
+        client,
+        server,
+      ).then<Object?>((_) => null, onError: (Object e) => e);
+
+      expect(error, isNotNull);
+      expect(isNotMatrixAnswer(error!), isTrue);
+    });
+
+    test(
+      'auth metadata is never requested, even from a v1.15 server',
+      () async {
+        final client = clientAnswering(
+          versions: (_) async => json({
+            'versions': ['v1.15'],
+          }),
+        );
+
+        await checkServer(client, server);
+
+        expect(requestsTo('/_matrix/client/v1/auth_metadata'), isEmpty);
+      },
+    );
+
+    for (final (name, answer) in <(String, FakeHttpHandler)>[
+      ('a missing file', (_) async => notFound()),
+      (
+        'a missing file served as a web page',
+        (_) async => http.Response('<html><body>Not found</body></html>', 404),
       ),
-      server,
-    );
+      (
+        'a web page served as the discovery file',
+        (_) async => http.Response('<html><body>Welcome</body></html>', 200),
+      ),
+      ('a server error', (_) async => http.Response('', 503)),
+      ('a rate limit', (_) async => http.Response('', 429)),
+      (
+        'an unreachable file',
+        (_) async => throw http.ClientException('offline'),
+      ),
+      (
+        'a base_url without a scheme',
+        (_) async => discoveryNaming('matrix.example.org'),
+      ),
+      (
+        'a base_url that is not http or https',
+        (_) async => discoveryNaming('ftp://matrix.example.org'),
+      ),
+      (
+        'a base_url without a host',
+        (_) async => discoveryNaming('https:///matrix'),
+      ),
+      (
+        'a base_url that is not a URL',
+        (_) async => discoveryNaming('https://[bad'),
+      ),
+      ('a base_url that is not text', (_) async => discoveryNaming(42)),
+      ('a file without m.homeserver', (_) async => json(<String, Object?>{})),
+      ('a file that is not an object', (_) async => json(['m.homeserver'])),
+    ]) {
+      test(
+        '$name leaves the typed server as the API host, unreported',
+        () async {
+          final client = clientAnswering(discovery: answer);
 
-    http.Response json(Object? body) => http.Response(jsonEncode(body), 200);
+          late ServerChoice choice;
+          final reports = await reportsDuring(
+            () async => choice = await checkServer(client, server),
+          );
+
+          expect(choice, ServerChoice(server, apiHost: server));
+          expect(requestsTo(versionsPath).single.host, 'example.org');
+          expect(reports, isEmpty);
+        },
+      );
+    }
 
     test(
-      'a discovery file naming the API host and announcing zuno_register',
+      'the typed server is the API host without its trailing slash',
       () async {
-        final requested = <Uri>[];
+        final typed = Uri.parse('https://example.org/');
 
-        final discovered = await discover(
-          (_) async => json({
-            'm.homeserver': {'base_url': 'https://api.example.org'},
-            'chat.zuno.register': <String, Object?>{},
-          }),
-          requested: requested,
-        );
+        final choice = await checkServer(clientAnswering(), typed);
 
-        expect(discovered, (
-          homeserver: Uri.parse('https://api.example.org'),
-          mailsSignUpCodes: true,
-        ));
-        expect(requested, [
-          Uri.parse('https://example.org/.well-known/matrix/client'),
-        ]);
+        expect(choice, ServerChoice(typed, apiHost: server));
       },
     );
 
-    test('a discovery file without the key announces nothing', () async {
-      final discovered = await discover(
-        (_) async => json({
-          'm.homeserver': {'base_url': 'https://api.example.org'},
-        }),
+    test('an odd discovery failure is reported and the typed server is the '
+        'API host', () async {
+      final client = clientAnswering(
+        discovery: (_) async => throw Exception('closed'),
       );
 
-      expect(discovered, (
-        homeserver: Uri.parse('https://api.example.org'),
-        mailsSignUpCodes: false,
-      ));
-    });
-
-    test('a key that is not an object announces nothing', () async {
-      final discovered = await discover(
-        (_) async => json({
-          'm.homeserver': {'base_url': 'https://api.example.org'},
-          'chat.zuno.register': true,
-        }),
+      late ServerChoice choice;
+      final reports = await reportsDuring(
+        () async => choice = await checkServer(client, server),
       );
 
-      expect(discovered.mailsSignUpCodes, isFalse);
+      expect(choice, ServerChoice(server, apiHost: server));
+      expect(reports, ['read discovery file']);
     });
-
-    test('a missing file announces nothing', () async {
-      final discovered = await discover(
-        (_) async => http.Response(jsonEncode({'errcode': 'M_NOT_FOUND'}), 404),
-      );
-
-      expect(discovered, (homeserver: null, mailsSignUpCodes: false));
-    });
-
-    test('a web page served as the discovery file announces nothing', () async {
-      final discovered = await discover(
-        (_) async => http.Response(
-          '<html><body>Welcome to example.org</body></html>',
-          200,
-        ),
-      );
-
-      expect(discovered, (homeserver: null, mailsSignUpCodes: false));
-    });
-
-    test('a discovery file without m.homeserver announces nothing', () async {
-      final discovered = await discover(
-        (_) async => json(<String, Object?>{'chat.zuno.register': {}}),
-      );
-
-      expect(discovered, (homeserver: null, mailsSignUpCodes: false));
-    });
-
-    test(
-      'an unreachable discovery file leaves the announcement unknown',
-      () async {
-        late ({Uri? homeserver, bool? mailsSignUpCodes}) discovered;
-        final reports = await reportsDuring(
-          () async => discovered = await discover(
-            (_) async => throw http.ClientException('offline'),
-          ),
-        );
-
-        expect(discovered, (homeserver: null, mailsSignUpCodes: null));
-        expect(reports, isEmpty);
-      },
-    );
-
-    test('a server error leaves the announcement unknown', () async {
-      final discovered = await discover((_) async => http.Response('', 503));
-
-      expect(discovered, (homeserver: null, mailsSignUpCodes: null));
-    });
-
-    test(
-      'a rate-limited discovery file leaves the announcement unknown',
-      () async {
-        final discovered = await discover((_) async => http.Response('', 429));
-
-        expect(discovered, (homeserver: null, mailsSignUpCodes: null));
-      },
-    );
-
-    test('a base_url without a scheme announces nothing', () async {
-      final discovered = await discover(
-        (_) async => json({
-          'm.homeserver': {'base_url': 'matrix.example.org'},
-          'chat.zuno.register': <String, Object?>{},
-        }),
-      );
-
-      expect(discovered, (homeserver: null, mailsSignUpCodes: false));
-    });
-
-    test('a base_url that is not http or https announces nothing', () async {
-      final discovered = await discover(
-        (_) async => json({
-          'm.homeserver': {'base_url': 'ftp://matrix.example.org'},
-          'chat.zuno.register': <String, Object?>{},
-        }),
-      );
-
-      expect(discovered, (homeserver: null, mailsSignUpCodes: false));
-    });
-
-    test('a base_url that is not a URL announces nothing', () async {
-      for (final base in <Object?>['https://[bad', 42]) {
-        final discovered = await discover(
-          (_) async => json({
-            'm.homeserver': {'base_url': base},
-            'chat.zuno.register': <String, Object?>{},
-          }),
-        );
-
-        expect(discovered, (
-          homeserver: null,
-          mailsSignUpCodes: false,
-        ), reason: '$base');
-      }
-    });
-
-    test(
-      'an odd failure is reported and leaves the announcement unknown',
-      () async {
-        late ({Uri? homeserver, bool? mailsSignUpCodes}) discovered;
-        final reports = await reportsDuring(
-          () async => discovered = await discover(
-            (_) async => throw Exception('closed'),
-          ),
-        );
-
-        expect(discovered, (homeserver: null, mailsSignUpCodes: null));
-        expect(reports, ['read discovery file']);
-      },
-    );
 
     test('a bug while reading the discovery file is not hidden', () async {
-      await expectLater(
-        discover((_) async => throw StateError('bug')),
-        throwsStateError,
+      final client = clientAnswering(
+        discovery: (_) async => throw StateError('bug'),
       );
+
+      await expectLater(checkServer(client, server), throwsStateError);
+    });
+
+    test('a server that does not answer fails the check', () async {
+      final client = clientAnswering(
+        versions: (_) async => throw http.ClientException('offline'),
+      );
+
+      await expectLater(
+        checkServer(client, server),
+        throwsA(isA<http.ClientException>()),
+      );
+    });
+
+    test(
+      'an address that is not a Matrix server fails the check as one',
+      () async {
+        final client = clientAnswering(
+          versions: (_) async => http.Response('<html></html>', 404),
+        );
+
+        await expectLater(
+          checkServer(client, server),
+          throwsA(
+            predicate(
+              (Object error) =>
+                  homeserverProblem(error) == HomeserverProblem.notAServer,
+            ),
+          ),
+        );
+      },
+    );
+
+    test('a server without password sign-in is refused', () async {
+      final client = clientAnswering(
+        login: (_) async => json({
+          'flows': [
+            {'type': 'm.login.sso'},
+          ],
+        }),
+      );
+
+      await expectLater(
+        checkServer(client, server),
+        throwsA(
+          isA<BadServerLoginTypesException>().having(
+            (error) => error.serverLoginTypes,
+            'server types',
+            {'m.login.sso'},
+          ),
+        ),
+      );
+    });
+
+    test('a refused sign-in method list counts as none', () async {
+      final client = clientAnswering(
+        login: (_) async => json({'errcode': 'M_UNRECOGNIZED'}, 404),
+      );
+
+      expect(
+        await checkServer(client, server),
+        ServerChoice(server, apiHost: server),
+      );
+    });
+
+    test(
+      'a sign-in method list that cannot be fetched fails the check',
+      () async {
+        final client = clientAnswering(
+          login: (_) async => throw http.ClientException('offline'),
+        );
+
+        await expectLater(
+          checkServer(client, server),
+          throwsA(isA<http.ClientException>()),
+        );
+      },
+    );
+
+    test('a check leaves the client where it was, passed or failed', () async {
+      var online = true;
+      final client = clientAnswering(
+        versions: (_) async => online
+            ? json({
+                'versions': ['v1.5'],
+              })
+            : throw http.ClientException('offline'),
+      )..homeserver = officialHomeserver;
+
+      await checkServer(client, server);
+      expect(client.homeserver, officialHomeserver);
+
+      online = false;
+      await expectLater(
+        checkServer(client, server),
+        throwsA(isA<http.ClientException>()),
+      );
+      expect(client.homeserver, officialHomeserver);
     });
   });
 
@@ -264,7 +369,6 @@ void main() {
     for (final other in [
       ServerChoice(apiHost, apiHost: apiHost),
       ServerChoice(server, apiHost: server),
-      ServerChoice(server, apiHost: apiHost, mailsSignUpCodes: null),
     ]) {
       expect(choice, isNot(other));
     }

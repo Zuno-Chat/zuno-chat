@@ -65,18 +65,17 @@ When traits pull apart:
 
 The app avoids the server: name it only where a privacy point, or who sends
 or receives something, depends on it. Zuno is the app, never the server: the
-server sends sign-up codes and receives reports. Matrix never appears in the
-app.
+server's admin hands out sign-up codes, and the server receives reports.
+Matrix never appears in the app.
 
 ## Claims and limits
 
 - Absolutes only where the design guarantees them. Never "100% secure",
   "unhackable" or "military-grade".
 - Accounts belong to the server. Zuno never asks for a phone number: sign-up
-  is a username and a password, and where the server sends a sign-up code,
-  the email address is used only for that code and is not stored with the
-  account. Pair it with its limits: a username containing a real name still
-  identifies someone, and there is no email to reset a lost password.
+  is a username and a password, plus a sign-up code where the server's admin
+  hands them out. Pair it with its limits: a username containing a real name
+  still identifies someone, and there is no email to reset a lost password.
 - Name limits where they matter, unprompted. Encryption protects what people
   say. It does not hide that they talked, and it cannot stop a screenshot or
   a compromised device.
@@ -89,7 +88,7 @@ app.
 
 | Surface | Voice |
 |---|---|
-| App | Plainest. No dry edge. Avoid the server; never Matrix. Sign-up never suggests a phone number is needed; an email address appears only at the sign-up code step, with its one purpose stated. |
+| App | Plainest. No dry edge. Avoid the server; never Matrix. Sign-up never suggests a phone number is needed. |
 | Notifications | Shortest. Messages, calls and invites only; never to pull people back in. |
 | Site and store listing | Lead with what Zuno is, matter-of-fact. A dry line allowed, sparingly. Free and open source, any Matrix server and encryption by default are the story; zuno.chat is one place to make an account, never the product. |
 | Support and social | Same rules. Answer in the first sentence. |

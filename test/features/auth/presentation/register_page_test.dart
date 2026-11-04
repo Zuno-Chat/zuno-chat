@@ -33,8 +33,7 @@ void main() {
   Future<void> pumpRegisterPage(
     WidgetTester tester, {
     http.Client? httpClient,
-    SignUpCode code = SignUpCode.none,
-    String? email,
+    bool requiresCode = false,
     String homeserver = 'https://example.org',
     String? chosenServerName,
     UrlOpener openUrl = openExternally,
@@ -57,7 +56,7 @@ void main() {
         ),
       ],
     );
-    final page = RegisterPage(code: code, email: email, openUrl: openUrl);
+    final page = RegisterPage(requiresCode: requiresCode, openUrl: openUrl);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -152,34 +151,22 @@ void main() {
     expect(find.text('Sign-up code'), findsNothing);
   });
 
-  testWidgets("the emailed-code field still uppercases to zuno_register's "
-      'alphabet', (tester) async {
-    await pumpRegisterPage(tester, code: SignUpCode.emailed);
-
-    final code = field('Sign-up code');
-    await tester.enterText(code, 'ab3io1');
-
-    expect(tester.widget<TextField>(code).controller?.text, 'AB3');
-    expect(find.text('From the sign-up email'), findsOneWidget);
-  });
-
-  group('the admin-code field', () {
+  group('the code field', () {
     TextField codeField(WidgetTester tester) =>
         tester.widget<TextField>(field('Sign-up code'));
 
     testWidgets('keeps the code as typed', (tester) async {
-      await pumpRegisterPage(tester, code: SignUpCode.admin);
+      await pumpRegisterPage(tester, requiresCode: true);
 
       await tester.enterText(field('Sign-up code'), 'abc.DEF_1~-');
 
       expect(codeField(tester).controller?.text, 'abc.DEF_1~-');
       expect(codeField(tester).textCapitalization, TextCapitalization.none);
-      expect(find.text('From the people who run your server'), findsOneWidget);
-      expect(find.text('From the sign-up email'), findsNothing);
+      expect(find.text("From your server's admin"), findsOneWidget);
     });
 
     testWidgets('drops spaces and line breaks', (tester) async {
-      await pumpRegisterPage(tester, code: SignUpCode.admin);
+      await pumpRegisterPage(tester, requiresCode: true);
 
       await tester.enterText(field('Sign-up code'), ' abc\n123 ');
 
@@ -187,7 +174,7 @@ void main() {
     });
 
     testWidgets('stops at 64 characters', (tester) async {
-      await pumpRegisterPage(tester, code: SignUpCode.admin);
+      await pumpRegisterPage(tester, requiresCode: true);
 
       await tester.enterText(field('Sign-up code'), 'a' * 70);
 
@@ -203,7 +190,7 @@ void main() {
           bodies.add(jsonDecode(request.body) as Map<String, Object?>);
           return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
         }),
-        code: SignUpCode.admin,
+        requiresCode: true,
       );
 
       await fillAndSubmit(tester, code: 'abc.DEF_1~-');
@@ -214,7 +201,7 @@ void main() {
       });
     });
 
-    testWidgets('left empty asks for the code, not an email', (tester) async {
+    testWidgets('left empty asks for the code', (tester) async {
       useTallScreen(tester);
       var requests = 0;
       await pumpRegisterPage(
@@ -223,7 +210,7 @@ void main() {
           requests++;
           return http.Response('{}', 500);
         }),
-        code: SignUpCode.admin,
+        requiresCode: true,
       );
 
       await fillAndSubmit(tester);
@@ -232,7 +219,7 @@ void main() {
       expect(requests, 0);
     });
 
-    testWidgets('refused says so without offering an email', (tester) async {
+    testWidgets('refused says so', (tester) async {
       useTallScreen(tester);
       final responses = [
         http.Response(
@@ -249,7 +236,7 @@ void main() {
       await pumpRegisterPage(
         tester,
         httpClient: FakeHttpClient((_) async => responses.single),
-        code: SignUpCode.admin,
+        requiresCode: true,
       );
 
       await fillAndSubmit(tester, code: 'abc123');
@@ -258,60 +245,7 @@ void main() {
         find.text('That code is not valid or has expired.'),
         findsOneWidget,
       );
-      expect(find.text('Send a new code'), findsNothing);
     });
-  });
-
-  testWidgets('a refused code says so and offers a new one', (tester) async {
-    useTallScreen(tester);
-    final responses = [
-      http.Response(
-        jsonEncode({
-          'session': 'uia1',
-          'completed': <String>[],
-          'errcode': 'M_MISSING_PARAM',
-          'error': 'Missing UIA session',
-          'flows': _tokenThenDummyFlows,
-        }),
-        401,
-      ),
-      http.Response(
-        jsonEncode({
-          'session': 'uia1',
-          'completed': <String>[],
-          'errcode': 'M_UNAUTHORIZED',
-          'error': 'Invalid registration token',
-          'flows': _tokenThenDummyFlows,
-        }),
-        401,
-      ),
-    ];
-    var answered = 0;
-    await pumpRegisterPage(
-      tester,
-      httpClient: FakeHttpClient((_) async => responses[answered++]),
-      code: SignUpCode.emailed,
-    );
-
-    await fillAndSubmit(tester, code: 'ABCDEFGH23');
-
-    expect(find.text('That code is not valid or has expired.'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Send a new code'), findsOneWidget);
-  });
-
-  testWidgets('the emailed address is named on the form', (tester) async {
-    await pumpRegisterPage(
-      tester,
-      code: SignUpCode.emailed,
-      email: 'alex@example.org',
-    );
-
-    expect(
-      find.text(
-        'Check alex@example.org for your code. It expires in 24 hours.',
-      ),
-      findsOneWidget,
-    );
   });
 
   testWidgets('names the server you asked for, not the API host behind it', (
@@ -326,23 +260,20 @@ void main() {
     expect(find.text('Your account lives on zuno.chat.'), findsOneWidget);
   });
 
-  for (final code in [SignUpCode.emailed, SignUpCode.admin]) {
-    testWidgets('nothing typed here is learned by the keyboard, with the '
-        '${code.name} code', (tester) async {
-      await pumpRegisterPage(tester, code: code);
+  testWidgets('nothing typed here is learned by the keyboard', (tester) async {
+    await pumpRegisterPage(tester, requiresCode: true);
 
-      for (final label in [
-        'Sign-up code',
-        'Username',
-        'Password',
-        'Confirm password',
-      ]) {
-        final input = tester.widget<TextField>(field(label));
-        expect(input.autocorrect, isFalse, reason: label);
-        expect(input.enableSuggestions, isFalse, reason: label);
-      }
-    });
-  }
+    for (final label in [
+      'Sign-up code',
+      'Username',
+      'Password',
+      'Confirm password',
+    ]) {
+      final input = tester.widget<TextField>(field(label));
+      expect(input.autocorrect, isFalse, reason: label);
+      expect(input.enableSuggestions, isFalse, reason: label);
+    }
+  });
 
   testWidgets('a generated password can fill the confirmation too', (
     tester,
@@ -550,7 +481,7 @@ void main() {
             _ => http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403),
           };
         }),
-        code: SignUpCode.emailed,
+        requiresCode: true,
       );
       await fillAndSubmit(tester, code: 'ABCDEFGH23');
       expect(bodies, hasLength(2));
@@ -589,15 +520,14 @@ void main() {
   });
 
   group('the keyboard', () {
-    for (final (form, code) in [
-      ('the form', SignUpCode.none),
-      ('the form that asks for an emailed code', SignUpCode.emailed),
-      ('the form that asks for an admin code', SignUpCode.admin),
+    for (final (form, requiresCode) in [
+      ('the form', false),
+      ('the form that asks for a code', true),
     ]) {
       testWidgets('stays closed on $form until a field is tapped', (
         tester,
       ) async {
-        await pumpRegisterPage(tester, code: code);
+        await pumpRegisterPage(tester, requiresCode: requiresCode);
         await tester.pump();
 
         expect(tester.testTextInput.isVisible, isFalse);

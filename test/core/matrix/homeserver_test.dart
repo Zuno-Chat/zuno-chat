@@ -19,6 +19,7 @@ import '../../helpers/fake_matrix.dart';
 void main() {
   final requests = <Uri>[];
   final example = Uri.parse('https://example.org');
+  final zuno = ServerChoice(officialHomeserver, apiHost: officialHomeserver);
   const discoveryPath = '/.well-known/matrix/client';
   const registerPath = '/_matrix/client/v3/register';
 
@@ -29,6 +30,9 @@ void main() {
 
   http.Response notFound() =>
       http.Response(jsonEncode({'errcode': 'M_NOT_FOUND'}), 404);
+
+  http.Response versionsAnswer(List<String> versions) =>
+      http.Response(jsonEncode({'versions': versions}), 200);
 
   http.Response signUpFlows(List<List<String>> flows) => http.Response(
     jsonEncode({
@@ -50,14 +54,6 @@ void main() {
 
   http.Response closedSignUp() =>
       http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
-
-  http.Response announcing(String apiHost) => http.Response(
-    jsonEncode({
-      'm.homeserver': {'base_url': apiHost},
-      zunoRegisterAnnouncementKey: <String, Object?>{},
-    }),
-    200,
-  );
 
   Future<SignUpPath> askSignUp(
     ProviderContainer container, [
@@ -86,7 +82,7 @@ void main() {
         }
         if (url.path.endsWith('/versions')) {
           if (versionsAt[url.host] case final answer?) return answer(request);
-          return http.Response(jsonEncode({'versions': versions}), 200);
+          return versionsAnswer(versions);
         }
         if (url.path == registerPath && register != null) {
           return register(request);
@@ -101,34 +97,99 @@ void main() {
     return (container, client);
   }
 
-  test('zuno.chat is verified first, and nothing else is contacted', () async {
+  Future<void> useServer(
+    ProviderContainer container,
+    Client client,
+    Uri server,
+  ) async => container
+      .read(homeserverProvider.notifier)
+      .adopt(await checkServer(client, server));
+
+  test('zuno.chat is checked first and adopted, and nothing else is '
+      'contacted', () async {
     final (container, client) = setUpContainer();
 
-    final verified = await container.read(homeserverProvider.future);
-
-    expect(
-      verified,
-      ServerChoice(
-        officialHomeserver,
-        apiHost: officialHomeserver,
-        mailsSignUpCodes: false,
-      ),
-    );
-    expect(client.homeserver?.host, 'zuno.chat');
+    expect(await container.read(homeserverProvider.future), zuno);
+    expect(client.homeserver, officialHomeserver);
     expect(requests.map((url) => url.host).toSet(), {'zuno.chat'});
   });
 
-  test('a server that answers becomes the one to sign in to', () async {
+  test('the client points at zuno.chat only once its check passes', () async {
+    final reached = Completer<void>();
+    final answer = Completer<http.Response>();
+    final (container, client) = setUpContainer(
+      versionsAt: {
+        'zuno.chat': (_) {
+          reached.complete();
+          return answer.future;
+        },
+      },
+    );
+
+    final checking = container.read(homeserverProvider.future);
+    await reached.future;
+    expect(client.homeserver, isNull);
+
+    answer.complete(versionsAnswer(const ['v1.5']));
+    expect(await checking, zuno);
+    expect(client.homeserver, officialHomeserver);
+  });
+
+  test('a failed zuno.chat check is reported and points the client '
+      'nowhere', () async {
+    final (container, client) = setUpContainer(
+      versionsAt: {'zuno.chat': (_) async => http.Response('', 500)},
+    );
+
+    final reports = await reportsDuring(
+      () => expectLater(
+        container.read(homeserverProvider.future),
+        throwsException,
+      ),
+    );
+
+    expect(reports, ['homeserver check']);
+    expect(client.homeserver, isNull);
+  });
+
+  test('an adopted server becomes the one to sign in to', () async {
     final (container, client) = setUpContainer();
     await container.read(homeserverProvider.future);
 
-    await container.read(homeserverProvider.notifier).use(example);
+    await useServer(container, client, example);
 
     expect(
       container.read(homeserverProvider).value,
-      ServerChoice(example, apiHost: example, mailsSignUpCodes: false),
+      ServerChoice(example, apiHost: example),
     );
-    expect(client.homeserver?.host, 'example.org');
+    expect(client.homeserver, example);
+  });
+
+  test('the client stays on the previous server while another is checked, '
+      'and moves only once it is adopted', () async {
+    final reached = Completer<void>();
+    final answer = Completer<http.Response>();
+    final (container, client) = setUpContainer(
+      versionsAt: {
+        'example.org': (_) {
+          reached.complete();
+          return answer.future;
+        },
+      },
+    );
+    await container.read(homeserverProvider.future);
+
+    final checking = checkServer(client, example);
+    await reached.future;
+    expect(client.homeserver, officialHomeserver);
+
+    answer.complete(versionsAnswer(const ['v1.5']));
+    final choice = await checking;
+    expect(client.homeserver, officialHomeserver);
+    expect(container.read(homeserverProvider).value, zuno);
+
+    container.read(homeserverProvider.notifier).adopt(choice);
+    expect(client.homeserver, example);
   });
 
   test(
@@ -136,24 +197,14 @@ void main() {
     () async {
       final (container, client) = setUpContainer(down: {'typo.example'});
       await container.read(homeserverProvider.future);
-      final before = client.homeserver;
 
       await expectLater(
-        container
-            .read(homeserverProvider.notifier)
-            .use(Uri.parse('https://typo.example')),
+        checkServer(client, Uri.parse('https://typo.example')),
         throwsA(isA<http.ClientException>()),
       );
 
-      expect(
-        container.read(homeserverProvider).value,
-        ServerChoice(
-          officialHomeserver,
-          apiHost: officialHomeserver,
-          mailsSignUpCodes: false,
-        ),
-      );
-      expect(client.homeserver, before);
+      expect(container.read(homeserverProvider).value, zuno);
+      expect(client.homeserver, officialHomeserver);
     },
   );
 
@@ -163,14 +214,15 @@ void main() {
       container.read(homeserverProvider.future),
       throwsA(isA<http.ClientException>()),
     );
+    expect(client.homeserver, isNull);
 
-    await container.read(homeserverProvider.notifier).use(example);
+    await useServer(container, client, example);
 
     expect(
       container.read(homeserverProvider).value,
-      ServerChoice(example, apiHost: example, mailsSignUpCodes: false),
+      ServerChoice(example, apiHost: example),
     );
-    expect(client.homeserver?.host, 'example.org');
+    expect(client.homeserver, example);
   });
 
   test('a server whose address points sign-in at http is refused before '
@@ -200,12 +252,7 @@ void main() {
           );
         }
         if (url.path.endsWith('/versions')) {
-          return http.Response(
-            jsonEncode({
-              'versions': ['v1.5'],
-            }),
-            200,
-          );
+          return versionsAnswer(const ['v1.5']);
         }
         return notFound();
       }),
@@ -217,111 +264,56 @@ void main() {
     await container.read(homeserverProvider.future);
 
     await expectLater(
-      container.read(homeserverProvider.notifier).use(example),
+      checkServer(client, example),
       throwsA(isA<CleartextRefusedException>()),
     );
 
-    expect(
-      container.read(homeserverProvider).value,
-      ServerChoice(
-        officialHomeserver,
-        apiHost: officialHomeserver,
-        mailsSignUpCodes: false,
-      ),
-    );
-    expect(client.homeserver?.host, 'zuno.chat');
+    expect(container.read(homeserverProvider).value, zuno);
+    expect(client.homeserver, officialHomeserver);
     expect(accepted, 0);
   });
 
-  test(
-    'the discovery file is read once and the SDK does not read it again',
-    () async {
-      final (container, _) = setUpContainer(versions: const ['v1.5', 'v1.15']);
-
-      await container.read(homeserverProvider.future);
-      expect(requestsTo(discoveryPath), [
-        Uri.parse('https://zuno.chat$discoveryPath'),
-      ]);
-
-      await container.read(homeserverProvider.notifier).use(example);
-      expect(requestsTo(discoveryPath), [
-        Uri.parse('https://zuno.chat$discoveryPath'),
-        Uri.parse('https://example.org$discoveryPath'),
-      ]);
-      expect(requestsTo('/_matrix/client/v1/auth_metadata'), isEmpty);
-    },
-  );
-
-  test('the announcement is carried in the choice', () async {
+  test('each check reads the discovery file once and never asks for auth '
+      'metadata', () async {
     final (container, client) = setUpContainer(
-      discovery: (_) async => announcing('https://matrix.zuno.chat'),
+      versions: const ['v1.5', 'v1.15'],
+    );
+
+    await container.read(homeserverProvider.future);
+    expect(requestsTo(discoveryPath), [
+      Uri.parse('https://zuno.chat$discoveryPath'),
+    ]);
+
+    await useServer(container, client, example);
+    expect(requestsTo(discoveryPath), [
+      Uri.parse('https://zuno.chat$discoveryPath'),
+      Uri.parse('https://example.org$discoveryPath'),
+    ]);
+    expect(requestsTo('/_matrix/client/v1/auth_metadata'), isEmpty);
+  });
+
+  test('the sign-up probe asks the API host the discovery file names, and '
+      'never reads the file again', () async {
+    final apiHost = Uri.parse('https://matrix.zuno.chat');
+    final (container, client) = setUpContainer(
+      discovery: (_) async => http.Response(
+        jsonEncode({
+          'm.homeserver': {'base_url': '$apiHost'},
+        }),
+        200,
+      ),
       register: (_) async => codeSignUp(),
     );
 
     expect(
       await container.read(homeserverProvider.future),
-      ServerChoice(
-        officialHomeserver,
-        apiHost: Uri.parse('https://matrix.zuno.chat'),
-        mailsSignUpCodes: true,
-      ),
+      ServerChoice(officialHomeserver, apiHost: apiHost),
     );
-    expect(client.homeserver, Uri.parse('https://matrix.zuno.chat'));
-    expect(await askSignUp(container), SignUpPath.emailedCode);
+    expect(client.homeserver, apiHost);
+    expect(await askSignUp(container), SignUpPath.code);
+    expect(requestsTo(registerPath).single.host, 'matrix.zuno.chat');
     expect(requestsTo(discoveryPath), hasLength(1));
   });
-
-  test('an odd discovery failure is reported and the typed server is the '
-      'API host', () async {
-    final (container, client) = setUpContainer(
-      discovery: (_) async => throw Exception('closed'),
-    );
-
-    late ServerChoice choice;
-    final reports = await reportsDuring(
-      () async => choice = await container.read(homeserverProvider.future),
-    );
-
-    expect(
-      choice,
-      ServerChoice(
-        officialHomeserver,
-        apiHost: officialHomeserver,
-        mailsSignUpCodes: null,
-      ),
-    );
-    expect(client.homeserver, officialHomeserver);
-    expect(reports, ['read discovery file']);
-  });
-
-  test('a web page served as the discovery file leaves the typed server as '
-      'the API host', () async {
-    final (container, client) = setUpContainer(
-      discovery: (_) async =>
-          http.Response('<html><body>Welcome</body></html>', 200),
-    );
-    await container.read(homeserverProvider.future);
-
-    await container.read(homeserverProvider.notifier).use(example);
-
-    expect(
-      container.read(homeserverProvider).value,
-      ServerChoice(example, apiHost: example, mailsSignUpCodes: false),
-    );
-    expect(client.homeserver, example);
-  });
-
-  test(
-    'a code from a server announcing nothing comes from its admin',
-    () async {
-      final (container, _) = setUpContainer(
-        register: (_) async => codeSignUp(),
-      );
-
-      expect(await askSignUp(container), SignUpPath.adminCode);
-      expect(requestsTo(discoveryPath), hasLength(1));
-    },
-  );
 
   test('the sign-up probe runs once per server choice', () async {
     final (container, _) = setUpContainer(register: (_) async => openSignUp());
@@ -335,11 +327,7 @@ void main() {
     expect(
       await container.read(
         signUpPathProvider(
-          ServerChoice(
-            officialHomeserver,
-            apiHost: officialHomeserver,
-            mailsSignUpCodes: false,
-          ),
+          ServerChoice(officialHomeserver, apiHost: officialHomeserver),
         ).future,
       ),
       SignUpPath.open,
@@ -365,14 +353,14 @@ void main() {
   });
 
   test('a new server gets its own sign-up answer', () async {
-    final (container, _) = setUpContainer(
+    final (container, client) = setUpContainer(
       register: (request) async =>
           request.url.host == 'zuno.chat' ? openSignUp() : closedSignUp(),
     );
     final zuno = await container.read(homeserverProvider.future);
     expect(await askSignUp(container, zuno), SignUpPath.open);
 
-    await container.read(homeserverProvider.notifier).use(example);
+    await useServer(container, client, example);
     final other = container.read(homeserverProvider).requireValue;
 
     expect(await askSignUp(container, other), SignUpPath.closed);
@@ -386,7 +374,7 @@ void main() {
   test('a probe answer for the previous server never shows', () async {
     final held = Completer<http.Response>();
     final probing = Completer<void>();
-    final (container, _) = setUpContainer(
+    final (container, client) = setUpContainer(
       register: (request) {
         if (request.url.host != 'zuno.chat') return Future.value(openSignUp());
         probing.complete();
@@ -397,7 +385,7 @@ void main() {
     container.listen(signUpPathProvider(zuno), (_, _) {});
     await probing.future;
 
-    await container.read(homeserverProvider.notifier).use(example);
+    await useServer(container, client, example);
     final other = container.read(homeserverProvider).requireValue;
     final shown = <SignUpPath?>[];
     container.listen(
@@ -434,11 +422,8 @@ void main() {
       final zuno = await container.read(homeserverProvider.future);
       expect(await askSignUp(container, zuno), SignUpPath.open);
 
-      final checking = container
-          .read(homeserverProvider.notifier)
-          .use(Uri.parse('https://typo.example'));
+      final checking = checkServer(client, Uri.parse('https://typo.example'));
       await reached.future;
-      expect(client.homeserver?.host, 'typo.example');
       container.invalidate(signUpPathProvider(zuno));
       expect(
         await container.read(signUpPathProvider(zuno).future),
@@ -451,7 +436,7 @@ void main() {
         'zuno.chat',
         'zuno.chat',
       ]);
-      expect(client.homeserver?.host, 'zuno.chat');
+      expect(client.homeserver, officialHomeserver);
     },
   );
 
@@ -474,57 +459,12 @@ void main() {
     expect(requestsTo('/_matrix/client/versions'), hasLength(1));
   });
 
-  test(
-    'an unreadable announcement is read again when a code is needed',
-    () async {
-      var discoveries = 0;
-      final (container, _) = setUpContainer(
-        discovery: (_) async {
-          if (++discoveries == 1) throw http.ClientException('offline');
-          return announcing('https://zuno.chat');
-        },
-        register: (_) async => codeSignUp(),
-      );
-
-      expect(
-        await container.read(homeserverProvider.future),
-        ServerChoice(
-          officialHomeserver,
-          apiHost: officialHomeserver,
-          mailsSignUpCodes: null,
-        ),
-      );
-      expect(await askSignUp(container), SignUpPath.emailedCode);
-      expect(discoveries, 2);
-    },
-  );
-
-  test(
-    'an announcement still unreadable leaves the sign-up path unknown',
-    () async {
-      final (container, _) = setUpContainer(
-        discovery: (_) async => throw http.ClientException('offline'),
-        register: (_) async => codeSignUp(),
-      );
-
-      expect(await askSignUp(container), SignUpPath.unknown);
-      expect(requestsTo(discoveryPath), hasLength(2));
-    },
-  );
-
   test('sign-in still works when the probe fails', () async {
     final (container, _) = setUpContainer(
       register: (_) async => throw http.ClientException('offline'),
     );
 
     expect(await askSignUp(container), SignUpPath.unknown);
-    expect(
-      container.read(homeserverProvider).value,
-      ServerChoice(
-        officialHomeserver,
-        apiHost: officialHomeserver,
-        mailsSignUpCodes: false,
-      ),
-    );
+    expect(container.read(homeserverProvider).value, zuno);
   });
 }

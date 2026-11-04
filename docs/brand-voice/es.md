@@ -116,7 +116,8 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | remove (a person) | Expulsar / expulsar | The kick action. |
 | ban | Vetar / quitar el veto | "Banned" heading → «Personas vetadas». |
 | report | Denunciar · la denuncia | Reasons: «Acoso», «Contenido ilegal», «Spam», «Otro motivo». |
-| the people who run your server | las personas que gestionan tu servidor | Who receives reports and hands out sign-up codes. "They" drops out: «No pueden leer…». |
+| the people who run your server | las personas que gestionan tu servidor | Who receives reports. "They" drops out: «No pueden leer…». |
+| your server's admin | el administrador de tu servidor | Who hands out sign-up codes. Never bare «administrador», the room role. |
 | public / private | pública / privada | Feminine, agreeing with sala and comunidad. |
 | topic, description, address, ID | el tema · la descripción · la dirección · el ID | Room alias → «la dirección de la sala». |
 | hostname | el nombre del servidor | |

@@ -117,7 +117,8 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | remove (a person or item) | Remover / remover | The kick action. |
 | ban | Banir / anular banimento | "Banned" heading → «Banidos». |
 | report | Denunciar · a denúncia | Reasons: «Assédio», «Conteúdo ilegal», «Spam», «Outro motivo». |
-| the people who run your server | as pessoas que gerem o seu servidor | Who receives reports and hands out sign-up codes. "They" drops out: «Não conseguem ler…». |
+| the people who run your server | as pessoas que gerem o seu servidor | Who receives reports. "They" drops out: «Não conseguem ler…». |
+| your server's admin | o administrador do seu servidor | Who hands out sign-up codes. Never bare «administrador», the room role. |
 | public / private | pública / privada | Feminine, agreeing with sala and comunidade. |
 | topic, description, address, ID | o tópico · a descrição · o endereço · o ID | Room alias → «o endereço da sala». |
 | hostname | o nome do servidor | |

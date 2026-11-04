@@ -1,6 +1,6 @@
 New
 • Tap an empty part of a chat to close the keyboard.
 • A soft tone when someone joins your call.
-• Sign up with a code from the people who run your server.
+• Sign up with server registration token.
 
 Fixed 21 bugs.

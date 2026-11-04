@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/homeserver_input.dart';
@@ -19,38 +20,40 @@ import '../../../helpers/fixed_homeserver.dart';
 
 void main() {
   late ProviderContainer container;
+  late Client client;
+  final zuno = ServerChoice(officialHomeserver, apiHost: officialHomeserver);
 
-  FakeHttpClient server({Set<String> down = const {}}) =>
-      FakeHttpClient((request) async {
-        if (down.contains(request.url.host)) {
-          throw http.ClientException('offline');
-        }
-        if (request.url.path.endsWith('/versions')) {
-          return http.Response(
-            jsonEncode({
-              'versions': ['v1.1', 'v1.5'],
-            }),
-            200,
-          );
-        }
-        return http.Response(jsonEncode({'errcode': 'M_NOT_FOUND'}), 404);
-      });
+  http.Response versions() => http.Response(
+    jsonEncode({
+      'versions': ['v1.1', 'v1.5'],
+    }),
+    200,
+  );
+
+  FakeHttpClient server({
+    Set<String> down = const {},
+    Future<http.Response>? heldVersions,
+  }) => FakeHttpClient((request) async {
+    if (down.contains(request.url.host)) {
+      throw http.ClientException('offline');
+    }
+    if (request.url.path.endsWith('/versions')) {
+      return heldVersions ?? versions();
+    }
+    return http.Response(jsonEncode({'errcode': 'M_NOT_FOUND'}), 404);
+  });
 
   Future<void> pumpHomeserverPage(
     WidgetTester tester, {
     http.Client? httpClient,
     bool pushed = false,
   }) async {
-    final client = buildTestClient(httpClient: httpClient)
+    client = buildTestClient(httpClient: httpClient)
       ..homeserver = officialHomeserver;
     container = ProviderContainer(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
-        homeserverProvider.overrideWith(
-          () => FixedHomeserver(
-            ServerChoice(officialHomeserver, apiHost: officialHomeserver),
-          ),
-        ),
+        homeserverProvider.overrideWith(() => FixedHomeserver(zuno)),
       ],
     );
     addTearDown(container.dispose);
@@ -122,9 +125,13 @@ void main() {
 
     expect(find.byType(HomeserverPage), findsNothing);
     expect(
-      container.read(homeserverProvider).value?.homeserver,
-      Uri.parse('https://example.org'),
+      container.read(homeserverProvider).value,
+      ServerChoice(
+        Uri.parse('https://example.org'),
+        apiHost: Uri.parse('https://example.org'),
+      ),
     );
+    expect(client.homeserver, Uri.parse('https://example.org'));
   });
 
   testWidgets('a server that does not answer is refused, and the screen '
@@ -144,6 +151,8 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(container.read(homeserverProvider).value, zuno);
+    expect(client.homeserver, officialHomeserver);
   });
 
   testWidgets('an address that is not a Matrix server says so, and is no '
@@ -166,13 +175,39 @@ void main() {
     expect(reports, isEmpty);
   });
 
-  testWidgets('Back is refused while the server is being checked', (
-    tester,
-  ) async {
+  testWidgets('Back during a check leaves at once, and the check passing '
+      'later changes nothing', (tester) async {
     final answer = Completer<http.Response>();
     await pumpHomeserverPage(
       tester,
-      httpClient: FakeHttpClient((_) => answer.future),
+      httpClient: server(heldVersions: answer.future),
+      pushed: true,
+    );
+
+    await tester.enterText(find.byType(TextField), 'example.org');
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pump();
+    expect(find.text('Connecting…'), findsOneWidget);
+    await tester.state<NavigatorState>(find.byType(Navigator)).maybePop();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(HomeserverPage), findsNothing);
+    expect(client.homeserver, officialHomeserver);
+
+    answer.complete(versions());
+    await tester.pumpAndSettle();
+
+    expect(container.read(homeserverProvider).value, zuno);
+    expect(client.homeserver, officialHomeserver);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('a check passing while the page slides out after Back changes '
+      'nothing and leaves the screen below in place', (tester) async {
+    final answer = Completer<http.Response>();
+    await pumpHomeserverPage(
+      tester,
+      httpClient: server(heldVersions: answer.future),
       pushed: true,
     );
 
@@ -180,21 +215,16 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
     await tester.pump();
     await tester.state<NavigatorState>(find.byType(Navigator)).maybePop();
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.byType(HomeserverPage), findsOneWidget);
-
-    answer.complete(
-      http.Response(
-        jsonEncode({
-          'versions': ['v1.1', 'v1.5'],
-        }),
-        200,
-      ),
-    );
+    answer.complete(versions());
     await tester.pumpAndSettle();
 
     expect(find.byType(HomeserverPage), findsNothing);
+    expect(find.byType(Scaffold), findsOneWidget);
+    expect(container.read(homeserverProvider).value, zuno);
+    expect(client.homeserver, officialHomeserver);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('a failure that lands after the page is gone is dropped', (

@@ -14,7 +14,7 @@ Uri callsModuleUri(Client client, List<String> segments) {
   if (homeserver == null) {
     throw StateError(
       'No homeserver set — the calls module is served by it. '
-      'checkHomeserver()/login must have run first.',
+      'A server check or sign-in must have run first.',
     );
   }
   return homeserver.resolveUri(

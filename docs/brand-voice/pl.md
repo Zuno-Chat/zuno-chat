@@ -117,7 +117,8 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | leave | Opuść · opuścić | "{people} left" → «{people} wychodzi». |
 | ban | Zbanuj / Odbanuj · zbanowanie | "Banned" heading → «Zbanowane osoby». Never «zablokuj». Timeline: «{sender} banuje: {people}», «{sender} odbanowuje: {people}». |
 | report | Zgłoś · zgłoszenie | Reasons: «Nękanie», «Nielegalne treści», «Spam», «Inny powód». |
-| the people who run your server | osoby, które prowadzą Twój serwer | Who a report goes to, and who hands out sign-up codes: «Zgłoszenie trafia do osób, które prowadzą Twój serwer». Refer back with «one»: «Nie mogą one czytać…». Never «Zuno», and never «administratorzy», the room role. |
+| the people who run your server | osoby, które prowadzą Twój serwer | Who a report goes to: «Zgłoszenie trafia do osób, które prowadzą Twój serwer». Refer back with «one»: «Nie mogą one czytać…». Never «Zuno», and never «administratorzy», the room role. |
+| your server's admin | administrator Twojego serwera | Who hands out sign-up codes. Never bare «administrator», the room role. |
 | public / private | publiczny / prywatny | Agree with the noun described; a label serving both rooms and communities is «Dostęp publiczny» / «Dostęp prywatny». "Make public" → «Ustaw dostęp publiczny». |
 | topic, description, address, ID | temat · opis · adres · ID | Room alias → «adres pokoju». |
 | hostname | nazwa serwera | |

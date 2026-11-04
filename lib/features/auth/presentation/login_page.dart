@@ -21,7 +21,6 @@ import 'homeserver_page.dart';
 import 'linked_sign_in_page.dart';
 import 'password_field.dart';
 import 'register_page.dart';
-import 'registration_code_page.dart';
 import 'retry_wait.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
@@ -106,10 +105,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
     switch (path) {
       case SignUpPath.open:
         _open(const RegisterPage());
-      case SignUpPath.emailedCode:
-        _open(const RegistrationCodePage());
-      case SignUpPath.adminCode:
-        _open(const RegisterPage(code: SignUpCode.admin));
+      case SignUpPath.code:
+        _open(const RegisterPage(requiresCode: true));
       case SignUpPath.closed:
         setState(() => _error = l10n.matrixCodeUnavailable);
       case SignUpPath.unknown:

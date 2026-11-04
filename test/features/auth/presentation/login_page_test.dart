@@ -16,7 +16,6 @@ import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
 import 'package:zuno/features/auth/presentation/login_page.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
-import 'package:zuno/features/auth/presentation/registration_code_page.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -206,15 +205,6 @@ void main() {
     expect(loginBody?['refresh_token'], isTrue);
   });
 
-  testWidgets('a zuno_register server asks for an email first', (tester) async {
-    await pumpLoginPage(tester, signUpPath: SignUpPath.emailedCode);
-
-    await tester.tap(createAccount);
-    await tester.pumpAndSettle();
-
-    expect(find.byType(RegistrationCodePage), findsOneWidget);
-  });
-
   testWidgets('an open server opens the sign-up form without a code', (
     tester,
   ) async {
@@ -224,27 +214,26 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
-      SignUpCode.none,
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).requiresCode,
+      isFalse,
     );
     expect(find.text('Sign-up code'), findsNothing);
-    expect(find.byType(RegistrationCodePage), findsNothing);
   });
 
-  testWidgets('an admin-code server opens the form with the admin-code field', (
+  testWidgets('a server that needs a code opens the form with the code field', (
     tester,
   ) async {
-    await pumpLoginPage(tester, signUpPath: SignUpPath.adminCode);
+    await pumpLoginPage(tester, signUpPath: SignUpPath.code);
 
     await tester.tap(createAccount);
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
-      SignUpCode.admin,
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).requiresCode,
+      isTrue,
     );
     expect(find.text('Sign-up code'), findsOneWidget);
-    expect(find.byType(RegistrationCodePage), findsNothing);
+    expect(find.text("From your server's admin"), findsOneWidget);
   });
 
   testWidgets('Create account waits for the sign-up answer', (tester) async {
@@ -270,8 +259,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
-      SignUpCode.none,
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).requiresCode,
+      isFalse,
     );
   });
 
@@ -298,13 +287,13 @@ void main() {
     await tester.tap(connecting, warnIfMissed: false);
     await tester.pump();
 
-    second.complete(SignUpPath.adminCode);
+    second.complete(SignUpPath.code);
     await tester.pumpAndSettle();
 
     expect(asks, 1);
     expect(
-      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
-      SignUpCode.admin,
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).requiresCode,
+      isTrue,
     );
   });
 
@@ -320,7 +309,6 @@ void main() {
 
     expect(find.text(unreachable), findsOneWidget);
     expect(find.byType(RegisterPage), findsNothing);
-    expect(find.byType(RegistrationCodePage), findsNothing);
     expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
   });
 
@@ -382,14 +370,14 @@ void main() {
     expect(find.text('other.org'), findsOneWidget);
     expect(find.text('Create account'), findsNothing);
 
-    other.complete(SignUpPath.adminCode);
+    other.complete(SignUpPath.code);
     await tester.pumpAndSettle();
     await tester.tap(createAccount);
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<RegisterPage>(find.byType(RegisterPage)).code,
-      SignUpCode.admin,
+      tester.widget<RegisterPage>(find.byType(RegisterPage)).requiresCode,
+      isTrue,
     );
   });
 

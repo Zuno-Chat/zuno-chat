@@ -121,7 +121,8 @@ The Greek column gives the article, which shows the gender, and the plural where
 | ban | Αποβολή / αποβάλλω (αποβλήθηκε) | "Unban" → «Άρση αποβολής», in the timeline «ήρε την αποβολή» (ήρατε). "Banned" heading → «Αποβολές». Never «αποκλεισμός», which is block. |
 | withdraw (an invitation) | Ανάκληση πρόσκλησης / ανακαλώ (ανακάλεσε) | «{sender} ανακάλεσε την πρόσκληση για τον χρήστη {people}». |
 | report | Αναφορά / αναφέρω | Reasons: «Παρενόχληση», «Παράνομο περιεχόμενο», «Ανεπιθύμητο περιεχόμενο» (Spam), «Κάτι άλλο». |
-| the people who run your server | όσοι διαχειρίζονται τον διακομιστή σας | Who a report goes to, and who hands out sign-up codes: «Η αναφορά πηγαίνει σε όσους διαχειρίζονται τον διακομιστή σας». The later "they" drops out: «Δεν μπορούν να διαβάσουν…». Never «το Zuno», and never «τα άτομα», which blurs with the reported «αυτό το άτομο». |
+| the people who run your server | όσοι διαχειρίζονται τον διακομιστή σας | Who a report goes to: «Η αναφορά πηγαίνει σε όσους διαχειρίζονται τον διακομιστή σας». The later "they" drops out: «Δεν μπορούν να διαβάσουν…». Never «το Zuno», and never «τα άτομα», which blurs with the reported «αυτό το άτομο». |
+| your server's admin | ο διαχειριστής του διακομιστή σας | Who hands out sign-up codes. Never bare «διαχειριστής», the room role. |
 | public / private | Δημόσια / Ιδιωτική | Feminine, so it agrees with both αίθουσα and κοινότητα. |
 | topic, description | το θέμα · η περιγραφή | |
 | address, room alias, ID | η (κύρια) διεύθυνση · το ψευδώνυμο αίθουσας · το αναγνωριστικό | "Room ID" → «Αναγνωριστικό αίθουσας». |

@@ -120,7 +120,8 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | leave | Forlat | "{people} left" → «{people} gikk». |
 | ban | Utesteng / Opphev utestengelse · utestengelse | "Banned" heading → «Utestengte». "{sender} unbanned {people}" → «{sender} opphevet utestengelsen av {people}». Never «blokker». |
 | report | Rapporter · rapport | Reasons: «Trakassering», «Ulovlig innhold», «Spam», «Annen årsak». |
-| the people who run your server | de som driver serveren din · til dem som driver serveren din | Who receives reports and hands out sign-up codes, never Zuno. "They" → «de». When the sentence goes on, a comma closes the clause: «går til dem som driver serveren din, og navngir …». |
+| the people who run your server | de som driver serveren din · til dem som driver serveren din | Who receives reports, never Zuno. "They" → «de». When the sentence goes on, a comma closes the clause: «går til dem som driver serveren din, og navngir …». |
+| your server's admin | serveradministratoren din | Who hands out sign-up codes. Never bare «Administrator», the room role. |
 | public / private | offentlig / privat | Agree with the noun («et offentlig rom», «et privat fellesskap»); a label serving both is «Offentlig tilgang» / «Privat tilgang» / «Tilgang etter forespørsel» / «Tilgang for fellesskapet». "Make public" → «Gjør offentlig». |
 | topic, description, address, ID | emne · beskrivelse · adresse · ID | Room alias → «romadresse». |
 | hostname | servernavn | |

@@ -5,7 +5,6 @@ import 'package:matrix/matrix.dart';
 import '../errors/connection_error.dart';
 import '../l10n/l10n.dart';
 import '../network/app_http_overrides.dart';
-import 'registration_code_request.dart';
 import 'registration_support.dart';
 
 String loginErrorMessage(AppLocalizations l10n, Object error) {
@@ -130,11 +129,7 @@ HomeserverProblem homeserverProblem(Object error) {
     return HomeserverProblem.noPasswordSignIn;
   }
   if (error is MatrixException) return HomeserverProblem.refused;
-  if (error is FormatException ||
-      error is TypeError ||
-      '$error' == 'Exception: http error response') {
-    return HomeserverProblem.notAServer;
-  }
+  if (isNotMatrixAnswer(error)) return HomeserverProblem.notAServer;
   return HomeserverProblem.unexpected;
 }
 
@@ -150,17 +145,3 @@ String homeserverErrorMessage(AppLocalizations l10n, Object error) =>
       HomeserverProblem.notAServer ||
       HomeserverProblem.unexpected => l10n.matrixHomeserverNotAServer,
     };
-
-String? registrationCodeErrorMessage(
-  AppLocalizations l10n,
-  RegistrationCodeOutcome outcome,
-) {
-  return switch (outcome) {
-    RegistrationCodeOutcome.sent => null,
-    RegistrationCodeOutcome.invalidEmail => l10n.matrixCodeInvalidEmail,
-    RegistrationCodeOutcome.rateLimited => l10n.matrixCodeRateLimited,
-    RegistrationCodeOutcome.unavailable => l10n.matrixCodeUnavailable,
-    RegistrationCodeOutcome.serverError => l10n.matrixCodeServerError,
-    RegistrationCodeOutcome.offline => l10n.matrixCodeOffline,
-  };
-}

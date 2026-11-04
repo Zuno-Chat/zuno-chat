@@ -25,3 +25,6 @@ that takes it on.
 - **Bots and bridges.**
 - **Third-party widgets** (Jitsi, polls and the like).
 - **Multi-account switching.**
+- **Synapse's own email-confirmation and captcha sign-up stages.** A server
+  that needs either runs MAS, whose pages handle both
+  (`../features/authentication.md`).

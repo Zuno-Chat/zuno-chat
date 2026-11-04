@@ -48,3 +48,8 @@ String failureMessage(
 }) => error != null && isConnectionError(error)
     ? l10n.errorsFailedCheckConnection(failed)
     : l10n.errorsFailedTryAgain(failed);
+
+bool isNotMatrixAnswer(Object error) =>
+    error is FormatException ||
+    error is TypeError ||
+    '$error' == 'Exception: http error response';

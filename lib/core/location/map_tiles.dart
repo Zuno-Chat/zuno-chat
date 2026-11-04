@@ -2,6 +2,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
+import '../errors/connection_error.dart';
 
 const _wellKnownKey = 'im.zuno.tiles';
 
@@ -17,12 +18,10 @@ Future<TileSource?> fetchTileSource(Client client) async {
   try {
     final discovery = await client.getWellknown();
     return _tileSourceFrom(discovery.additionalProperties[_wellKnownKey]);
-  } on FormatException {
-    return null;
-  } on TypeError {
-    return null;
   } catch (error, stack) {
-    reportCaught('map tile source', error, stack);
+    if (!isNotMatrixAnswer(error)) {
+      reportCaught('map tile source', error, stack);
+    }
     return null;
   }
 }
