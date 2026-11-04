@@ -82,7 +82,7 @@ dependencies:
   # either side silently corrupts the payload (it scans fine and then
   # fails verification).
   qr_flutter: ^4.1.0
-  mobile_scanner: ^7.4.2
+  mobile_scanner: ^7.5.0
   # Already present transitively (flutter_html depends on it) and already
   # version-pinned below — listed directly because
   # sanitize_message_html.dart imports package:html/dom.dart by name to
