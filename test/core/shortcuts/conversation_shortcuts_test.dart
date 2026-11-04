@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';

@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/services.dart';
 
-import 'package:zuno/core/matrix/media_audio_session.dart';
+import 'package:zuno/core/matrix/media/media_audio_session.dart';
 
 class FakeAudioSessionPort implements AudioSessionPort {
   FakeAudioSessionPort([List<String>? log]) : log = log ?? [];

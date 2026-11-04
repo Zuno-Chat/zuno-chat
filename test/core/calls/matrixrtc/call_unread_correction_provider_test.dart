@@ -4,7 +4,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/call_unread_correction_provider.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 
 import '../../../helpers/fake_matrix.dart';
 

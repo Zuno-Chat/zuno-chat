@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/ui/alert_banner.dart';
 
 class PendingInviteBanner extends StatelessWidget {

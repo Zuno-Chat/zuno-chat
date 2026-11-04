@@ -10,10 +10,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:matrix/matrix.dart';
-
-import 'package:zuno/core/matrix/connection_monitor.dart';
-import 'package:zuno/core/matrix/connectivity_provider.dart';
-import 'package:zuno/core/matrix/currently_open_room_provider.dart';
+import 'package:zuno/core/matrix/rooms/currently_open_room_provider.dart';
+import 'package:zuno/core/matrix/sync/connection_monitor.dart';
+import 'package:zuno/core/matrix/sync/connectivity_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/share/inbound_share.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';

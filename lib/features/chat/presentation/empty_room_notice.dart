@@ -4,7 +4,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/user_trust.dart';
 import '../../verification/presentation/confirm_person.dart';

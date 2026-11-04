@@ -26,16 +26,16 @@ in `features/chat/presentation/`.
 | `message_composer.dart` | The message box, recording row and reply or edit bar |
 | `media_viewer/` | The full-screen viewer for the room's photos and videos |
 | `features/chat/data/` | Sending, typing and unsent-message rules, and shared types such as `MessageRowData` |
-| `core/matrix/event_display.dart` | What an event is, for every surface |
-| `core/matrix/room_updates.dart` | Which room updates show, how they group and their wording |
-| `core/matrix/image_send_preparation.dart`, `video_send_preparation.dart` | App-side media preparation before `sendFileEvent` |
-| `core/matrix/attachment_cache.dart` | The only attachment cache, and the owner of every decrypted copy on disk |
-| `core/matrix/attachment_actions.dart` | Share and save, over `core/share/outbound_share.dart` and `core/files/file_export.dart` |
-| `core/matrix/media_audio_session.dart` | The one owner of the audio session |
-| `core/matrix/mxc_avatar.dart` | Avatars |
-| `core/matrix/media_gallery_group.dart` | Gallery grouping |
-| `core/matrix/sanitize_message_html.dart` | The sanitizer for formatted (HTML) messages |
-| `core/matrix/urls.dart`, `core/navigation/zuno_links.dart` | What counts as a link in a message, and the one link opener |
+| `core/matrix/events/event_display.dart` | What an event is, for every surface |
+| `core/matrix/events/room_updates.dart` | Which room updates show, how they group and their wording |
+| `core/matrix/media/images/image_send_preparation.dart`, `media/video/video_send_preparation.dart` | App-side media preparation before `sendFileEvent` |
+| `core/matrix/media/attachments/attachment_cache.dart` | The only attachment cache, and the owner of every decrypted copy on disk |
+| `core/matrix/media/attachments/attachment_actions.dart` | Share and save, over `core/share/outbound_share.dart` and `core/files/file_export.dart` |
+| `core/matrix/media/media_audio_session.dart` | The one owner of the audio session |
+| `core/matrix/media/avatars/mxc_avatar.dart` | Avatars |
+| `core/matrix/media/media_gallery_group.dart` | Gallery grouping |
+| `core/matrix/events/formatting/sanitize_message_html.dart` | The sanitizer for formatted (HTML) messages |
+| `core/matrix/events/formatting/urls.dart`, `core/navigation/zuno_links.dart` | What counts as a link in a message, and the one link opener |
 | `features/chat/data/forwarding.dart`, `forward_uploads.dart`, `forward_media.dart` | Forwarding: what the copy carries, the one upload per forward, and the flow from picker to summary note |
 | `core/share/inbound_share.dart`, `features/share/` | Inbound share's `zuno/share` channel, and the chat list both pickers share |
 
@@ -83,7 +83,7 @@ in `features/chat/presentation/`.
 
 ## Event display
 
-`core/matrix/event_display.dart` is the single source of truth for what
+`core/matrix/events/event_display.dart` is the single source of truth for what
 an event is. The chat list preview, notification body, reply quote,
 timeline filter and sender runs all call it, so no surface guesses on its
 own.

@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/features/chat/data/discarded_sends.dart';
 
 import '../../../helpers/caught_reports.dart';

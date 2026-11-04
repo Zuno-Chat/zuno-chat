@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/mxc_avatar.dart';
+import 'package:zuno/core/matrix/media/avatars/mxc_avatar.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/presentation/invitation_group.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';

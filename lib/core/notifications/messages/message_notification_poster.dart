@@ -3,8 +3,9 @@ import 'dart:typed_data';
 import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
-import '../../matrix/attachment_cache.dart';
-import '../../matrix/mxc_avatar_image.dart' show AvatarBucket, avatarCacheKey;
+import '../../matrix/media/attachments/attachment_cache.dart';
+import '../../matrix/media/avatars/mxc_avatar_image.dart'
+    show AvatarBucket, avatarCacheKey;
 import '../../platform/platform_capabilities.dart';
 import '../../push/handling/push_timing.dart';
 import '../notification_avatar.dart';

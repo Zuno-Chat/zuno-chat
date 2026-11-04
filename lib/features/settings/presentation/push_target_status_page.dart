@@ -5,7 +5,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';

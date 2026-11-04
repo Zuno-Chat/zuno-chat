@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/map_tile_cache.dart';
-import '../../../core/matrix/attachment_cache.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
+import '../../../core/matrix/media/attachments/attachment_cache.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';

@@ -6,10 +6,10 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/crash_reporting.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/own_profile.dart';
-import '../../../core/matrix/sign_out.dart';
+import '../../../core/matrix/account/own_profile.dart';
+import '../../../core/matrix/account/sign_out.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';

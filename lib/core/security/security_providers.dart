@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
-import '../matrix/matrix_client_provider.dart';
+import '../matrix/client/matrix_client_provider.dart';
 import '../settings/app_preferences_provider.dart';
 import 'account_security_status.dart';
 import 'call_confirm_prompt_store.dart';

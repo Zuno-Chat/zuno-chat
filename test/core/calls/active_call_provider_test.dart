@@ -12,7 +12,7 @@ import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/fake_call_session.dart';

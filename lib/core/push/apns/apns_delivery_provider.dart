@@ -8,8 +8,8 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
-import '../../matrix/matrix_client_provider.dart';
-import '../../matrix/session_display_name.dart';
+import '../../matrix/account/session_display_name.dart';
+import '../../matrix/client/matrix_client_provider.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../../notifications/settings/notification_sound_settings.dart';
 import '../../platform/platform_capabilities.dart';

@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/client_lease.dart';
+import 'package:zuno/core/matrix/client/client_lease.dart';
 import 'package:zuno/core/notifications/actions/message_notification_action.dart';
 
 import '../../../helpers/fake_http.dart';

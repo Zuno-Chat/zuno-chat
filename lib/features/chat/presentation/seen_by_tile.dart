@@ -3,8 +3,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/read_receipts.dart';
-import '../../../core/matrix/room_changes.dart';
+import '../../../core/matrix/events/read_receipts.dart';
+import '../../../core/matrix/rooms/room_changes.dart';
 import 'message_actions_sheet.dart';
 
 class SeenByTile extends StatelessWidget {

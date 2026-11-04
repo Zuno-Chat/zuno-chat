@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_permission.dart';
-import '../../../core/matrix/room_roles.dart';
+import '../../../core/matrix/rooms/permissions/room_permission.dart';
+import '../../../core/matrix/rooms/permissions/room_roles.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/notice.dart';

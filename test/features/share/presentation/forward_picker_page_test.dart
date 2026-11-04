@@ -3,8 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/mxc_avatar.dart';
-import 'package:zuno/core/matrix/optimistic_room_state.dart';
+import 'package:zuno/core/matrix/media/avatars/mxc_avatar.dart';
+import 'package:zuno/core/matrix/rooms/optimistic_room_state.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/features/share/presentation/forward_picker_page.dart';
 

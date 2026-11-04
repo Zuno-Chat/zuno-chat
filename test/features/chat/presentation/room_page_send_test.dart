@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/upload_http_client.dart';
+import 'package:zuno/core/matrix/http/upload_http_client.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 

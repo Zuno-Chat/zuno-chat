@@ -5,7 +5,7 @@ import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/models/call_status.dart';
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_title.dart';
+import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/ui/zuno_colors.dart';
 import 'call_status_line.dart';
 

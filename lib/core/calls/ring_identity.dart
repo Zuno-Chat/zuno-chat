@@ -2,8 +2,8 @@ import 'package:matrix/matrix.dart';
 
 import '../errors/best_effort.dart';
 import '../l10n/l10n.dart';
-import '../matrix/mxc_avatar.dart';
-import '../matrix/room_title.dart';
+import '../matrix/media/avatars/mxc_avatar.dart';
+import '../matrix/rooms/room_title.dart';
 import 'matrixrtc/incoming_call.dart';
 
 typedef RingIdentity = ({

@@ -6,8 +6,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
 import '../../l10n/l10n.dart';
-import '../../matrix/finished_syncs.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
+import '../../matrix/sync/finished_syncs.dart';
 import '../../settings/app_preferences_provider.dart';
 import '../account_security_status.dart';
 import '../security_providers.dart';

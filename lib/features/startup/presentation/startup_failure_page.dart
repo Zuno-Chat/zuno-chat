@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/brand.dart';
 import '../../../core/l10n/app_locale.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/client_startup.dart';
+import '../../../core/matrix/client/client_startup.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/zuno_theme.dart';
 

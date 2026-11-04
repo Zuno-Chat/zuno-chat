@@ -11,7 +11,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/location/map_tile_cache.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 

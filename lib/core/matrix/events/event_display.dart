@@ -1,0 +1,170 @@
+import 'package:matrix/matrix.dart';
+
+import '../../calls/matrixrtc/call_summary_message.dart';
+import '../../l10n/l10n.dart';
+import '../../location/live_location_protocol.dart';
+import '../../security/verification_signaling.dart';
+import '../encryption/undecryptable_event.dart';
+import '../media/media_gallery_group.dart';
+import '../media/voice/voice_message.dart';
+import 'attachment_message_type.dart';
+import 'forwarded_message.dart';
+import 'image_caption.dart';
+import 'reply_fallback.dart';
+import 'room_updates.dart';
+import 'state_event_description.dart';
+
+enum MessageKind {
+  text,
+  photo,
+  video,
+  voice,
+  file,
+  location,
+  liveLocation,
+  callSummary,
+  deleted,
+  undecryptable,
+  nonMessage,
+  hiddenSignaling,
+}
+
+class MessageSummary {
+  final MessageKind kind;
+  final String text;
+  final CallSummary? call;
+
+  const MessageSummary({required this.kind, required this.text, this.call});
+
+  @override
+  bool operator ==(Object other) =>
+      other is MessageSummary &&
+      other.kind == kind &&
+      other.text == text &&
+      other.call == call;
+
+  @override
+  int get hashCode => Object.hash(kind, text, call);
+}
+
+bool isTimelineMessage(Event event) =>
+    event.relationshipType != RelationshipTypes.edit &&
+    _isRealMessage(event) &&
+    !isVerificationSignalingMessage(event.messageType) &&
+    !isCallSignalingMessage(event.messageType);
+
+bool isDisplayableTimelineEvent(
+  Event event, {
+  required bool showHiddenMessages,
+  bool? direct,
+}) {
+  if (isTimelineMessage(event) || isRoomUpdate(event, direct: direct)) {
+    return true;
+  }
+  if (!showHiddenMessages) return false;
+  if (event.relationshipType == RelationshipTypes.edit) return false;
+  if (_isRealMessage(event)) {
+    return !isVerificationSignalingMessage(event.messageType);
+  }
+  return event.stateKey != null;
+}
+
+bool _isRealMessage(Event event) =>
+    event.type == EventTypes.Message ||
+    event.type == EventTypes.Sticker ||
+    isUndecryptableEvent(event);
+
+bool isPreviewableLastEvent(Event event) =>
+    isTimelineMessage(_applyEdit(event) ?? event);
+
+MessageKind messageKindOf(Event event) => _classify(event).kind;
+
+MessageSummary summarize(AppLocalizations l10n, Event event) {
+  final (:kind, event: shown) = _classify(event);
+  final call = kind == MessageKind.callSummary
+      ? CallSummary.fromEvent(shown)
+      : null;
+  return MessageSummary(
+    kind: kind,
+    call: call,
+    text: switch (kind) {
+      MessageKind.deleted => l10n.matrixSummaryDeleted,
+      MessageKind.undecryptable => l10n.matrixSummaryUndecryptable,
+      MessageKind.nonMessage =>
+        describeStateEvent(l10n, shown) ??
+            l10n.matrixSummaryOtherEvent(shown.type),
+      MessageKind.hiddenSignaling || MessageKind.file => shown.body,
+      MessageKind.callSummary => call!.localizedBody(l10n),
+      MessageKind.photo => imageCaption(shown) ?? l10n.matrixSummaryPhoto,
+      MessageKind.video => imageCaption(shown) ?? l10n.matrixSummaryVideo,
+      MessageKind.voice => l10n.matrixSummaryVoice,
+      MessageKind.location => l10n.matrixSummaryLocation,
+      MessageKind.liveLocation => l10n.matrixSummaryLiveLocation,
+      MessageKind.text => stripReplyFallback(shown.plaintextBody),
+    },
+  );
+}
+
+({MessageKind kind, Event event}) _classify(Event event) {
+  if (!_isRealMessage(event)) {
+    return (kind: MessageKind.nonMessage, event: event);
+  }
+  if (event.redacted) return (kind: MessageKind.deleted, event: event);
+  if (isUndecryptableEvent(event)) {
+    return (kind: MessageKind.undecryptable, event: event);
+  }
+  final edited = _applyEdit(event);
+  if (edited != null) return _classify(edited);
+  return (kind: _contentKind(event), event: event);
+}
+
+MessageKind _contentKind(Event event) {
+  final msgtype = event.messageType;
+  if (isCallSignalingMessage(msgtype) ||
+      isVerificationSignalingMessage(msgtype)) {
+    return MessageKind.hiddenSignaling;
+  }
+  if (CallSummary.fromEvent(event) != null) return MessageKind.callSummary;
+  if (msgtype == MessageTypes.Image || msgtype == MessageTypes.Sticker) {
+    return MessageKind.photo;
+  }
+  if (msgtype == MessageTypes.Video) return MessageKind.video;
+  if (isVoiceMessage(event)) return MessageKind.voice;
+  if (isAttachmentMessageType(msgtype)) return MessageKind.file;
+  if (msgtype == MessageTypes.Location) return MessageKind.location;
+  if (msgtype == liveLocationMsgtype) return MessageKind.liveLocation;
+  return MessageKind.text;
+}
+
+const _originalSendKeys = [galleryGroupKey, forwardedKey];
+
+Event withLatestEdit(Event event, Timeline timeline) =>
+    withEditApplied(event, event.getDisplayEvent(timeline));
+
+Event withEditApplied(Event event, Event displayEvent) {
+  if (identical(displayEvent, event)) return event;
+  return _withContent(event, {
+    ...displayEvent.content,
+    for (final key in _originalSendKeys)
+      if (event.content.containsKey(key)) key: event.content[key],
+  });
+}
+
+Event? _applyEdit(Event event) {
+  if (event.relationshipType != RelationshipTypes.edit) return null;
+  final newContent = event.content.tryGetMap<String, Object?>('m.new_content');
+  if (newContent == null) return null;
+  return _withContent(event, Map<String, dynamic>.from(newContent));
+}
+
+Event _withContent(Event event, Map<String, dynamic> content) => Event(
+  status: event.status,
+  content: content,
+  type: event.type,
+  eventId: event.eventId,
+  senderId: event.senderId,
+  originServerTs: event.originServerTs,
+  unsigned: event.unsigned,
+  stateKey: event.stateKey,
+  room: event.room,
+);

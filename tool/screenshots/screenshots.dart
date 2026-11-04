@@ -23,7 +23,7 @@ import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';

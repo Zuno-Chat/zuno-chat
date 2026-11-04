@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../matrix/optimistic_room_state.dart';
+import '../../matrix/rooms/optimistic_room_state.dart';
 import '../matrixrtc/call_member_state.dart';
 import '../matrixrtc/incoming_call.dart';
 import '../models/call_kind.dart';

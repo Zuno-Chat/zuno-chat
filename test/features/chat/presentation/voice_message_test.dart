@@ -8,9 +8,9 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 
-import 'package:zuno/core/matrix/attachment_actions.dart';
-import 'package:zuno/core/matrix/attachment_cache.dart';
-import 'package:zuno/core/matrix/media_audio_session.dart';
+import 'package:zuno/core/matrix/media/attachments/attachment_actions.dart';
+import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
+import 'package:zuno/core/matrix/media/media_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/presentation/message_contents/voice_message.dart';
 import 'package:zuno/features/chat/presentation/message_meta.dart';

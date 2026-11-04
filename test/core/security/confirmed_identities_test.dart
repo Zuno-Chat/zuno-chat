@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/security/confirmed_identities.dart';
 import 'package:zuno/core/security/confirmed_identity_store.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';

@@ -1,10 +1,10 @@
 import 'package:matrix/matrix.dart';
 
-import '../../../core/matrix/forwarded_message.dart';
-import '../../../core/matrix/media_gallery_group.dart';
-import '../../../core/matrix/reply_fallback.dart';
-import '../../../core/matrix/room_encryption.dart';
-import '../../../core/matrix/room_media_feed.dart';
+import '../../../core/matrix/encryption/room_encryption.dart';
+import '../../../core/matrix/events/forwarded_message.dart';
+import '../../../core/matrix/events/reply_fallback.dart';
+import '../../../core/matrix/media/media_gallery_group.dart';
+import '../../../core/matrix/media/room_media_feed.dart';
 
 bool canForward(Event event) => roomMediaKindOf(event) != null;
 

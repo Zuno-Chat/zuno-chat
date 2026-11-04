@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/connection_monitor.dart';
-import 'package:zuno/core/matrix/connectivity_provider.dart';
+import 'package:zuno/core/matrix/sync/connection_monitor.dart';
+import 'package:zuno/core/matrix/sync/connectivity_provider.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import 'room_page_harness.dart';

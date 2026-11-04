@@ -3,8 +3,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/account_page_browser.dart';
-import '../../../core/matrix/uia_cancel.dart';
+import '../../../core/matrix/account/account_page_browser.dart';
+import '../../../core/matrix/auth/uia_cancel.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/inline_feedback.dart';

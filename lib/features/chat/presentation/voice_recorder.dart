@@ -9,8 +9,8 @@ import 'package:record/record.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/files/unique_name.dart';
-import '../../../core/matrix/media_audio_session.dart';
-import '../../../core/matrix/voice_recording.dart';
+import '../../../core/matrix/media/media_audio_session.dart';
+import '../../../core/matrix/media/voice/voice_recording.dart';
 import 'message_contents/voice_message.dart';
 
 enum VoiceRecordingProblem { microphoneDenied, didNotStart, notSent }

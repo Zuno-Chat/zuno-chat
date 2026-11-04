@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/notice.dart';

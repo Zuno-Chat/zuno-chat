@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/event_display.dart';
+import 'package:zuno/core/matrix/events/event_display.dart';
 import 'package:zuno/features/chat/data/message_kinds.dart';
 
 import '../../../helpers/fake_matrix.dart';

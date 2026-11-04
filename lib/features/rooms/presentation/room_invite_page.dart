@@ -6,10 +6,10 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/abuse_report.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/room_invite.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/matrix/rooms/abuse_report.dart';
+import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/notifications/room_invite_notification_provider.dart';
 import '../../../core/ui/notice.dart';
 import '../../blocking/presentation/block_person.dart';

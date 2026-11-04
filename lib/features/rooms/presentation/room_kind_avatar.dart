@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 
 typedef CommunityMark = ({Uri? avatarUrl, String name, String toneSeed});
 

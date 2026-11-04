@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_encryption.dart';
+import '../../../core/matrix/encryption/room_encryption.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/notice.dart';
 import 'share_target_list.dart';

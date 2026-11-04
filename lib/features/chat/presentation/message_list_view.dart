@@ -6,10 +6,10 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/event_display.dart';
-import '../../../core/matrix/media_gallery_group.dart';
-import '../../../core/matrix/room_changes.dart';
-import '../../../core/matrix/room_updates.dart';
+import '../../../core/matrix/events/event_display.dart';
+import '../../../core/matrix/events/room_updates.dart';
+import '../../../core/matrix/media/media_gallery_group.dart';
+import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
 import '../../../core/ui/row_memo.dart';

@@ -3,10 +3,10 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
-import '../../../../core/matrix/cover_image.dart';
-import '../../../../core/matrix/media_gallery_group.dart';
-import '../../../../core/matrix/media_size.dart';
-import '../../../../core/matrix/room_media_feed.dart';
+import '../../../../core/matrix/media/attachments/cover_image.dart';
+import '../../../../core/matrix/media/media_gallery_group.dart';
+import '../../../../core/matrix/media/media_size.dart';
+import '../../../../core/matrix/media/room_media_feed.dart';
 import '../../../../core/ui/media_pill.dart';
 import '../../../../core/ui/zuno_colors.dart';
 import '../../../../core/ui/zuno_theme.dart';

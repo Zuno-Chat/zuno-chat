@@ -5,11 +5,11 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/join_requests.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/room_changes.dart';
-import '../../../core/matrix/room_title.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/matrix/rooms/membership/join_requests.dart';
+import '../../../core/matrix/rooms/room_changes.dart';
+import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/notice.dart';
 import '../../../core/ui/route_settled.dart';

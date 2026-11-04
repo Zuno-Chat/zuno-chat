@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/undecryptable_reason.dart';
+import '../../../core/matrix/encryption/undecryptable_reason.dart';
 import '../../../core/security/security_providers.dart';
 import '../../verification/presentation/approve_this_device_page.dart';
 

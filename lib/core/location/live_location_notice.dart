@@ -1,7 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
-import '../matrix/room_title.dart';
+import '../matrix/rooms/room_title.dart';
 import 'live_location_capture.dart';
 
 LiveLocationNotice liveLocationNotice(

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/abuse_report.dart';
+import 'package:zuno/core/matrix/rooms/abuse_report.dart';
 import 'package:zuno/features/reports/presentation/report_sheet.dart';
 
 import '../../../helpers/caught_reports.dart';

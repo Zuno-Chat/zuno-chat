@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/linkified_text.dart';
+import '../../../core/matrix/events/formatting/linkified_text.dart';
 
 const _foldedTopicLines = 3;
 

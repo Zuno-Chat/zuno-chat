@@ -3,7 +3,7 @@ import 'package:matrix/matrix.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/l10n/l10n.dart';
-import '../../../../core/matrix/cached_attachment_image.dart';
+import '../../../../core/matrix/media/attachments/cached_attachment_image.dart';
 import '../../../../core/ui/failure_notice.dart';
 import '../../../../core/ui/frosted_surface.dart';
 import '../../../../core/ui/zuno_motion.dart';

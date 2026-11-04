@@ -10,8 +10,8 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import 'package:vodozemac/vodozemac.dart' as vod;
 
 import '../../errors/caught_errors.dart';
-import '../../matrix/database_compaction.dart';
-import '../../matrix/ephemeral_to_device.dart';
+import '../../matrix/database/database_compaction.dart';
+import '../../matrix/database/ephemeral_to_device.dart';
 import 'mention_spec.dart';
 
 abstract interface class InboundSessionEvents {

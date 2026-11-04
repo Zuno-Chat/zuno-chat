@@ -9,8 +9,8 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
-import 'package:zuno/core/matrix/connection_monitor.dart';
-import 'package:zuno/core/matrix/connectivity_provider.dart';
+import 'package:zuno/core/matrix/sync/connection_monitor.dart';
+import 'package:zuno/core/matrix/sync/connectivity_provider.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 

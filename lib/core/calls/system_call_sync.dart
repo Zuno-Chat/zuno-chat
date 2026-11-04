@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../l10n/l10n.dart';
-import '../matrix/room_title.dart';
+import '../matrix/rooms/room_title.dart';
 import '../platform/platform_capabilities.dart';
 import 'active_call_provider.dart';
 import 'matrixrtc/call_session.dart';

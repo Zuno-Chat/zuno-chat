@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../../core/matrix/media_size.dart';
+import '../../../../core/matrix/media/media_size.dart';
 import '../../../../core/ui/zuno_motion.dart';
 
 Object mediaHeroTag(Route<dynamic> route, Event event) =>

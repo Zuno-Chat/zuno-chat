@@ -9,7 +9,7 @@ import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/models/call_status.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/mxc_avatar.dart';
+import 'package:zuno/core/matrix/media/avatars/mxc_avatar.dart';
 import 'package:zuno/core/ui/corner_snap.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/calls/presentation/call_controls.dart';

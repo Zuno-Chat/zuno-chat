@@ -1,0 +1,68 @@
+import 'package:clock/clock.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:matrix/matrix.dart';
+
+import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/rooms/official_room.dart';
+
+import '../../../helpers/fake_matrix.dart';
+
+Room _room({required String creator, bool tagged = true}) {
+  final client = buildTestClient(userId: '@alice:zuno.chat');
+  final room = Room(
+    id: '!room:zuno.chat',
+    client: client,
+    roomAccountData: tagged
+        ? {
+            'm.tag': BasicEvent(
+              type: 'm.tag',
+              content: {
+                'tags': {'m.server_notice': <String, Object?>{}},
+              },
+            ),
+          }
+        : {},
+  );
+  room.setState(
+    Event(
+      eventId: '\$create',
+      type: EventTypes.RoomCreate,
+      senderId: creator,
+      originServerTs: clock.now(),
+      content: {'creator': creator},
+      room: room,
+      stateKey: '',
+    ),
+  );
+  return room;
+}
+
+void main() {
+  test('the server notice room from the notices account is official', () {
+    expect(isOfficialZunoRoom(_room(creator: officialNoticesUserId)), isTrue);
+  });
+
+  test('a room someone else created and tagged themselves is not', () {
+    expect(isOfficialZunoRoom(_room(creator: '@mallory:zuno.chat')), isFalse);
+  });
+
+  test('an untagged room from the notices account is not', () {
+    expect(
+      isOfficialZunoRoom(_room(creator: officialNoticesUserId, tagged: false)),
+      isFalse,
+    );
+  });
+
+  testWidgets('the badge names Zuno as the sender', (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(body: OfficialBadge()),
+      ),
+    );
+
+    expect(find.text('Official'), findsOneWidget);
+  });
+}

@@ -9,9 +9,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/attachment_cache.dart';
-import 'package:zuno/core/matrix/blurhash_image.dart';
-import 'package:zuno/core/matrix/cover_image.dart';
+import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
+import 'package:zuno/core/matrix/media/attachments/blurhash_image.dart';
+import 'package:zuno/core/matrix/media/attachments/cover_image.dart';
 
 import 'fake_http.dart';
 import 'fake_matrix.dart';

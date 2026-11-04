@@ -7,7 +7,7 @@ import '../../calls/matrixrtc/call_decline.dart';
 import '../../calls/matrixrtc/resolved_call_ids_store.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
 import '../../errors/best_effort.dart';
-import '../../matrix/client_lease.dart';
+import '../../matrix/client/client_lease.dart';
 import '../../notifications/local_notifications.dart';
 import '../../platform/platform_capabilities.dart';
 import 'headless_push_runner.dart';

@@ -3,8 +3,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/room_roles.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/matrix/rooms/permissions/room_roles.dart';
 
 class MemberTile extends StatelessWidget {
   final Room room;

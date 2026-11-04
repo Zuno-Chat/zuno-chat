@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/encryption.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/notice.dart';

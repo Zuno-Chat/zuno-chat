@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:video_player/video_player.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/media_audio_session.dart';
+import 'package:zuno/core/matrix/media/media_audio_session.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/core/ui/page_dots.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';

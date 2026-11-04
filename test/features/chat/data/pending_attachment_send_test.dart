@@ -3,8 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/media_gallery_group.dart';
-import 'package:zuno/core/matrix/send_progress.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
+import 'package:zuno/core/matrix/sending/send_progress.dart';
 import 'package:zuno/features/chat/data/composed_media.dart';
 import 'package:zuno/features/chat/data/pending_attachment_send.dart';
 

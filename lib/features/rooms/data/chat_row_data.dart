@@ -3,14 +3,14 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/format/date_labels.dart';
-import '../../../core/matrix/event_display.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/official_room.dart';
-import '../../../core/matrix/room_encryption.dart';
-import '../../../core/matrix/room_invite.dart';
-import '../../../core/matrix/room_mute.dart';
-import '../../../core/matrix/room_title.dart';
-import '../../../core/matrix/typing_indicator_text.dart';
+import '../../../core/matrix/encryption/room_encryption.dart';
+import '../../../core/matrix/events/event_display.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/matrix/rooms/membership/room_invite.dart';
+import '../../../core/matrix/rooms/official_room.dart';
+import '../../../core/matrix/rooms/room_mute.dart';
+import '../../../core/matrix/rooms/room_title.dart';
+import '../../../core/matrix/rooms/typing_indicator_text.dart';
 
 @immutable
 class ChatRowData {

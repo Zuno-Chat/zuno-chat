@@ -1,7 +1,7 @@
 import 'package:matrix/matrix.dart';
 
-import '../matrix/room_encryption.dart';
-import '../matrix/room_permission.dart';
+import '../matrix/encryption/room_encryption.dart';
+import '../matrix/rooms/permissions/room_permission.dart';
 import 'live_location_protocol.dart';
 
 enum LiveLocationAvailability {

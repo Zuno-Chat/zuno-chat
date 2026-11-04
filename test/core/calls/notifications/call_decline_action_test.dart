@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/matrixrtc/call_decline.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/notifications/call_decline_action.dart';
-import 'package:zuno/core/matrix/client_lease.dart';
+import 'package:zuno/core/matrix/client/client_lease.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';

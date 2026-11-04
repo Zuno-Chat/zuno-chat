@@ -14,7 +14,7 @@ import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/ringing_call_store.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
-import 'package:zuno/core/matrix/client_lease.dart';
+import 'package:zuno/core/matrix/client/client_lease.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/push/handling/headless_decline_hold.dart';
 import 'package:zuno/core/push/handling/headless_push_runner.dart';

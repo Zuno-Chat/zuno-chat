@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/security/alerts/room_security_alerts_provider.dart';
 import 'package:zuno/core/security/alerts/security_alert.dart';
 import 'package:zuno/core/security/alerts/security_alerts_provider.dart';

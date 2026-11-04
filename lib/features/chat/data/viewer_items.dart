@@ -5,8 +5,8 @@ import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/best_effort.dart';
-import '../../../core/matrix/media_gallery_group.dart';
-import '../../../core/matrix/room_media_feed.dart';
+import '../../../core/matrix/media/media_gallery_group.dart';
+import '../../../core/matrix/media/room_media_feed.dart';
 
 typedef ViewerGallery = ({Event message, List<Event> members});
 

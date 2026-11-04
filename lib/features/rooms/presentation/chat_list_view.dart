@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/communities.dart';
+import '../../../core/matrix/rooms/communities.dart';
 import '../../../core/ui/empty_state.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/section_label.dart';

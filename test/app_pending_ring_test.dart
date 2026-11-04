@@ -7,9 +7,9 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/app.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
-import 'package:zuno/core/matrix/homeserver.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/server_choice.dart';
+import 'package:zuno/core/matrix/auth/homeserver.dart';
+import 'package:zuno/core/matrix/auth/server_choice.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 

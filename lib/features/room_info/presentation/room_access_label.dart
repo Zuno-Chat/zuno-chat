@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/communities.dart';
-import '../../../core/matrix/room_access.dart';
+import '../../../core/matrix/rooms/communities.dart';
+import '../../../core/matrix/rooms/room_access.dart';
 
 class RoomAccessLabel extends StatelessWidget {
   final RoomAccess access;

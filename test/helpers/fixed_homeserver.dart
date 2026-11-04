@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:zuno/core/matrix/homeserver.dart';
-import 'package:zuno/core/matrix/server_choice.dart';
+import 'package:zuno/core/matrix/auth/homeserver.dart';
+import 'package:zuno/core/matrix/auth/server_choice.dart';
 
 class FixedHomeserver extends HomeserverNotifier {
   final FutureOr<ServerChoice> _choice;

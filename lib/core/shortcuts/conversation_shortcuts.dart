@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
-import '../matrix/matrix_client_provider.dart';
+import '../matrix/client/matrix_client_provider.dart';
 import '../notifications/settings/notification_preview.dart';
 import '../platform/platform_capabilities.dart';
 import '../settings/app_preferences_provider.dart';

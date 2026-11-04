@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/features/rooms/presentation/room_list_page.dart';
 
 import 'preferences_container.dart';

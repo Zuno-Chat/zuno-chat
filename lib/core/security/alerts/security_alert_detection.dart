@@ -1,7 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../../l10n/l10n.dart';
-import '../../matrix/room_access.dart';
+import '../../matrix/rooms/room_access.dart';
 import '../account_security_status.dart';
 import '../user_trust.dart';
 import 'security_alert.dart';

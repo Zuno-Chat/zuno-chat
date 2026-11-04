@@ -7,7 +7,7 @@ import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/call_picture_in_picture.dart';
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_title.dart';
+import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/ui/corner_snap.dart';
 import '../../../core/ui/keep_clear.dart';
 import '../../../core/ui/zuno_colors.dart';

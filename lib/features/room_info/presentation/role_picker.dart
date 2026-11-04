@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_roles.dart';
+import '../../../core/matrix/rooms/permissions/room_roles.dart';
 import '../../../core/ui/sheet.dart';
 
 Future<RoomRole?> showRolePicker(

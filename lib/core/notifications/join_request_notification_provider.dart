@@ -6,10 +6,10 @@ import 'package:matrix/matrix.dart';
 
 import '../errors/best_effort.dart';
 import '../l10n/l10n.dart';
-import '../matrix/join_requests.dart';
-import '../matrix/matrix_client_provider.dart';
+import '../matrix/client/matrix_client_provider.dart';
 import '../matrix/matrix_ids.dart';
-import '../matrix/room_title.dart';
+import '../matrix/rooms/membership/join_requests.dart';
+import '../matrix/rooms/room_title.dart';
 import '../settings/app_preferences_provider.dart';
 import 'messages/message_notification_content.dart';
 import 'messages/message_notification_poster.dart';

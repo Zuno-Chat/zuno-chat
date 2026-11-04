@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/abuse_report.dart';
+import '../../../core/matrix/rooms/abuse_report.dart';
 import '../../../core/ui/form_sheet.dart';
 
 typedef SendReport = Future<void> Function(ReportReason reason, String note);

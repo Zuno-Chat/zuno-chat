@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../../core/l10n/l10n.dart';
-import '../../../../core/matrix/cached_attachment_image.dart';
+import '../../../../core/matrix/media/attachments/cached_attachment_image.dart';
 import '../../../../core/ui/failure_notice.dart';
 import '../../../../core/ui/zuno_motion.dart';
 import 'media_hero.dart';

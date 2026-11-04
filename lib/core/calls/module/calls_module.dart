@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import '../../errors/retry_backoff.dart';
-import '../../matrix/bearer_authorization.dart';
+import '../../matrix/http/bearer_authorization.dart';
 
 const _modulePath = ['_synapse', 'client', 'zuno', 'calls'];
 

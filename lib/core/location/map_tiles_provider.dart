@@ -4,7 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
-import '../matrix/matrix_client_provider.dart';
+import '../matrix/client/matrix_client_provider.dart';
 import '../network/app_http_overrides.dart';
 import 'map_tile_cache.dart';
 import 'map_tiles.dart';

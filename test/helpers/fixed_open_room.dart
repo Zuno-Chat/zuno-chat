@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/misc.dart';
-import 'package:zuno/core/matrix/currently_open_room_provider.dart';
+import 'package:zuno/core/matrix/rooms/currently_open_room_provider.dart';
 
 class FixedOpenRoomNotifier extends CurrentlyOpenRoomIdNotifier {
   FixedOpenRoomNotifier(this._roomId);

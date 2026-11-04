@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/optimistic_room_state.dart';
+import 'package:zuno/core/matrix/rooms/optimistic_room_state.dart';
 import 'package:zuno/features/share/presentation/share_picker_page.dart';
 import 'package:zuno/features/share/presentation/share_target_list.dart';
 

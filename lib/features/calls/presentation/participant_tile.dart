@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/models/call_engine_participant.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/mxc_avatar.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/ui/media_pill.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../../../core/ui/zuno_theme.dart';

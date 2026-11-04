@@ -4,8 +4,8 @@ import 'dart:typed_data';
 import 'package:clock/clock.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/optimistic_room_state.dart';
-import 'package:zuno/core/matrix/typed_server_answers.dart';
+import 'package:zuno/core/matrix/http/typed_server_answers.dart';
+import 'package:zuno/core/matrix/rooms/optimistic_room_state.dart';
 
 class FakeDatabaseApi implements DatabaseApi {
   @override

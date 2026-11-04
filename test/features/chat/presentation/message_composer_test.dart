@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/voice_recording.dart';
+import 'package:zuno/core/matrix/media/voice/voice_recording.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';

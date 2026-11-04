@@ -3,9 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/currently_open_room_provider.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
+import 'package:zuno/core/matrix/rooms/currently_open_room_provider.dart';
 import 'package:zuno/core/notifications/messages/conversation_tones.dart';
 
 import '../../../helpers/caught_reports.dart';

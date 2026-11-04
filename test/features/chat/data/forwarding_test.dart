@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/forwarded_message.dart';
-import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/events/forwarded_message.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/features/chat/data/forwarding.dart';
 
 import '../../../helpers/fake_attachments.dart';

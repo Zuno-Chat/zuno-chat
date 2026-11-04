@@ -6,10 +6,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/caught_errors.dart';
-import '../matrix/connectivity_provider.dart';
-import '../matrix/ephemeral_to_device.dart';
-import '../matrix/matrix_client_provider.dart';
-import '../matrix/olm_sender.dart';
+import '../matrix/client/matrix_client_provider.dart';
+import '../matrix/database/ephemeral_to_device.dart';
+import '../matrix/encryption/olm_sender.dart';
+import '../matrix/sync/connectivity_provider.dart';
 import 'live_location_policy.dart';
 import 'live_location_protocol.dart';
 import 'live_location_sharing.dart';

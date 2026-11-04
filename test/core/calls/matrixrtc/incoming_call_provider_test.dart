@@ -7,7 +7,7 @@ import 'package:zuno/core/calls/matrixrtc/incoming_call.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/server_ring.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_matrix.dart';

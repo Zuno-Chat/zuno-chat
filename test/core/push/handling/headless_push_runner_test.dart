@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/calls/active_call_marker.dart';
 import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/notifications/server_ring.dart';
-import 'package:zuno/core/matrix/client_lease.dart';
+import 'package:zuno/core/matrix/client/client_lease.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
 import 'package:zuno/core/push/handling/headless_push_runner.dart';
 import 'package:zuno/core/push/handling/incoming_push_handler.dart';

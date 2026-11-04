@@ -11,7 +11,7 @@ import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
 import 'package:zuno/core/location/live_location_viewing.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 
 import 'fake_device_keys.dart';
 import 'fake_matrix.dart';

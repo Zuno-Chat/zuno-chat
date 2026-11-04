@@ -3,8 +3,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/room_changes.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/matrix/rooms/room_changes.dart';
 import 'mention_query.dart';
 
 const _maxSuggestions = 30;

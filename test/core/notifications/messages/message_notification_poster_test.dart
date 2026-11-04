@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/matrix/attachment_cache.dart';
+import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
 import 'package:zuno/core/notifications/messages/message_notification_image.dart';
 import 'package:zuno/core/notifications/messages/message_notification_poster.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';

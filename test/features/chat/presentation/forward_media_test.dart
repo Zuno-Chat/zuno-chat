@@ -6,8 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/forwarded_message.dart';
-import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/events/forwarded_message.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/features/chat/data/discarded_sends.dart';
 import 'package:zuno/features/chat/data/forward_uploads.dart';
 import 'package:zuno/features/chat/data/room_sender.dart';

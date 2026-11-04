@@ -8,7 +8,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/push/delivery/pusher_failure.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';

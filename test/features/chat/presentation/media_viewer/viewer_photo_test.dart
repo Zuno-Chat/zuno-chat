@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/attachment_cache.dart';
-import 'package:zuno/core/matrix/blurhash_image.dart';
+import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
+import 'package:zuno/core/matrix/media/attachments/blurhash_image.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_photo.dart';

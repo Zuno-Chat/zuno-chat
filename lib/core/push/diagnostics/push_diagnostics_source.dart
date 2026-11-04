@@ -6,7 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/l10n.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
 import '../../platform/platform_capabilities.dart';
 import '../apns/apns_delivery_provider.dart';
 import '../delivery/notification_delivery.dart';

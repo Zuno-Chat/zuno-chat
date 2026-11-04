@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/event_display.dart';
-import 'package:zuno/core/matrix/late_decryptions.dart';
+import 'package:zuno/core/matrix/encryption/late_decryptions.dart';
+import 'package:zuno/core/matrix/events/event_display.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/undecryptable_message.dart';

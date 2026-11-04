@@ -5,7 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import '../../errors/caught_errors.dart';
-import '../../matrix/bearer_authorization.dart';
+import '../../matrix/http/bearer_authorization.dart';
 import 'zuno_push_replies.dart';
 
 export 'zuno_push_replies.dart';

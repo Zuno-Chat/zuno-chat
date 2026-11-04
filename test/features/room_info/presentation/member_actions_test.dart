@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/official_room.dart';
+import 'package:zuno/core/matrix/rooms/official_room.dart';
 import 'package:zuno/features/room_info/presentation/member_actions.dart';
 import 'package:zuno/features/room_info/presentation/remove_member_dialog.dart';
 

@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/communities.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/room_encryption.dart';
-import '../../../core/matrix/room_invite.dart';
-import '../../../core/matrix/room_permission.dart';
-import '../../../core/matrix/room_title.dart';
+import '../../../core/matrix/encryption/room_encryption.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/matrix/rooms/communities.dart';
+import '../../../core/matrix/rooms/membership/room_invite.dart';
+import '../../../core/matrix/rooms/permissions/room_permission.dart';
+import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/search_field.dart';
 import '../../rooms/presentation/room_kind_avatar.dart';

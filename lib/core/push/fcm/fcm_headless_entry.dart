@@ -6,9 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../errors/crash_reporting.dart';
-import '../../matrix/client_lease.dart';
-import '../../matrix/matrix_client_provider.dart';
-import '../../matrix/session_display_name.dart';
+import '../../matrix/account/session_display_name.dart';
+import '../../matrix/client/client_lease.dart';
+import '../../matrix/client/matrix_client_provider.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../handling/headless_decline_hold.dart';
 import '../handling/headless_push_runner.dart';

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/room_exit.dart';
+import 'package:zuno/core/matrix/rooms/membership/room_exit.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
 

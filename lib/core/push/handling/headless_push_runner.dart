@@ -10,7 +10,7 @@ import '../../calls/notifications/server_ring.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
-import '../../matrix/client_lease.dart';
+import '../../matrix/client/client_lease.dart';
 import '../../notifications/messages/message_notifications.dart';
 import '../../notifications/settings/notify_me.dart';
 import '../../platform/platform_capabilities.dart';

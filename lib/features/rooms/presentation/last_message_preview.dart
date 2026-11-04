@@ -5,10 +5,10 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/event_display.dart';
-import '../../../core/matrix/late_decryptions.dart';
-import '../../../core/matrix/message_icons.dart';
-import '../../../core/matrix/undecryptable_event.dart';
+import '../../../core/matrix/encryption/late_decryptions.dart';
+import '../../../core/matrix/encryption/undecryptable_event.dart';
+import '../../../core/matrix/events/event_display.dart';
+import '../../../core/matrix/events/message_icons.dart';
 import '../../../core/ui/line_strut.dart';
 import '../../chat/presentation/undecryptable_message.dart';
 

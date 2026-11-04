@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/account_capabilities.dart';
+import 'package:zuno/core/matrix/account/account_capabilities.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 import 'package:zuno/core/onboarding/onboarding_step.dart';

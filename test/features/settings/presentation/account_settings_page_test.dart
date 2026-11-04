@@ -10,8 +10,8 @@ import 'package:image_picker_platform_interface/image_picker_platform_interface.
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/account_capabilities.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/account/account_capabilities.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/platform/app_settings_opener.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/settings/presentation/account_settings_page.dart';

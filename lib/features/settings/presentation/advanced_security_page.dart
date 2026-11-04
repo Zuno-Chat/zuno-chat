@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/ui/notice.dart';
 import 'key_backup_management_page.dart';
 import 'secure_backup_page.dart';

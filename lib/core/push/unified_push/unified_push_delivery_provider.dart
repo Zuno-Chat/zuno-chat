@@ -13,7 +13,7 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
-import '../../matrix/session_display_name.dart';
+import '../../matrix/account/session_display_name.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../../platform/background_restrictions.dart';
 import '../delivery/notification_delivery_provider.dart';

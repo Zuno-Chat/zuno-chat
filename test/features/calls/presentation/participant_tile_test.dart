@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/mxc_avatar.dart';
+import 'package:zuno/core/matrix/media/avatars/mxc_avatar.dart';
 import 'package:zuno/features/calls/presentation/participant_tile.dart';
 
 import '../../../helpers/fake_matrix.dart';

@@ -2,8 +2,8 @@ import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/media_gallery_group.dart';
-import '../../../core/matrix/send_progress.dart';
+import '../../../core/matrix/media/media_gallery_group.dart';
+import '../../../core/matrix/sending/send_progress.dart';
 import 'composed_media.dart';
 
 class PendingAttachmentSend {

@@ -3,11 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/auth_error_message.dart';
-import '../../../core/matrix/homeserver.dart';
-import '../../../core/matrix/homeserver_input.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/server_choice.dart';
+import '../../../core/matrix/auth/auth_error_message.dart';
+import '../../../core/matrix/auth/homeserver.dart';
+import '../../../core/matrix/auth/homeserver_input.dart';
+import '../../../core/matrix/auth/server_choice.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';

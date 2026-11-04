@@ -2,9 +2,9 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/event_display.dart';
-import '../../../core/matrix/media_size.dart';
-import '../../../core/matrix/reply_fallback.dart';
+import '../../../core/matrix/events/event_display.dart';
+import '../../../core/matrix/events/reply_fallback.dart';
+import '../../../core/matrix/media/media_size.dart';
 
 String attachmentInfoText(
   AppLocalizations l10n,

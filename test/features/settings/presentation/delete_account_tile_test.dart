@@ -14,8 +14,8 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
-import 'package:zuno/core/matrix/account_capabilities.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/account/account_capabilities.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/delete_account_tile.dart';
 
 import '../../../helpers/fake_call_session.dart';

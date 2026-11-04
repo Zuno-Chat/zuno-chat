@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../errors/best_effort.dart';
-import '../matrix/finished_syncs.dart';
-import '../matrix/matrix_client_provider.dart';
+import '../matrix/client/matrix_client_provider.dart';
+import '../matrix/sync/finished_syncs.dart';
 import 'confirmed_identity_store.dart';
 import 'security_providers.dart';
 import 'user_trust.dart';

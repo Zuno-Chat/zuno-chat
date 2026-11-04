@@ -3,7 +3,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../../core/errors/caught_errors.dart';
 import '../../../../core/l10n/l10n.dart';
-import '../../../../core/matrix/reactions.dart';
+import '../../../../core/matrix/events/reactions.dart';
 import '../../../../core/ui/notice.dart';
 
 const reactionOverflow = 12.0;

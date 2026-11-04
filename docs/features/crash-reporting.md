@@ -27,7 +27,7 @@ and the sheet says so.
 | `lib/core/errors/crash_scrubber.dart` | Pure redaction of identifiers, tokens and content |
 | `lib/core/errors/global_error_handler.dart` | Unhandled errors (`app-foundation.md`) |
 | `lib/core/errors/caught_errors.dart` | The funnel every handled error goes through |
-| `lib/core/matrix/sdk_logs.dart` | The Matrix SDK's error logs, into the funnel |
+| `lib/core/matrix/client/sdk_logs.dart` | The Matrix SDK's error logs, into the funnel |
 | `lib/core/errors/native_errors.dart` | The drain of native errors and iOS MetricKit summaries |
 | `CaughtErrors.kt`, `ios/Shared/CaughtErrors.swift` | The native error journal |
 | `lib/core/errors/feedback.dart` | `sendFeedback` and its gate |

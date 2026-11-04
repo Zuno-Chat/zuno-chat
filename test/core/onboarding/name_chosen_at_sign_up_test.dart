@@ -5,7 +5,7 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/typed_server_answers.dart';
+import 'package:zuno/core/matrix/http/typed_server_answers.dart';
 import 'package:zuno/core/onboarding/onboarding_provider.dart';
 
 import '../../helpers/caught_reports.dart';

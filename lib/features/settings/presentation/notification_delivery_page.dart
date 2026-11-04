@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/platform/background_restrictions.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/delivery/notification_delivery.dart';

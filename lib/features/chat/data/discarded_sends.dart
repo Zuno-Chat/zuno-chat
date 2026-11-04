@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/media_gallery_group.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
+import '../../../core/matrix/media/media_gallery_group.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 
 const _keyPrefix = 'chat.discarded_sends.';

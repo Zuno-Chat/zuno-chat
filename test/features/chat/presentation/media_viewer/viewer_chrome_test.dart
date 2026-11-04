@@ -2,10 +2,9 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/media_gallery_group.dart';
-import 'package:zuno/core/matrix/reactions.dart';
+import 'package:zuno/core/matrix/events/reactions.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/core/ui/frosted_surface.dart';
 import 'package:zuno/core/ui/page_dots.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';

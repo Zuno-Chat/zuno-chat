@@ -2,11 +2,11 @@ import 'package:flutter/foundation.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/format/date_labels.dart';
-import '../../../core/matrix/event_display.dart';
-import '../../../core/matrix/reactions.dart';
-import '../../../core/matrix/read_receipts.dart';
-import '../../../core/matrix/room_encryption.dart';
-import '../../../core/matrix/undecryptable_event.dart';
+import '../../../core/matrix/encryption/room_encryption.dart';
+import '../../../core/matrix/encryption/undecryptable_event.dart';
+import '../../../core/matrix/events/event_display.dart';
+import '../../../core/matrix/events/reactions.dart';
+import '../../../core/matrix/events/read_receipts.dart';
 import 'message_kinds.dart';
 import 'message_look.dart';
 

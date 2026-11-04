@@ -7,9 +7,9 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/account_capabilities.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/uia_cancel.dart';
+import '../../../core/matrix/account/account_capabilities.dart';
+import '../../../core/matrix/auth/uia_cancel.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/security/alerts/security_alerts_provider.dart';
 import '../../../core/security/password_strength.dart';
 import '../../../core/security/prepared_uia_password.dart';

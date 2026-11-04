@@ -7,7 +7,7 @@ import 'package:video_player/video_player.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/media_audio_session.dart';
+import '../../../core/matrix/media/media_audio_session.dart';
 import '../../../core/ui/page_dots.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../data/composed_media.dart';

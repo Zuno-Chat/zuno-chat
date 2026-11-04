@@ -5,7 +5,7 @@ import 'package:matrix/matrix.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_notice.dart';
 import '../../../core/location/live_location_sharing.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/ui/alert_banner.dart';
 import 'live_location_stop.dart';
 

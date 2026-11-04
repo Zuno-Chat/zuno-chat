@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../matrix/event_display.dart';
-import '../../matrix/late_decryptions.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
+import '../../matrix/encryption/late_decryptions.dart';
+import '../../matrix/events/event_display.dart';
 import 'call_summary_message.dart';
 
 final callUnreadCorrectionProvider =

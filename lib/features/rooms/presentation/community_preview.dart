@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/event_display.dart';
-import '../../../core/matrix/room_title.dart';
+import '../../../core/matrix/events/event_display.dart';
+import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/ui/line_strut.dart';
 import 'last_message_preview.dart';
 

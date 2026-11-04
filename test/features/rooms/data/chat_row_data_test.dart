@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/event_display.dart';
-import 'package:zuno/core/matrix/room_mute.dart';
+import 'package:zuno/core/matrix/events/event_display.dart';
+import 'package:zuno/core/matrix/rooms/room_mute.dart';
 import 'package:zuno/features/rooms/data/chat_row_data.dart';
 
 import '../../../helpers/date_labels.dart';

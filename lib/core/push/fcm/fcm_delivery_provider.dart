@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
-import '../../matrix/session_display_name.dart';
+import '../../matrix/account/session_display_name.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../delivery/notification_delivery_provider.dart';
 import '../delivery/pusher_failure.dart';

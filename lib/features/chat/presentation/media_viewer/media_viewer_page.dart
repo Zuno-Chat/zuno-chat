@@ -9,12 +9,12 @@ import 'package:matrix/matrix.dart';
 
 import '../../../../core/errors/best_effort.dart';
 import '../../../../core/l10n/l10n.dart';
-import '../../../../core/matrix/attachment_feedback.dart';
-import '../../../../core/matrix/event_display.dart';
-import '../../../../core/matrix/media_audio_session.dart';
-import '../../../../core/matrix/reactions.dart';
-import '../../../../core/matrix/room_media_feed.dart';
-import '../../../../core/matrix/room_permission.dart';
+import '../../../../core/matrix/events/event_display.dart';
+import '../../../../core/matrix/events/reactions.dart';
+import '../../../../core/matrix/media/attachments/attachment_feedback.dart';
+import '../../../../core/matrix/media/media_audio_session.dart';
+import '../../../../core/matrix/media/room_media_feed.dart';
+import '../../../../core/matrix/rooms/permissions/room_permission.dart';
 import '../../../../core/ui/close_own_route.dart';
 import '../../../../core/ui/sheet.dart';
 import '../../../../core/ui/system_bars.dart';

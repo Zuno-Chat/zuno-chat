@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/uia_cancel.dart';
+import 'package:zuno/core/matrix/auth/uia_cancel.dart';
 import 'package:zuno/core/security/prepared_uia_password.dart';
 import 'package:zuno/features/settings/presentation/uia_password_prompt.dart';
 

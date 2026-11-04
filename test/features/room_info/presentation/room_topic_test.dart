@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/linkified_text.dart';
+import 'package:zuno/core/matrix/events/formatting/linkified_text.dart';
 import 'package:zuno/features/room_info/presentation/room_topic.dart';
 
 import '../../../helpers/layout_matrix.dart';

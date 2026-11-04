@@ -2,7 +2,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/l10n.dart';
-import '../../matrix/room_title.dart';
+import '../../matrix/rooms/room_title.dart';
 
 const notificationRoomCacheKey = 'notifications.rooms';
 

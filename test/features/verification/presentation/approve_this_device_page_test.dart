@@ -7,7 +7,7 @@ import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/ui/step_hero.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 import 'package:zuno/features/verification/presentation/approve_this_device_page.dart';

@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/communities.dart';
+import 'package:zuno/core/matrix/rooms/communities.dart';
 import 'package:zuno/core/ui/empty_state.dart';
 import 'package:zuno/core/ui/section_label.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';

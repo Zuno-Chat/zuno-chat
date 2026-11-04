@@ -7,10 +7,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/homeserver.dart';
-import 'package:zuno/core/matrix/homeserver_input.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
-import 'package:zuno/core/matrix/server_choice.dart';
+import 'package:zuno/core/matrix/auth/homeserver.dart';
+import 'package:zuno/core/matrix/auth/homeserver_input.dart';
+import 'package:zuno/core/matrix/auth/server_choice.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 
 import '../../../helpers/caught_reports.dart';

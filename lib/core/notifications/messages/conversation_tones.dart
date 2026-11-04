@@ -7,11 +7,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../errors/caught_errors.dart';
-import '../../matrix/currently_open_room_provider.dart';
-import '../../matrix/event_display.dart';
-import '../../matrix/matrix_client_provider.dart';
-import '../../matrix/media_audio_session.dart';
-import '../../matrix/media_gallery_group.dart';
+import '../../matrix/client/matrix_client_provider.dart';
+import '../../matrix/events/event_display.dart';
+import '../../matrix/media/media_audio_session.dart';
+import '../../matrix/media/media_gallery_group.dart';
+import '../../matrix/rooms/currently_open_room_provider.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../settings/app_preferences_provider.dart';
 import '../settings/notification_sound_settings.dart';

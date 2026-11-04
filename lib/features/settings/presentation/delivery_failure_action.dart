@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/platform/background_restrictions.dart';
 import '../../../core/push/apns/apns_delivery_provider.dart';
 import '../../../core/push/delivery/delivery_auto_fallback.dart';

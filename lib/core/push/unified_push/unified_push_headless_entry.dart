@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:matrix/matrix.dart' show Client;
 
 import '../../errors/crash_reporting.dart';
-import '../../matrix/client_lease.dart';
+import '../../matrix/client/client_lease.dart';
 import '../handling/headless_decline_hold.dart';
 import '../handling/headless_push_runner.dart';
 import '../handling/push_wake_lock.dart';

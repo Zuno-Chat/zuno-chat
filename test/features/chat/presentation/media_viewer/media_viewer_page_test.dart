@@ -12,8 +12,8 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/media_audio_session.dart';
-import 'package:zuno/core/matrix/room_media_feed.dart';
+import 'package:zuno/core/matrix/media/media_audio_session.dart';
+import 'package:zuno/core/matrix/media/room_media_feed.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/features/chat/data/chat_timeline.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/media_viewer_page.dart';

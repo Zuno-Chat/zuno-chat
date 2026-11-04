@@ -6,11 +6,11 @@ import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' show parseFragment;
 import 'package:matrix/matrix.dart' hide CallSession;
 
-import '../../../../core/matrix/linkified_text.dart';
-import '../../../../core/matrix/mention_fragments.dart';
-import '../../../../core/matrix/mention_only_html.dart';
-import '../../../../core/matrix/sanitize_message_html.dart';
-import '../../../../core/matrix/urls.dart';
+import '../../../../core/matrix/events/formatting/linkified_text.dart';
+import '../../../../core/matrix/events/formatting/mention_fragments.dart';
+import '../../../../core/matrix/events/formatting/mention_only_html.dart';
+import '../../../../core/matrix/events/formatting/sanitize_message_html.dart';
+import '../../../../core/matrix/events/formatting/urls.dart';
 import '../../../../core/navigation/zuno_links.dart';
 import '../../../../core/ui/row_memo.dart';
 import '../../../../core/ui/zuno_colors.dart';

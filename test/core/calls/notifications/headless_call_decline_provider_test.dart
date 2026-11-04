@@ -10,7 +10,7 @@ import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_provider.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/calls/notifications/headless_call_decline_provider.dart';
 import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/local_notifications.dart';
 
 import '../../../helpers/fake_http.dart';

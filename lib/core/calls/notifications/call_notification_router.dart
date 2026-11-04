@@ -7,7 +7,7 @@ import '../../../features/calls/presentation/call_page.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/global_error_handler.dart';
 import '../../l10n/l10n.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
 import '../../navigation/global_navigator.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../ui/notice.dart';

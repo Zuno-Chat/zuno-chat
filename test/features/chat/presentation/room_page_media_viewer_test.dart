@@ -6,8 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/matrix/media_gallery_group.dart';
-import 'package:zuno/core/matrix/room_media_feed.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
+import 'package:zuno/core/matrix/media/room_media_feed.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/media_viewer_page.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_chrome.dart';

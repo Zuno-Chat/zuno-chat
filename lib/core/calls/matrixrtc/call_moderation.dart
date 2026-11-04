@@ -2,7 +2,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
-import '../../matrix/room_roles.dart';
+import '../../matrix/rooms/permissions/room_roles.dart';
 import '../module/calls_module.dart';
 import 'call_member_state.dart';
 import 'call_summary_message.dart';

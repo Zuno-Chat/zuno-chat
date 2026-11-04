@@ -5,9 +5,9 @@ import 'package:matrix/matrix.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../../core/errors/caught_errors.dart';
-import '../../../../core/matrix/attachment_actions.dart';
-import '../../../../core/matrix/media_audio_session.dart';
-import '../../../../core/matrix/playable_media_file.dart';
+import '../../../../core/matrix/media/attachments/attachment_actions.dart';
+import '../../../../core/matrix/media/media_audio_session.dart';
+import '../../../../core/matrix/media/playable_media_file.dart';
 import '../../../../core/platform/platform_capabilities.dart';
 
 class VideoPlayback extends ChangeNotifier implements MediaPlayback {

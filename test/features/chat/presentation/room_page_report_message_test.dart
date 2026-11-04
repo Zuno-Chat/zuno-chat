@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
-import 'package:zuno/core/matrix/linkified_text.dart';
+import 'package:zuno/core/matrix/events/formatting/linkified_text.dart';
 
 import 'room_page_harness.dart';
 

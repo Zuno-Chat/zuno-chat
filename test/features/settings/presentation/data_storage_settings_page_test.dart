@@ -6,10 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/attachment_cache.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/settings/presentation/data_storage_settings_page.dart';
 

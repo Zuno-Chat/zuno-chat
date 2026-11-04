@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/matrix/client_startup.dart';
+import 'package:zuno/core/matrix/client/client_startup.dart';
 import 'package:zuno/features/startup/presentation/startup_failure_page.dart';
 
 void main() {

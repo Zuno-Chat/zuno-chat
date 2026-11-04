@@ -13,7 +13,7 @@ import '../errors/best_effort.dart';
 import '../errors/caught_errors.dart';
 import '../errors/global_error_handler.dart';
 import '../l10n/l10n.dart';
-import '../matrix/room_title.dart';
+import '../matrix/rooms/room_title.dart';
 import '../platform/platform_capabilities.dart';
 import '../ui/notice.dart';
 import 'active_call_provider.dart';

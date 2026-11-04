@@ -13,7 +13,7 @@ import '../calls/notifications/call_decline_action.dart';
 import '../errors/caught_errors.dart';
 import '../errors/device_log.dart';
 import '../l10n/l10n.dart';
-import '../matrix/matrix_client_provider.dart';
+import '../matrix/client/matrix_client_provider.dart';
 import '../network/app_http_overrides.dart';
 import '../platform/platform_capabilities.dart';
 import 'actions/message_notification_action.dart';

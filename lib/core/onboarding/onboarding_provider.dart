@@ -6,9 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../errors/caught_errors.dart';
 import '../errors/crash_reporting.dart';
-import '../matrix/matrix_client_provider.dart';
-import '../matrix/own_profile.dart';
-import '../matrix/typed_server_answers.dart';
+import '../matrix/account/own_profile.dart';
+import '../matrix/client/matrix_client_provider.dart';
+import '../matrix/http/typed_server_answers.dart';
 import '../platform/background_restrictions.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/delivery/notification_delivery_mode.dart';

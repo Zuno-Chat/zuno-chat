@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_media_feed.dart';
+import '../../../core/matrix/media/room_media_feed.dart';
 import '../../../core/ui/card_group.dart';
 import '../../chat/presentation/media_viewer/media_viewer_page.dart';
 import 'room_media_page.dart';

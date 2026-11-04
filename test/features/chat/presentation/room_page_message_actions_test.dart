@@ -9,13 +9,12 @@ import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
-import 'package:zuno/core/matrix/connection_monitor.dart';
-import 'package:zuno/core/matrix/connectivity_provider.dart';
-import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
+import 'package:zuno/core/matrix/sync/connection_monitor.dart';
+import 'package:zuno/core/matrix/sync/connectivity_provider.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';

@@ -4,8 +4,8 @@ import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../matrix/late_decryptions.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
+import '../../matrix/encryption/late_decryptions.dart';
 import '../models/call_kind.dart';
 import '../notifications/server_ring.dart';
 import 'call_member_state.dart';

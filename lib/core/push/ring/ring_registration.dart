@@ -10,7 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
 import '../delivery/registration_retry.dart';
 import 'ring_channel.dart';
 import 'ring_server.dart';

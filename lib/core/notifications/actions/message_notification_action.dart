@@ -9,8 +9,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
-import '../../matrix/client_lease.dart';
-import '../../matrix/read_receipts.dart';
+import '../../matrix/client/client_lease.dart';
+import '../../matrix/events/read_receipts.dart';
 import '../../platform/platform_capabilities.dart';
 
 enum MessageNotificationActionKind { reply, markRead }

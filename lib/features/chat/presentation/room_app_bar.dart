@@ -3,12 +3,12 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/calls/models/call_kind.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/mxc_avatar.dart';
-import '../../../core/matrix/official_room.dart';
-import '../../../core/matrix/room_changes.dart';
-import '../../../core/matrix/room_encryption.dart';
-import '../../../core/matrix/room_invite.dart';
-import '../../../core/matrix/typing_indicator_text.dart';
+import '../../../core/matrix/encryption/room_encryption.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/matrix/rooms/membership/room_invite.dart';
+import '../../../core/matrix/rooms/official_room.dart';
+import '../../../core/matrix/rooms/room_changes.dart';
+import '../../../core/matrix/rooms/typing_indicator_text.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/line_strut.dart';
 import '../../room_info/presentation/room_access_label.dart';

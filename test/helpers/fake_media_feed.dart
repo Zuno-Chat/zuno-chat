@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/matrix/room_media_feed.dart';
+import 'package:zuno/core/matrix/media/room_media_feed.dart';
 
 RoomMediaFeed fakeMediaFeed(
   Room room,

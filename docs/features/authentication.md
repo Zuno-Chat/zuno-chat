@@ -10,10 +10,10 @@ password rules live here too.
 
 There is no repository or local session model. Screens call the Matrix SDK
 directly, and the `Client` and its login state are the source of truth.
-Protocol logic lives in pure functions in `lib/core/matrix/`, not in
-widgets. Routing (`_AuthGate`) and the sign-out wipe are in
-`app-foundation.md`; the device list and verification are in
-`security-verification.md`.
+Protocol logic lives in pure functions in `lib/core/matrix/auth/` and
+`lib/core/matrix/account/`, not in widgets. Routing (`_AuthGate`) and the
+sign-out wipe are in `app-foundation.md`; the device list and verification
+are in `security-verification.md`.
 
 ## Architecture
 

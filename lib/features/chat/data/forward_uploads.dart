@@ -2,8 +2,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
-import '../../../core/matrix/attachment_actions.dart';
-import '../../../core/matrix/upload_http_client.dart';
+import '../../../core/matrix/http/upload_http_client.dart';
+import '../../../core/matrix/media/attachments/attachment_actions.dart';
 
 class ForwardUploads {
   final _uploads = <String, _PlainUpload>{};

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../core/calls/matrixrtc/call_summary_message.dart';
 import '../../../../core/format/human_units.dart';
 import '../../../../core/l10n/l10n.dart';
-import '../../../../core/matrix/message_icons.dart';
+import '../../../../core/matrix/events/message_icons.dart';
 import '../message_bubble.dart';
 
 class CallSummaryTile extends StatelessWidget {

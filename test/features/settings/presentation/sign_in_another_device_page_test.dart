@@ -8,7 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/sign_in_another_device_page.dart';
 
 import '../../../helpers/caught_reports.dart';

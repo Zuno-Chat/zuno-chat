@@ -1,7 +1,7 @@
 import 'package:matrix/matrix.dart';
 
 import '../../errors/caught_errors.dart';
-import '../../matrix/read_receipts.dart';
+import '../../matrix/events/read_receipts.dart';
 import '../../push/nse/opaque_thread_ids.dart';
 
 typedef TimedEvent = ({String id, int ts});

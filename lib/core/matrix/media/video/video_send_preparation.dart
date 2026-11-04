@@ -1,0 +1,152 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:matrix/matrix.dart';
+import 'package:path/path.dart' as p;
+
+import '../../../errors/best_effort.dart';
+import '../../../errors/caught_errors.dart';
+import '../../../files/file_system.dart';
+import '../../../files/unique_name.dart';
+import '../images/image_send_preparation.dart'
+    show blurhashInBackground, matrixImageFile;
+import '../images/native_image_resizer.dart';
+import '../media_quality.dart';
+import '../sent_media_name.dart';
+import 'native_video_tools.dart';
+import 'video_compression.dart';
+import 'video_send_plan.dart';
+
+const _thumbnailName = 'thumbnail.jpg';
+
+class PreparedVideo {
+  final MatrixVideoFile file;
+  final MatrixImageFile? thumbnail;
+
+  const PreparedVideo({required this.file, this.thumbnail});
+}
+
+typedef _Thumbnail = ({ResizedImage image, String? blurhash});
+
+Future<_Thumbnail?> _loadThumbnail(
+  NativeVideoTools native,
+  String path, {
+  required int quality,
+  required void Function(ResizedImage thumbnail)? onThumbnail,
+}) async {
+  try {
+    final image = await native.thumbnail(
+      path,
+      maxDimension: imageThumbnailMaxDimension,
+      quality: quality,
+    );
+    if (image == null) return null;
+    onThumbnail?.call(image);
+    return (image: image, blurhash: await blurhashInBackground(image.bytes));
+  } catch (e, s) {
+    reportCaught('make a video thumbnail', e, s);
+    return null;
+  }
+}
+
+Future<PreparedVideo> prepareVideoForSend(
+  String path, {
+  required bool reduceMediaSize,
+  int? fallbackWidth,
+  int? fallbackHeight,
+  int? fallbackDurationMs,
+  NativeVideoTools? tools,
+  VideoReencoder? reencoder,
+  Directory? workDir,
+  void Function(ResizedImage thumbnail)? onThumbnail,
+  void Function(double fraction)? onProgress,
+}) async {
+  final native = tools ?? NativeVideoTools.instance;
+  onProgress?.call(0);
+  final probe = await native.probe(path);
+  final width = probe?.width ?? fallbackWidth;
+  final height = probe?.height ?? fallbackHeight;
+
+  final thumbnail = _loadThumbnail(
+    native,
+    path,
+    quality: imageJpegQuality(reduceMediaSize: reduceMediaSize),
+    onThumbnail: onThumbnail,
+  );
+
+  final plan = planVideoSend(
+    width: width,
+    height: height,
+    bitrate: probe?.bitrate,
+    videoCodec: probe?.videoCodec,
+    audioCodec: probe?.audioCodec,
+    reduceMediaSize: reduceMediaSize,
+  );
+  final dir = workDir ?? await temporaryDirectory();
+  String? output;
+  var outWidth = width;
+  var outHeight = height;
+  try {
+    final reencode = reencoder ?? reencodeVideo;
+    Future<void> reencodeInto(ReencodeVideo plan) async {
+      output = await reencode(
+        path,
+        width: plan.targetWidth,
+        height: plan.targetHeight,
+        bitrateMbps: plan.bitrateMbps,
+        rotated: probe?.rotated,
+        onProgress: onProgress,
+      );
+      outWidth = plan.targetWidth ?? width;
+      outHeight = plan.targetHeight ?? height;
+    }
+
+    switch (plan) {
+      case RemuxVideo():
+        final remuxed = p.join(dir.path, 'video_send_${uniqueName()}.mp4');
+        if (await native.remux(path, remuxed)) {
+          output = remuxed;
+        } else {
+          await reencodeInto(
+            planVideoReencode(
+              width: width,
+              height: height,
+              bitrate: null,
+              reduceMediaSize: reduceMediaSize,
+            ),
+          );
+        }
+      case ReencodeVideo():
+        await reencodeInto(plan);
+    }
+    final bytes = await fileSystem.file(output!).readAsBytes();
+    final thumb = await thumbnail;
+    onProgress?.call(1);
+    return PreparedVideo(
+      file: MatrixVideoFile(
+        bytes: bytes,
+        name: sentVideoName,
+        width: outWidth,
+        height: outHeight,
+        duration: probe?.durationMs ?? fallbackDurationMs,
+      ),
+      thumbnail: thumb == null
+          ? null
+          : matrixImageFile(
+              thumb.image,
+              name: _thumbnailName,
+              blurhash: thumb.blurhash,
+            ),
+    );
+  } finally {
+    final produced = output;
+    if (produced != null) {
+      unawaited(
+        runBestEffort(
+          () => fileSystem.file(produced).delete(),
+          label: 'delete a prepared video',
+        ),
+      );
+    }
+  }
+}

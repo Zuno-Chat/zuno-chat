@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../matrix/room_changes.dart';
+import '../../matrix/rooms/room_changes.dart';
 import '../security_providers.dart';
 import 'security_alert.dart';
 import 'security_alert_detection.dart';

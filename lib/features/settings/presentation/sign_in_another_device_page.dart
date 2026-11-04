@@ -8,10 +8,10 @@ import 'package:qr_flutter/qr_flutter.dart' show QrCode, QrErrorCorrectLevel;
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/auth_error_message.dart';
-import '../../../core/matrix/linked_sign_in.dart';
-import '../../../core/matrix/matrix_client_provider.dart';
-import '../../../core/matrix/uia_cancel.dart';
+import '../../../core/matrix/auth/auth_error_message.dart';
+import '../../../core/matrix/auth/linked_sign_in.dart';
+import '../../../core/matrix/auth/uia_cancel.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/security/screen_security_service.dart';
 import '../../../core/ui/qr_image.dart';
 import '../../../core/ui/retry_wait.dart';

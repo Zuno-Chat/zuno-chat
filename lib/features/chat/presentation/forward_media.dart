@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/room_title.dart';
+import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/ui/notice.dart';
 import '../../share/presentation/forward_picker_page.dart';
 import '../data/forward_uploads.dart';

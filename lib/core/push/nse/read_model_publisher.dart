@@ -9,8 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
-import '../../matrix/matrix_client_provider.dart';
-import '../../matrix/room_title.dart';
+import '../../matrix/client/matrix_client_provider.dart';
+import '../../matrix/rooms/room_title.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../settings/app_preferences_provider.dart';
 import '../ring/ring_registration.dart';

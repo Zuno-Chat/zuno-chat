@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../matrix/late_decryptions.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
+import '../../matrix/encryption/late_decryptions.dart';
 import '../platform/incoming_call_presenter.dart';
 import '../platform/system_ring.dart';
 import 'call_member_state.dart';

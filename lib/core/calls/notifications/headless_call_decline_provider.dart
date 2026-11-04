@@ -1,7 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../errors/caught_errors.dart';
-import '../../matrix/matrix_client_provider.dart';
+import '../../matrix/client/matrix_client_provider.dart';
 import '../../notifications/actions/message_notification_action.dart';
 import '../../notifications/local_notifications.dart';
 import '../matrixrtc/call_decline.dart';

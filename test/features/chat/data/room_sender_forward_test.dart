@@ -7,10 +7,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:zuno/core/matrix/attachment_cache.dart';
-import 'package:zuno/core/matrix/forwarded_message.dart';
-import 'package:zuno/core/matrix/media_gallery_group.dart';
+import 'package:zuno/core/matrix/events/forwarded_message.dart';
+import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
+import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/chat/data/discarded_sends.dart';
 import 'package:zuno/features/chat/data/forward_uploads.dart';

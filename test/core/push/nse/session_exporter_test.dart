@@ -7,7 +7,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:vodozemac/vodozemac.dart' as vod;
 
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/push/nse/session_exporter.dart';
 
 import '../../../helpers/fake_matrix.dart';

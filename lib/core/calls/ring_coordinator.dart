@@ -7,7 +7,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../features/calls/presentation/incoming_call_page.dart';
 import '../l10n/l10n.dart';
-import '../matrix/matrix_client_provider.dart';
+import '../matrix/client/matrix_client_provider.dart';
 import '../navigation/global_navigator.dart';
 import '../navigation/launch_route.dart';
 import '../platform/platform_capabilities.dart';

@@ -20,7 +20,7 @@ import 'package:zuno/core/calls/platform/incoming_call_presenter.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/errors/global_error_handler.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/call_membership.dart';

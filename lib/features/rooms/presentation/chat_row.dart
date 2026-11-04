@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/official_room.dart';
+import '../../../core/matrix/rooms/official_room.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/line_strut.dart';
 import '../data/chat_row_data.dart';

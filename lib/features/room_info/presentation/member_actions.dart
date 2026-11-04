@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/optimistic_room_state.dart';
-import '../../../core/matrix/room_roles.dart';
+import '../../../core/matrix/rooms/optimistic_room_state.dart';
+import '../../../core/matrix/rooms/permissions/room_roles.dart';
 import '../../../core/ui/notice.dart';
 import '../../../core/ui/sheet.dart';
 import '../../blocking/presentation/block_person.dart';

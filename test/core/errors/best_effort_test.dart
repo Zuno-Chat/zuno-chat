@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/errors/best_effort.dart';
-import 'package:zuno/core/matrix/typed_server_answers.dart';
+import 'package:zuno/core/matrix/http/typed_server_answers.dart';
 
 import '../../helpers/recording_sentry.dart';
 

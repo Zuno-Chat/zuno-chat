@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
-import 'package:zuno/core/matrix/media_audio_session.dart';
+import 'package:zuno/core/matrix/media/media_audio_session.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/video_playback.dart';
 
 import 'fake_audio_session.dart';

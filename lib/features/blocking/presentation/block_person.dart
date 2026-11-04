@@ -5,7 +5,7 @@ import '../../../core/calls/end_call.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/official_room.dart';
+import '../../../core/matrix/rooms/official_room.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/notice.dart';

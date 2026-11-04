@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/format/human_units.dart';
-import '../../../core/matrix/cover_image.dart';
-import '../../../core/matrix/media_size.dart';
+import '../../../core/matrix/media/attachments/cover_image.dart';
+import '../../../core/matrix/media/media_size.dart';
 import '../../../core/ui/media_pill.dart';
 import '../../../core/ui/zuno_theme.dart';
 import '../../chat/presentation/media_viewer/media_hero.dart';
