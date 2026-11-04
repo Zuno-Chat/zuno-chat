@@ -5,9 +5,15 @@ import '../../../core/security/password_strength.dart';
 
 class PasswordStrengthBar extends StatelessWidget {
   final String password;
+  final PasswordRule rule;
   final String? username;
 
-  const PasswordStrengthBar({required this.password, this.username, super.key});
+  const PasswordStrengthBar({
+    required this.password,
+    required this.rule,
+    this.username,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +21,7 @@ class PasswordStrengthBar extends StatelessWidget {
     final assessment = assessPassword(
       context.l10n,
       password,
+      rule: rule,
       username: username,
     );
 

@@ -110,7 +110,13 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | English | nb | Notes |
 |---|---|---|
 | account, password | konto · passord | "Wrong password." → «Feil passord.» "Confirm password" (the repeat field) → «Gjenta passordet». |
+| account page, manage account | kontoside · Administrer konto | The server's own web page for the account, opened in the browser. "{server}'s account page" → «kontosiden til {server}». |
+| approve (on the account page) | Godkjenn · godkjenne | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Godkjenn i nettleseren». "Not approved yet." → «Ikke godkjent ennå.» |
 | username, display name | brukernavn · visningsnavn | |
+| lowercase letter | liten bokstav | "Lowercase letters" → «Små bokstaver». |
+| uppercase letter | stor bokstav | |
+| number (a digit, in a password or username) | tall | |
+| symbol (in a password) | symbol | |
 | profile, profile photo | profil · profilbilde | |
 | email address | e-postadresse | |
 | invite | Inviter · invitasjon | The "Invited" badge → «Invitert». |

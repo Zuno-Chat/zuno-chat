@@ -106,7 +106,13 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | English | pt-PT | Notes |
 |---|---|---|
 | account, password | a conta · a palavra-passe | Always in full. "Wrong password." → «Palavra-passe incorreta.» |
+| account page, manage account | a página da conta · Gerir conta | The server's own web page for the account, opened in the browser. "{server}'s account page" → «a página da conta em {server}». |
+| approve (on the account page) | Aprovar / aprovar | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Aprove no navegador». "Not approved yet." → «Ainda não aprovado.» |
 | username, display name | o nome de utilizador · o nome a apresentar | |
+| lowercase letter | a letra minúscula | "Lowercase letters" → «Letras minúsculas». |
+| uppercase letter | a letra maiúscula | |
+| number (a digit, in a password or username) | o número | |
+| symbol (in a password) | o símbolo | |
 | profile, profile photo | o perfil · a fotografia de perfil | |
 | email address | o endereço de email | |
 | invite | Convidar · o convite | The "Invited" badge → «Convite enviado». |

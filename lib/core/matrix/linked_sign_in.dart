@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
 import 'auth_error_message.dart';
+import 'typed_server_answers.dart';
 
 const _codeTag = 'ZUNO-SIGN-IN';
 const _codeVersion = '1';
@@ -114,13 +115,14 @@ String linkedSignInErrorMessage(AppLocalizations l10n, Object error) {
 bool isLinkedSignInRefusal(Object error) =>
     error is SignInCodeForAnotherServer || isLoginRefusal(error);
 
+bool isSignInCodeIssueRefusal(Object error) =>
+    isRateLimit(error) ||
+    (error is MatrixException && error.error == MatrixError.M_UNRECOGNIZED);
+
 String signInCodeIssueErrorMessage(AppLocalizations l10n, Object error) {
-  if (error is MatrixException) {
-    return switch (error.error) {
-      MatrixError.M_UNRECOGNIZED => l10n.matrixLinkedSignInUnsupported,
-      MatrixError.M_LIMIT_EXCEEDED => loginErrorMessage(l10n, error),
-      _ => l10n.matrixLinkedSignInIssueFailed,
-    };
+  if (isRateLimit(error)) return loginErrorMessage(l10n, error);
+  if (error case MatrixException(error: MatrixError.M_UNRECOGNIZED)) {
+    return l10n.matrixLinkedSignInUnsupported;
   }
   return l10n.matrixLinkedSignInIssueFailed;
 }

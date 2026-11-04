@@ -21,8 +21,9 @@ The step list is computed, never stored; the flow page copies it into its
 own state so answers can add or remove steps while it runs. A step is marked
 shown when it finishes or is skipped, so an abandoned flow resumes where it
 stopped and every step shows at most once per account on this device.
-`RegisterPage` sets the registered flag inside the sign-in hold
-(`authentication.md`), so the first step list already sees it.
+`RegisterPage` and a browser sign-up set the registered flag inside the
+sign-in hold (`authentication.md`), so the first step list already sees it.
+A browser sign-up that set a name records `profile` as done there too.
 
 ## Steps
 
@@ -62,6 +63,11 @@ The flow adjusts itself in two places:
   mid-session, or a delivery change would open it over Settings.
 - **Registration is a stored flag, not "no display name"**, because Synapse
   sets the display name to the username at registration.
+- **A browser sign-up that set a name skips `profile`, decided once at
+  sign-up**: a name other than the username counts, and a read that fails
+  or hangs asks for the name as before. Deciding at launch
+  instead would read the profile on every start, since a skipped step is
+  never shown.
 - **Declining notifications answers the delivery steps too.** They are
   marked shown, not merely hidden, or turning notifications on later in
   Settings would bring them back at the next launch.

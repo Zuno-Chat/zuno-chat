@@ -110,7 +110,13 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | English | sv | Notes |
 |---|---|---|
 | account, password | konto · lösenord | "Wrong password." → «Fel lösenord.» "Confirm password" (the repeat field) → «Upprepa lösenordet». |
+| account page, manage account | kontosida · Hantera konto | The server's own web page for the account, opened in the browser. "{server}'s account page" → «kontosidan för {server}». |
+| approve (on the account page) | Godkänn · godkännande | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Godkänn i webbläsaren». "Not approved yet." → «Inte godkänt än.» |
 | username, display name | användarnamn · visningsnamn | |
+| lowercase letter | liten bokstav | "Lowercase letters" → «Små bokstäver». |
+| uppercase letter | stor bokstav | |
+| number (a digit, in a password or username) | siffra | |
+| symbol (in a password) | symbol | |
 | profile, profile photo | profil · profilbild | |
 | email address | e-postadress | |
 | invite | Bjud in · inbjudan | The "Invited" badge → «Inbjuden». |

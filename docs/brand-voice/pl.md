@@ -107,7 +107,13 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | English | pl | Notes |
 |---|---|---|
 | account, password | konto · hasło | "Wrong password." → «Nieprawidłowe hasło.» "Confirm password" (the repeat field) → «Powtórz hasło». |
+| account page, manage account | strona konta · Zarządzaj kontem | The server's own web page for the account, opened in the browser. "{server}'s account page" → «strona konta na serwerze {server}». |
+| approve (on the account page) | Zatwierdź · zatwierdzenie | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Zatwierdź w przeglądarce». "Not approved yet." → «Jeszcze niezatwierdzone.» |
 | username, display name | nazwa użytkownika · nazwa wyświetlana | |
+| lowercase letter | mała litera | "Lowercase letters" → «Małe litery». |
+| uppercase letter | wielka litera | |
+| number (a digit, in a password or username) | cyfra | |
+| symbol (in a password) | symbol | |
 | profile, profile photo | profil · zdjęcie profilowe | |
 | email address | adres e-mail | The email itself is «wiadomość e-mail»; the sign-up email, in a short helper, «e-mail rejestracyjny». |
 | invite | Zaproś · zaproszenie | The "Invited" badge → «Zaproszono». |

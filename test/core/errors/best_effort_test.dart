@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/errors/best_effort.dart';
+import 'package:zuno/core/matrix/typed_server_answers.dart';
 
 import '../../helpers/recording_sentry.dart';
 
@@ -18,7 +19,7 @@ void main() {
 
   test('a failing request is swallowed and reported as a failure', () async {
     final ok = await runBestEffort(
-      () async => throw Exception('http error response'),
+      () async => throw const ServerAnswerFailed(502),
       label: 'test',
     );
 

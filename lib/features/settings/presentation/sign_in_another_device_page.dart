@@ -8,11 +8,13 @@ import 'package:qr_flutter/qr_flutter.dart' show QrCode, QrErrorCorrectLevel;
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/screen_security_service.dart';
 import '../../../core/ui/qr_image.dart';
+import '../../../core/ui/retry_wait.dart';
 import 'uia_password_prompt.dart';
 
 class SignInAnotherDevicePage extends ConsumerStatefulWidget {
@@ -25,7 +27,9 @@ class SignInAnotherDevicePage extends ConsumerStatefulWidget {
 
 class _SignInAnotherDevicePageState
     extends ConsumerState<SignInAnotherDevicePage>
-    with ScreenProtected<SignInAnotherDevicePage> {
+    with
+        ScreenProtected<SignInAnotherDevicePage>,
+        RetryWait<SignInAnotherDevicePage> {
   ({IssuedSignInCode issued, QrCode qr})? _shown;
   String? _error;
   bool _expired = false;
@@ -45,11 +49,8 @@ class _SignInAnotherDevicePageState
     super.dispose();
   }
 
-  Future<void> _handleUia(UiaRequest uia) => answerUiaWithPassword(
-    context,
-    uia,
-    userId: ref.read(matrixClientProvider).userID!,
-  );
+  Future<void> _handleUia(UiaRequest uia) =>
+      answerUia(context, uia, userId: ref.read(matrixClientProvider).userID!);
 
   Future<void> _request() async {
     setState(() {
@@ -67,9 +68,7 @@ class _SignInAnotherDevicePageState
       );
       setState(() => _shown = (issued: issued, qr: qr));
     } catch (e, s) {
-      final unsupported =
-          e is MatrixException && e.error == MatrixError.M_UNRECOGNIZED;
-      if (!isUiaCancel(e) && !unsupported) {
+      if (!isUiaCancel(e) && !isSignInCodeIssueRefusal(e)) {
         reportCaught('issue sign-in code', e, s);
       }
       if (!mounted) return;
@@ -77,6 +76,10 @@ class _SignInAnotherDevicePageState
         Navigator.of(context).pop();
         return;
       }
+      holdRetriesFor(
+        retryWaitFor(e),
+        whenOver: () => _error = context.l10n.matrixAuthRateLimited,
+      );
       setState(() => _error = signInCodeIssueErrorMessage(context.l10n, e));
     }
   }
@@ -89,7 +92,10 @@ class _SignInAnotherDevicePageState
       return [
         Text(error, textAlign: TextAlign.center),
         const SizedBox(height: 16),
-        FilledButton(onPressed: _request, child: Text(l10n.commonTryAgain)),
+        FilledButton(
+          onPressed: waitingToRetry ? null : _request,
+          child: Text(l10n.commonTryAgain),
+        ),
       ];
     }
     if (shown == null) {

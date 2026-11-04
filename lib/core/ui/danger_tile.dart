@@ -20,6 +20,7 @@ class DangerTile extends StatelessWidget {
     leading: CircleIcon(icon, danger: true),
     title: Text(label),
     textColor: Theme.of(context).colorScheme.error,
+    enabled: onTap != null,
     onTap: onTap,
   );
 }

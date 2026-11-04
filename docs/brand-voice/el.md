@@ -110,7 +110,13 @@ The Greek column gives the article, which shows the gender, and the plural where
 |---|---|---|
 | account | ο λογαριασμός | "Create account" → «Δημιουργία λογαριασμού». |
 | password | ο κωδικός πρόσβασης | Always in full, because a bare «κωδικός» is a code. Never «συνθηματικό». "Wrong password." → «Λάθος κωδικός πρόσβασης.» |
+| account page, manage account | η σελίδα λογαριασμού · Διαχείριση λογαριασμού | The server's own web page for the account, opened in the browser. "{server}'s account page" → «η σελίδα λογαριασμού του διακομιστή {server}». |
+| approve (on the account page) | Έγκριση / εγκρίνω | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Εγκρίνετε στο πρόγραμμα περιήγησής σας». "Not approved yet." → «Δεν έχει εγκριθεί ακόμα.» |
 | username, display name | το όνομα χρήστη · το εμφανιζόμενο όνομα | The onboarding field "Name" → «Όνομα». |
+| lowercase letter | το πεζό γράμμα | "Lowercase letters" → «Πεζά γράμματα». |
+| uppercase letter | το κεφαλαίο γράμμα | |
+| number (a digit, in a password or username) | ο αριθμός | |
+| symbol (in a password) | το σύμβολο | |
 | profile, profile photo / picture, avatar | το προφίλ · η φωτογραφία προφίλ | A room or community photo → «φωτογραφία αίθουσας / κοινότητας». |
 | email address | η διεύθυνση email | The email itself is «το email». |
 | invite, invitation | Πρόσκληση / προσκαλώ | The "Invited" badge → «Προσκλήθηκε». |

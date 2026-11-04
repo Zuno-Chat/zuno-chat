@@ -89,6 +89,22 @@
   "authLinkedInstructions": "On a device that is already signed in, open Settings, then Your devices, then Sign in on another device.",
   "authLinkedScanTitle": "Scan the sign-in code",
   "authLinkedScanWithoutCamera": "You can still type the code instead.",
+  "authOAuthFailed": "Could not sign in to {server}. Try again.",
+  "@authOAuthFailed": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "authOAuthNoBrowser": "Zuno needs a web browser to sign in to {server}.",
+  "@authOAuthNoBrowser": {
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
   "authOrTypeCode": "Or type the code it shows",
   "authPasswordHide": "Hide password",
   "@authPasswordHide": {
@@ -99,7 +115,7 @@
     "description": "Tooltip on the eye button of a password field: show what was typed"
   },
   "authRegisterAgreement": "Creating an account means you agree to the terms and the privacy policy.",
-  "authRegisterUsernameHelper": "Letters, numbers, dots and underscores",
+  "authRegisterUsernameHelper": "Lowercase letters, numbers and . _ = - / +",
   "authScanCode": "Scan code",
   "@authScanCode": {
     "description": "Button: scan the sign-in QR code shown on another device"
@@ -2168,6 +2184,7 @@
   "matrixAuthCannotConnect": "Cannot connect. Check your connection and try again.",
   "matrixAuthCodeInvalid": "That code is not valid or has expired.",
   "matrixAuthDeactivated": "This account is deactivated",
+  "matrixAuthPasswordTooWeak": "Your server needs a stronger password. Try a longer one.",
   "matrixAuthRateLimited": "Too many attempts. Wait a moment and try again.",
   "matrixAuthRateLimitedMinutes": "{count, plural, one{Too many attempts. Try again in {count} minute.} other{Too many attempts. Try again in {count} minutes.}}",
   "@matrixAuthRateLimitedMinutes": {
@@ -2225,9 +2242,9 @@
   "matrixHomeserverEnterServer": "Enter a server, such as chat.example.org",
   "matrixHomeserverInsecure": "That server uses http, which is not secure. Zuno connects only over https.",
   "matrixHomeserverLooksLikeUsername": "That looks like a username. Enter just the server part, such as chat.example.org",
-  "matrixHomeserverNoPassword": "That server does not support signing in with a password.",
   "matrixHomeserverNotAServer": "That address is not a server Zuno can use. Check it.",
   "matrixHomeserverShape": "Enter a hostname, such as chat.example.org, or a full https:// address",
+  "matrixHomeserverSignInUnsupported": "Zuno cannot sign in to that server.",
   "matrixHomeserverUnreachable": "Cannot reach that server. Check the address and your connection.",
   "matrixHomeserverUseHttps": "Use https://. An http address is not secure.",
   "matrixInvitePeopleInvited": "{count, plural, other{{count} people invited}}",
@@ -2610,20 +2627,9 @@
   "matrixSignOutOffline": "Not signed out. Check your connection and try again.",
   "matrixSignupChooseUsername": "Choose a username",
   "matrixSignupEnterJustUsername": "Enter just a username, without @ or a server name",
-  "matrixSignupPasswordTooLong": "{count, plural, other{Use at most {count} characters}}",
-  "@matrixSignupPasswordTooLong": {
-    "placeholders": {
-      "count": {
-        "type": "int",
-        "format": "decimalPattern"
-      }
-    }
-  },
   "matrixSignupPasswordsDiffer": "Passwords do not match",
-  "matrixSignupUsernameChars": "Usernames can use a–z, 0–9, dots and underscores",
-  "matrixSignupUsernameLetter": "Usernames need at least one letter",
+  "matrixSignupUsernameChars": "Usernames can use a–z, 0–9 and . _ = - / +",
   "matrixSignupUsernameTooLong": "That username is too long",
-  "matrixSignupUsernameUnderscore": "Usernames cannot start with an underscore",
   "matrixStateAddressChanged": "{sender} changed the room address",
   "@matrixStateAddressChanged": {
     "placeholders": {
@@ -4635,6 +4641,10 @@
       }
     }
   },
+  "securityPasswordAddLowercase": "Add a lowercase letter",
+  "securityPasswordAddNumber": "Add a number",
+  "securityPasswordAddSymbol": "Add a symbol",
+  "securityPasswordAddUppercase": "Add an uppercase letter",
   "securityPasswordAvoidRuns": "Avoid runs like 12345678 or aaaaaaaa.",
   "securityPasswordBuiltOnCommon": "That is built on a common password",
   "securityPasswordCommon": "That is one of the most common passwords",
@@ -4647,6 +4657,16 @@
       }
     }
   },
+  "securityPasswordEmptyAdviceEveryKind": "{count, plural, other{At least {count} characters, with a lowercase letter, an uppercase letter, a number and a symbol.}}",
+  "@securityPasswordEmptyAdviceEveryKind": {
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
+  "securityPasswordEveryKindAdvice": "Passwords need a lowercase letter, an uppercase letter, a number and a symbol.",
   "securityPasswordFair": "Okay.",
   "@securityPasswordFair": {
     "description": "Password strength hint: the password is okay"
@@ -4763,6 +4783,10 @@
     "description": "Row value: you have not set a display name"
   },
   "settingsAccountDisplayNameUpdated": "Display name updated",
+  "settingsAccountManage": "Manage account",
+  "@settingsAccountManage": {
+    "description": "Row on the account screen: opens the server's account page in the browser"
+  },
   "settingsAccountPasswordChanged": "Password changed",
   "@settingsAccountPasswordChanged": {
     "description": "Snack bar after changing your password"
@@ -4940,6 +4964,15 @@
   "settingsDeleteAccountConfirmTitle": "Confirm deletion",
   "@settingsDeleteAccountConfirmTitle": {
     "description": "Dialog title: confirm deleting your account"
+  },
+  "settingsDeleteAccountOnWebBody": "You delete your account on {server}'s account page. Zuno signs you out once it is gone.",
+  "@settingsDeleteAccountOnWebBody": {
+    "description": "Dialog body before opening the server's account page to delete the account there",
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
   },
   "settingsDeleteAccountTypeUsername": "Type your username to confirm: {username}",
   "@settingsDeleteAccountTypeUsername": {
@@ -5320,6 +5353,23 @@
   "settingsSignOut": "Sign out",
   "@settingsSignOut": {
     "description": "Row and dialog button: sign out"
+  },
+  "settingsUiaApproveBody": "{server} asks you to approve this on its account page. Approve it there, then come back and tap Continue.",
+  "@settingsUiaApproveBody": {
+    "description": "Dialog body while the server's account page, opened in the browser, asks the user to approve an action such as starting over with a new recovery code. Continue is the dialog's button",
+    "placeholders": {
+      "server": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsUiaApproveNotYet": "Not approved yet.",
+  "@settingsUiaApproveNotYet": {
+    "description": "Line added to the approval dialog after Continue, when the server says the action has not been approved on its account page yet"
+  },
+  "settingsUiaApproveTitle": "Approve in your browser",
+  "@settingsUiaApproveTitle": {
+    "description": "Title of the dialog shown while the server's account page, opened in the browser, asks the user to approve an action"
   },
   "settingsUiaConfirm": "Confirm",
   "@settingsUiaConfirm": {

@@ -104,7 +104,13 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | English | pt-BR | Notes |
 |---|---|---|
 | account, password | a conta · a senha | "Wrong password." → «Senha incorreta.» |
+| account page, manage account | a página da conta · Gerenciar conta | The server's own web page for the account, opened in the browser. "{server}'s account page" → «a página da conta em {server}». |
+| approve (on the account page) | Aprovar / aprovar | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Aprove no navegador». "Not approved yet." → «Ainda não aprovado.» |
 | username, display name | o nome de usuário · o nome de exibição | |
+| lowercase letter | a letra minúscula | "Lowercase letters" → «Letras minúsculas». |
+| uppercase letter | a letra maiúscula | |
+| number (a digit, in a password or username) | o número | |
+| symbol (in a password) | o símbolo | |
 | profile, profile photo | o perfil · a foto do perfil | |
 | email address | o endereço de e-mail | |
 | invite | Convidar · o convite | The "Invited" badge → «Convite enviado». |

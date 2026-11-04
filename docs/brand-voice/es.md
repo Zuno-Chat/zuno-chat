@@ -105,7 +105,13 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | English | es | Notes |
 |---|---|---|
 | account, password | la cuenta · la contraseña | "Wrong password." → «Contraseña incorrecta.» |
+| account page, manage account | la página de cuenta · Gestionar cuenta | The server's own web page for the account, opened in the browser. "{server}'s account page" → «la página de cuenta de {server}». |
+| approve (on the account page) | Aprobar / aprobar | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Apruébalo en tu navegador». "Not approved yet." → «Aún no aprobado.» |
 | username, display name | el nombre de usuario · el nombre visible | |
+| lowercase letter | la letra minúscula | "Lowercase letters" → «Letras minúsculas». |
+| uppercase letter | la letra mayúscula | |
+| number (a digit, in a password or username) | el número | |
+| symbol (in a password) | el símbolo | |
 | profile, profile photo | el perfil · la foto de perfil | |
 | email address | la dirección de correo electrónico | Short form «correo». |
 | invite | Invitar · la invitación | The "Invited" badge → «Invitación enviada». |

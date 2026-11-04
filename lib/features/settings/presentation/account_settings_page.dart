@@ -6,6 +6,7 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/app_language.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/account_capabilities.dart';
+import '../../../core/matrix/account_page_browser.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/avatar_photo.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -120,7 +121,9 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
           try {
             await client.changePassword(next, oldPassword: current);
           } catch (e, s) {
-            if (!isPasswordRefusal(e)) reportCaught('change password', e, s);
+            if (!isChangePasswordRefusal(e)) {
+              reportCaught('change password', e, s);
+            }
             rethrow;
           }
         },
@@ -231,6 +234,8 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     final client = ref.watch(matrixClientProvider);
     final displayName = _profile?.displayname;
     final userId = client.userID;
+    final capabilities = ref.watch(accountCapabilitiesProvider).known;
+    final accountPage = capabilities?.accountPage;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsAccountTitle)),
@@ -286,15 +291,29 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
             ],
           ),
           if (languageRow != null) CardGroup(children: [languageRow]),
-          if ((ref.watch(accountCapabilitiesProvider).value ??
-                  const AccountCapabilities())
-              .canChangePassword)
+          if (capabilities?.canChangePassword ?? false)
             CardGroup(
               children: [
                 ListTile(
                   leading: const Icon(Icons.password_outlined),
                   title: Text(l10n.settingsAccountChangePassword),
                   onTap: _changePassword,
+                ),
+              ],
+            )
+          else if (accountPage != null)
+            CardGroup(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.manage_accounts_outlined),
+                  title: Text(l10n.settingsAccountManage),
+                  trailing: const Icon(Icons.open_in_new),
+                  onTap: () => openAccountPage(
+                    context,
+                    accountPage.linkFor(
+                      AccountManagementActionsSupported.orgMatrixProfile,
+                    ),
+                  ),
                 ),
               ],
             ),

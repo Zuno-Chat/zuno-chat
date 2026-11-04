@@ -13,18 +13,22 @@ void main() {
   late int requests;
   late List<http.Request> sent;
   late int status;
+  late Map<String, Object?> answer;
 
   setUp(() {
     requests = 0;
     sent = [];
     status = 200;
+    answer = {};
     client = buildTestClient(
       userId: '@alex:example.org',
       httpClient: FakeHttpClient((request) async {
         requests++;
         sent.add(request);
         return http.Response(
-          status == 200 ? '{}' : '{"errcode": "M_FORBIDDEN", "error": "No"}',
+          status == 200
+              ? jsonEncode(answer)
+              : '{"errcode": "M_FORBIDDEN", "error": "No"}',
           status,
         );
       }),
@@ -57,6 +61,54 @@ void main() {
 
       await expectLater(
         setOwnDisplayName(client, 'Alex'),
+        throwsA(isA<MatrixException>()),
+      );
+    });
+  });
+
+  group('hasChosenDisplayName', () {
+    setUp(() {
+      client
+        ..homeserver = Uri.parse('https://example.org')
+        ..accessToken = 'token';
+    });
+
+    test('a name other than the username counts, read from the '
+        'server', () async {
+      answer = {'displayname': 'Alex Smith'};
+
+      expect(await hasChosenDisplayName(client), isTrue);
+      final request = sent.single;
+      expect(request.method, 'GET');
+      expect(
+        request.url.path,
+        endsWith(
+          '/profile/${Uri.encodeComponent('@alex:example.org')}/displayname',
+        ),
+      );
+    });
+
+    test('the bare username does not count', () async {
+      answer = {'displayname': 'alex'};
+
+      expect(await hasChosenDisplayName(client), isFalse);
+    });
+
+    test('a blank name does not count', () async {
+      answer = {'displayname': '  '};
+
+      expect(await hasChosenDisplayName(client), isFalse);
+    });
+
+    test('no name does not count', () async {
+      expect(await hasChosenDisplayName(client), isFalse);
+    });
+
+    test('passes a server refusal on', () async {
+      status = 403;
+
+      await expectLater(
+        hasChosenDisplayName(client),
         throwsA(isA<MatrixException>()),
       );
     });

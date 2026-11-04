@@ -3,8 +3,84 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/security/password_strength.dart';
 
 void main() {
-  PasswordAssessment assess(String password, {String? username}) =>
-      assessPassword(englishLocalizations, password, username: username);
+  PasswordAssessment assess(
+    String password, {
+    String? username,
+    PasswordRule rule = recoveryPhraseRule,
+  }) => assessPassword(
+    englishLocalizations,
+    password,
+    rule: rule,
+    username: username,
+  );
+
+  group('an account password follows the Matrix rule', () {
+    PasswordAssessment account(String password, {String? username}) =>
+        assess(password, username: username, rule: accountPasswordRule);
+
+    test('anything under 8 characters is blocked', () {
+      final assessment = account('Gk7#wqz');
+      expect(assessment.isUsable, isFalse);
+      expect(assessment.blocker, 'Use at least 8 characters');
+      expect(assessment.advice, '1 more character to go.');
+    });
+
+    test('8 characters with every kind clears the rule', () {
+      expect(account('Gk7#wqz2').isUsable, isTrue);
+    });
+
+    test('names the first kind still missing', () {
+      for (final (password, blocker) in [
+        ('GK7#WQZ2', 'Add a lowercase letter'),
+        ('gk7#wqz2', 'Add an uppercase letter'),
+        ('Gk#wqzmp', 'Add a number'),
+        ('Gk7wqz2m', 'Add a symbol'),
+      ]) {
+        final assessment = account(password);
+        expect(assessment.blocker, blocker, reason: password);
+        expect(
+          assessment.advice,
+          'Passwords need a lowercase letter, an uppercase letter, a number '
+          'and a symbol.',
+          reason: password,
+        );
+      }
+    });
+
+    test('letters beyond a–z count by their case, and a space is a '
+        'symbol', () {
+      expect(account('Ωmέga#7λ').isUsable, isTrue);
+      expect(account('Gk7 wqz2').isUsable, isTrue);
+    });
+
+    test('the guess checks still apply', () {
+      expect(account('Password1!').blocker, contains('common'));
+      expect(
+        account('Alexander1!', username: 'alexander').blocker,
+        contains('username'),
+      );
+    });
+
+    test('before anything is typed, the advice names the whole rule', () {
+      final assessment = account('');
+      expect(assessment.blocker, isNull);
+      expect(
+        assessment.advice,
+        'At least 8 characters, with a lowercase letter, an uppercase '
+        'letter, a number and a symbol.',
+      );
+    });
+  });
+
+  group('a recovery phrase', () {
+    test('needs no particular kinds of character', () {
+      expect(assess('correct battery staple mountain').isUsable, isTrue);
+    });
+
+    test('before anything is typed, the advice names only the length', () {
+      expect(assess('').advice, 'At least 12 characters. Longer is stronger.');
+    });
+  });
 
   group('what is blocked', () {
     test('anything under 12 characters', () {

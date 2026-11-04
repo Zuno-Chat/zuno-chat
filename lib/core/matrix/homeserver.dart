@@ -38,11 +38,15 @@ ServerChoice _pointed(Client client, ServerChoice choice) {
 
 final signUpPathProvider = FutureProvider.autoDispose
     .family<SignUpPath, ServerChoice>(
-      (ref, choice) async => signUpPathFrom(
-        await fetchRegistrationSupport(
-          ref.watch(matrixClientProvider),
-          choice.apiHost,
+      (ref, choice) async => switch (choice.signIn) {
+        OAuthSignIn(canCreateAccount: true) => SignUpPath.oauth,
+        OAuthSignIn() => SignUpPath.closed,
+        PasswordSignIn() => signUpPathFrom(
+          await fetchRegistrationSupport(
+            ref.watch(matrixClientProvider),
+            choice.apiHost,
+          ),
         ),
-      ),
+      },
       retry: (_, _) => null,
     );

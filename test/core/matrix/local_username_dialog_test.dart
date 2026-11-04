@@ -40,16 +40,15 @@ void main() {
   }
 
   testWidgets('builds the user ID on the server name, not the API host, from '
-      'the sign-up character set, so a typed sigil is not doubled up', (
-    tester,
-  ) async {
+      'the characters a Matrix username allows, so a typed sigil is not '
+      'doubled up', (tester) async {
     await openDialog(tester);
 
     await tester.enterText(find.byType(TextField), '@Bob-Smith_1');
     await tester.tap(find.widgetWithText(TextButton, 'Invite'));
     await tester.pumpAndSettle();
 
-    expect(userId, '@bobsmith_1:zuno.chat');
+    expect(userId, '@bob-smith_1:zuno.chat');
   });
 
   testWidgets('cancelling yields nothing', (tester) async {

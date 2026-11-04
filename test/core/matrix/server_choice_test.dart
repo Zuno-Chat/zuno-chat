@@ -4,15 +4,16 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/errors/connection_error.dart';
 import 'package:zuno/core/matrix/auth_error_message.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
 import 'package:zuno/core/matrix/server_choice.dart';
+import 'package:zuno/core/matrix/typed_server_answers.dart';
 
 import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/oauth_server.dart';
 
 void main() {
   group('signUpPathFrom', () {
@@ -64,6 +65,7 @@ void main() {
     const discoveryPath = '/.well-known/matrix/client';
     const versionsPath = '/_matrix/client/versions';
     const loginPath = '/_matrix/client/v3/login';
+    const metadataPath = '/_matrix/client/v1/auth_metadata';
     final requests = <Uri>[];
 
     setUp(requests.clear);
@@ -77,10 +79,20 @@ void main() {
       'm.homeserver': {'base_url': base},
     });
 
+    http.Response metadataWith(Map<String, Object?> fields) =>
+        json({...oauthMetadata, ...fields});
+
+    http.Response loginTypes(List<String> types) => json({
+      'flows': [
+        for (final type in types) {'type': type},
+      ],
+    });
+
     Client clientAnswering({
       FakeHttpHandler? discovery,
       FakeHttpHandler? versions,
       FakeHttpHandler? login,
+      FakeHttpHandler? metadata,
     }) => buildTestClient(
       httpClient: FakeHttpClient((request) async {
         requests.add(request.url);
@@ -100,6 +112,7 @@ void main() {
                     ],
                   })
                 : login(request),
+          metadataPath => metadata == null ? notFound() : metadata(request),
           _ => notFound(),
         };
       }),
@@ -107,6 +120,13 @@ void main() {
 
     List<Uri> requestsTo(String path) =>
         requests.where((url) => url.path == path).toList();
+
+    Matcher throwsProblem(HomeserverProblem problem) => throwsA(
+      predicate(
+        (Object error) => homeserverProblem(error) == problem,
+        problem.name,
+      ),
+    );
 
     test('a discovery file naming another API host points the check '
         'there', () async {
@@ -123,11 +143,13 @@ void main() {
       expect(requests, [
         Uri.parse('https://example.org$discoveryPath'),
         Uri.parse('https://matrix.example.org$versionsPath'),
+        Uri.parse('https://matrix.example.org$metadataPath'),
         Uri.parse('https://matrix.example.org$loginPath'),
       ]);
     });
 
-    test('sign-in methods are asked for without waiting on versions', () async {
+    test('sign-in methods and auth metadata are asked for without waiting on '
+        'versions', () async {
       final versions = Completer<http.Response>();
       final client = clientAnswering(versions: (_) => versions.future);
 
@@ -135,6 +157,7 @@ void main() {
       await pumpEventQueue();
 
       expect(requestsTo(loginPath), hasLength(1));
+      expect(requestsTo(metadataPath), hasLength(1));
       versions.complete(
         json({
           'versions': ['v1.5'],
@@ -144,35 +167,219 @@ void main() {
     });
 
     test('a server that is not Matrix fails as not Matrix even when its '
-        'sign-in methods are unreachable', () async {
+        'sign-in methods and auth metadata are unreachable', () async {
       final client = clientAnswering(
         versions: (_) async => http.Response('<html></html>', 404),
         login: (_) async => throw http.ClientException('offline'),
+        metadata: (_) async => throw http.ClientException('offline'),
       );
 
-      final error = await checkServer(
-        client,
-        server,
-      ).then<Object?>((_) => null, onError: (Object e) => e);
-
-      expect(error, isNotNull);
-      expect(isNotMatrixAnswer(error!), isTrue);
+      await expectLater(
+        checkServer(client, server),
+        throwsProblem(HomeserverProblem.notAServer),
+      );
     });
 
-    test(
-      'auth metadata is never requested, even from a v1.15 server',
-      () async {
+    test('a v1.15 server serving auth metadata signs in through OAuth, '
+        'asked once at its API host', () async {
+      final apiHost = Uri.parse('https://matrix.example.org');
+      final client = clientAnswering(
+        discovery: (_) async => discoveryNaming('$apiHost'),
+        versions: (_) async => json({
+          'versions': ['v1.15'],
+        }),
+        login: (_) async => loginTypes(['m.login.sso']),
+        metadata: (_) async => json(oauthMetadata),
+      )..homeserver = officialHomeserver;
+
+      final choice = await checkServer(client, server);
+
+      expect(
+        choice,
+        ServerChoice(
+          server,
+          apiHost: apiHost,
+          signIn: const OAuthSignIn(canCreateAccount: true),
+        ),
+      );
+      expect(requestsTo(metadataPath), [
+        Uri.parse('https://matrix.example.org$metadataPath'),
+      ]);
+    });
+
+    test('auth metadata wins over password sign-in', () async {
+      final client = clientAnswering(
+        login: (_) async => loginTypes(['m.login.password', 'm.login.sso']),
+        metadata: (_) async => json(oauthMetadata),
+      );
+
+      expect((await checkServer(client, server)).signIn, isA<OAuthSignIn>());
+    });
+
+    for (final (name, answer) in <(String, FakeHttpHandler)>[
+      (
+        'a server error',
+        (_) async => http.Response('<html>Bad Gateway</html>', 502),
+      ),
+      (
+        'a web page for a missing endpoint',
+        (_) async => http.Response('<html>Not Found</html>', 404),
+      ),
+      ('no answer at all', (_) => Completer<http.Response>().future),
+    ]) {
+      test('a server serving auth metadata signs in through OAuth when its '
+          'sign-in methods meet $name', () async {
         final client = clientAnswering(
-          versions: (_) async => json({
-            'versions': ['v1.15'],
-          }),
+          login: answer,
+          metadata: (_) async => json(oauthMetadata),
         );
 
-        await checkServer(client, server);
+        expect(
+          await checkServer(client, server),
+          ServerChoice(
+            server,
+            apiHost: server,
+            signIn: const OAuthSignIn(canCreateAccount: true),
+          ),
+        );
+      });
+    }
 
-        expect(requestsTo('/_matrix/client/v1/auth_metadata'), isEmpty);
+    test(
+      'OAuth can create accounts only where the server offers create',
+      () async {
+        for (final (prompts, canCreate) in <(List<String>?, bool)>[
+          (['login', 'create'], true),
+          (['login'], false),
+          (null, false),
+        ]) {
+          final client = clientAnswering(
+            metadata: (_) async =>
+                metadataWith({'prompt_values_supported': prompts}),
+          );
+
+          final choice = await checkServer(client, server);
+
+          expect(
+            choice.signIn,
+            OAuthSignIn(canCreateAccount: canCreate),
+            reason: '$prompts',
+          );
+        }
       },
     );
+
+    for (final (name, answer) in <(String, FakeHttpHandler)>[
+      ('a missing endpoint', (_) async => notFound()),
+      (
+        'a proxy web page for a missing endpoint',
+        (_) async => http.Response('<html>Not Found</html>', 404),
+      ),
+      (
+        'M_UNRECOGNIZED on another status',
+        (_) async => json({'errcode': 'M_UNRECOGNIZED'}, 400),
+      ),
+      (
+        'M_NOT_FOUND on another status',
+        (_) async => json({'errcode': 'M_NOT_FOUND'}, 400),
+      ),
+    ]) {
+      test('$name means password sign-in', () async {
+        final client = clientAnswering(metadata: answer);
+
+        expect(
+          await checkServer(client, server),
+          ServerChoice(server, apiHost: server),
+        );
+      });
+    }
+
+    for (final status in [403, 429, 502]) {
+      test('a $status auth metadata answer fails the check', () async {
+        final client = clientAnswering(
+          metadata: (_) async => http.Response('', status),
+        );
+
+        await expectLater(
+          checkServer(client, server),
+          throwsA(
+            isA<ServerAnswerFailed>().having(
+              (error) => error.statusCode,
+              'status',
+              status,
+            ),
+          ),
+        );
+      });
+    }
+
+    test('a server error page served as auth metadata fails the check as '
+        'unreachable, not as a password server', () async {
+      final client = clientAnswering(
+        metadata: (_) async => http.Response('<html>Bad Gateway</html>', 502),
+      );
+
+      await expectLater(
+        checkServer(client, server),
+        throwsProblem(HomeserverProblem.unreachable),
+      );
+    });
+
+    test('a Matrix refusal of auth metadata fails the check', () async {
+      final client = clientAnswering(
+        metadata: (_) async => json({'errcode': 'M_FORBIDDEN'}, 403),
+      );
+
+      await expectLater(
+        checkServer(client, server),
+        throwsA(isA<MatrixException>()),
+      );
+    });
+
+    for (final (name, answer) in <(String, FakeHttpHandler)>[
+      (
+        'auth metadata missing a required field',
+        (_) async => json({...oauthMetadata}..remove('revocation_endpoint')),
+      ),
+      (
+        'a web page served as auth metadata',
+        (_) async => http.Response('<html><body>Welcome</body></html>', 200),
+      ),
+      ('auth metadata that is not an object', (_) async => json(['issuer'])),
+    ]) {
+      test('$name fails the check as not a server', () async {
+        final client = clientAnswering(metadata: answer);
+
+        await expectLater(
+          checkServer(client, server),
+          throwsProblem(HomeserverProblem.notAServer),
+        );
+      });
+    }
+
+    test('auth metadata that cannot be fetched fails the check', () async {
+      final client = clientAnswering(
+        metadata: (_) async => throw http.ClientException('offline'),
+      );
+
+      await expectLater(
+        checkServer(client, server),
+        throwsA(isA<http.ClientException>()),
+      );
+    });
+
+    test('a failed auth metadata answer wins over unreachable sign-in '
+        'methods', () async {
+      final client = clientAnswering(
+        metadata: (_) async => http.Response('', 502),
+        login: (_) async => throw http.ClientException('offline'),
+      );
+
+      await expectLater(
+        checkServer(client, server),
+        throwsA(isA<ServerAnswerFailed>()),
+      );
+    });
 
     for (final (name, answer) in <(String, FakeHttpHandler)>[
       ('a missing file', (_) async => notFound()),
@@ -281,34 +488,66 @@ void main() {
 
         await expectLater(
           checkServer(client, server),
-          throwsA(
-            predicate(
-              (Object error) =>
-                  homeserverProblem(error) == HomeserverProblem.notAServer,
-            ),
-          ),
+          throwsProblem(HomeserverProblem.notAServer),
         );
       },
     );
 
-    test('a server without password sign-in is refused', () async {
+    for (final (name, answer, problem)
+        in <(String, http.Response, HomeserverProblem)>[
+          (
+            'a 429 on versions says rate limited',
+            http.Response('<html>Too Many Requests</html>', 429),
+            HomeserverProblem.rateLimited,
+          ),
+          (
+            'a rate limit refusal on versions says rate limited',
+            json({'errcode': 'M_LIMIT_EXCEEDED', 'retry_after_ms': 30000}, 429),
+            HomeserverProblem.rateLimited,
+          ),
+          (
+            'a 502 on versions says unreachable',
+            http.Response('<html>Bad Gateway</html>', 502),
+            HomeserverProblem.unreachable,
+          ),
+        ]) {
+      test(name, () async {
+        final client = clientAnswering(versions: (_) async => answer);
+
+        await expectLater(checkServer(client, server), throwsProblem(problem));
+      });
+    }
+
+    test('a server error on the sign-in methods fails the check as '
+        'unreachable', () async {
       final client = clientAnswering(
-        login: (_) async => json({
-          'flows': [
-            {'type': 'm.login.sso'},
-          ],
-        }),
+        login: (_) async => http.Response('<html>Bad Gateway</html>', 502),
       );
 
       await expectLater(
         checkServer(client, server),
-        throwsA(
-          isA<BadServerLoginTypesException>().having(
-            (error) => error.serverLoginTypes,
-            'server types',
-            {'m.login.sso'},
-          ),
-        ),
+        throwsProblem(HomeserverProblem.unreachable),
+      );
+    });
+
+    test('a server with neither password sign-in nor auth metadata is '
+        'refused', () async {
+      final client = clientAnswering(
+        login: (_) async => loginTypes(['m.login.sso']),
+      );
+
+      await expectLater(
+        checkServer(client, server),
+        throwsA(isA<UnsupportedSignInException>()),
+      );
+    });
+
+    test('an empty sign-in method list counts as password sign-in', () async {
+      final client = clientAnswering(login: (_) async => loginTypes([]));
+
+      expect(
+        await checkServer(client, server),
+        ServerChoice(server, apiHost: server),
       );
     });
 
@@ -363,14 +602,24 @@ void main() {
     final server = Uri.parse('https://example.org');
     final apiHost = Uri.parse('https://matrix.example.org');
     final choice = ServerChoice(server, apiHost: apiHost);
+    ServerChoice oauth({required bool canCreate}) => ServerChoice(
+      server,
+      apiHost: apiHost,
+      signIn: OAuthSignIn(canCreateAccount: canCreate),
+    );
 
     expect(choice, ServerChoice(server, apiHost: apiHost));
     expect(choice.hashCode, ServerChoice(server, apiHost: apiHost).hashCode);
+    expect(oauth(canCreate: true), oauth(canCreate: true));
+    expect(oauth(canCreate: true).hashCode, oauth(canCreate: true).hashCode);
     for (final other in [
       ServerChoice(apiHost, apiHost: apiHost),
       ServerChoice(server, apiHost: server),
+      oauth(canCreate: false),
+      oauth(canCreate: true),
     ]) {
       expect(choice, isNot(other));
     }
+    expect(oauth(canCreate: true), isNot(oauth(canCreate: false)));
   });
 }

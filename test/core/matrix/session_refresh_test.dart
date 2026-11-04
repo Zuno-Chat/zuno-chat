@@ -11,10 +11,12 @@ import 'package:zuno/core/matrix/session_refresh.dart';
 
 import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/oauth_server.dart';
 
-class _ClientRowDatabase extends FakeDatabaseApi {
-  _ClientRowDatabase({String? refreshToken}) {
+class _ClientRowDatabase extends FakeDatabaseApi with MediaCapableDatabase {
+  _ClientRowDatabase({String? refreshToken, String? oidcClientId}) {
     if (refreshToken != null) row['refresh_token'] = refreshToken;
+    if (oidcClientId != null) row['oidc_client_id'] = oidcClientId;
   }
 
   final Map<String, dynamic> row = {'token': 'a0'};
@@ -37,6 +39,52 @@ class _ClientRowDatabase extends FakeDatabaseApi {
   }) async {
     row['token'] = token;
     row['refresh_token'] = refreshToken;
+  }
+}
+
+class _StaleMetadataDatabase extends _ClientRowDatabase {
+  _StaleMetadataDatabase()
+    : super(refreshToken: 'r0', oidcClientId: 'client-1');
+
+  @override
+  Future<({Map<String, Object?> content, DateTime savedAt})?>
+  getCustomCacheObject(String cacheKey) async => (
+    content: oauthMetadata,
+    savedAt: clock.now().subtract(const Duration(days: 10)),
+  );
+}
+
+class _StalledMetadataServer extends http.BaseClient {
+  final tokenRequests = <String>[];
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) async {
+    if (request.url.path == '/_matrix/client/v1/auth_metadata') {
+      final never = Completer<http.StreamedResponse>();
+      if (request case http.Abortable(:final abortTrigger?)) {
+        unawaited(
+          abortTrigger.whenComplete(
+            () =>
+                never.completeError(http.RequestAbortedException(request.url)),
+          ),
+        );
+      }
+      return never.future;
+    }
+    tokenRequests.add(await request.finalize().bytesToString());
+    return http.StreamedResponse(
+      fakeTimeBody(
+        utf8.encode(
+          jsonEncode({
+            'access_token': 'a1',
+            'token_type': 'Bearer',
+            'refresh_token': 'r1',
+            'expires_in': 300,
+          }),
+        ),
+      ),
+      200,
+    );
   }
 }
 
@@ -163,6 +211,29 @@ void main() {
     expect(requests, 1);
   });
 
+  test(
+    'a refresh failure is wrapped with its errcode and nothing else',
+    () async {
+      final database = _ClientRowDatabase(refreshToken: 'r0');
+      final server = FakeHttpClient(
+        (request) async =>
+            _json(500, {'errcode': 'M_UNKNOWN', 'error': 'secret detail'}),
+      );
+      final client = _client(database, server);
+
+      await expectLater(
+        refreshSession(client, settle: Duration.zero),
+        throwsA(
+          isA<Exception>().having(
+            (e) => e.toString(),
+            'message',
+            'Exception: Token refresh failed: M_UNKNOWN',
+          ),
+        ),
+      );
+    },
+  );
+
   for (final (label, answer) in <(String, http.Response Function())>[
     ('rate limit', () => _json(429, {'errcode': 'M_LIMIT_EXCEEDED'})),
     ('server error', () => _json(500, {'errcode': 'M_UNKNOWN'})),
@@ -214,6 +285,33 @@ void main() {
       });
     });
 
+    test('an OAuth refresh whose stale metadata request is never answered '
+        'is given up at the deadline and carries on with the cached '
+        'metadata', () {
+      fakeAsync((async) {
+        final database = _StaleMetadataDatabase();
+        final oauthServer = _StalledMetadataServer();
+        final oauthClient = _ExpiringClient(
+          database,
+          RefreshDeadlineHttpClient(oauthServer),
+        );
+        var carriedOn = false;
+        unawaited(
+          oauthClient.ensureNotSoftLoggedOut().then((_) => carriedOn = true),
+        );
+
+        async.elapse(refreshBound - const Duration(milliseconds: 1));
+        expect(carriedOn, isFalse);
+
+        async.elapse(const Duration(milliseconds: 1));
+        async.flushMicrotasks();
+        expect(carriedOn, isTrue);
+        expect(oauthServer.tokenRequests, hasLength(1));
+        expect(oauthClient.accessToken, 'a1');
+        expect(database.row['refresh_token'], 'r1');
+      });
+    });
+
     test('never lands later over the refresh that followed it', () async {
       final quick = _ExpiringClient(
         database,
@@ -234,6 +332,117 @@ void main() {
       expect(server.sent, ['r0', 'r0']);
       expect(quick.accessToken, 'a2');
       expect(database.row['refresh_token'], 'r2');
+    });
+  });
+
+  group('an OAuth session', () {
+    late _ClientRowDatabase database;
+    late List<http.Request> tokenRequests;
+    late FakeHttpClient server;
+    late Client client;
+    late http.Response Function(Map<String, String> form) tokenAnswer;
+
+    http.Response granted(String access, String refresh) => _json(200, {
+      'access_token': access,
+      'token_type': 'Bearer',
+      'refresh_token': refresh,
+      'expires_in': 300,
+    });
+
+    setUp(() {
+      database = _ClientRowDatabase(
+        refreshToken: 'r0',
+        oidcClientId: 'client-1',
+      );
+      tokenRequests = [];
+      tokenAnswer = (_) => granted('a1', 'r1');
+      server = FakeHttpClient((request) async {
+        if (request.url.path == '/_matrix/client/v1/auth_metadata') {
+          return _json(200, oauthMetadata);
+        }
+        if (request.url.path == '/token') {
+          tokenRequests.add(request);
+          return tokenAnswer(Uri.splitQueryString(request.body));
+        }
+        return _json(404, {'errcode': 'M_NOT_FOUND'});
+      });
+      client = _client(database, server);
+    });
+
+    test(
+      'an OAuth refresh posts the refresh grant with the client id',
+      () async {
+        await refreshSession(client, settle: Duration.zero);
+
+        final form = Uri.splitQueryString(tokenRequests.single.body);
+        expect(form, {
+          'grant_type': 'refresh_token',
+          'refresh_token': 'r0',
+          'client_id': 'client-1',
+        });
+        expect(client.accessToken, 'a1');
+        expect(database.row['refresh_token'], 'r1');
+      },
+    );
+
+    test('invalid_grant with a rotated stored token retries once', () async {
+      tokenAnswer = (form) {
+        if (form['refresh_token'] == 'r0') {
+          database.row['refresh_token'] = 'r1';
+          return _json(400, {'error': 'invalid_grant'});
+        }
+        return granted('a2', 'r2');
+      };
+
+      await refreshSession(client, settle: Duration.zero);
+
+      expect(
+        tokenRequests.map((r) => Uri.splitQueryString(r.body)['refresh_token']),
+        ['r0', 'r1'],
+      );
+      expect(client.accessToken, 'a2');
+      expect(database.row['refresh_token'], 'r2');
+    });
+
+    test(
+      'invalid_grant with an unchanged token rethrows the OidcException',
+      () async {
+        tokenAnswer = (_) => _json(400, {'error': 'invalid_grant'});
+
+        await expectLater(
+          refreshSession(client, settle: Duration.zero),
+          throwsA(
+            isA<OidcException>().having(
+              (e) => e.error,
+              'error',
+              'invalid_grant',
+            ),
+          ),
+        );
+        expect(tokenRequests, hasLength(1));
+      },
+    );
+
+    test('server_error is wrapped, not rethrown', () async {
+      tokenAnswer = (_) => _json(400, {'error': 'server_error'});
+
+      await expectLater(
+        refreshSession(client, settle: Duration.zero),
+        throwsA(
+          isA<Exception>()
+              .having(
+                (e) => e,
+                'not an OidcException',
+                isNot(isA<OidcException>()),
+              )
+              .having(
+                (e) => e.toString(),
+                'message',
+                'Exception: Token refresh failed: server_error',
+              ),
+        ),
+      );
+      expect(tokenRequests, hasLength(1));
     });
   });
 

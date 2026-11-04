@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
@@ -22,6 +23,7 @@ import 'package:zuno/features/verification/presentation/verification_page.dart';
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_sign_in_browser.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/security_facts.dart';
 import '../../../helpers/uia_challenge.dart';
@@ -114,6 +116,20 @@ class _DevicesClient extends Client {
     throw uiaPasswordChallenge();
   }
 }
+
+const _accountPage = 'https://account.example.org/account/';
+
+final _withAccountPage = AccountCapabilities(
+  canChangePassword: false,
+  canMintSignInCodes: false,
+  accountPage: AccountPage(Uri.parse(_accountPage), const {
+    AccountManagementActionsSupported.orgMatrixProfile,
+    AccountManagementActionsSupported.orgMatrixDevicesList,
+    AccountManagementActionsSupported.orgMatrixDeviceView,
+    AccountManagementActionsSupported.orgMatrixDeviceDelete,
+    AccountManagementActionsSupported.orgMatrixCrossSigningReset,
+  }),
+);
 
 final _lastWeek = DateTime(2026, 9, 20, 14, 5).millisecondsSinceEpoch;
 final _yesterday = DateTime(2026, 9, 26, 9, 30).millisecondsSinceEpoch;
@@ -616,16 +632,80 @@ void main() {
       expect(find.text('Sign in on another device'), findsOneWidget);
     });
 
-    testWidgets('Sign in on another device is shown while the answer loads', (
+    testWidgets('Sign in on another device waits for the answer', (
+      tester,
+    ) async {
+      threeDevices();
+      final answer = Completer<AccountCapabilities>();
+      await pumpPage(tester, capabilities: answer.future);
+
+      expect(find.text('Sign in on another device'), findsNothing);
+
+      answer.complete(const AccountCapabilities());
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sign in on another device'), findsOneWidget);
+    });
+
+    testWidgets('signing out other devices waits for the answer', (
+      tester,
+    ) async {
+      final launched = mockSignInBrowser(tester);
+      threeDevices();
+      final answer = Completer<AccountCapabilities>();
+      await pumpPage(tester, capabilities: answer.future);
+      Finder everywhereElse() =>
+          find.widgetWithText(OutlinedButton, 'Sign out everywhere else');
+      Finder tabletSignOut() => find.descendant(
+        of: tileOf('Tablet'),
+        matching: find.byTooltip('Sign out of this device'),
+      );
+      IconButton tabletButton() => tester.widget<IconButton>(
+        find.ancestor(of: tabletSignOut(), matching: find.byType(IconButton)),
+      );
+
+      expect(tester.widget<OutlinedButton>(everywhereElse()).onPressed, isNull);
+      expect(tabletButton().onPressed, isNull);
+      expect(
+        tester
+            .widget<OutlinedButton>(
+              find.widgetWithText(OutlinedButton, 'Sign out this device'),
+            )
+            .onPressed,
+        isNotNull,
+      );
+
+      await tester.tap(everywhereElse(), warnIfMissed: false);
+      await tester.tap(tabletSignOut(), warnIfMissed: false);
+      answer.complete(_withAccountPage);
+      await tester.pumpAndSettle();
+
+      expect(launched, isEmpty);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(
+        tester.widget<OutlinedButton>(everywhereElse()).onPressed,
+        isNotNull,
+      );
+      expect(tabletButton().onPressed, isNotNull);
+    });
+
+    testWidgets('an answer that failed keeps the password behavior', (
       tester,
     ) async {
       threeDevices();
       await pumpPage(
         tester,
-        capabilities: Completer<AccountCapabilities>().future,
+        capabilities: Future<AccountCapabilities>.error(
+          StateError('unreadable'),
+        )..ignore(),
       );
 
       expect(find.text('Sign in on another device'), findsOneWidget);
+
+      await tester.tap(find.text('Sign out everywhere else'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sign out of 2 other devices?'), findsOneWidget);
     });
 
     testWidgets("Sign in on another device is hidden where the server can't "
@@ -681,6 +761,103 @@ void main() {
       expect(find.text('Confirm your password'), findsOneWidget);
       await enterPassword(tester, 'hunter2');
       expect(client.deletions, hasLength(1));
+    });
+  });
+
+  group('on a server with an account page', () {
+    Future<void> pumpWithAccountPage(WidgetTester tester) async {
+      threeDevices();
+      await pumpPage(tester, capabilities: Future.value(_withAccountPage));
+    }
+
+    Future<void> signOutTablet(WidgetTester tester) async {
+      await tester.tap(
+        find.descendant(
+          of: tileOf('Tablet'),
+          matching: find.byTooltip('Sign out of this device'),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('OAuth server opens the account page to sign out a device', (
+      tester,
+    ) async {
+      final launched = mockSignInBrowser(tester);
+      await pumpWithAccountPage(tester);
+
+      await signOutTablet(tester);
+
+      expect(launched, [
+        '$_accountPage?action=org.matrix.device_delete&device_id=TABLET',
+      ]);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(client.deletions, isEmpty);
+      expect(client.passwords, isEmpty);
+    });
+
+    testWidgets('sign out all others opens the devices list', (tester) async {
+      final launched = mockSignInBrowser(tester);
+      await pumpWithAccountPage(tester);
+
+      await tester.tap(find.text('Sign out everywhere else'));
+      await tester.pumpAndSettle();
+
+      expect(launched, ['$_accountPage?action=org.matrix.devices_list']);
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(client.deletions, isEmpty);
+    });
+
+    testWidgets('the list reloads once the account page is closed', (
+      tester,
+    ) async {
+      final closed = Completer<Object?>();
+      mockSignInBrowser(tester, answer: () => closed.future);
+      await pumpWithAccountPage(tester);
+      await signOutTablet(tester);
+      client.devices = client.devices
+          .where((device) => device.deviceId != 'TABLET')
+          .toList();
+
+      expect(client.deviceReads, 1);
+      expect(find.text('Tablet'), findsOneWidget);
+
+      closed.completeError(PlatformException(code: 'CANCELED'));
+      await tester.pumpAndSettle();
+
+      expect(client.deviceReads, 2);
+      expect(find.text('Tablet'), findsNothing);
+      expect(find.text('Pixel'), findsOneWidget);
+    });
+
+    testWidgets('an account page that does not open says where to go', (
+      tester,
+    ) async {
+      mockSignInBrowser(tester, answer: noSignInBrowser);
+      await pumpWithAccountPage(tester);
+
+      await signOutTablet(tester);
+
+      expect(
+        find.text(
+          'Link not opened. Visit account.example.org/account/ in a browser.',
+        ),
+        findsOneWidget,
+      );
+      expect(client.deletions, isEmpty);
+    });
+
+    testWidgets('a password server still asks before signing out', (
+      tester,
+    ) async {
+      final launched = mockSignInBrowser(tester);
+      threeDevices();
+      await pumpPage(tester);
+
+      await signOutTablet(tester);
+
+      expect(find.text('Sign out of "Tablet"?'), findsOneWidget);
+      expect(launched, isEmpty);
     });
   });
 }

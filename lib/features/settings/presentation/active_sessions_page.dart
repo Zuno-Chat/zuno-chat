@@ -10,6 +10,7 @@ import '../../../core/format/human_units.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/account_capabilities.dart';
+import '../../../core/matrix/account_page_browser.dart';
 import '../../../core/matrix/device_keys_refresh.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/sign_out.dart';
@@ -52,6 +53,11 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
   void dispose() {
     _uiaSub?.cancel();
     super.dispose();
+  }
+
+  Future<void> _openAccountPage(Uri link) async {
+    await openAccountPage(context, link);
+    if (mounted) await _refresh();
   }
 
   Future<void> _refresh() async {
@@ -107,11 +113,8 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     }
   }
 
-  Future<void> _handleUia(UiaRequest uia) => answerUiaWithPassword(
-    context,
-    uia,
-    userId: ref.read(matrixClientProvider).userID!,
-  );
+  Future<void> _handleUia(UiaRequest uia) =>
+      answerUia(context, uia, userId: ref.read(matrixClientProvider).userID!);
 
   Future<void> _signOut(
     Future<void> Function(AuthenticationData? auth) request,
@@ -156,7 +159,17 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     if (mounted) await _refresh();
   }
 
-  Future<void> _confirmAndSignOutOthers() async {
+  Future<void> _confirmAndSignOutOthers(
+    AccountCapabilities capabilities,
+  ) async {
+    if (capabilities.accountPage case final accountPage?) {
+      await _openAccountPage(
+        accountPage.linkFor(
+          AccountManagementActionsSupported.orgMatrixDevicesList,
+        ),
+      );
+      return;
+    }
     final otherIds = _sessions
         .where((s) => !s.isCurrent)
         .map((s) => s.deviceId)
@@ -173,7 +186,19 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
     );
   }
 
-  Future<void> _confirmAndSignOutOne(DeviceSessionInfo session) async {
+  Future<void> _confirmAndSignOutOne(
+    DeviceSessionInfo session,
+    AccountCapabilities capabilities,
+  ) async {
+    if (capabilities.accountPage case final accountPage?) {
+      await _openAccountPage(
+        accountPage.linkFor(
+          AccountManagementActionsSupported.orgMatrixDeviceDelete,
+          deviceId: session.deviceId,
+        ),
+      );
+      return;
+    }
     final confirmed = await _confirmSignOut(
       title: context.l10n.settingsSessionsSignOutOneTitle(
         session.displayName ?? session.deviceId,
@@ -222,6 +247,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
         .watch(accountSecurityFactsProvider)
         .value
         ?.thisDeviceHasIdentityKeys;
+    final capabilities = ref.watch(accountCapabilitiesProvider).known;
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsSessionsTitle)),
@@ -288,7 +314,11 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                               ),
                               if (others.isNotEmpty)
                                 OutlinedButton(
-                                  onPressed: _confirmAndSignOutOthers,
+                                  onPressed: capabilities == null
+                                      ? null
+                                      : () => _confirmAndSignOutOthers(
+                                          capabilities,
+                                        ),
                                   child: Text(
                                     l10n.settingsSessionsSignOutEverywhereElse,
                                   ),
@@ -298,9 +328,7 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                         ),
                       ],
                     ),
-                  if ((ref.watch(accountCapabilitiesProvider).value ??
-                          const AccountCapabilities())
-                      .canMintSignInCodes)
+                  if (capabilities?.canMintSignInCodes ?? false)
                     CardGroup(
                       children: [
                         ListTile(
@@ -326,7 +354,12 @@ class _ActiveSessionsPageState extends ConsumerState<ActiveSessionsPage> {
                             onVerify: session.verified
                                 ? null
                                 : () => _verify(session.deviceId),
-                            onSignOut: () => _confirmAndSignOutOne(session),
+                            onSignOut: capabilities == null
+                                ? null
+                                : () => _confirmAndSignOutOne(
+                                    session,
+                                    capabilities,
+                                  ),
                           ),
                       ],
                     ),
@@ -432,7 +465,7 @@ class _SessionTile extends StatelessWidget {
               onPressed: onVerify,
               child: Text(l10n.settingsSessionsApprove),
             ),
-          if (onSignOut != null)
+          if (!session.isCurrent)
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: l10n.settingsSessionsSignOutThisTooltip,

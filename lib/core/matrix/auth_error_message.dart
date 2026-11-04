@@ -1,20 +1,19 @@
-import 'dart:math' as math;
-
 import 'package:matrix/matrix.dart';
 
 import '../errors/connection_error.dart';
 import '../l10n/l10n.dart';
 import '../network/app_http_overrides.dart';
+import 'auth_browser.dart';
 import 'registration_support.dart';
+import 'server_choice.dart';
+import 'typed_server_answers.dart';
 
 String loginErrorMessage(AppLocalizations l10n, Object error) {
-  final network = _networkErrorMessage(l10n, error);
-  if (network != null) return network;
+  if (_serverFailureMessage(l10n, error) case final message?) return message;
   if (error is MatrixException) {
     return switch (error.error) {
       MatrixError.M_FORBIDDEN => l10n.matrixAuthWrongCredentials,
       MatrixError.M_USER_DEACTIVATED => l10n.matrixAuthDeactivated,
-      MatrixError.M_LIMIT_EXCEEDED => _rateLimitMessage(l10n, error),
       MatrixError.M_UNKNOWN_TOKEN => l10n.matrixAuthSignedOut,
       _ => _sentence(l10n, error.errorMessage),
     };
@@ -23,28 +22,46 @@ String loginErrorMessage(AppLocalizations l10n, Object error) {
 }
 
 bool isLoginRefusal(Object error) =>
-    error is MatrixException &&
-    const {
-      MatrixError.M_FORBIDDEN,
-      MatrixError.M_USER_DEACTIVATED,
-      MatrixError.M_LIMIT_EXCEEDED,
-    }.contains(error.error);
+    isRateLimit(error) ||
+    isServerError(error) ||
+    (error is MatrixException &&
+        const {
+          MatrixError.M_FORBIDDEN,
+          MatrixError.M_USER_DEACTIVATED,
+        }.contains(error.error));
 
 bool isPasswordRefusal(Object error) =>
     error is MatrixException && error.error == MatrixError.M_FORBIDDEN;
+
+bool isWeakPasswordRefusal(Object error) =>
+    error is MatrixException &&
+    (error.errcode == 'M_WEAK_PASSWORD' ||
+        error.errcode.startsWith('M_PASSWORD_'));
+
+String changePasswordErrorMessage(AppLocalizations l10n, Object error) {
+  if (_serverFailureMessage(l10n, error) case final message?) return message;
+  if (isPasswordRefusal(error)) return l10n.commonWrongPassword;
+  if (isWeakPasswordRefusal(error)) return l10n.matrixAuthPasswordTooWeak;
+  return l10n.settingsChangePasswordFailed;
+}
+
+bool isChangePasswordRefusal(Object error) =>
+    isRateLimit(error) ||
+    isServerError(error) ||
+    isPasswordRefusal(error) ||
+    isWeakPasswordRefusal(error);
 
 String registrationErrorMessage(AppLocalizations l10n, Object error) {
   if (error is RegistrationCodeRefusedException) {
     return l10n.matrixAuthCodeInvalid;
   }
-  final network = _networkErrorMessage(l10n, error);
-  if (network != null) return network;
+  if (_serverFailureMessage(l10n, error) case final message?) return message;
+  if (isWeakPasswordRefusal(error)) return l10n.matrixAuthPasswordTooWeak;
   if (error is MatrixException) {
     return switch (error.error) {
       MatrixError.M_USER_IN_USE => l10n.matrixAuthUsernameTaken,
       MatrixError.M_INVALID_USERNAME ||
       MatrixError.M_EXCLUSIVE => l10n.matrixAuthUsernameNotAllowed,
-      MatrixError.M_LIMIT_EXCEEDED => _rateLimitMessage(l10n, error),
       _ => _sentence(l10n, error.errorMessage),
     };
   }
@@ -52,22 +69,21 @@ String registrationErrorMessage(AppLocalizations l10n, Object error) {
 }
 
 bool isRegistrationRefusal(Object error) =>
-    error is MatrixException &&
-    const {
-      'M_USER_IN_USE',
-      'M_INVALID_USERNAME',
-      'M_EXCLUSIVE',
-      'M_WEAK_PASSWORD',
-      'M_LIMIT_EXCEEDED',
-    }.contains(error.errcode);
+    isRateLimit(error) ||
+    isServerError(error) ||
+    isWeakPasswordRefusal(error) ||
+    (error is MatrixException &&
+        const {
+          'M_USER_IN_USE',
+          'M_INVALID_USERNAME',
+          'M_EXCLUSIVE',
+        }.contains(error.errcode));
 
 String deactivateAccountErrorMessage(AppLocalizations l10n, Object error) {
-  final network = _networkErrorMessage(l10n, error);
-  if (network != null) return network;
+  if (_serverFailureMessage(l10n, error) case final message?) return message;
   if (error is MatrixException) {
     return switch (error.error) {
       MatrixError.M_FORBIDDEN => l10n.commonWrongPassword,
-      MatrixError.M_LIMIT_EXCEEDED => _rateLimitMessage(l10n, error),
       _ => _sentence(l10n, error.errorMessage),
     };
   }
@@ -77,21 +93,20 @@ String deactivateAccountErrorMessage(AppLocalizations l10n, Object error) {
 const maxRetryWait = Duration(minutes: 5);
 
 Duration? retryWaitFor(Object error) {
-  if (error is! MatrixException ||
-      error.error != MatrixError.M_LIMIT_EXCEEDED) {
-    return null;
-  }
-  final wait = error.retryAfterMs ?? _retryAfterHeaderMs(error);
-  if (wait == null || wait <= 0) return null;
-  return Duration(milliseconds: math.min(wait, maxRetryWait.inMilliseconds));
+  if (!isRateLimit(error)) return null;
+  final wait = switch (error) {
+    MatrixException(:final retryAfterMs?) => Duration(
+      milliseconds: retryAfterMs,
+    ),
+    MatrixException(:final response?) => retryAfterIn(response.headers),
+    ServerAnswerFailed(:final retryAfter) => retryAfter,
+    _ => null,
+  };
+  if (wait == null || wait <= Duration.zero) return null;
+  return wait > maxRetryWait ? maxRetryWait : wait;
 }
 
-int? _retryAfterHeaderMs(MatrixException error) {
-  final seconds = int.tryParse(error.response?.headers['retry-after'] ?? '');
-  return seconds == null ? null : seconds * 1000;
-}
-
-String _rateLimitMessage(AppLocalizations l10n, MatrixException error) {
+String _rateLimitMessage(AppLocalizations l10n, Object error) {
   final wait = retryWaitFor(error);
   if (wait == null) return l10n.matrixAuthRateLimited;
   final seconds = (wait.inMilliseconds / 1000).ceil();
@@ -100,8 +115,10 @@ String _rateLimitMessage(AppLocalizations l10n, MatrixException error) {
       : l10n.matrixAuthRateLimitedMinutes((seconds / 60).ceil());
 }
 
-String? _networkErrorMessage(AppLocalizations l10n, Object error) {
+String? _serverFailureMessage(AppLocalizations l10n, Object error) {
   if (isConnectionError(error)) return l10n.matrixAuthCannotConnect;
+  if (isServerError(error)) return l10n.matrixHomeserverUnreachable;
+  if (isRateLimit(error)) return _rateLimitMessage(l10n, error);
   return null;
 }
 
@@ -111,10 +128,27 @@ String _sentence(AppLocalizations l10n, String message) {
   return line[0].toUpperCase() + line.substring(1);
 }
 
+String oauthSignInErrorMessage(
+  AppLocalizations l10n,
+  Object error, {
+  required String server,
+}) {
+  if (error is AuthBrowserUnavailable) return l10n.authOAuthNoBrowser(server);
+  return _serverFailureMessage(l10n, error) ?? l10n.authOAuthFailed(server);
+}
+
+bool isOAuthSignInCancel(Object error) => error is OAuthSignInCancelled;
+
+bool isExpectedOAuthSignInFailure(Object error) =>
+    isOAuthSignInCancel(error) ||
+    error is AuthBrowserUnavailable ||
+    isExpectedServerFailure(error);
+
 enum HomeserverProblem {
   unreachable,
   insecure,
-  noPasswordSignIn,
+  unsupportedSignIn,
+  rateLimited,
   refused,
   notAServer,
   unexpected;
@@ -124,9 +158,13 @@ enum HomeserverProblem {
 
 HomeserverProblem homeserverProblem(Object error) {
   if (error is CleartextRefusedException) return HomeserverProblem.insecure;
-  if (isConnectionError(error)) return HomeserverProblem.unreachable;
-  if (error is BadServerLoginTypesException) {
-    return HomeserverProblem.noPasswordSignIn;
+  if (isConnectionError(error) || isServerError(error)) {
+    return HomeserverProblem.unreachable;
+  }
+  if (isRateLimit(error)) return HomeserverProblem.rateLimited;
+  if (error is ServerAnswerFailed) return HomeserverProblem.notAServer;
+  if (error is UnsupportedSignInException) {
+    return HomeserverProblem.unsupportedSignIn;
   }
   if (error is MatrixException) return HomeserverProblem.refused;
   if (isNotMatrixAnswer(error)) return HomeserverProblem.notAServer;
@@ -137,7 +175,9 @@ String homeserverErrorMessage(AppLocalizations l10n, Object error) =>
     switch (homeserverProblem(error)) {
       HomeserverProblem.unreachable => l10n.matrixHomeserverUnreachable,
       HomeserverProblem.insecure => l10n.matrixHomeserverInsecure,
-      HomeserverProblem.noPasswordSignIn => l10n.matrixHomeserverNoPassword,
+      HomeserverProblem.unsupportedSignIn =>
+        l10n.matrixHomeserverSignInUnsupported,
+      HomeserverProblem.rateLimited => _rateLimitMessage(l10n, error),
       HomeserverProblem.refused => _sentence(
         l10n,
         (error as MatrixException).errorMessage,

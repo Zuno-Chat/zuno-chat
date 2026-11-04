@@ -13,9 +13,11 @@ Future<bool> confirm(
   @displayText required String confirmLabel,
   @displayText String? cancelLabel,
   ConfirmTone tone = ConfirmTone.plain,
+  bool barrierDismissible = true,
 }) async {
   final confirmed = await showDialog<bool>(
     context: context,
+    barrierDismissible: barrierDismissible,
     builder: (context) {
       void answer(bool value) => Navigator.of(context).pop(value);
       return AlertDialog(

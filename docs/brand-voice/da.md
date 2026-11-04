@@ -110,7 +110,13 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | English | da | Notes |
 |---|---|---|
 | account, password | konto · adgangskode | "Wrong password." → «Forkert adgangskode.» "Confirm password" (the repeat field) → «Gentag adgangskode». |
+| account page, manage account | kontoside · Administrer konto | The server's own web page for the account, opened in the browser. "{server}'s account page" → «kontosiden for {server}». |
+| approve (on the account page) | Godkend · godkende | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Godkend i din browser». "Not approved yet." → «Ikke godkendt endnu.» |
 | username, display name | brugernavn · visningsnavn | |
+| lowercase letter | lille bogstav | "Lowercase letters" → «Små bogstaver». |
+| uppercase letter | stort bogstav | |
+| number (a digit, in a password or username) | tal | |
+| symbol (in a password) | symbol | |
 | profile, profile photo | profil · profilbillede | |
 | email address | mailadresse | |
 | invite | Inviter · invitation | The "Invited" badge → «Inviteret». |

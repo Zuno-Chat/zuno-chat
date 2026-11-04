@@ -105,7 +105,7 @@ void main() {
 
     Future<void> fill(
       WidgetTester tester, {
-      String next = 'a quiet blue harbour',
+      String next = 'A quiet blue harbour 7',
     }) async {
       await tester.enterText(field('Current password'), 'old horse battery');
       await tester.enterText(field('New password'), next);
@@ -138,7 +138,7 @@ void main() {
 
       await fill(tester);
 
-      expect(submitted, [('old horse battery', 'a quiet blue harbour')]);
+      expect(submitted, [('old horse battery', 'A quiet blue harbour 7')]);
       expect(savesOffered(tester).first, isTrue);
       expect(find.byType(ChangePasswordDialog), findsNothing);
     });
@@ -158,7 +158,7 @@ void main() {
     testWidgets('cancelling offers nothing to save', (tester) async {
       await openDialog(tester);
 
-      await tester.enterText(field('New password'), 'a quiet blue harbour');
+      await tester.enterText(field('New password'), 'A quiet blue harbour 7');
       await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
       await tester.pumpAndSettle();
 
@@ -170,10 +170,21 @@ void main() {
     ) async {
       final submitted = await openDialog(tester);
 
-      await fill(tester, next: 'password12345');
+      await fill(tester, next: 'Password12345!');
 
       expect(submitted, isEmpty);
       expect(find.text('That is built on a common password'), findsOneWidget);
+    });
+
+    testWidgets('a new password missing a kind of character names it', (
+      tester,
+    ) async {
+      final submitted = await openDialog(tester);
+
+      await fill(tester, next: 'a quiet blue harbour 7');
+
+      expect(submitted, isEmpty);
+      expect(find.text('Add an uppercase letter'), findsOneWidget);
     });
   });
 

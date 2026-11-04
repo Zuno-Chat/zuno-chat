@@ -105,7 +105,13 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | English | fr | Notes |
 |---|---|---|
 | account, password | le compte · le mot de passe | "Wrong password." → «Mot de passe incorrect.» |
+| account page, manage account | la page de compte · Gérer le compte | The server's own web page for the account, opened in the browser. "{server}'s account page" → «la page de compte de {server}». |
+| approve (on the account page) | Approuver / approuver | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Approuvez dans votre navigateur». "Not approved yet." → «Pas encore approuvé.» |
 | username, display name | le nom d’utilisateur · le nom affiché | |
+| lowercase letter | la lettre minuscule | "Lowercase letters" → «Lettres minuscules». |
+| uppercase letter | la lettre majuscule | |
+| number (a digit, in a password or username) | le chiffre | |
+| symbol (in a password) | le symbole | |
 | profile, profile photo | le profil · la photo de profil | |
 | email address | l’adresse e-mail | |
 | invite | Inviter · l’invitation | The "Invited" badge → «Invitation envoyée». |

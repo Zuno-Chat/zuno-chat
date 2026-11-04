@@ -152,7 +152,9 @@ the user approves or signs out other devices, or signs in a new one
 
 Uploading new cross-signing keys, signing out other devices, deleting the
 account and minting a sign-in code all ask for the password (UIA) through
-`answerUiaWithPassword`.
+`answerUia`; on an OAuth server the step is an approval on the server's
+account page instead, and replacing recovery asks for no password
+(`authentication.md`).
 
 ### People
 

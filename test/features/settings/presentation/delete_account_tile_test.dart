@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:clock/clock.dart';
@@ -13,12 +14,14 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/location/geo_uri.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/location/live_location_sharing.dart';
+import 'package:zuno/core/matrix/account_capabilities.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/delete_account_tile.dart';
 
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_live_location.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_sign_in_browser.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/uia_challenge.dart';
 
@@ -33,6 +36,7 @@ class _DeactivatingClient extends Client {
   final clears = <SessionClearReason>[];
   final refusals = <Object>[];
   final List<String> journal;
+  int deactivateCalls = 0;
 
   @override
   Future<IdServerUnbindResult> deactivateAccount({
@@ -40,6 +44,7 @@ class _DeactivatingClient extends Client {
     bool? erase,
     String? idServer,
   }) async {
+    deactivateCalls++;
     if (auth == null) throw uiaPasswordChallenge();
     passwords.add((auth as AuthenticationPassword).password);
     if (refusals.isNotEmpty) throw refusals.removeAt(0);
@@ -61,6 +66,24 @@ LiveLocationSharing _sharing(Client client) => LiveLocationSharing(
   recipients: (_) async => const <DeviceKeys>[],
 );
 
+const _accountPage = 'https://account.example.org/account/';
+
+AccountCapabilities _withAccountPage(
+  Set<AccountManagementActionsSupported> actions,
+) => AccountCapabilities(
+  canChangePassword: false,
+  canMintSignInCodes: false,
+  accountPage: AccountPage(Uri.parse(_accountPage), actions),
+);
+
+const _masActions = {
+  AccountManagementActionsSupported.orgMatrixProfile,
+  AccountManagementActionsSupported.orgMatrixDevicesList,
+  AccountManagementActionsSupported.orgMatrixDeviceView,
+  AccountManagementActionsSupported.orgMatrixDeviceDelete,
+  AccountManagementActionsSupported.orgMatrixCrossSigningReset,
+};
+
 void answer(WidgetTester tester, FakeCallSession call) =>
     ProviderScope.containerOf(tester.element(find.byType(DeleteAccountTile)))
         .read(activeCallProvider.notifier)
@@ -72,12 +95,16 @@ void main() {
     Client? client,
     FakeCallSession? activeCall,
     LiveLocationSharing? sharing,
+    Future<AccountCapabilities>? capabilities,
   }) async {
     final liveLocation = sharing ?? _sharing(LiveLocationTestClient());
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           if (client != null) matrixClientProvider.overrideWithValue(client),
+          accountCapabilitiesProvider.overrideWith(
+            (ref) => capabilities ?? Future.value(const AccountCapabilities()),
+          ),
           liveLocationSharingProvider.overrideWith((ref) {
             ref.onDispose(liveLocation.dispose);
             return liveLocation;
@@ -90,6 +117,7 @@ void main() {
         ),
       ),
     );
+    await tester.pump();
     if (activeCall != null) answer(tester, activeCall);
   }
 
@@ -422,6 +450,158 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byType(AlertDialog), findsNothing);
+    });
+  });
+
+  group('on a server with an account page', () {
+    late _DeactivatingClient client;
+
+    setUp(() => client = _DeactivatingClient([]));
+
+    Future<void> openWarning(
+      WidgetTester tester, {
+      Set<AccountManagementActionsSupported> actions = _masActions,
+    }) async {
+      await pump(
+        tester,
+        client: client,
+        capabilities: Future.value(_withAccountPage(actions)),
+      );
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('OAuth server deletes on the account page', (tester) async {
+      final launched = mockSignInBrowser(tester);
+      await openWarning(tester);
+
+      expect(find.text('Delete your account?'), findsOneWidget);
+      expect(
+        find.text(
+          "You delete your account on example.org's account page. Zuno "
+          'signs you out once it is gone.',
+        ),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(launched, [_accountPage]);
+      expect(find.byType(TextField), findsNothing);
+      expect(client.deactivateCalls, 0);
+      expect(client.clears, isEmpty);
+    });
+
+    testWidgets('an advertised deletion opens straight to it', (tester) async {
+      final launched = mockSignInBrowser(tester);
+      await openWarning(
+        tester,
+        actions: {
+          ..._masActions,
+          AccountManagementActionsSupported.orgMatrixAccountDeactivate,
+        },
+      );
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(launched, ['$_accountPage?action=org.matrix.account_deactivate']);
+    });
+
+    testWidgets('cancelling opens nothing', (tester) async {
+      final launched = mockSignInBrowser(tester);
+      await openWarning(tester);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+
+      expect(launched, isEmpty);
+      expect(client.deactivateCalls, 0);
+    });
+
+    testWidgets('an account page that does not open says where to go', (
+      tester,
+    ) async {
+      mockSignInBrowser(tester, answer: noSignInBrowser);
+      await openWarning(tester);
+
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Link not opened. Visit account.example.org/account/ in a browser.',
+        ),
+        findsOneWidget,
+      );
+      expect(client.deactivateCalls, 0);
+    });
+  });
+
+  group('while the account capabilities load', () {
+    ListTile tile(WidgetTester tester) => tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Delete account'),
+    );
+
+    testWidgets('a tap does nothing and the tile is disabled', (tester) async {
+      final launched = mockSignInBrowser(tester);
+      final answer = Completer<AccountCapabilities>();
+      await pump(
+        tester,
+        client: _DeactivatingClient([]),
+        capabilities: answer.future,
+      );
+
+      expect(tile(tester).enabled, isFalse);
+      await tester.tap(find.text('Delete account'), warnIfMissed: false);
+      answer.complete(_withAccountPage(_masActions));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(launched, isEmpty);
+      expect(tile(tester).enabled, isTrue);
+    });
+
+    testWidgets('quick taps while loading open no dialog, and one tap once '
+        'loaded opens one', (tester) async {
+      final answer = Completer<AccountCapabilities>();
+      await pump(
+        tester,
+        client: _DeactivatingClient([]),
+        capabilities: answer.future,
+      );
+
+      await tester.tap(find.text('Delete account'), warnIfMissed: false);
+      await tester.tap(find.text('Delete account'), warnIfMissed: false);
+      answer.complete(_withAccountPage(_masActions));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsNothing);
+
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AlertDialog), findsOneWidget);
+    });
+
+    testWidgets('an answer that failed keeps the password flow', (
+      tester,
+    ) async {
+      final launched = mockSignInBrowser(tester);
+      await pump(
+        tester,
+        client: _DeactivatingClient([]),
+        capabilities: Future<AccountCapabilities>.error(
+          StateError('unreadable'),
+        )..ignore(),
+      );
+
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continue'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Type your username to confirm: alice'), findsOneWidget);
+      expect(launched, isEmpty);
     });
   });
 }

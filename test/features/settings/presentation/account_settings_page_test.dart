@@ -19,9 +19,12 @@ import 'package:zuno/features/settings/presentation/change_password_dialog.dart'
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_sign_in_browser.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 const _me = '@alice:example.org';
+
+const _accountPage = 'https://account.example.org/account/';
 
 CachedProfileInformation _profile({String? name, Uri? avatar}) =>
     CachedProfileInformation.fromProfile(
@@ -141,16 +144,14 @@ void main() {
       expect(row('Change password'), findsOneWidget);
     });
 
-    testWidgets('Change password is shown while the answer loads', (
-      tester,
-    ) async {
+    testWidgets('Change password never shows on an OAuth server while the '
+        'answer loads', (tester) async {
+      final answer = Completer<AccountCapabilities>();
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
             matrixClientProvider.overrideWithValue(client),
-            accountCapabilitiesProvider.overrideWith(
-              (ref) => Completer<AccountCapabilities>().future,
-            ),
+            accountCapabilitiesProvider.overrideWith((ref) => answer.future),
           ],
           child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -161,7 +162,32 @@ void main() {
       );
       await tester.pump();
 
+      expect(row('Change password'), findsNothing);
+      expect(row('Manage account'), findsNothing);
+
+      answer.complete(
+        AccountCapabilities(
+          canChangePassword: false,
+          canMintSignInCodes: false,
+          accountPage: AccountPage(Uri.parse(_accountPage), const {}),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(row('Change password'), findsNothing);
+      expect(row('Manage account'), findsOneWidget);
+    });
+
+    testWidgets('an answer that failed offers Change password', (tester) async {
+      await pumpPage(
+        tester,
+        capabilities: Future<AccountCapabilities>.error(
+          StateError('unreadable'),
+        )..ignore(),
+      );
+
       expect(row('Change password'), findsOneWidget);
+      expect(row('Manage account'), findsNothing);
     });
 
     testWidgets('Change password is hidden where the server disallows it', (
@@ -175,6 +201,39 @@ void main() {
       );
 
       expect(row('Change password'), findsNothing);
+      expect(row('Manage account'), findsNothing);
+    });
+
+    testWidgets('OAuth server shows Manage account, not Change password', (
+      tester,
+    ) async {
+      final launched = mockSignInBrowser(tester);
+      await pumpPage(
+        tester,
+        capabilities: Future.value(
+          AccountCapabilities(
+            canChangePassword: false,
+            canMintSignInCodes: false,
+            accountPage: AccountPage(Uri.parse(_accountPage), const {
+              AccountManagementActionsSupported.orgMatrixProfile,
+              AccountManagementActionsSupported.orgMatrixDevicesList,
+            }),
+          ),
+        ),
+      );
+
+      expect(row('Change password'), findsNothing);
+      await tester.tap(row('Manage account'));
+      await tester.pumpAndSettle();
+
+      expect(launched, ['$_accountPage?action=org.matrix.profile']);
+    });
+
+    testWidgets('a server that allows password change shows no Manage '
+        'account', (tester) async {
+      await pumpPage(tester);
+
+      expect(row('Manage account'), findsNothing);
     });
   });
 
@@ -444,10 +503,10 @@ void main() {
       await tester.tap(row('Change password'));
       await tester.pumpAndSettle();
       await tester.enterText(field('Current password'), 'old secret words');
-      await tester.enterText(field('New password'), 'correct horse battery 9');
+      await tester.enterText(field('New password'), 'Correct horse battery 9');
       await tester.enterText(
         field('Confirm new password'),
-        'correct horse battery 9',
+        'Correct horse battery 9',
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Change password'));
       await tester.pumpAndSettle();
@@ -458,7 +517,7 @@ void main() {
       await fillIn(tester);
 
       expect(client.passwordChanges, [
-        ('correct horse battery 9', 'old secret words'),
+        ('Correct horse battery 9', 'old secret words'),
       ]);
       expect(find.byType(ChangePasswordDialog), findsNothing);
       expect(find.text('Password changed'), findsOneWidget);
@@ -475,8 +534,24 @@ void main() {
       await fillIn(tester);
 
       expect(find.byType(ChangePasswordDialog), findsOneWidget);
-      expect(find.text('Password not changed. Try again.'), findsOneWidget);
+      expect(find.text('Wrong password.'), findsOneWidget);
       expect(find.text('Password changed'), findsNothing);
+    });
+
+    testWidgets("the server's password policy refusal asks for a stronger "
+        'password', (tester) async {
+      client.passwordError = MatrixException.fromJson({
+        'errcode': 'M_PASSWORD_TOO_SHORT',
+        'error': 'Password too short',
+      });
+      await pumpPage(tester);
+      await fillIn(tester);
+
+      expect(find.byType(ChangePasswordDialog), findsOneWidget);
+      expect(
+        find.text('Your server needs a stronger password. Try a longer one.'),
+        findsOneWidget,
+      );
     });
 
     testWidgets('Cancel says nothing', (tester) async {

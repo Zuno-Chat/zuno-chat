@@ -221,7 +221,7 @@ void main() {
   group('registrationInputError', () {
     String? errorFor({
       String username = 'alex',
-      String password = 'correcthorse',
+      String password = 'Kestrel-river7',
       String? confirmPassword,
     }) => registrationInputError(
       englishLocalizations,
@@ -248,63 +248,55 @@ void main() {
       );
     });
 
-    test(
-      'accepts dots and underscores, which people use to separate words',
-      () {
-        expect(errorFor(username: 'alex.smith'), isNull);
-        expect(errorFor(username: 'alex_smith'), isNull);
-      },
-    );
+    test('accepts every character the Matrix spec allows, leaving stricter '
+        'rules to the server', () {
+      for (final username in [
+        'alex.smith',
+        'alex_smith',
+        'alex-smith',
+        'a=b',
+        'a/b',
+        'a+b',
+        '_alex',
+        '2026',
+      ]) {
+        expect(errorFor(username: username), isNull, reason: username);
+      }
+    });
 
-    test('rejects uppercase and the separators that survive being spoken '
-        'least well', () {
-      for (final username in ['Alex', 'alex-1', 'a+b', 'a/b', 'a=b']) {
+    test('rejects uppercase and anything else outside the spec', () {
+      for (final username in ['Alex', 'alex!', 'al ex', 'ålex']) {
         expect(
           errorFor(username: username),
-          'Usernames can use a–z, 0–9, dots and underscores',
+          'Usernames can use a–z, 0–9 and . _ = - / +',
           reason: username,
         );
       }
     });
 
-    test('rejects a password the strength check blocks, judged against the '
+    test('rejects a password that breaks the Matrix password rule', () {
+      expect(errorFor(password: 'kestrel-river7'), 'Add an uppercase letter');
+    });
+
+    test('rejects a password the guess checks block, judged against the '
         'username', () {
       expect(
-        errorFor(username: 'alexanderthegreat', password: 'alexanderthegreat'),
-        'Your password is your username',
+        errorFor(username: 'alexander', password: 'Alexander1!'),
+        'Your password contains your username',
       );
-    });
-
-    test('rejects a leading underscore, which Synapse keeps for bridges', () {
-      expect(errorFor(username: '_alex'), contains('underscore'));
-      expect(errorFor(username: 'alex_'), isNull);
-    });
-
-    test('rejects a username with no letter in it', () {
-      for (final username in ['2026', '1_000', '1.5', '...']) {
-        expect(errorFor(username: username), contains('letter'));
-      }
-      expect(errorFor(username: 'a2026'), isNull);
     });
 
     test('rejects a username too long to fit in a user ID', () {
       String? errorWithServer(int length) => registrationInputError(
         englishLocalizations,
         username: 'a' * length,
-        password: 'correcthorse',
-        confirmPassword: 'correcthorse',
+        password: 'Kestrel-river7',
+        confirmPassword: 'Kestrel-river7',
         serverName: 'zuno.chat',
       );
 
       expect(errorWithServer(244), isNull);
       expect(errorWithServer(245), contains('too long'));
-    });
-
-    test('rejects a password longer than the homeserver accepts', () {
-      final long = [for (var i = 0; i < 120; i++) 'kestrel$i'].join(' ');
-
-      expect(errorFor(password: long.substring(0, 512)), isNull);
-      expect(errorFor(password: long.substring(0, 513)), contains('512'));
     });
   });
 

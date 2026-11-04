@@ -32,6 +32,19 @@ void main() {
     expect(store.justRegistered('@bea:example.org'), isFalse);
   });
 
+  test('a sign-up that already chose a name has its name step done', () async {
+    await store.markRegistered('@alex:example.org', nameChosen: true);
+
+    expect(store.justRegistered('@alex:example.org'), isTrue);
+    expect(store.shown('@alex:example.org'), {OnboardingStep.profile});
+  });
+
+  test('a sign-up without a name still has its name step to do', () async {
+    await store.markRegistered('@alex:example.org');
+
+    expect(store.shown('@alex:example.org'), isEmpty);
+  });
+
   test('registering survives a new store on the same preferences', () async {
     await store.markRegistered('@alex:example.org');
     final reopened = OnboardingStore(await SharedPreferences.getInstance());

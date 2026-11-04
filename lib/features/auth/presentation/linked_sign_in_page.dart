@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/linked_sign_in.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
@@ -13,9 +14,9 @@ import '../../../core/matrix/session_display_name.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
+import '../../../core/ui/retry_wait.dart';
 import '../../verification/presentation/qr_scanner_page.dart';
 import 'auth_scaffold.dart';
-import 'retry_wait.dart';
 
 typedef CodeScanner = Future<Uint8List?> Function(BuildContext context);
 
@@ -113,7 +114,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
       if (!isLinkedSignInRefusal(e)) reportCaught('linked sign in', e, s);
       if (!mounted) return;
       setState(() => _error = linkedSignInErrorMessage(context.l10n, e));
-      holdRetriesFor(e, whenOver: () => _error = null);
+      holdRetriesFor(retryWaitFor(e), whenOver: () => _error = null);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

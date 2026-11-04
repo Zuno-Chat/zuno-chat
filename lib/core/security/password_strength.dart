@@ -2,7 +2,16 @@ import 'dart:math' as math;
 
 import '../l10n/l10n.dart';
 
-const minPasswordLength = 12;
+class PasswordRule {
+  const PasswordRule({required this.minLength, this.needsEveryKind = false});
+
+  final int minLength;
+  final bool needsEveryKind;
+}
+
+const accountPasswordRule = PasswordRule(minLength: 8, needsEveryKind: true);
+
+const recoveryPhraseRule = PasswordRule(minLength: 12);
 
 const recommendedPasswordLength = 15;
 
@@ -25,23 +34,35 @@ class PasswordAssessment {
 PasswordAssessment assessPassword(
   AppLocalizations l10n,
   String password, {
+  required PasswordRule rule,
   String? username,
 }) {
   if (password.isEmpty) {
     return PasswordAssessment(
       strength: PasswordStrength.unusable,
       blocker: null,
-      advice: l10n.securityPasswordEmptyAdvice(minPasswordLength),
+      advice: rule.needsEveryKind
+          ? l10n.securityPasswordEmptyAdviceEveryKind(rule.minLength)
+          : l10n.securityPasswordEmptyAdvice(rule.minLength),
     );
   }
   final length = password.runes.length;
-  if (length < minPasswordLength) {
-    final missing = minPasswordLength - length;
+  if (length < rule.minLength) {
+    final missing = rule.minLength - length;
     return PasswordAssessment(
       strength: PasswordStrength.unusable,
-      blocker: l10n.securityPasswordTooShort(minPasswordLength),
+      blocker: l10n.securityPasswordTooShort(rule.minLength),
       advice: l10n.securityPasswordMissing(missing),
     );
+  }
+  if (rule.needsEveryKind) {
+    if (_missingKind(l10n, password) case final blocker?) {
+      return PasswordAssessment(
+        strength: PasswordStrength.unusable,
+        blocker: blocker,
+        advice: l10n.securityPasswordEveryKindAdvice,
+      );
+    }
   }
 
   final lower = password.toLowerCase();
@@ -105,6 +126,19 @@ PasswordAssessment assessPassword(
     blocker: null,
     advice: l10n.securityPasswordWeak,
   );
+}
+
+final _lowercase = RegExp(r'\p{Ll}', unicode: true);
+final _uppercase = RegExp(r'\p{Lu}', unicode: true);
+final _number = RegExp(r'\p{Nd}', unicode: true);
+final _symbol = RegExp(r'[^\p{L}\p{N}]', unicode: true);
+
+String? _missingKind(AppLocalizations l10n, String password) {
+  if (!_lowercase.hasMatch(password)) return l10n.securityPasswordAddLowercase;
+  if (!_uppercase.hasMatch(password)) return l10n.securityPasswordAddUppercase;
+  if (!_number.hasMatch(password)) return l10n.securityPasswordAddNumber;
+  if (!_symbol.hasMatch(password)) return l10n.securityPasswordAddSymbol;
+  return null;
 }
 
 PasswordAssessment _tooEasyToGuess(AppLocalizations l10n) => PasswordAssessment(

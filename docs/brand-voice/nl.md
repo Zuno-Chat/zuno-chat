@@ -111,7 +111,13 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | English | nl | Notes |
 |---|---|---|
 | account, password | account · wachtwoord | "Wrong password." → «Onjuist wachtwoord.» "Confirm password" (the repeat field) → «Wachtwoord herhalen». |
+| account page, manage account | accountpagina · Account beheren | The server's own web page for the account, opened in the browser. "{server}'s account page" → «de accountpagina van {server}». |
+| approve (on the account page) | Goedkeuren · goedkeuren | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Keur het goed in je browser». "Not approved yet." → «Nog niet goedgekeurd.» |
 | username, display name | gebruikersnaam · weergavenaam | |
+| lowercase letter | kleine letter | "Lowercase letters" → «Kleine letters». |
+| uppercase letter | hoofdletter | |
+| number (a digit, in a password or username) | cijfer | |
+| symbol (in a password) | symbool | |
 | profile, profile photo | profiel · profielfoto | |
 | email address | e-mailadres | |
 | invite | Uitnodigen · uitnodiging | The "Invited" badge → «Uitgenodigd». |

@@ -9,8 +9,11 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/location/live_location_sharing.dart';
+import '../../../core/matrix/account_capabilities.dart';
+import '../../../core/matrix/account_page_browser.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/server_name.dart';
 import '../../../core/matrix/sign_out.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/push/delivery/notification_delivery.dart';
@@ -29,13 +32,20 @@ class DeleteAccountTile extends ConsumerStatefulWidget {
 
 class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
   @override
-  Widget build(BuildContext context) => DangerTile(
-    icon: Icons.delete_forever_outlined,
-    label: context.l10n.settingsDeleteAccount,
-    onTap: _start,
-  );
+  Widget build(BuildContext context) {
+    final capabilities = ref.watch(accountCapabilitiesProvider).known;
+    return DangerTile(
+      icon: Icons.delete_forever_outlined,
+      label: context.l10n.settingsDeleteAccount,
+      onTap: capabilities == null ? null : () => _start(capabilities),
+    );
+  }
 
-  Future<void> _start() async {
+  Future<void> _start(AccountCapabilities capabilities) async {
+    if (capabilities.accountPage case final accountPage?) {
+      await _deleteOnAccountPage(accountPage);
+      return;
+    }
     final l10n = context.l10n;
     final proceed = await confirm(
       context,
@@ -52,6 +62,25 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     await _deactivate();
   }
 
+  Future<void> _deleteOnAccountPage(AccountPage accountPage) async {
+    final l10n = context.l10n;
+    final server = ownServerName(ref.read(matrixClientProvider)) ?? '';
+    final proceed = await confirm(
+      context,
+      title: l10n.settingsDeleteAccountWarningTitle,
+      body: l10n.settingsDeleteAccountOnWebBody(server),
+      confirmLabel: l10n.commonContinue,
+      tone: ConfirmTone.destructive,
+    );
+    if (!proceed || !mounted) return;
+    await openAccountPage(
+      context,
+      accountPage.linkFor(
+        AccountManagementActionsSupported.orgMatrixAccountDeactivate,
+      ),
+    );
+  }
+
   Future<bool?> _confirmTypedId() {
     final userId = ref.read(matrixClientProvider).userID ?? '';
     final username = userId.localpart ?? userId;
@@ -61,7 +90,7 @@ class _DeleteAccountTileState extends ConsumerState<DeleteAccountTile> {
     );
   }
 
-  Future<void> _handleUia(UiaRequest uia) => answerUiaWithPassword(
+  Future<void> _handleUia(UiaRequest uia) => answerUia(
     context,
     uia,
     userId: ref.read(matrixClientProvider).userID!,

@@ -11,6 +11,7 @@ import '../../../core/matrix/server_choice.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
+import '../../../core/ui/retry_wait.dart';
 import 'auth_scaffold.dart';
 
 class HomeserverPage extends ConsumerStatefulWidget {
@@ -20,7 +21,8 @@ class HomeserverPage extends ConsumerStatefulWidget {
   ConsumerState<HomeserverPage> createState() => _HomeserverPageState();
 }
 
-class _HomeserverPageState extends ConsumerState<HomeserverPage> {
+class _HomeserverPageState extends ConsumerState<HomeserverPage>
+    with RetryWait<HomeserverPage> {
   late final TextEditingController _homeserver;
   bool _loading = false;
   String? _error;
@@ -41,6 +43,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
   }
 
   Future<void> _continue() async {
+    if (waitingToRetry) return;
     closeKeyboard();
     final parsed = parseHomeserverInput(context.l10n, _homeserver.text);
     final shapeError = parsed.error;
@@ -68,6 +71,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
       if (homeserverProblem(e).reported) reportCaught('use homeserver', e, s);
       if (!mounted) return;
       setState(() => _error = homeserverErrorMessage(context.l10n, e));
+      holdRetriesFor(retryWaitFor(e), whenOver: () => _error = null);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -98,7 +102,7 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage> {
         ],
         const SizedBox(height: 24),
         FilledButton(
-          onPressed: _loading ? null : _continue,
+          onPressed: _loading || waitingToRetry ? null : _continue,
           child: Text(_loading ? l10n.authConnecting : l10n.commonContinue),
         ),
       ],

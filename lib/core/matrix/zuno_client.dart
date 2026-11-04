@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart';
 import 'client_lease.dart';
 import 'send_keep_awake.dart';
 import 'sync_coordinator.dart';
+import 'typed_server_answers.dart';
 
 Future<void>? syncForKey(Client client, {required Duration wait}) {
   final sync = client is ZunoClient
@@ -14,7 +15,7 @@ Future<void>? syncForKey(Client client, {required Duration wait}) {
   return sync?.then<void>((_) {}, onError: (_) {});
 }
 
-class ZunoClient extends Client {
+class ZunoClient extends Client with TypedServerAnswers {
   ZunoClient(
     super.clientName, {
     required super.database,

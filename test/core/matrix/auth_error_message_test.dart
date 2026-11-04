@@ -4,8 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/auth_browser.dart';
 import 'package:zuno/core/matrix/auth_error_message.dart';
 import 'package:zuno/core/matrix/registration_support.dart';
+import 'package:zuno/core/matrix/server_choice.dart';
+import 'package:zuno/core/matrix/typed_server_answers.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
 
 import '../../helpers/uia_challenge.dart';
@@ -189,6 +192,113 @@ void main() {
       expect(retryWaitFor(matrixError('M_FORBIDDEN', 'no')), isNull);
       expect(retryWaitFor(const SocketException('down')), isNull);
     });
+
+    test('a rate limit without Matrix JSON waits for its Retry-After', () {
+      const thirty = Duration(seconds: 30);
+
+      expect(
+        retryWaitFor(const ServerAnswerFailed(429, retryAfter: thirty)),
+        thirty,
+      );
+      expect(retryWaitFor(const ServerAnswerFailed(429)), isNull);
+      expect(
+        retryWaitFor(const ServerAnswerFailed(503, retryAfter: thirty)),
+        isNull,
+      );
+      expect(
+        retryWaitFor(
+          const ServerAnswerFailed(429, retryAfter: Duration(days: 1)),
+        ),
+        maxRetryWait,
+      );
+    });
+  });
+
+  group('a rate limit without Matrix JSON', () {
+    const limited = ServerAnswerFailed(429, retryAfter: Duration(seconds: 30));
+
+    test('reads like the server\'s own wherever it lands', () {
+      for (final message in [
+        loginErrorMessage(englishLocalizations, limited),
+        registrationErrorMessage(englishLocalizations, limited),
+        deactivateAccountErrorMessage(englishLocalizations, limited),
+        homeserverErrorMessage(englishLocalizations, limited),
+      ]) {
+        expect(message, 'Too many attempts. Try again in 30 seconds.');
+      }
+      expect(
+        loginErrorMessage(englishLocalizations, const ServerAnswerFailed(429)),
+        'Too many attempts. Wait a moment and try again.',
+      );
+    });
+
+    test('is an answer, not a failure', () {
+      expect(isLoginRefusal(limited), isTrue);
+      expect(isRegistrationRefusal(limited), isTrue);
+    });
+
+    test('a server failure is the same unreachable copy and not reported', () {
+      const down = ServerAnswerFailed(502);
+      for (final message in [
+        loginErrorMessage(englishLocalizations, down),
+        registrationErrorMessage(englishLocalizations, down),
+      ]) {
+        expect(message, englishLocalizations.matrixHomeserverUnreachable);
+      }
+      expect(isLoginRefusal(down), isTrue);
+      expect(isRegistrationRefusal(down), isTrue);
+      expect(isLoginRefusal(const ServerAnswerFailed(404)), isFalse);
+    });
+  });
+
+  group('changing the password', () {
+    String message(Object error) =>
+        changePasswordErrorMessage(englishLocalizations, error);
+
+    test('a wrong current password says so', () {
+      expect(
+        message(matrixError('M_FORBIDDEN', 'Invalid password')),
+        'Wrong password.',
+      );
+    });
+
+    test("the server's password policy refusal asks for a stronger "
+        'password', () {
+      for (final code in ['M_WEAK_PASSWORD', 'M_PASSWORD_TOO_SHORT']) {
+        expect(
+          message(matrixError(code, 'no')),
+          'Your server needs a stronger password. Try a longer one.',
+          reason: code,
+        );
+      }
+    });
+
+    test('a server failure says the server cannot be reached', () {
+      expect(
+        message(const ServerAnswerFailed(502)),
+        englishLocalizations.matrixHomeserverUnreachable,
+      );
+    });
+
+    test('anything else says the password was not changed', () {
+      expect(
+        message(matrixError('M_UNKNOWN', 'something odd happened')),
+        'Password not changed. Try again.',
+      );
+    });
+
+    test('refusals are answers, anything else is a failure', () {
+      for (final error in <Object>[
+        matrixError('M_FORBIDDEN', 'no'),
+        matrixError('M_WEAK_PASSWORD', 'no'),
+        matrixError('M_PASSWORD_NO_DIGIT', 'no'),
+        matrixError('M_LIMIT_EXCEEDED', 'no'),
+        const ServerAnswerFailed(502),
+      ]) {
+        expect(isChangePasswordRefusal(error), isTrue, reason: '$error');
+      }
+      expect(isChangePasswordRefusal(matrixError('M_UNKNOWN', 'no')), isFalse);
+    });
   });
 
   group('registration', () {
@@ -212,17 +322,18 @@ void main() {
       );
     });
 
-    test("a password policy refusal keeps the server's own explanation", () {
-      expect(
-        registrationErrorMessage(
-          englishLocalizations,
-          matrixError(
-            'M_WEAK_PASSWORD',
-            'password must be at least 8 characters',
+    test("the server's password policy refusal asks for a stronger "
+        'password', () {
+      for (final code in ['M_WEAK_PASSWORD', 'M_PASSWORD_TOO_SHORT']) {
+        expect(
+          registrationErrorMessage(
+            englishLocalizations,
+            matrixError(code, 'password must be at least 12 characters'),
           ),
-        ),
-        'Password must be at least 8 characters',
-      );
+          'Your server needs a stronger password. Try a longer one.',
+          reason: code,
+        );
+      }
     });
 
     test('a refused sign-up code says the code is the problem', () {
@@ -241,6 +352,7 @@ void main() {
         'M_INVALID_USERNAME',
         'M_EXCLUSIVE',
         'M_WEAK_PASSWORD',
+        'M_PASSWORD_TOO_SHORT',
         'M_LIMIT_EXCEEDED',
       ]) {
         expect(
@@ -276,7 +388,7 @@ void main() {
     for (final (label, error) in <(String, Object)>[
       (
         'a server that answers but is not a homeserver',
-        Exception('http error response'),
+        const ServerAnswerFailed(404),
       ),
       ('a non-JSON response', const FormatException('Unexpected character')),
       ('a JSON response of the wrong shape', TypeError()),
@@ -292,11 +404,14 @@ void main() {
     test('whatever the address turns out to be is an answer, not a '
         'failure', () {
       for (final error in <Object>[
-        Exception('http error response'),
+        const ServerAnswerFailed(404),
         const FormatException('Unexpected character'),
         TypeError(),
         matrixError('M_UNRECOGNIZED', 'Unrecognized request'),
-        BadServerLoginTypesException({'m.login.sso'}, {'m.login.password'}),
+        matrixError('M_LIMIT_EXCEEDED', 'Too many requests'),
+        const UnsupportedSignInException(),
+        const ServerAnswerFailed(429),
+        const ServerAnswerFailed(502),
         const SocketException('Failed host lookup'),
       ]) {
         expect(homeserverProblem(error).reported, isFalse, reason: '$error');
@@ -328,19 +443,64 @@ void main() {
       expect(homeserverProblem(error).reported, isFalse);
     });
 
-    test('a Matrix server with no password login says so', () {
-      final message = homeserverErrorMessage(
-        englishLocalizations,
-        BadServerLoginTypesException({'m.login.sso'}, {'m.login.password'}),
+    test('a server answering with a server error is unreachable, any other '
+        'refusal is not a server', () {
+      expect(
+        homeserverProblem(const ServerAnswerFailed(502)),
+        HomeserverProblem.unreachable,
       );
+      expect(
+        homeserverProblem(const ServerAnswerFailed(403)),
+        HomeserverProblem.notAServer,
+      );
+      expect(
+        const ServerAnswerFailed(502).toString(),
+        'ServerAnswerFailed(502)',
+      );
+    });
 
-      expect(message, contains('password'));
+    test('a rate-limited check says to wait', () {
+      expect(
+        homeserverProblem(const ServerAnswerFailed(429)),
+        HomeserverProblem.rateLimited,
+      );
+      expect(
+        homeserverErrorMessage(
+          englishLocalizations,
+          const ServerAnswerFailed(429),
+        ),
+        'Too many attempts. Wait a moment and try again.',
+      );
+    });
+
+    test('a rate limit refusal during the check says how long to wait', () {
+      final error = MatrixException.fromJson({
+        'errcode': 'M_LIMIT_EXCEEDED',
+        'error': 'Too many requests',
+        'retry_after_ms': 30000,
+      });
+
+      expect(homeserverProblem(error), HomeserverProblem.rateLimited);
+      expect(
+        homeserverErrorMessage(englishLocalizations, error),
+        'Too many attempts. Try again in 30 seconds.',
+      );
+    });
+
+    test('a server with no usable sign-in says so', () {
+      const error = UnsupportedSignInException();
+
+      expect(homeserverProblem(error), HomeserverProblem.unsupportedSignIn);
+      expect(
+        homeserverErrorMessage(englishLocalizations, error),
+        'Zuno cannot sign in to that server.',
+      );
     });
 
     test('never multi-line — this field renders every line it is given', () {
       for (final error in <Object>[
         const SocketException('nope'),
-        Exception('http error response'),
+        const ServerAnswerFailed(404),
         const FormatException('Unexpected character (at character 1)\nx\n^'),
       ]) {
         expect(
@@ -402,6 +562,145 @@ void main() {
       ]) {
         expect(isPasswordRefusal(error), isFalse, reason: '$error');
       }
+    });
+  });
+
+  group('oauthSignInErrorMessage', () {
+    String message(Object error) => oauthSignInErrorMessage(
+      englishLocalizations,
+      error,
+      server: 'zuno.chat',
+    );
+
+    test('no browser says Zuno needs one', () {
+      expect(
+        message(const AuthBrowserUnavailable()),
+        'Zuno needs a web browser to sign in to zuno.chat.',
+      );
+    });
+
+    test('a connection error is the unreachable line', () {
+      expect(
+        message(const SocketException('Failed host lookup')),
+        englishLocalizations.matrixAuthCannotConnect,
+      );
+    });
+
+    test('a failed sign-in, an OIDC error and anything else name the '
+        'server', () {
+      for (final error in <Object>[
+        const OAuthSignInFailed('state_mismatch'),
+        const OAuthSignInFailed('EUNKNOWN'),
+        OidcException(error: 'invalid_grant', errorDescription: null),
+        StateError('x'),
+      ]) {
+        expect(
+          message(error),
+          'Could not sign in to zuno.chat. Try again.',
+          reason: '$error',
+        );
+      }
+    });
+
+    test('a rate limit says to wait, for as long as the server said', () {
+      expect(
+        message(
+          MatrixException.fromJson({
+            'errcode': 'M_LIMIT_EXCEEDED',
+            'retry_after_ms': 30000,
+          }),
+        ),
+        'Too many attempts. Try again in 30 seconds.',
+      );
+      expect(
+        message(matrixError('M_LIMIT_EXCEEDED', 'Slow down')),
+        'Too many attempts. Wait a moment and try again.',
+      );
+    });
+
+    test('a server error from the server says it cannot be reached', () {
+      for (final status in [500, 502, 503]) {
+        expect(
+          message(ServerAnswerFailed(status)),
+          'Cannot reach that server. Check the address and your connection.',
+          reason: '$status',
+        );
+      }
+    });
+
+    test('a rate limit without Matrix JSON says to wait, for as long as its '
+        'Retry-After said', () {
+      expect(
+        message(const ServerAnswerFailed(429)),
+        'Too many attempts. Wait a moment and try again.',
+      );
+      expect(
+        message(
+          const ServerAnswerFailed(429, retryAfter: Duration(seconds: 30)),
+        ),
+        'Too many attempts. Try again in 30 seconds.',
+      );
+    });
+
+    test('any other server answer names the server', () {
+      for (final error in const [
+        ServerAnswerFailed(400, oauthError: 'invalid_client_metadata'),
+        ServerAnswerFailed(404),
+      ]) {
+        expect(
+          message(error),
+          'Could not sign in to zuno.chat. Try again.',
+          reason: '$error',
+        );
+      }
+    });
+
+    test('a server error and a rate limit without Matrix JSON are expected; '
+        'any other server answer is not', () {
+      for (final error in const [
+        ServerAnswerFailed(500),
+        ServerAnswerFailed(503),
+        ServerAnswerFailed(429),
+      ]) {
+        expect(isExpectedOAuthSignInFailure(error), isTrue, reason: '$error');
+      }
+      for (final error in const [
+        ServerAnswerFailed(400, oauthError: 'invalid_client_metadata'),
+        ServerAnswerFailed(404),
+      ]) {
+        expect(isExpectedOAuthSignInFailure(error), isFalse, reason: '$error');
+      }
+    });
+
+    test('a cancel, a missing browser, no connection and a rate limit are '
+        'expected; a failed sign-in and anything else are not', () {
+      expect(
+        isExpectedOAuthSignInFailure(const OAuthSignInCancelled()),
+        isTrue,
+      );
+      expect(
+        isExpectedOAuthSignInFailure(const AuthBrowserUnavailable()),
+        isTrue,
+      );
+      expect(
+        isExpectedOAuthSignInFailure(http.ClientException('offline')),
+        isTrue,
+      );
+      expect(
+        isExpectedOAuthSignInFailure(matrixError('M_LIMIT_EXCEEDED', 'x')),
+        isTrue,
+      );
+      expect(
+        isExpectedOAuthSignInFailure(const OAuthSignInFailed('server_error')),
+        isFalse,
+      );
+      expect(isExpectedOAuthSignInFailure(StateError('x')), isFalse);
+    });
+
+    test('only a cancel is a cancel', () {
+      expect(isOAuthSignInCancel(const OAuthSignInCancelled()), isTrue);
+      expect(isOAuthSignInCancel(const OAuthSignInFailed('x')), isFalse);
+      expect(isOAuthSignInCancel(StateError('x')), isFalse);
     });
   });
 }

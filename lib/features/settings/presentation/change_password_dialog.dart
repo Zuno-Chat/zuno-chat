@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show TextInput;
 
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/security/password_strength.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/inline_feedback.dart';
@@ -43,7 +44,12 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       return l10n.settingsChangePasswordFillBoth;
     }
     if (_next.text != _confirm.text) return l10n.settingsChangePasswordMismatch;
-    return assessPassword(l10n, _next.text, username: widget.username).blocker;
+    return assessPassword(
+      l10n,
+      _next.text,
+      rule: accountPasswordRule,
+      username: widget.username,
+    ).blocker;
   }
 
   Future<void> _submit() async {
@@ -62,11 +68,11 @@ class _ChangePasswordDialogState extends State<ChangePasswordDialog> {
       await widget.onSubmit(_current.text, _next.text);
       TextInput.finishAutofillContext();
       if (mounted) Navigator.of(context).pop(true);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = context.l10n.settingsChangePasswordFailed;
+        _error = changePasswordErrorMessage(context.l10n, error);
       });
     }
   }

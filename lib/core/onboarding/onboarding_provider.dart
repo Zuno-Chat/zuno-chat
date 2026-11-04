@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../errors/caught_errors.dart';
 import '../errors/crash_reporting.dart';
 import '../matrix/matrix_client_provider.dart';
+import '../matrix/own_profile.dart';
+import '../matrix/typed_server_answers.dart';
 import '../platform/background_restrictions.dart';
 import '../platform/platform_capabilities.dart';
 import '../push/delivery/notification_delivery_mode.dart';
@@ -48,8 +50,23 @@ class OnboardingStore {
   bool justRegistered(String userId) =>
       _prefs.getBool(_registeredKey(userId)) ?? false;
 
-  Future<void> markRegistered(String userId) =>
-      _prefs.setBool(_registeredKey(userId), true);
+  Future<void> markRegistered(String userId, {bool nameChosen = false}) async {
+    await _prefs.setBool(_registeredKey(userId), true);
+    if (nameChosen) await markShown(userId, OnboardingStep.profile);
+  }
+}
+
+const _nameReadWait = Duration(seconds: 8);
+
+Future<bool> nameChosenAtSignUp(Client client) async {
+  try {
+    return await hasChosenDisplayName(client).timeout(_nameReadWait);
+  } catch (e, s) {
+    if (!isServerOrNetworkFailure(e)) {
+      reportCaught('read the chosen name', e, s);
+    }
+    return false;
+  }
 }
 
 final onboardingStoreProvider = Provider<OnboardingStore>((ref) {

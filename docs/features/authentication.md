@@ -1,10 +1,12 @@
 # Authentication
 
 The signed-out side of the app and the account lifecycle: choosing a server,
-signing in with a password or with a code from another device, signing up
-(with a code from the server's admin where it requires one), keeping the
-session alive with refresh tokens, signing out and deleting the account. The
-device safety check and the password rules live here too.
+signing in with a password or with a code from another device, signing in
+and up through the server's own pages on servers that use Matrix's OAuth 2.0
+API (MAS), signing up with a code from the server's admin where it requires
+one, keeping the session alive with refresh tokens, the server's account
+page, signing out and deleting the account. The device safety check and the
+password rules live here too.
 
 There is no repository or local session model. Screens call the Matrix SDK
 directly, and the `Client` and its login state are the source of truth.
@@ -24,19 +26,23 @@ flowchart TD
   Login -->|Change| Server[HomeserverPage]
   Login -->|Sign in with your other device| Linked[LinkedSignInPage]
   Login -->|Create account| Register[RegisterPage]
+  Login -->|OAuth server: Continue or Create account| Browser[Server's page in the sign-in browser]
 ```
 
 | Piece | Role |
 |---|---|
 | `SignedOutEntry` | What `_AuthGate` shows when signed out: the device warning first on Android, then `LoginPage` once the server is verified, or a retry screen. |
 | `homeserverProvider` | Holds the adopted `ServerChoice`: the picked server and its API address. `zuno.chat` by default in every build; `adopt(choice)` takes a checked server and points the client at its API address. |
-| `signUpPathProvider` | The sign-up path of one server choice: open, code, closed or can't tell. |
-| `LoginPage` | The root signed-out screen: username and password, sign-in with another device, "Create account" unless sign-up is closed, and "Change" for the server. |
+| `signUpPathProvider` | The sign-up path of one server choice: open, code, the server's page, closed or can't tell. |
+| `LoginPage` | The root signed-out screen: username and password, sign-in with another device, "Create account" unless sign-up is closed, and "Change" for the server. On an OAuth server, one "Continue" and "Create account", both opening the server's page. |
 | `LinkedSignInPage` | Signs in with a code from another device, scanned or typed. |
 | `RegisterPage` | Username, password and confirmation, plus the sign-up code when one is required. |
 | `server_choice.dart` | `checkServer`, and how a probe answer becomes a sign-up path. |
 | `registration_support.dart` | The registration probe, input checks and the UIA stage machine (`nextRegistrationStep`, driven by `runRegistration`). |
 | `linked_sign_in.dart` | Encodes, decodes, mints and redeems sign-in codes. |
+| `oauth_sign_in.dart`, `auth_browser.dart` | The browser sign-in: Zuno's client registration, the authorization in the system's sign-in browser (ASWebAuthenticationSession, Custom Tabs) and the callback check. |
+| `account_capabilities.dart`, `account_page_browser.dart` | What the server lets Zuno do itself and where its account page is, and opening that page in the sign-in browser. |
+| `typed_server_answers.dart` | Turns a server answer that is no Matrix error into a typed failure carrying only its status, OAuth error and `Retry-After`. |
 | `session_refresh.dart` | `refreshSession`, the client's `onSoftLogout` handler. |
 | `homeserver_input.dart`, `server_name.dart` | Parse the server field, and derive the account's server name, which is not the API host. |
 | `auth_error_message.dart` | Maps every auth refusal to user-facing copy. |
@@ -45,8 +51,10 @@ flowchart TD
 In Settings, `SignInAnotherDevicePage` mints sign-in codes,
 `ChangePasswordDialog` changes the password and `DeleteAccountTile` deletes
 the account; the first two show only where the server allows them
-(`account_capabilities.dart`). The password rules (`password_strength.dart`)
-are shared by registration, change password and the security phrase.
+(`account_capabilities.dart`). On an OAuth server, password change, signing
+out other devices and deletion happen on the server's account page instead.
+The password rules (`password_strength.dart`) are shared by registration,
+change password and the security phrase.
 
 ## Flows
 
@@ -60,20 +68,67 @@ mid-check, and nothing is saved to disk.
    `/.well-known/matrix/client` through the SDK's `MatrixApi` aimed at that
    server. Any failure, or an unusable `base_url`, makes the typed server
    the API address, as the SDK's own discovery does.
-2. **Check.** That address is asked for its versions and its sign-in
-   methods together; one that lists sign-in methods without password
-   sign-in is refused.
+2. **Check.** That address is asked for its versions, its OAuth sign-in
+   details and its sign-in methods together. A server with OAuth sign-in
+   details signs in through its own page; otherwise one that lists sign-in
+   methods without password sign-in is refused.
 3. **Adopt.** `homeserverProvider.adopt` holds the picked server and the
    checked API address as the `ServerChoice`, and points the client at the
    API address.
 
 ### Sign-in and session refresh
 
-Every sign-in (password, code from another device, registration) runs
-inside `SignInInFlight.during`, which keeps the signed-out screens up until
-the SDK call returns. Every sign-in also asks for a refresh token, because
-the homeserver issues short-lived access tokens, and `refreshSession`
-renews the session on soft logout.
+Every sign-in (password, code from another device, registration, the
+browser) runs inside `SignInInFlight.during`, which keeps the signed-out
+screens up until the SDK call returns. Every sign-in also asks for a refresh
+token, because the homeserver issues short-lived access tokens, and
+`refreshSession` renews the session on soft logout. A password session
+refreshes at `/refresh`; a browser session at the token endpoint in the
+server's OAuth details, which the SDK picks by the client ID it stored at
+sign-in.
+
+### Browser sign-in (OAuth servers)
+
+```mermaid
+sequenceDiagram
+  participant App
+  participant Browser as Sign-in browser
+  participant Auth as Server's OAuth API
+  App->>Auth: register Zuno as a native client
+  App->>Browser: authorization URL, prompt=create for Create account
+  Browser->>Auth: the person signs in or signs up
+  Auth-->>App: chat.zuno:/oauth callback with code and state
+  App->>Auth: code and PKCE verifier for tokens
+```
+
+1. **Register.** Every flow registers Zuno afresh, as the spec asks: its
+   name, homepage, logo, terms and privacy links, and the redirect
+   `chat.zuno:/oauth`.
+2. **Authorize.** The authorization page opens in the system's sign-in
+   browser with the stable scopes and a new device ID; "Create account"
+   adds `prompt=create`.
+3. **Callback.** Its `state` is checked before anything else is read. A
+   closed browser or `access_denied` is a cancel and shows nothing.
+4. **Tokens.** The SDK exchanges the code with its PKCE verifier, and Zuno
+   names the device.
+5. **Sign-up.** A "Create account" flow marks the account as registered for
+   onboarding and reads once whether the person set a name there
+   (`onboarding.md`).
+
+### Account page (OAuth servers)
+
+Actions the server keeps for itself open its account page in the sign-in
+browser, and Zuno waits until the page is closed.
+
+| Entry | Account-page action |
+|---|---|
+| Account → Manage account | `org.matrix.profile` |
+| Your devices: sign out one device, or everywhere else | `org.matrix.device_delete` with the device ID, `org.matrix.devices_list` |
+| Delete account, after a warning | `org.matrix.account_deactivate` |
+| A step the server approves instead of a password (UIA `m.oauth`, `org.matrix.cross_signing_reset`) | The link the server sends, then "Continue" retries the request |
+
+Your devices reloads once the page is closed. An action the server doesn't
+advertise opens the plain account page.
 
 ### Registration
 
@@ -134,6 +189,8 @@ sequenceDiagram
 
 Both paths end in `client.clear`, which triggers the `_AuthGate` wipe;
 neither cleans local data itself, and every new path must end there too.
+A session ended elsewhere, such as on the account page, ends there as well:
+the next request is refused, the refresh is refused, and the SDK clears.
 What the push teardown does is in `notifications.md`.
 
 ## Decisions
@@ -164,15 +221,42 @@ What the push teardown does is in `notifications.md`.
   Matrix's ambiguity against account enumeration.
 - **Settings shows Change password unless the server's `m.change_password`
   capability is off, and Sign in on another device only when
-  `m.get_login_token` is on.** Both show while the answer loads or when it
-  can't be read, so a slow or failed read never hides a working entry.
+  `m.get_login_token` is on.** Both wait for the answer, so an OAuth server's
+  entries never flash, and show when it can't be read, so a failed read
+  never hides a working entry.
+
+### OAuth servers
+
+- **The sign-in method is decided once, at the server check**: OAuth when
+  the server serves its OAuth details, because a session works only with the
+  API that issued its token.
+- **No password form on an OAuth server**, though MAS's compatibility layer
+  accepts one, because the spec keeps the two APIs apart and the server's
+  page owns two-factor sign-in and upstream sign-in providers.
+- **The sign-in browser keeps its cookies** (not ephemeral), so the account
+  page opens signed in; on iOS that costs a "wants to use … to sign in"
+  alert each time.
+- **Account pages open in the sign-in browser, not the default browser**,
+  because only it is sure to hold the sign-in cookie: iOS's sign-in sheet
+  shares cookies only with Safari, and Android's sign-in falls back to a
+  Custom Tabs browser when the default browser has none.
+- **The client registration describes the app, the same on every server**,
+  and the redirect scheme is the homepage's host reversed, as the spec
+  requires; the Android manifest registers that scheme too, so the
+  homepage, the redirect and the manifest change together.
+- **A "Create account" flow counts as a sign-up for onboarding** even if the
+  person signs in on the server's page instead, since the server doesn't
+  say which happened.
+- **The browser button says only "Continue"**, because a server name in it
+  wraps; the name shows in the row below.
 
 ### Sessions
 
-- **Only `M_UNKNOWN_TOKEN` and `M_FORBIDDEN` from `/refresh` end a
-  session.** The SDK clears the local session on any `MatrixException` from
-  the handler, so other errors become plain exceptions, or a transient
-  server fault would wipe the device's keys.
+- **Only `M_UNKNOWN_TOKEN` and `M_FORBIDDEN` from `/refresh`, or
+  `invalid_grant` from the token endpoint, end a session.** The SDK clears
+  the local session on any `MatrixException` or `invalid_grant` from the
+  handler, so other errors become plain exceptions carrying only their code,
+  or a transient server fault would wipe the device's keys.
 - **A refused refresh is retried once if the stored token changed.** The
   app and a push engine's client share one refresh token that the server
   rotates on every use, so the loser of that race re-reads the winner's
@@ -180,7 +264,8 @@ What the push teardown does is in `notifications.md`.
 - **A refresh that hangs is aborted at the network, not just given up
   on**, because the server drops the pair it issued when the same refresh
   token is used again, and a late answer saved over the next refresh would
-  sign the device out.
+  sign the device out. That covers the OAuth refresh and the fetch of the
+  OAuth details it needs.
 
 ### Registration and sign-up codes
 
@@ -215,21 +300,24 @@ What the push teardown does is in `notifications.md`.
 
 ### Passwords and usernames
 
-- **Password rules follow NIST SP 800-63B, not composition rules.** The
-  floor is 12 characters to match Synapse's `minimum_length`, and there are
-  no character-class requirements, since they produce `Password1!` and
-  block strong passphrases.
+- **Account passwords follow the Matrix spec's client rule, then the guess
+  checks**: at least 8 characters with a lowercase letter, an uppercase
+  letter, a number and a symbol, in any script, so `Password1!` still fails
+  as common. The security phrase keeps 12 characters and no kinds, since
+  only Zuno checks it.
+- **A server's own stricter policy is answered, not guessed.** Its refusal
+  (`M_WEAK_PASSWORD` or an `M_PASSWORD_*` code) says the server needs a
+  stronger password, at sign-up and in change password alike.
 - **The gate scores what is left once the guessable parts are gone.**
   Common words, years, keyboard walks and runs are masked out before
   scoring, so a padded known-bad password (`summer2026!!`) is refused while
   three everyday words pass as weak.
 - **"Confirm password" stays**, because sign-up ties no email to the
   account, so with no password reset a typo at sign-up loses it.
-- **New usernames use a stricter set than Matrix.** `signupUsernameChars`
-  (`a-z0-9._`, at least one letter, no leading underscore) filters every
-  field where a username is typed, since names get spoken, typed on phones
-  and put in URLs. Mentions match the wider `matrixLocalpartChars`, so
-  federated names still resolve.
+- **New usernames use exactly Matrix's set**, `a-z 0-9 . _ = - / +`, with
+  the user ID under 255 bytes and no server-specific rules, so the same
+  name works on any server; it filters every field where a username is
+  typed.
 - **`LoginPage` lowercases the username but never filters it**, so a full
   `@user:server` and older names still sign in.
 
@@ -296,15 +384,20 @@ What the push teardown does is in `notifications.md`.
   nulls `client.homeserver` and `_AuthGate` invalidates
   `homeserverProvider`; `SignedOutEntry` shows its spinner during that
   check, or the previous server's sign-in screen would stay up.
-- The capability answer behind the Settings entries is saved in the client
-  database for 3 days, the SDK's lifetime for saved server answers, so a
+- The capability answer behind the Settings entries, the account page
+  included, is saved in the client database for 3 days, the SDK's lifetime for saved server answers, so a
   server's change reaches phones within that time, or at once after
   Settings' Clear cache, which drops it with the SDK's other saved answers.
 - Route every refusal through `auth_error_message.dart`, because these
   screens show any text they are given, raw exceptions included.
 - A mandatory captcha, terms or email stage hides "Create account", so a
-  server that needs email confirmation or a captcha runs MAS, and a terms
-  stage waits for its client step.
+  server that needs email confirmation, a captcha or terms runs MAS.
+- Synapse's optional password policy counts only ASCII letters, so a
+  password whose only uppercase letter is, say, Greek passes Zuno and is
+  refused by such a server.
+- Tests of the browser sign-in install a SHA-256-only vodozemac mock
+  (`sha256_only_vodozemac.dart`), because the SDK's PKCE needs vodozemac's
+  SHA-256 and vodozemac has no public test mode.
 - On Android, `enableSuggestions: false` swaps out the `@` and `/` keys, so
   email and URL fields set only `autocorrect: false`.
 - Nothing on the submit side can force a password-manager save on Android;
@@ -323,4 +416,6 @@ What the push teardown does is in `notifications.md`.
 
 - Data export ("download my data"), which would sit beside Delete account.
 - An explicit password-manager save (Credential Manager).
-- Registration's terms stage.
+- Signing in a new device from a signed-in one on OAuth servers, where
+  sign-in codes are off; OAuth's device sign-in (RFC 8628) would replace
+  them.

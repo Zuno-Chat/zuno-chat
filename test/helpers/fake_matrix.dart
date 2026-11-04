@@ -5,6 +5,7 @@ import 'package:clock/clock.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/optimistic_room_state.dart';
+import 'package:zuno/core/matrix/typed_server_answers.dart';
 
 class FakeDatabaseApi implements DatabaseApi {
   @override
@@ -208,7 +209,7 @@ void encryptRoom(Room room) => applyOptimisticRoomState(
   {'algorithm': AlgorithmTypes.megolmV1AesSha2},
 );
 
-class _TestClient extends Client {
+class _TestClient extends Client with TypedServerAnswers {
   _TestClient(
     super.clientName, {
     required super.database,

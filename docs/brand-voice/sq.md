@@ -112,7 +112,13 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | English | sq | Notes |
 |---|---|---|
 | account, password | llogari · fjalëkalim | "Wrong password." → «Fjalëkalim i gabuar.» "Confirm password" (the repeat field) → «Përsërit fjalëkalimin». |
+| account page, manage account | faqja e llogarisë · Menaxho llogarinë | The server's own web page for the account, opened in the browser. "{server}'s account page" → «faqja e llogarisë në {server}». |
+| approve (on the account page) | Mirato · miratim | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Miratoje në shfletues». "Not approved yet." → «Ende pa u miratuar.» |
 | username, display name | emri i përdoruesit · emri i shfaqur | |
+| lowercase letter | shkronjë e vogël | "Lowercase letters" → «Shkronja të vogla». |
+| uppercase letter | shkronjë e madhe | |
+| number (a digit, in a password or username) | numër | |
+| symbol (in a password) | simbol | |
 | profile, profile photo | profil · foto e profilit | |
 | email address | adresa e email-it | |
 | invite | Fto · ftesë | The "Invited" badge → «U ftua». |

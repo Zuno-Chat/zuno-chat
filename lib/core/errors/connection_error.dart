@@ -50,6 +50,4 @@ String failureMessage(
     : l10n.errorsFailedTryAgain(failed);
 
 bool isNotMatrixAnswer(Object error) =>
-    error is FormatException ||
-    error is TypeError ||
-    '$error' == 'Exception: http error response';
+    error is FormatException || error is TypeError;

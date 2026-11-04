@@ -80,7 +80,7 @@ void main() {
   Future<void> fillAndSubmit(
     WidgetTester tester, {
     String username = 'alice',
-    String password = 'correct horse battery staple',
+    String password = 'Correct horse battery 7',
     String? code,
   }) async {
     if (code != null) await tester.enterText(field('Sign-up code'), code);
@@ -508,7 +508,7 @@ void main() {
 
       await fillAndSubmit(
         tester,
-        password: 'another horse battery staple',
+        password: 'Another horse battery 7',
         code: 'ABCDEFGH23',
       );
 

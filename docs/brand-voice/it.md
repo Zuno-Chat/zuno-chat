@@ -105,7 +105,13 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | English | it | Notes |
 |---|---|---|
 | account, password | l’account · la password | "Wrong password." → «Password errata.» |
+| account page, manage account | la pagina dell’account · Gestisci account | The server's own web page for the account, opened in the browser. "{server}'s account page" → «la pagina dell’account di {server}». |
+| approve (on the account page) | Approva / approvare | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Approva nel tuo browser». "Not approved yet." → «Non ancora approvata.» |
 | username, display name | il nome utente · il nome visualizzato | |
+| lowercase letter | la lettera minuscola | "Lowercase letters" → «Lettere minuscole». |
+| uppercase letter | la lettera maiuscola | |
+| number (a digit, in a password or username) | il numero | |
+| symbol (in a password) | il simbolo | |
 | profile, profile photo | il profilo · la foto del profilo | |
 | email address | l’indirizzo email | |
 | invite | Invita · l’invito | The "Invited" badge → «Invito inviato». |

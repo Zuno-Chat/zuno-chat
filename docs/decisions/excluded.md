@@ -4,7 +4,6 @@ These are ruled out for good, not deferred. Do not re-propose one unless
 asked. If one is reconsidered, move it out of here and into the feature doc
 that takes it on.
 
-- **SSO/OIDC.** The homeserver does not support it.
 - **Threads.**
 - **Custom status message.**
 - **App lock (PIN or biometric on open).**
@@ -25,6 +24,6 @@ that takes it on.
 - **Bots and bridges.**
 - **Third-party widgets** (Jitsi, polls and the like).
 - **Multi-account switching.**
-- **Synapse's own email-confirmation and captcha sign-up stages.** A server
-  that needs either runs MAS, whose pages handle both
-  (`../features/authentication.md`).
+- **Synapse's own email-confirmation, captcha and terms sign-up stages.** A
+  server that needs any of them, or upstream sign-in providers, runs MAS,
+  whose pages handle them (`../features/authentication.md`).

@@ -5,23 +5,26 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/auth_browser.dart';
 import '../../../core/matrix/auth_error_message.dart';
 import '../../../core/matrix/homeserver.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
+import '../../../core/matrix/oauth_sign_in.dart';
 import '../../../core/matrix/server_choice.dart';
 import '../../../core/matrix/server_name.dart';
 import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
+import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/security/screen_security_service.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
+import '../../../core/ui/retry_wait.dart';
 import 'auth_scaffold.dart';
 import 'homeserver_page.dart';
 import 'linked_sign_in_page.dart';
 import 'password_field.dart';
 import 'register_page.dart';
-import 'retry_wait.dart';
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -31,13 +34,10 @@ class LoginPage extends ConsumerStatefulWidget {
 }
 
 class _LoginPageState extends ConsumerState<LoginPage>
-    with
-        RetryWait<LoginPage>,
-        PasswordReveal<LoginPage>,
-        AccessibilityServicesAllowed<LoginPage> {
+    with RetryWait<LoginPage>, PasswordReveal<LoginPage> {
   final _username = TextEditingController();
   final _password = TextEditingController();
-  bool _loading = false;
+  bool _signingIn = false;
   ServerChoice? _askingSignUpOf;
   String? _error;
 
@@ -48,8 +48,17 @@ class _LoginPageState extends ConsumerState<LoginPage>
     super.dispose();
   }
 
-  Future<void> _login() async {
-    if (_loading || waitingToRetry) return;
+  void _clearError() {
+    if (_error != null && !waitingToRetry) setState(() => _error = null);
+  }
+
+  void _open(Widget page) {
+    closeKeyboard();
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
+
+  Future<void> _signIn() async {
+    if (_signingIn || waitingToRetry) return;
     closeKeyboard();
     final client = ref.read(matrixClientProvider);
     final username = _username.text.trim();
@@ -64,7 +73,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
 
     setState(() {
-      _loading = true;
+      _signingIn = true;
       _error = null;
     });
 
@@ -85,15 +94,56 @@ class _LoginPageState extends ConsumerState<LoginPage>
       if (!isLoginRefusal(e)) reportCaught('sign in', e, s);
       if (!mounted) return;
       setState(() => _error = loginErrorMessage(context.l10n, e));
-      holdRetriesFor(e, whenOver: () => _error = null);
+      holdRetriesFor(retryWaitFor(e), whenOver: () => _error = null);
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) setState(() => _signingIn = false);
     }
   }
 
-  void _open(Widget page) {
-    closeKeyboard();
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  Future<void> _signInInBrowser({bool createAccount = false}) async {
+    if (_signingIn || waitingToRetry) return;
+    final client = ref.read(matrixClientProvider);
+    final browser = ref.read(authBrowserProvider);
+    final onboarding = ref.read(onboardingStoreProvider);
+    final server = ref.read(serverNameProvider) ?? '';
+    final l10n = context.l10n;
+
+    setState(() {
+      _signingIn = true;
+      _error = null;
+    });
+
+    try {
+      final grant = await authorizeInBrowser(
+        client,
+        browser: browser,
+        createAccount: createAccount,
+      );
+      await ref.read(signInInFlightProvider.notifier).during(() async {
+        await completeOAuthSignIn(
+          client,
+          grant,
+          deviceDisplayName: thisSessionDisplayName(),
+        );
+        final userId = client.userID;
+        if (createAccount && userId != null) {
+          await onboarding.markRegistered(
+            userId,
+            nameChosen: await nameChosenAtSignUp(client),
+          );
+        }
+      });
+    } catch (e, s) {
+      if (isOAuthSignInCancel(e)) return;
+      if (!isExpectedOAuthSignInFailure(e)) {
+        reportCaught('sign in with the browser', e, s);
+      }
+      if (!mounted) return;
+      setState(() => _error = oauthSignInErrorMessage(l10n, e, server: server));
+      holdRetriesFor(retryWaitFor(e), whenOver: () => _error = null);
+    } finally {
+      if (mounted) setState(() => _signingIn = false);
+    }
   }
 
   Future<void> _createAccount(ServerChoice server, SignUpPath shown) async {
@@ -107,6 +157,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
         _open(const RegisterPage());
       case SignUpPath.code:
         _open(const RegisterPage(requiresCode: true));
+      case SignUpPath.oauth:
+        await _signInInBrowser(createAccount: true);
       case SignUpPath.closed:
         setState(() => _error = l10n.matrixCodeUnavailable);
       case SignUpPath.unknown:
@@ -116,10 +168,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
 
   Future<SignUpPath?> _askSignUpPath(ServerChoice server) async {
     closeKeyboard();
-    setState(() {
-      _askingSignUpOf = server;
-      if (!waitingToRetry) _error = null;
-    });
+    _clearError();
+    setState(() => _askingSignUpOf = server);
     try {
       final answer = await ref.refresh(signUpPathProvider(server).future);
       if (!mounted || ref.read(homeserverProvider).value != server) return null;
@@ -134,7 +184,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
   @override
   Widget build(BuildContext context) {
     ref.listen(homeserverProvider, (_, _) {
-      if (_error != null && !waitingToRetry) setState(() => _error = null);
+      releaseRetryHold();
+      _clearError();
     });
     final serverName = ref.watch(serverNameProvider);
     final server = ref.watch(homeserverProvider).value;
@@ -142,6 +193,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
         ? null
         : ref.watch(signUpPathProvider(server)).value;
     final askingSignUp = server != null && _askingSignUpOf == server;
+    final signsInInBrowser = server?.signIn is OAuthSignIn;
     final l10n = context.l10n;
 
     return AuthScaffold(
@@ -151,7 +203,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
             signUpPath != null &&
             signUpPath != SignUpPath.closed)
           OutlinedButton(
-            onPressed: _loading || askingSignUp
+            onPressed:
+                _signingIn ||
+                    askingSignUp ||
+                    (signsInInBrowser && waitingToRetry)
                 ? null
                 : () => _createAccount(server, signUpPath),
             child: Text(
@@ -172,7 +227,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
                 ),
               ),
               TextButton(
-                onPressed: _loading
+                onPressed: _signingIn
                     ? null
                     : () => _open(const HomeserverPage()),
                 child: Text(l10n.authChangeServer),
@@ -180,14 +235,21 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ],
           ),
       ],
-      children: [
-        AutofillGroup(
+      children: signsInInBrowser ? _browserButton() : _passwordForm(),
+    );
+  }
+
+  List<Widget> _passwordForm() {
+    final l10n = context.l10n;
+    return [
+      _AccessibilityServicesLetIn(
+        child: AutofillGroup(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               ZunoTextField(
                 controller: _username,
-                enabled: !_loading,
+                enabled: !_signingIn,
                 autocorrect: false,
                 enableSuggestions: false,
                 autofillHints: const [AutofillHints.username],
@@ -199,30 +261,61 @@ class _LoginPageState extends ConsumerState<LoginPage>
               PasswordField(
                 controller: _password,
                 labelText: l10n.commonPassword,
-                enabled: !_loading,
+                enabled: !_signingIn,
                 revealed: passwordRevealed,
                 onToggleReveal: togglePasswordReveal,
                 autofillHints: const [AutofillHints.password],
                 textInputAction: TextInputAction.done,
-                onSubmitted: (_) => _login(),
+                onSubmitted: (_) => _signIn(),
               ),
             ],
           ),
         ),
-        if (_error case final error?) ...[
-          const SizedBox(height: 16),
-          InlineError(error),
-        ],
-        const SizedBox(height: 24),
-        FilledButton(
-          onPressed: _loading || waitingToRetry ? null : _login,
-          child: Text(_loading ? l10n.authSigningIn : l10n.authSignIn),
-        ),
-        TextButton(
-          onPressed: _loading ? null : () => _open(const LinkedSignInPage()),
-          child: Text(l10n.authSignInWithOtherDevice),
-        ),
+      ),
+      if (_error case final error?) ...[
+        const SizedBox(height: 16),
+        InlineError(error),
       ],
-    );
+      const SizedBox(height: 24),
+      FilledButton(
+        onPressed: _signingIn || waitingToRetry ? null : _signIn,
+        child: Text(_signingIn ? l10n.authSigningIn : l10n.authSignIn),
+      ),
+      TextButton(
+        onPressed: _signingIn ? null : () => _open(const LinkedSignInPage()),
+        child: Text(l10n.authSignInWithOtherDevice),
+      ),
+    ];
   }
+
+  List<Widget> _browserButton() {
+    final l10n = context.l10n;
+    return [
+      if (_error case final error?) ...[
+        InlineError(error),
+        const SizedBox(height: 16),
+      ],
+      FilledButton(
+        onPressed: _signingIn || waitingToRetry ? null : _signInInBrowser,
+        child: Text(_signingIn ? l10n.authSigningIn : l10n.commonContinue),
+      ),
+    ];
+  }
+}
+
+class _AccessibilityServicesLetIn extends StatefulWidget {
+  const _AccessibilityServicesLetIn({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AccessibilityServicesLetIn> createState() =>
+      _AccessibilityServicesLetInState();
+}
+
+class _AccessibilityServicesLetInState
+    extends State<_AccessibilityServicesLetIn>
+    with AccessibilityServicesAllowed<_AccessibilityServicesLetIn> {
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

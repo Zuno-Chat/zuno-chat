@@ -55,4 +55,65 @@ void main() {
 
     expect(server.received.single, same(filter));
   });
+
+  http.Request tokenRequest(String grantType) =>
+      http.Request('POST', Uri.parse('https://auth.example.org/token'))
+        ..headers['content-type'] = 'application/x-www-form-urlencoded'
+        ..bodyFields = {'grant_type': grantType, 'client_id': 'client-1'};
+
+  test('an OAuth refresh grant is aborted at the deadline', () async {
+    await client.send(tokenRequest('refresh_token'));
+
+    final sent = server.received.single as http.Request;
+    expect(sent, isA<http.Abortable>());
+    expect((sent as http.Abortable).abortTrigger, isNotNull);
+    expect(sent.bodyFields['grant_type'], 'refresh_token');
+    expect(sent.bodyFields['client_id'], 'client-1');
+  });
+
+  test('an authorization_code grant is not', () async {
+    final exchange = tokenRequest('authorization_code');
+
+    await client.send(exchange);
+
+    expect(server.received.single, same(exchange));
+  });
+
+  test('an auth_metadata request is aborted at the deadline', () async {
+    await client.send(
+      http.Request(
+        'GET',
+        Uri.parse('https://example.org/_matrix/client/v1/auth_metadata'),
+      ),
+    );
+
+    final sent = server.received.single as http.Request;
+    expect(sent, isA<http.Abortable>());
+    expect((sent as http.Abortable).abortTrigger, isNotNull);
+  });
+
+  test('an auth_metadata request under an API path prefix is aborted at the '
+      'deadline too', () async {
+    await client.send(
+      http.Request(
+        'GET',
+        Uri.parse('https://example.org/matrix/_matrix/client/v1/auth_metadata'),
+      ),
+    );
+
+    final sent = server.received.single as http.Request;
+    expect(sent, isA<http.Abortable>());
+    expect((sent as http.Abortable).abortTrigger, isNotNull);
+  });
+
+  test('another GET is not', () async {
+    final versions = http.Request(
+      'GET',
+      Uri.parse('https://example.org/_matrix/client/versions'),
+    );
+
+    await client.send(versions);
+
+    expect(server.received.single, same(versions));
+  });
 }

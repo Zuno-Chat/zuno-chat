@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/account_capabilities.dart';
 import '../../../core/matrix/matrix_client_provider.dart';
 import '../../../core/matrix/uia_cancel.dart';
 import '../../../core/security/alerts/security_alerts_provider.dart';
@@ -64,7 +65,8 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
   String? _recoveryKeyInputError;
   bool _busy = false;
   final _preparedUiaPassword = PreparedUiaPassword();
-  bool _askingForPassword = false;
+  bool _replacing = false;
+  Bootstrap? _replacedOnArrival;
   bool _syncedAfterDone = false;
   OwnIdentityResetHold? _identityResetHold;
 
@@ -74,6 +76,12 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     final client = ref.read(matrixClientProvider);
     _uiaSub = client.onUiaRequest.stream.listen(_handleUia);
     _bootstrap = _newBootstrap();
+    if (widget.autoRestoreExisting == false) {
+      ref.listenManual(
+        accountCapabilitiesProvider,
+        (_, _) => _replaceOnArrival(),
+      );
+    }
     _maybeAutoAdvance();
   }
 
@@ -101,13 +109,15 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     }
     if (bootstrap.state == BootstrapState.error) {
       final error = bootstrap.errorResult?.error ?? 'unknown';
-      if (!isUiaCancel(error)) {
-        reportCaught(
-          'recovery bootstrap',
-          error,
-          bootstrap.errorResult?.stackTrace,
-        );
+      if (isUiaCancel(error)) {
+        if (mounted) Navigator.of(context).pop();
+        return;
       }
+      reportCaught(
+        'recovery bootstrap',
+        error,
+        bootstrap.errorResult?.stackTrace,
+      );
     }
     if (!mounted) return;
     setState(() {});
@@ -137,7 +147,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
           setState(() => _wipeExisting = false);
           b.wipeSsss(false);
         } else {
-          unawaited(_replaceExistingRecovery(b));
+          _replaceOnArrival();
         }
       case BootstrapState.askUseExistingSsss:
         b.useExistingSsss(true);
@@ -161,27 +171,45 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
     }
   }
 
-  Future<void> _handleUia(UiaRequest uia) => answerUiaWithPassword(
+  Future<void> _handleUia(UiaRequest uia) => answerUia(
     context,
     uia,
     userId: ref.read(matrixClientProvider).userID!,
     preparedPassword: _preparedUiaPassword.take,
   );
 
-  Future<void> _replaceExistingRecovery(Bootstrap bootstrap) async {
-    if (_askingForPassword) return;
-    _askingForPassword = true;
+  void _replaceOnArrival() {
+    final bootstrap = _bootstrap;
+    if (bootstrap.state != BootstrapState.askWipeSsss ||
+        _replacedOnArrival == bootstrap) {
+      return;
+    }
+    final capabilities = ref.read(accountCapabilitiesProvider).known;
+    if (capabilities == null) return;
+    _replacedOnArrival = bootstrap;
+    unawaited(_replaceExistingRecovery(bootstrap, capabilities));
+  }
+
+  Future<void> _replaceExistingRecovery(
+    Bootstrap bootstrap,
+    AccountCapabilities capabilities,
+  ) async {
+    if (_replacing) return;
+    _replacing = true;
     try {
       await WidgetsBinding.instance.endOfFrame;
       if (!mounted) return;
-      final password = await askPasswordForUia(context);
-      if (!mounted) return;
-      if (password == null || password.isEmpty) return;
-      _preparedUiaPassword.prepare(password);
+      if (capabilities.accountPage == null) {
+        final password = await askPasswordForUia(context);
+        if (!mounted) return;
+        if (password == null || password.isEmpty) return;
+        _preparedUiaPassword.prepare(password);
+      }
+      if (bootstrap.state != BootstrapState.askWipeSsss) return;
       setState(() => _wipeExisting = true);
       bootstrap.wipeSsss(true);
     } finally {
-      _askingForPassword = false;
+      _replacing = false;
     }
   }
 
@@ -276,6 +304,7 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
         return StatusMessage.busy(title: l10n.settingsSecureBackupSettingUp);
 
       case BootstrapState.askWipeSsss:
+        final capabilities = ref.watch(accountCapabilitiesProvider).known;
         return _ChoiceScreen(
           icon: Icons.backup_outlined,
           title: l10n.settingsSecureBackupExistingTitle,
@@ -286,7 +315,11 @@ class _SecureBackupPageState extends ConsumerState<SecureBackupPage> {
             bootstrap.wipeSsss(false);
           },
           secondaryLabel: l10n.settingsSecureBackupStartOver,
-          onSecondary: () => unawaited(_replaceExistingRecovery(bootstrap)),
+          onSecondary: capabilities == null
+              ? null
+              : () => unawaited(
+                  _replaceExistingRecovery(bootstrap, capabilities),
+                ),
         );
 
       case BootstrapState.askBadSsss:
@@ -475,7 +508,11 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
 
   void _submit() {
     final phrase = _phraseController.text;
-    final assessment = assessPassword(context.l10n, phrase);
+    final assessment = assessPassword(
+      context.l10n,
+      phrase,
+      rule: recoveryPhraseRule,
+    );
     if (assessment.blocker != null) {
       setState(() => _error = assessment.blocker);
       return;
@@ -526,8 +563,10 @@ class _PhraseInputScreenState extends State<_PhraseInputScreen> {
         ),
         ListenableBuilder(
           listenable: _phraseController,
-          builder: (context, _) =>
-              PasswordStrengthBar(password: _phraseController.text),
+          builder: (context, _) => PasswordStrengthBar(
+            password: _phraseController.text,
+            rule: recoveryPhraseRule,
+          ),
         ),
       ],
     );

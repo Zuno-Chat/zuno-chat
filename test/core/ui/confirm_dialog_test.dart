@@ -57,6 +57,28 @@ void main() {
     );
   });
 
+  testWidgets('one that must be answered stays open when tapped outside', (
+    tester,
+  ) async {
+    final context = await pumpHost(tester);
+    final result = confirm(
+      context,
+      title: 'Reset your identity?',
+      confirmLabel: 'Continue',
+      barrierDismissible: false,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(5, 5));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(AlertDialog), findsOneWidget);
+
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(await result, isFalse);
+  });
+
   testWidgets('a destructive action is red, a plain one is not', (
     tester,
   ) async {

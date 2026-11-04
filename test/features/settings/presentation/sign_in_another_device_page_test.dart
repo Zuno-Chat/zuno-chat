@@ -11,6 +11,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/features/settings/presentation/sign_in_another_device_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_privacy_channel.dart';
@@ -183,6 +184,97 @@ void main() {
 
     expect(find.text('This server cannot make sign-in codes.'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Try again'), findsOneWidget);
+    await leave(tester);
+  });
+
+  testWidgets('a rate limit says how long to wait and is not reported', (
+    tester,
+  ) async {
+    final reports = await reportsDuring(
+      () => pumpPage(
+        tester,
+        client: serverThat(
+          (_) => http.Response(
+            jsonEncode({
+              'errcode': 'M_LIMIT_EXCEEDED',
+              'error': 'Too many requests',
+              'retry_after_ms': 30000,
+            }),
+            429,
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.text('Too many attempts. Try again in 30 seconds.'),
+      findsOneWidget,
+    );
+    expect(reports, isEmpty);
+    await leave(tester);
+  });
+
+  testWidgets('Try again waits out a rate limit, then asks again', (
+    tester,
+  ) async {
+    final bodies = <Map<String, Object?>>[];
+    await pumpPage(
+      tester,
+      client: serverThat(
+        (_) => http.Response(
+          jsonEncode({
+            'errcode': 'M_LIMIT_EXCEEDED',
+            'error': 'Too many requests',
+            'retry_after_ms': 30000,
+          }),
+          429,
+        ),
+        bodies: bodies,
+      ),
+    );
+    Finder tryAgain() => find.widgetWithText(FilledButton, 'Try again');
+
+    expect(tester.widget<FilledButton>(tryAgain()).onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 29));
+    expect(tester.widget<FilledButton>(tryAgain()).onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.widget<FilledButton>(tryAgain()).onPressed, isNotNull);
+    expect(find.textContaining('Try again in'), findsNothing);
+    expect(
+      find.text('Too many attempts. Wait a moment and try again.'),
+      findsOneWidget,
+    );
+
+    await tester.tap(tryAgain());
+    await tester.pump();
+
+    expect(bodies, hasLength(2));
+    await leave(tester);
+  });
+
+  testWidgets('an unexpected failure is reported and can be tried again at '
+      'once', (tester) async {
+    final reports = await reportsDuring(
+      () => pumpPage(
+        tester,
+        client: serverThat(
+          (_) => http.Response(
+            jsonEncode({'errcode': 'M_UNKNOWN', 'error': 'Broken'}),
+            500,
+          ),
+        ),
+      ),
+    );
+
+    expect(reports, ['issue sign-in code']);
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Try again'))
+          .onPressed,
+      isNotNull,
+    );
     await leave(tester);
   });
 

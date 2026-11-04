@@ -16,6 +16,7 @@ import 'package:zuno/features/auth/presentation/signed_out_entry.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/password_server.dart';
 
 void main() {
   final contacted = <Uri>[];
@@ -45,16 +46,8 @@ void main() {
             200,
           );
         }
-        if (path.endsWith('/login')) {
-          return http.Response(
-            jsonEncode({
-              'flows': [
-                {'type': 'm.login.password'},
-              ],
-            }),
-            200,
-          );
-        }
+        final password = passwordServerAnswer(request);
+        if (password != null) return password;
         return http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403);
       });
 

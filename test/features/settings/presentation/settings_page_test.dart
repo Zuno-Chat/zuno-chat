@@ -9,6 +9,7 @@ import 'package:zuno/core/calls/active_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/errors/crash_reporting.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/account_capabilities.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
@@ -40,6 +41,10 @@ class _SigningOutClient extends Client {
   Future<void> logout() async => journal.add('logged out');
 }
 
+final _capabilities = accountCapabilitiesProvider.overrideWith(
+  (ref) async => const AccountCapabilities(),
+);
+
 Client _client([Client? base]) {
   final client = base ?? buildTestClient(userId: '@alex:example.org');
   final room = buildTestRoom(client)..partial = false;
@@ -66,6 +71,7 @@ Future<void> _pumpSettingsPage(
     ProviderScope(
       overrides: [
         matrixClientProvider.overrideWithValue(client ?? _client()),
+        _capabilities,
         sentryConfiguredProvider.overrideWithValue(showFeedback),
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
@@ -138,7 +144,10 @@ void main() {
     final client = _client();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [matrixClientProvider.overrideWithValue(client)],
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          _capabilities,
+        ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -183,7 +192,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [matrixClientProvider.overrideWithValue(client)],
+        overrides: [
+          matrixClientProvider.overrideWithValue(client),
+          _capabilities,
+        ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,

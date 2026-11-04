@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/linked_sign_in.dart';
+import 'package:zuno/core/matrix/typed_server_answers.dart';
 
 import '../../helpers/fake_http.dart';
 import '../../helpers/fake_matrix.dart';
@@ -371,6 +372,42 @@ void main() {
           }),
         ),
         'This account is deactivated',
+      );
+    });
+
+    test('a rate limit while issuing a code says how long to wait, with or '
+        'without Matrix JSON', () {
+      for (final error in <Object>[
+        MatrixException.fromJson({
+          'errcode': 'M_LIMIT_EXCEEDED',
+          'error': 'Too many requests',
+          'retry_after_ms': 30000,
+        }),
+        const ServerAnswerFailed(429, retryAfter: Duration(seconds: 30)),
+      ]) {
+        expect(
+          signInCodeIssueErrorMessage(englishLocalizations, error),
+          'Too many attempts. Try again in 30 seconds.',
+          reason: '$error',
+        );
+      }
+    });
+
+    test('a rate limit or a server without codes is a refusal, not a '
+        'fault', () {
+      for (final error in <Object>[
+        MatrixException.fromJson({'errcode': 'M_LIMIT_EXCEEDED'}),
+        const ServerAnswerFailed(429),
+        MatrixException.fromJson({'errcode': 'M_UNRECOGNIZED'}),
+      ]) {
+        expect(isSignInCodeIssueRefusal(error), isTrue, reason: '$error');
+      }
+      expect(isSignInCodeIssueRefusal(StateError('boom')), isFalse);
+      expect(
+        isSignInCodeIssueRefusal(
+          MatrixException.fromJson({'errcode': 'M_UNKNOWN'}),
+        ),
+        isFalse,
       );
     });
 

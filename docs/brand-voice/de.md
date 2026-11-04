@@ -105,7 +105,13 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | English | de | Notes |
 |---|---|---|
 | account, password | das Konto · das Passwort | "Wrong password." → «Falsches Passwort.» |
+| account page, manage account | die Kontoseite · Konto verwalten | The server's own web page for the account, opened in the browser. "{server}'s account page" → «die Kontoseite von {server}». |
+| approve (on the account page) | Freigeben / freigeben | What the server asks you to approve on its account page, with the same word as approving your own device. "Approve in your browser" → «Gib es in deinem Browser frei». "Not approved yet." → «Noch nicht freigegeben.» |
 | username, display name | der Nutzername · der Anzeigename | |
+| lowercase letter | der Kleinbuchstabe | "Lowercase letters" → «Kleinbuchstaben». |
+| uppercase letter | der Großbuchstabe | |
+| number (a digit, in a password or username) | die Ziffer | |
+| symbol (in a password) | das Symbol | |
 | profile, profile photo | das Profil · das Profilbild | |
 | email address | die E-Mail-Adresse | |
 | invite | Einladen · die Einladung | The "Invited" badge → «Eingeladen». |

@@ -5,10 +5,12 @@ import 'package:url_launcher/url_launcher.dart';
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 
-final donateUri = Uri.parse('https://zuno.chat/#donate');
-final privacyPolicyUri = Uri.parse('https://zuno.chat/privacy');
-final termsUri = Uri.parse('https://zuno.chat/terms');
-final securityUri = Uri.parse('https://zuno.chat/security');
+final zunoWebsite = Uri.parse('https://zuno.chat');
+final zunoLogoUri = zunoWebsite.resolve('/assets/apple-touch-icon.png');
+final donateUri = zunoWebsite.resolve('/#donate');
+final privacyPolicyUri = zunoWebsite.resolve('/privacy');
+final termsUri = zunoWebsite.resolve('/terms');
+final securityUri = zunoWebsite.resolve('/security');
 final sourceCodeUri = Uri.parse('https://github.com/Zuno-Chat/zuno-chat');
 
 typedef UrlOpener = Future<bool> Function(Uri uri);

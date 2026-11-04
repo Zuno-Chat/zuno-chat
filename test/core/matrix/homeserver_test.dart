@@ -273,24 +273,33 @@ void main() {
     expect(accepted, 0);
   });
 
-  test('each check reads the discovery file once and never asks for auth '
-      'metadata', () async {
-    final (container, client) = setUpContainer(
-      versions: const ['v1.5', 'v1.15'],
-    );
+  test(
+    'each check reads the discovery file and the auth metadata once',
+    () async {
+      const metadataPath = '/_matrix/client/v1/auth_metadata';
+      final (container, client) = setUpContainer(
+        versions: const ['v1.5', 'v1.15'],
+      );
 
-    await container.read(homeserverProvider.future);
-    expect(requestsTo(discoveryPath), [
-      Uri.parse('https://zuno.chat$discoveryPath'),
-    ]);
+      await container.read(homeserverProvider.future);
+      expect(requestsTo(discoveryPath), [
+        Uri.parse('https://zuno.chat$discoveryPath'),
+      ]);
+      expect(requestsTo(metadataPath), [
+        Uri.parse('https://zuno.chat$metadataPath'),
+      ]);
 
-    await useServer(container, client, example);
-    expect(requestsTo(discoveryPath), [
-      Uri.parse('https://zuno.chat$discoveryPath'),
-      Uri.parse('https://example.org$discoveryPath'),
-    ]);
-    expect(requestsTo('/_matrix/client/v1/auth_metadata'), isEmpty);
-  });
+      await useServer(container, client, example);
+      expect(requestsTo(discoveryPath), [
+        Uri.parse('https://zuno.chat$discoveryPath'),
+        Uri.parse('https://example.org$discoveryPath'),
+      ]);
+      expect(requestsTo(metadataPath), [
+        Uri.parse('https://zuno.chat$metadataPath'),
+        Uri.parse('https://example.org$metadataPath'),
+      ]);
+    },
+  );
 
   test('the sign-up probe asks the API host the discovery file names, and '
       'never reads the file again', () async {
@@ -439,6 +448,25 @@ void main() {
       expect(client.homeserver, officialHomeserver);
     },
   );
+
+  test('an OAuth choice answers its sign-up path without the probe', () async {
+    final (container, _) = setUpContainer(register: (_) async => openSignUp());
+    await container.read(homeserverProvider.future);
+
+    for (final (canCreate, path) in [
+      (true, SignUpPath.oauth),
+      (false, SignUpPath.closed),
+    ]) {
+      final choice = ServerChoice(
+        example,
+        apiHost: example,
+        signIn: OAuthSignIn(canCreateAccount: canCreate),
+      );
+      expect(await askSignUp(container, choice), path);
+    }
+
+    expect(requestsTo(registerPath), isEmpty);
+  });
 
   test('an inconclusive answer is asked again once invalidated', () async {
     var probes = 0;

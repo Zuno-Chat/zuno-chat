@@ -2,5 +2,7 @@ New
 • Tap an empty part of a chat to close the keyboard.
 • A soft tone when someone joins your call.
 • Sign up with server registration token.
+• Sign in and create an account on servers that use their own sign-in page.
+• Usernames can use more characters, and passwords can be 8 characters with a mix of letters, numbers and symbols.
 
-Fixed 21 bugs.
+Fixed 22 bugs.

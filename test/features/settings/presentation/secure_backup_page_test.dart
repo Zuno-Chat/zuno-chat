@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/account_capabilities.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/security/alerts/security_alerts_provider.dart';
 import 'package:zuno/core/security/security_providers.dart';
@@ -16,7 +19,9 @@ import 'package:zuno/core/ui/step_layout.dart';
 import 'package:zuno/features/settings/presentation/secure_backup_page.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_sign_in_browser.dart';
 import '../../../helpers/fixtures.dart';
 import '../../../helpers/route_launcher.dart';
 import '../../../helpers/uia_challenge.dart';
@@ -122,8 +127,11 @@ class _FakeKey extends Fake implements OpenSSSS {
 }
 
 class _SetupEncryption extends Fake implements Encryption {
-  _SetupEncryption(this.client, Future<OpenSSSS> Function() createKey)
-    : ssss = _SetupSsss(createKey);
+  _SetupEncryption(
+    this.client,
+    Future<OpenSSSS> Function() createKey, {
+    String? defaultKeyId,
+  }) : ssss = _SetupSsss(createKey, defaultKeyId: defaultKeyId);
 
   @override
   final Client client;
@@ -132,13 +140,40 @@ class _SetupEncryption extends Fake implements Encryption {
   SSSS ssss;
 }
 
+final _oauthServer = AccountCapabilities(
+  canChangePassword: false,
+  canMintSignInCodes: false,
+  accountPage: AccountPage(Uri.parse('https://account.example.org/account/'), {
+    AccountManagementActionsSupported.orgMatrixCrossSigningReset,
+  }),
+);
+
+FakeHttpClient _keysUpload(List<Object?> sent) =>
+    FakeHttpClient((request) async {
+      if (!request.url.path.endsWith('/keys/device_signing/upload')) {
+        return http.Response('{"errcode":"M_NOT_FOUND"}', 404);
+      }
+      final auth = (jsonDecode(request.body) as Map<String, Object?>)['auth'];
+      sent.add(auth);
+      return auth == null
+          ? uiaApprovalChallengeResponse()
+          : http.Response('{}', 200);
+    });
+
+Future<void> _uploadKeys(Client client) => client.uiaRequestBackground<void>(
+  (auth) => client.uploadCrossSigningKeys(auth: auth),
+);
+
 class _SetupSsss extends Fake implements SSSS {
-  _SetupSsss(this._createKey);
+  _SetupSsss(this._createKey, {this.defaultKeyId});
 
   final Future<OpenSSSS> Function() _createKey;
 
   @override
-  String? get defaultKeyId => null;
+  final String? defaultKeyId;
+
+  @override
+  bool isKeyValid(String keyId) => keyId == defaultKeyId;
 
   @override
   Map<String, Set<String>> analyzeEncryptedSecrets() => {};
@@ -165,6 +200,8 @@ void main() {
     SecureBackupMode mode = SecureBackupMode.recoveryCode,
     bool? autoRestoreExisting,
     double keyboard = 0,
+    Future<AccountCapabilities>? capabilities,
+    http.Client? httpClient,
   }) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(360, 640);
@@ -173,11 +210,18 @@ void main() {
     addTearDown(tester.view.reset);
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
+    client = buildTestClient(userId: '@me:example.org', httpClient: httpClient);
+    if (httpClient != null) {
+      client
+        ..homeserver = Uri.parse('https://example.org')
+        ..accessToken = 'token';
+    }
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          matrixClientProvider.overrideWithValue(
-            client = buildTestClient(userId: '@me:example.org'),
+          matrixClientProvider.overrideWithValue(client),
+          accountCapabilitiesProvider.overrideWith(
+            (ref) => capabilities ?? Future.value(const AccountCapabilities()),
           ),
           sharedPreferencesProvider.overrideWithValue(prefs),
           recoveryWordlistProvider.overrideWith((ref) async => wordlist),
@@ -206,6 +250,8 @@ void main() {
     bool? autoRestoreExisting,
     void Function(_FakeBootstrap bootstrap)? prepare,
     double keyboard = 0,
+    Future<AccountCapabilities>? capabilities,
+    http.Client? httpClient,
   }) async {
     created = [];
     await pumpPage(
@@ -213,6 +259,8 @@ void main() {
       mode: mode,
       autoRestoreExisting: autoRestoreExisting,
       keyboard: keyboard,
+      capabilities: capabilities,
+      httpClient: httpClient,
       createBootstrap: (client) {
         final bootstrap = _FakeBootstrap(
           created.isEmpty ? state : BootstrapState.loading,
@@ -357,6 +405,138 @@ void main() {
       );
 
       expect(bootstrap.calls, ['wipeSsss(false)']);
+    });
+
+    testWidgets('an OAuth server replaces recovery without a password '
+        'prompt', (tester) async {
+      final launched = mockSignInBrowser(tester);
+      final sent = <Object?>[];
+      final bootstrap = await pump(
+        tester,
+        BootstrapState.askWipeSsss,
+        capabilities: Future.value(_oauthServer),
+        httpClient: _keysUpload(sent),
+      );
+
+      await tester.tap(find.text('Start over with a new code'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(bootstrap.calls, ['wipeSsss(true)']);
+
+      final done = _uploadKeys(client);
+      await tester.pumpAndSettle();
+
+      expect(launched, [approvalUrl]);
+      expect(find.text('Approve in your browser'), findsOneWidget);
+
+      await tester.tap(filled('Continue'));
+      await tester.pumpAndSettle();
+      await done;
+
+      expect(sent, [
+        null,
+        {'session': 'dummy'},
+      ]);
+      expect(find.byType(AlertDialog), findsNothing);
+    });
+
+    testWidgets('a cancelled approval keeps the existing keys, leaves the '
+        'page and is no failure to report', (tester) async {
+      mockSignInBrowser(tester);
+      final sent = <Object?>[];
+      late _SetupEncryption encryption;
+      await pumpPage(
+        tester,
+        mode: SecureBackupMode.key,
+        capabilities: Future.value(_oauthServer),
+        httpClient: _keysUpload(sent),
+        createBootstrap: (client) => Bootstrap(
+          encryption: encryption = _SetupEncryption(client, () async {
+            await _uploadKeys(client);
+            return _FakeKey();
+          }, defaultKeyId: 'old'),
+        ),
+      );
+
+      final reports = await reportsDuring(() async {
+        await tester.tap(find.text('Start over with a new code'));
+        await tester.pumpAndSettle();
+        await tester.tap(filled('Generate security key'));
+        await settle(tester);
+        expect(find.text('Approve in your browser'), findsOneWidget);
+        await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await tester.pumpAndSettle();
+      });
+
+      expect(sent, [null]);
+      expect(encryption.ssss.defaultKeyId, 'old');
+      expect(find.byType(SecureBackupPage), findsNothing);
+      expect(find.text('That did not work. Try again.'), findsNothing);
+      expect(reports, isEmpty);
+    });
+
+    testWidgets('starting over waits for the server to say how it confirms', (
+      tester,
+    ) async {
+      final bootstrap = await pump(
+        tester,
+        BootstrapState.askWipeSsss,
+        capabilities: Completer<AccountCapabilities>().future,
+      );
+
+      final startOver = find.widgetWithText(
+        TextButton,
+        'Start over with a new code',
+      );
+      expect(enabled(tester, startOver), isFalse);
+      await tester.tap(startOver);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(bootstrap.calls, isEmpty);
+    });
+
+    testWidgets('a caller that starts over skips the choice and, on an OAuth '
+        'server, asks for no password', (tester) async {
+      final bootstrap = await pump(
+        tester,
+        BootstrapState.askWipeSsss,
+        autoRestoreExisting: false,
+        capabilities: Future.value(_oauthServer),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(bootstrap.calls, ['wipeSsss(true)']);
+    });
+
+    testWidgets('a caller that starts over asks for the password once the '
+        'server has answered, and only once', (tester) async {
+      final answer = Completer<AccountCapabilities>();
+      final bootstrap = await pump(
+        tester,
+        BootstrapState.askWipeSsss,
+        autoRestoreExisting: false,
+        capabilities: answer.future,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(bootstrap.calls, isEmpty);
+
+      answer.complete(const AccountCapabilities());
+      await tester.pumpAndSettle();
+      expect(find.text('Confirm your password'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      ProviderScope.containerOf(tester.element(find.byType(SecureBackupPage)))
+          .invalidate(accountCapabilitiesProvider);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(bootstrap.calls, isEmpty);
     });
   });
 
@@ -684,8 +864,8 @@ void main() {
           Bootstrap(encryption: _SetupEncryption(client, createKey)),
     );
 
-    testWidgets('because the password it asked for was backed out of is no '
-        'failure to report', (tester) async {
+    testWidgets('because the password it asked for was backed out of leaves '
+        'the page and is no failure to report', (tester) async {
       await pumpSetup(
         tester,
         () => client.uiaRequestBackground<OpenSSSS>(
@@ -698,11 +878,30 @@ void main() {
         await settle(tester);
         expect(find.text('Confirm your password'), findsOneWidget);
         await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+        await tester.pumpAndSettle();
+      });
+
+      expect(find.byType(SecureBackupPage), findsNothing);
+      expect(find.text('That did not work. Try again.'), findsNothing);
+      expect(reports, isEmpty);
+    });
+
+    testWidgets('because the server asks for a step Zuno cannot answer is '
+        'reported and says it did not work', (tester) async {
+      await pumpSetup(
+        tester,
+        () => client.uiaRequestBackground<OpenSSSS>(
+          (_) async => throw uiaPasswordChallenge(stages: ['m.login.terms']),
+        ),
+      );
+
+      final reports = await reportsDuring(() async {
+        await tester.tap(filled('Generate security key'));
         await settle(tester);
       });
 
       expect(find.text('That did not work. Try again.'), findsOneWidget);
-      expect(reports, isEmpty);
+      expect(reports, ['recovery bootstrap']);
     });
 
     testWidgets('for any other reason is reported', (tester) async {

@@ -43,3 +43,10 @@ Future<OwnProfile?> ownProfileFromStore(Client client) async {
 
 Future<void> setOwnDisplayName(Client client, String name) => client
     .setProfileField(client.userID!, 'displayname', {'displayname': name});
+
+Future<bool> hasChosenDisplayName(Client client) async {
+  final userId = client.userID!;
+  final field = await client.getProfileField(userId, 'displayname');
+  final name = field['displayname'];
+  return name is String && name.trim().isNotEmpty && name != userId.localpart;
+}

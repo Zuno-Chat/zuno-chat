@@ -17,6 +17,7 @@ import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/password_server.dart';
 
 void main() {
   late ProviderContainer container;
@@ -40,6 +41,8 @@ void main() {
     if (request.url.path.endsWith('/versions')) {
       return heldVersions ?? versions();
     }
+    final password = passwordServerAnswer(request);
+    if (password != null) return password;
     return http.Response(jsonEncode({'errcode': 'M_NOT_FOUND'}), 404);
   });
 
@@ -174,6 +177,78 @@ void main() {
     );
     expect(reports, isEmpty);
   });
+
+  for (final (name, limited) in <(String, http.Response Function())>[
+    (
+      'a rate limit',
+      () => http.Response(
+        jsonEncode({
+          'errcode': 'M_LIMIT_EXCEEDED',
+          'error': 'Too many requests',
+          'retry_after_ms': 30000,
+        }),
+        429,
+      ),
+    ),
+    (
+      'a rate limit without Matrix JSON',
+      () => http.Response(
+        '<html>Too Many Requests</html>',
+        429,
+        headers: {'retry-after': '30'},
+      ),
+    ),
+  ]) {
+    group(name, () {
+      const message = 'Too many attempts. Try again in 30 seconds.';
+      late List<Uri> checks;
+
+      FilledButton continueButton(WidgetTester tester) => tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Continue'));
+
+      Future<void> pumpLimited(WidgetTester tester) async {
+        checks = [];
+        await pumpHomeserverPage(
+          tester,
+          httpClient: FakeHttpClient((request) async {
+            if (!request.url.path.endsWith('/versions')) {
+              return passwordServerAnswer(request) ??
+                  http.Response(jsonEncode({'errcode': 'M_NOT_FOUND'}), 404);
+            }
+            checks.add(request.url);
+            return limited();
+          }),
+        );
+        await submit(tester, 'example.org');
+      }
+
+      testWidgets('holds Continue and says to wait for as long as the server '
+          'said', (tester) async {
+        await pumpLimited(tester);
+
+        expect(find.text(message), findsOneWidget);
+        expect(continueButton(tester).onPressed, isNull);
+
+        await tester.pump(const Duration(seconds: 29));
+        expect(continueButton(tester).onPressed, isNull);
+
+        await tester.pump(const Duration(seconds: 1));
+        expect(continueButton(tester).onPressed, isNotNull);
+        expect(find.text(message), findsNothing);
+      });
+
+      testWidgets('cannot be sidestepped from the keyboard', (tester) async {
+        await pumpLimited(tester);
+
+        await tester.showKeyboard(find.byType(TextField));
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pumpAndSettle();
+
+        expect(checks, hasLength(1));
+        expect(find.text(message), findsOneWidget);
+      });
+    });
+  }
 
   testWidgets('Back during a check leaves at once, and the check passing '
       'later changes nothing', (tester) async {

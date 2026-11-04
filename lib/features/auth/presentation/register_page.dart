@@ -17,14 +17,15 @@ import '../../../core/matrix/session_display_name.dart';
 import '../../../core/matrix/username_field.dart';
 import '../../../core/navigation/zuno_links.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
+import '../../../core/security/password_strength.dart';
 import '../../../core/security/screen_security_service.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keyboard.dart';
+import '../../../core/ui/retry_wait.dart';
 import 'auth_scaffold.dart';
 import 'password_field.dart';
 import 'password_strength_bar.dart';
-import 'retry_wait.dart';
 
 final _codeFormatters = [
   FilteringTextInputFormatter.allow(RegExp(r'[A-Za-z0-9._~-]')),
@@ -132,7 +133,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
       if (!isRegistrationRefusal(e)) reportCaught('register', e, s);
       if (!mounted) return;
       setState(() => _error = registrationErrorMessage(l10n, e));
-      holdRetriesFor(e, whenOver: () => _error = null);
+      holdRetriesFor(retryWaitFor(e), whenOver: () => _error = null);
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -241,6 +242,7 @@ class _RegisterPageState extends ConsumerState<RegisterPage>
                   listenable: Listenable.merge([_password, _username]),
                   builder: (context, _) => PasswordStrengthBar(
                     password: _password.text,
+                    rule: accountPasswordRule,
                     username: _username.text.trim(),
                   ),
                 ),

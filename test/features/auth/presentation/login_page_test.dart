@@ -7,23 +7,31 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/matrix/auth_browser.dart';
 import 'package:zuno/core/matrix/homeserver.dart';
 import 'package:zuno/core/matrix/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/server_choice.dart';
+import 'package:zuno/core/onboarding/onboarding_provider.dart';
+import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/ui/inline_feedback.dart';
 import 'package:zuno/features/auth/presentation/auth_scaffold.dart';
 import 'package:zuno/features/auth/presentation/homeserver_page.dart';
 import 'package:zuno/features/auth/presentation/linked_sign_in_page.dart';
 import 'package:zuno/features/auth/presentation/login_page.dart';
 import 'package:zuno/features/auth/presentation/register_page.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/fixed_homeserver.dart';
+import '../../../helpers/oauth_server.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/preferences_container.dart';
+import '../../../helpers/pump_until.dart';
 import '../../../helpers/screen_security.dart';
+import '../../../helpers/sha256_only_vodozemac.dart';
 
 class _ChangingHomeserver extends FixedHomeserver {
   _ChangingHomeserver(super.choice);
@@ -46,6 +54,8 @@ void main() {
     String homeserver = 'https://example.org',
     String? chosenServerName,
     bool pushed = false,
+    SignIn signIn = const PasswordSignIn(),
+    AuthBrowser? browser,
   }) async {
     final answers = signUpAnswers ?? [() => signUpPath];
     final container = await containerWithPreferences(
@@ -54,15 +64,18 @@ void main() {
         matrixClientProvider.overrideWithValue(
           (client ?? buildTestClient())..homeserver = Uri.parse(homeserver),
         ),
-        signUpPathProvider.overrideWith(
-          (ref, _) async =>
-              (answers.length > 1 ? answers.removeAt(0) : answers.first)(),
-        ),
+        if (signIn is PasswordSignIn)
+          signUpPathProvider.overrideWith(
+            (ref, _) async =>
+                (answers.length > 1 ? answers.removeAt(0) : answers.first)(),
+          ),
+        if (browser != null) authBrowserProvider.overrideWithValue(browser),
         homeserverProvider.overrideWith(
           () => _ChangingHomeserver(
             ServerChoice(
               Uri.https(chosenServerName ?? Uri.parse(homeserver).host),
               apiHost: Uri.parse(homeserver),
+              signIn: signIn,
             ),
           ),
         ),
@@ -381,6 +394,30 @@ void main() {
     );
   });
 
+  testWidgets('a sign-up message takes the place of a sign-in error', (
+    tester,
+  ) async {
+    final client = buildTestClient(
+      httpClient: FakeHttpClient(
+        (_) async => http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403),
+      ),
+    );
+    await pumpLoginPage(
+      tester,
+      client: client,
+      signUpAnswers: [() => SignUpPath.unknown, () => SignUpPath.unknown],
+    );
+    await signIn(tester);
+    await tester.pumpAndSettle();
+    expect(find.text('Wrong username or password'), findsOneWidget);
+
+    await tester.tap(createAccount);
+    await tester.pumpAndSettle();
+
+    expect(find.text(unreachable), findsOneWidget);
+    expect(find.text('Wrong username or password'), findsNothing);
+  });
+
   testWidgets('the sign-up message goes once another server is chosen', (
     tester,
   ) async {
@@ -421,6 +458,401 @@ void main() {
 
     expect(find.text('zuno.chat'), findsOneWidget);
     expect(find.text('matrix.example.org'), findsNothing);
+  });
+
+  group('on an OAuth server', () {
+    late OAuthServer server;
+    late Client client;
+    late List<Uri> authorizations;
+    late Future<Uri> Function(Uri authorization) answerBrowser;
+
+    setUp(() {
+      installSha256OnlyVodozemac();
+      addTearDown(removeSha256OnlyVodozemac);
+      server = OAuthServer();
+      authorizations = [];
+      answerBrowser = (authorization) async => oauthCallbackFor(authorization);
+      client = buildTestClient(
+        database: OAuthSignInDatabase(),
+        httpClient: FakeHttpClient(server.answer),
+      );
+    });
+
+    Future<void> pumpOAuthPage(
+      WidgetTester tester, {
+      bool canCreateAccount = true,
+    }) => pumpLoginPage(
+      tester,
+      client: client,
+      signIn: OAuthSignIn(canCreateAccount: canCreateAccount),
+      browser: (authorization, scheme) async {
+        authorizations.add(authorization);
+        removeSha256OnlyVodozemac();
+        return answerBrowser(authorization);
+      },
+    );
+
+    ProviderContainer pumped(WidgetTester tester) =>
+        ProviderScope.containerOf(tester.element(find.byType(LoginPage)));
+
+    Future<void> tapAndWait(WidgetTester tester, Finder button) async {
+      await tester.tap(button);
+      await tester.pump();
+      await pumpUntil(
+        tester,
+        () => !shows('Signing in…'),
+        reason: 'the browser sign-in to finish',
+      );
+      client.backgroundSync = false;
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump(const Duration(seconds: 3));
+    }
+
+    Finder continueButton() => find.widgetWithText(FilledButton, 'Continue');
+
+    testWidgets('shows Continue and Create account, and no password form', (
+      tester,
+    ) async {
+      await pumpOAuthPage(tester);
+
+      expect(continueButton(), findsOneWidget);
+      expect(createAccount, findsOneWidget);
+      expect(find.textContaining('example.org'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Change'), findsOneWidget);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Sign in with your other device'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Sign in'), findsNothing);
+      expect(server.requestTo('POST', '/_matrix/client/v3/login'), isNull);
+      expect(server.requestTo('POST', '/_matrix/client/v3/register'), isNull);
+    });
+
+    testWidgets('Continue signs in through the browser', (tester) async {
+      await pumpOAuthPage(tester);
+
+      await tapAndWait(tester, continueButton());
+
+      expect(
+        authorizations.single.queryParameters.containsKey('prompt'),
+        isFalse,
+      );
+      expect(client.isLogged(), isTrue);
+      expect(server.requestTo('POST', '/token'), isNotNull);
+      expect(find.byType(InlineError), findsNothing);
+      expect(pumped(tester).read(signInInFlightProvider), isFalse);
+      expect(
+        pumped(tester)
+            .read(onboardingStoreProvider)
+            .justRegistered('@alice:example.org'),
+        isFalse,
+      );
+    });
+
+    testWidgets('cancel shows no error', (tester) async {
+      answerBrowser = (_) async => throw const OAuthSignInCancelled();
+      await pumpOAuthPage(tester);
+
+      final reports = await reportsDuring(() async {
+        await tapAndWait(tester, continueButton());
+      });
+
+      expect(find.byType(InlineError), findsNothing);
+      expect(reports, isEmpty);
+      expect(
+        tester.widget<FilledButton>(continueButton()).onPressed,
+        isNotNull,
+      );
+      expect(client.isLogged(), isFalse);
+      expect(server.requestTo('POST', '/token'), isNull);
+    });
+
+    testWidgets('access_denied shows no error', (tester) async {
+      answerBrowser = (authorization) async => Uri.parse(
+        'chat.zuno:/oauth?error=access_denied'
+        '&state=${authorization.queryParameters['state']}',
+      );
+      await pumpOAuthPage(tester);
+
+      await tapAndWait(tester, continueButton());
+
+      expect(find.byType(InlineError), findsNothing);
+      expect(client.isLogged(), isFalse);
+    });
+
+    testWidgets('a refused callback shows the failure line', (tester) async {
+      answerBrowser = (authorization) async => Uri.parse(
+        'chat.zuno:/oauth?error=server_error'
+        '&state=${authorization.queryParameters['state']}',
+      );
+      await pumpOAuthPage(tester);
+
+      final reports = await reportsDuring(() async {
+        await tapAndWait(tester, continueButton());
+      });
+
+      expect(
+        find.text('Could not sign in to example.org. Try again.'),
+        findsOneWidget,
+      );
+      expect(reports, ['sign in with the browser']);
+      expect(client.isLogged(), isFalse);
+      expect(server.requestTo('POST', '/token'), isNull);
+    });
+
+    testWidgets('a refused client registration shows the failure line and is '
+        'reported with its OAuth code', (tester) async {
+      server.registrationAnswer = http.Response(
+        jsonEncode({'error': 'invalid_client_metadata'}),
+        400,
+      );
+      await pumpOAuthPage(tester);
+
+      final reports = await caughtDuring(() async {
+        await tapAndWait(tester, continueButton());
+      });
+
+      expect(
+        find.text('Could not sign in to example.org. Try again.'),
+        findsOneWidget,
+      );
+      expect(reports, [
+        'sign in with the browser: '
+            'ServerAnswerFailed(400, invalid_client_metadata)',
+      ]);
+      expect(authorizations, isEmpty);
+    });
+
+    testWidgets('a server error says the server cannot be reached and is not '
+        'reported', (tester) async {
+      server.registrationAnswer = http.Response(
+        '<html>Bad Gateway</html>',
+        502,
+      );
+      await pumpOAuthPage(tester);
+
+      final reports = await reportsDuring(() async {
+        await tapAndWait(tester, continueButton());
+      });
+
+      expect(find.text(unreachable), findsOneWidget);
+      expect(reports, isEmpty);
+      expect(authorizations, isEmpty);
+    });
+
+    testWidgets('a rate limit without Matrix JSON waits out its Retry-After, '
+        'holding both buttons, and is not reported', (tester) async {
+      server.registrationAnswer = http.Response(
+        '<html>Too Many Requests</html>',
+        429,
+        headers: {'retry-after': '30'},
+      );
+      await pumpOAuthPage(tester);
+
+      final reports = await reportsDuring(() async {
+        await tapAndWait(tester, continueButton());
+      });
+
+      expect(
+        find.text('Too many attempts. Try again in 30 seconds.'),
+        findsOneWidget,
+      );
+      expect(reports, isEmpty);
+      expect(tester.widget<FilledButton>(continueButton()).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNull);
+
+      await tester.pump(const Duration(seconds: 30));
+
+      expect(
+        tester.widget<FilledButton>(continueButton()).onPressed,
+        isNotNull,
+      );
+      expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
+    });
+
+    testWidgets('a rate limit ends once another server is chosen', (
+      tester,
+    ) async {
+      answerBrowser = (_) async => throw MatrixException.fromJson({
+        'errcode': 'M_LIMIT_EXCEEDED',
+        'retry_after_ms': 30000,
+      });
+      await pumpOAuthPage(tester);
+      await tapAndWait(tester, continueButton());
+      const waiting = 'Too many attempts. Try again in 30 seconds.';
+      expect(find.text(waiting), findsOneWidget);
+
+      (pumped(tester).read(homeserverProvider.notifier) as _ChangingHomeserver)
+          .change(
+            ServerChoice(
+              Uri.https('other.org'),
+              apiHost: Uri.https('other.org'),
+              signIn: const OAuthSignIn(canCreateAccount: true),
+            ),
+          );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text(waiting), findsNothing);
+      expect(find.text('other.org'), findsOneWidget);
+      expect(
+        tester.widget<FilledButton>(continueButton()).onPressed,
+        isNotNull,
+      );
+      expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
+    });
+
+    testWidgets('no browser installed says so', (tester) async {
+      answerBrowser = (_) async => throw const AuthBrowserUnavailable();
+      await pumpOAuthPage(tester);
+
+      final reports = await reportsDuring(() async {
+        await tapAndWait(tester, continueButton());
+      });
+
+      expect(
+        find.text('Zuno needs a web browser to sign in to example.org.'),
+        findsOneWidget,
+      );
+      expect(reports, isEmpty);
+    });
+
+    testWidgets('a rate limit says to wait, holds both buttons and is not '
+        'reported', (tester) async {
+      answerBrowser = (_) async => throw MatrixException.fromJson({
+        'errcode': 'M_LIMIT_EXCEEDED',
+        'retry_after_ms': 30000,
+      });
+      await pumpOAuthPage(tester);
+
+      final reports = await reportsDuring(() async {
+        await tapAndWait(tester, continueButton());
+      });
+
+      expect(
+        find.text('Too many attempts. Try again in 30 seconds.'),
+        findsOneWidget,
+      );
+      expect(reports, isEmpty);
+      expect(tester.widget<FilledButton>(continueButton()).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNull);
+
+      await tester.pump(const Duration(seconds: 30));
+
+      expect(
+        tester.widget<FilledButton>(continueButton()).onPressed,
+        isNotNull,
+      );
+      expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
+    });
+
+    testWidgets('Create account opens the browser with prompt=create and '
+        'marks the user registered', (tester) async {
+      await pumpOAuthPage(tester);
+
+      await tapAndWait(tester, createAccount);
+
+      expect(authorizations.single.queryParameters['prompt'], 'create');
+      expect(client.isLogged(), isTrue);
+      expect(find.byType(RegisterPage), findsNothing);
+      expect(
+        pumped(tester)
+            .read(onboardingStoreProvider)
+            .justRegistered('@alice:example.org'),
+        isTrue,
+      );
+    });
+
+    testWidgets('a name set during a browser sign-up is not asked for '
+        'again', (tester) async {
+      server.displayName = 'Alice Smith';
+      await pumpOAuthPage(tester);
+
+      await tapAndWait(tester, createAccount);
+
+      final store = pumped(tester).read(onboardingStoreProvider);
+      expect(store.justRegistered('@alice:example.org'), isTrue);
+      expect(store.shown('@alice:example.org'), {OnboardingStep.profile});
+    });
+
+    testWidgets('a browser sign-up with no name is still asked for one', (
+      tester,
+    ) async {
+      await pumpOAuthPage(tester);
+
+      await tapAndWait(tester, createAccount);
+
+      final store = pumped(tester).read(onboardingStoreProvider);
+      expect(store.justRegistered('@alice:example.org'), isTrue);
+      expect(store.shown('@alice:example.org'), isEmpty);
+    });
+
+    testWidgets('Create account holds Continue, saying it is signing in, and '
+        'Change until the browser returns', (tester) async {
+      final browserAnswer = Completer<Uri>();
+      answerBrowser = (_) => browserAnswer.future;
+      await pumpOAuthPage(tester);
+      final change = find.widgetWithText(TextButton, 'Change');
+
+      await tester.tap(createAccount);
+      await tester.pump();
+      await pumpUntil(
+        tester,
+        () => authorizations.isNotEmpty,
+        reason: 'the browser to open',
+      );
+
+      final signingIn = find.widgetWithText(FilledButton, 'Signing in…');
+      expect(tester.widget<FilledButton>(signingIn).onPressed, isNull);
+      expect(tester.widget<TextButton>(change).onPressed, isNull);
+      expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNull);
+
+      browserAnswer.completeError(const OAuthSignInCancelled());
+      await pumpUntil(
+        tester,
+        () => !shows('Signing in…'),
+        reason: 'the cancel to land',
+      );
+
+      expect(
+        tester.widget<FilledButton>(continueButton()).onPressed,
+        isNotNull,
+      );
+      expect(tester.widget<TextButton>(change).onPressed, isNotNull);
+    });
+
+    testWidgets('a cancelled Create account marks nobody registered', (
+      tester,
+    ) async {
+      answerBrowser = (_) async => throw const OAuthSignInCancelled();
+      await pumpOAuthPage(tester);
+
+      await tapAndWait(tester, createAccount);
+
+      expect(find.byType(InlineError), findsNothing);
+      expect(
+        pumped(tester)
+            .read(onboardingStoreProvider)
+            .justRegistered('@alice:example.org'),
+        isFalse,
+      );
+    });
+
+    testWidgets('keeps accessibility services out, having no fields to '
+        'fill', (tester) async {
+      ambientCapabilities = androidCapabilities;
+      final native = installFakePrivacyChannel();
+      await pumpOAuthPage(tester);
+
+      expect(native.accessibilitySensitivity, isEmpty);
+    });
+
+    testWidgets('no Create account where the server does not offer create', (
+      tester,
+    ) async {
+      await pumpOAuthPage(tester, canCreateAccount: false);
+
+      expect(continueButton(), findsOneWidget);
+      expect(find.text('Create account'), findsNothing);
+    });
   });
 
   testWidgets('Change opens the server screen, even on the default', (
@@ -507,6 +939,16 @@ void main() {
       expect(find.text(message), findsNothing);
     });
 
+    testWidgets('ends once another server is chosen', (tester) async {
+      await pumpLimited(tester);
+
+      changeServer(tester, 'other.org');
+      await tester.pump();
+
+      expect(find.text(message), findsNothing);
+      expect(signInButton(tester).onPressed, isNotNull);
+    });
+
     testWidgets('cannot be sidestepped from the keyboard', (tester) async {
       final requests = await pumpLimited(tester);
 
@@ -541,6 +983,29 @@ void main() {
     await tester.pump();
 
     expect(container.read(signInInFlightProvider), isFalse);
+  });
+
+  testWidgets('Change and Create account wait while a sign-in runs', (
+    tester,
+  ) async {
+    final answer = Completer<http.Response>();
+    await pumpLoginPage(
+      tester,
+      signUpPath: SignUpPath.open,
+      client: buildTestClient(httpClient: FakeHttpClient((_) => answer.future)),
+    );
+    final change = find.widgetWithText(TextButton, 'Change');
+
+    await signIn(tester);
+
+    expect(tester.widget<TextButton>(change).onPressed, isNull);
+    expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNull);
+
+    answer.complete(http.Response(jsonEncode({'errcode': 'M_FORBIDDEN'}), 403));
+    await tester.pumpAndSettle();
+
+    expect(tester.widget<TextButton>(change).onPressed, isNotNull);
+    expect(tester.widget<OutlinedButton>(createAccount).onPressed, isNotNull);
   });
 
   testWidgets('a refusal that lands after the page is left is dropped', (

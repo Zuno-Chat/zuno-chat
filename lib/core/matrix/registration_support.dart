@@ -6,7 +6,7 @@ import 'package:matrix/matrix.dart';
 import '../errors/caught_errors.dart';
 import '../l10n/l10n.dart';
 import '../security/password_strength.dart';
-import 'username_field.dart';
+import 'matrix_ids.dart';
 
 const registrationTokenStage = 'm.login.registration_token';
 
@@ -104,8 +104,6 @@ Future<RegistrationSupport> fetchRegistrationSupport(
   }
 }
 
-const maxRegistrationPasswordLength = 512;
-
 const maxUserIdLength = 255;
 
 String? registrationInputError(
@@ -119,22 +117,18 @@ String? registrationInputError(
   if (username.startsWith('@') || username.contains(':')) {
     return l10n.matrixSignupEnterJustUsername;
   }
-  if (!RegExp('^[$signupUsernameChars]+\$').hasMatch(username)) {
+  if (!RegExp('^[$matrixLocalpartChars]+\$').hasMatch(username)) {
     return l10n.matrixSignupUsernameChars;
-  }
-  if (username.startsWith('_')) {
-    return l10n.matrixSignupUsernameUnderscore;
-  }
-  if (!username.contains(RegExp('[a-z]'))) {
-    return l10n.matrixSignupUsernameLetter;
   }
   if ('@$username:${serverName ?? ''}'.length > maxUserIdLength) {
     return l10n.matrixSignupUsernameTooLong;
   }
-  if (password.length > maxRegistrationPasswordLength) {
-    return l10n.matrixSignupPasswordTooLong(maxRegistrationPasswordLength);
-  }
-  final assessment = assessPassword(l10n, password, username: username);
+  final assessment = assessPassword(
+    l10n,
+    password,
+    rule: accountPasswordRule,
+    username: username,
+  );
   if (assessment.blocker != null) return assessment.blocker;
   if (password != confirmPassword) return l10n.matrixSignupPasswordsDiffer;
   return null;
