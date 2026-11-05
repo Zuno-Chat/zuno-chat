@@ -184,7 +184,7 @@ void main() {
     );
     await clearing.copyWithNotice(messenger, l10n, 'recovery code');
     await tester.pump();
-    expect(find.text(l10n.settingsCopiedSensitive), findsOneWidget);
+    expect(find.text(l10n.commonCopiedSensitive), findsOneWidget);
 
     messenger.removeCurrentSnackBar();
     await tester.pumpAndSettle();
@@ -196,7 +196,7 @@ void main() {
       ),
     ).copyWithNotice(messenger, l10n, 'recovery code');
     await tester.pump();
-    expect(find.text(l10n.settingsCopiedStays), findsOneWidget);
+    expect(find.text(l10n.commonCopiedStays), findsOneWidget);
     clearing.cancelPendingClear();
   });
 }

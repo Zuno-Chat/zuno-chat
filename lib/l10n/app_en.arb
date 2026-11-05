@@ -620,10 +620,6 @@
   "@chatConfirmedLabel": {
     "description": "Screen-reader label for the check icon: this person is confirmed"
   },
-  "chatCopied": "Copied",
-  "@chatCopied": {
-    "description": "Snack bar after copying a message"
-  },
   "chatDeleteAll": "Delete all",
   "@chatDeleteAll": {
     "description": "Dialog button: delete all selected messages"
@@ -4925,7 +4921,7 @@
   "settingsConfirmedOnlyNeedsRecovery": "Set up recovery to turn this on",
   "settingsConfirmedOnlySubtitle": "Only people you have confirmed, and your approved devices, can read what you send from this device",
   "settingsConfirmedOnlyTitle": "Confirmed people only",
-  "settingsCopiedSensitive": "Copied. Clears from the clipboard in 90 seconds.",
+  "commonCopiedSensitive": "Copied. Clears from the clipboard in 90 seconds.",
   "settingsDataCacheCleared": "Cache cleared",
   "@settingsDataCacheCleared": {
     "description": "Snack bar after clearing the cache"
@@ -5083,7 +5079,7 @@
     }
   },
   "settingsRecoveryConfirmTitle": "Check your saved copy",
-  "settingsCopiedStays": "Copied. It stays on the clipboard until you copy something else.",
+  "commonCopiedStays": "Copied. It stays on the clipboard until you copy something else.",
   "settingsRecoveryLooksRight": "Looks right.",
   "@settingsRecoveryLooksRight": {
     "description": "Check under the recovery code field: the code looks valid"

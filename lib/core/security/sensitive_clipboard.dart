@@ -55,8 +55,8 @@ class SensitiveClipboard {
     await copy(text);
     messenger.say(
       _capabilities.sensitiveClipboard
-          ? l10n.settingsCopiedSensitive
-          : l10n.settingsCopiedStays,
+          ? l10n.commonCopiedSensitive
+          : l10n.commonCopiedStays,
     );
   }
 

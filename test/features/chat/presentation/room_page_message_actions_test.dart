@@ -16,6 +16,7 @@ import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/core/matrix/sync/connection_monitor.dart';
 import 'package:zuno/core/matrix/sync/connectivity_provider.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
+import 'package:zuno/core/security/sensitive_clipboard.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
 import 'package:zuno/features/chat/presentation/message_contents/media_message.dart';
@@ -26,6 +27,7 @@ import 'package:zuno/features/chat/presentation/send_icon.dart';
 import 'package:zuno/features/location/presentation/location_bubble.dart';
 
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_privacy_channel.dart';
 import '../../../helpers/pump_until.dart';
 import 'room_page_harness.dart';
 
@@ -721,7 +723,9 @@ void main() {
     });
   });
 
-  testWidgets('Copy copies the text without the reply quote', (tester) async {
+  testWidgets('Copy copies the text without the reply quote, as sensitive '
+      'text that clears itself', (tester) async {
+    final native = installFakePrivacyChannel();
     await openRoom(
       tester,
       () => [
@@ -734,9 +738,16 @@ void main() {
 
     await openActions(tester, 'the answer');
     await tapAction(tester, 'Copy');
+    SensitiveClipboard.instance.cancelPendingClear();
 
-    expect(copied, ['the answer']);
-    expect(find.text('Copied'), findsOneWidget);
+    expect(native.argsOf('copySensitive'), [
+      {'text': 'the answer'},
+    ]);
+    expect(copied, isEmpty);
+    expect(
+      find.text('Copied. Clears from the clipboard in 90 seconds.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('a live location offers no Copy', (tester) async {

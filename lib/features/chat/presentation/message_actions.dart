@@ -14,6 +14,7 @@ import '../../../core/matrix/media/attachments/attachment_feedback.dart';
 import '../../../core/matrix/rooms/abuse_report.dart';
 import '../../../core/matrix/rooms/permissions/room_permission.dart';
 import '../../../core/security/security_emphasis.dart';
+import '../../../core/security/sensitive_clipboard.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/notice.dart';
 import '../../../core/ui/sheet.dart';
@@ -139,9 +140,10 @@ Future<void> showMessageActions(
     case MessageAction.save:
       await saveAttachmentsWithFeedback(messenger, l10n, media);
     case MessageAction.copy:
-      await messenger.copy(
+      await SensitiveClipboard.instance.copyWithNotice(
+        messenger,
+        l10n,
         displayBody(event, timeline),
-        copied: l10n.chatCopied,
       );
     case MessageAction.report:
       await _reportMessage(context, room, event);
