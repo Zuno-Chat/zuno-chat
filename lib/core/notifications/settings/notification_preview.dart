@@ -28,6 +28,8 @@ enum NotificationPreview {
 
   String callName(String name, AppLocalizations l10n) =>
       this == nothing ? l10n.callsGenericRingName : name;
+
+  bool get showsSenders => this != nothing;
 }
 
 const notificationPreviewKey = 'settings.notification_preview';

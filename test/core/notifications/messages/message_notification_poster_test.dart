@@ -516,8 +516,8 @@ void main() {
       expect(roomPosts().last.android['largeIcon'], bytes);
     });
 
-    test('Nothing fetches no avatar, shows not even the one the app keeps, '
-        'and downloads nothing', () async {
+    test('Nothing fetches no avatar, shows or keeps not even the one the app '
+        'keeps, and downloads nothing', () async {
       choose(NotificationPreview.nothing);
       final appDir = await Directory.systemTemp.createTemp('app_avatars');
       addTearDown(() => appDir.delete(recursive: true));
@@ -530,6 +530,7 @@ void main() {
       expect(published, 0);
       expect(roomPosts(), hasLength(1));
       expect(roomPosts().single.android['largeIcon'], isNull);
+      expect(await NotificationAvatarCache.instance.read(avatarUrl), isNull);
     });
   });
 }

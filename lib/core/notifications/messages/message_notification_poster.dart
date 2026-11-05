@@ -37,7 +37,7 @@ Future<void> postMessageNotification(
   PlatformCapabilities? capabilities,
 }) async {
   final platform = capabilities ?? ambientCapabilities;
-  final avatarUrl = platform.notificationAvatars
+  final avatarUrl = platform.notificationAvatars && preview.showsSenders
       ? content.senderAvatarUrl
       : null;
   final kept =
@@ -68,11 +68,7 @@ Future<void> postMessageNotification(
   onPosted?.call();
   if (placeholder) return;
 
-  final needsAvatar =
-      avatarUrl != null &&
-      !kept &&
-      fromApp == null &&
-      preview != NotificationPreview.nothing;
+  final needsAvatar = avatarUrl != null && !kept && fromApp == null;
   final needsImage =
       content.isPhoto &&
       fetchImage != null &&
