@@ -66,6 +66,16 @@ void main() {
     expect(NotificationPreview.nothing.callName('Alice', l10n), 'Zuno call');
   });
 
+  test('senders show above Nothing, photos only at Name and message', () {
+    expect(NotificationPreview.values.where((l) => l.showsSenders), [
+      NotificationPreview.full,
+      NotificationPreview.nameOnly,
+    ]);
+    expect(NotificationPreview.values.where((l) => l.showsImages), [
+      NotificationPreview.full,
+    ]);
+  });
+
   test('only systems without the retention fix are flagged', () {
     for (final version in [
       'Version 15.8.7 (Build 19H1)',

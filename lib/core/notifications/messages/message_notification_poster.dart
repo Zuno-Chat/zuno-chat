@@ -9,6 +9,7 @@ import '../../matrix/media/avatars/mxc_avatar_image.dart'
 import '../../platform/platform_capabilities.dart';
 import '../../push/handling/push_timing.dart';
 import '../notification_avatar.dart';
+import '../notification_line_renderer.dart';
 import '../settings/notification_preview.dart';
 import 'message_notification_content.dart';
 import 'message_notification_image.dart';
@@ -55,6 +56,7 @@ Future<void> postMessageNotification(
   }) => MessageNotifications.instance.showMessage(
     content,
     preview: preview,
+    render: ClientNotificationRenderer(client),
     isMessage: isMessage,
     senderAvatar: avatar,
     placeholder: placeholder,
@@ -73,7 +75,7 @@ Future<void> postMessageNotification(
       content.isPhoto &&
       fetchImage != null &&
       platform.notificationImages &&
-      preview == NotificationPreview.full;
+      preview.showsImages;
   if (!needsAvatar && !needsImage) return;
 
   Future<void> refine() async {

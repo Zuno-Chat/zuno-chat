@@ -23,6 +23,7 @@ import 'core/matrix/media/attachments/attachment_cache.dart';
 import 'core/matrix/media/attachments/legacy_plaintext_copies.dart';
 import 'core/network/app_http_overrides.dart';
 import 'core/notifications/actions/native_notification_action_runner.dart';
+import 'core/notifications/messages/retired_notification_records.dart';
 import 'core/platform/platform_capabilities.dart';
 import 'core/push/fcm/fcm_headless_entry.dart';
 import 'core/push/fcm/fcm_startup.dart';
@@ -48,11 +49,20 @@ Future<void> _runApp(List<String> args) async {
   await AppLocale.instance.start();
   await installAppHttpOverrides();
   if (kDebugMode) debugPrint('zuno/push: main(args=$args)');
+  final retired = runBestEffort(
+    () async => moveRetiredNotificationRecords(
+      await SharedPreferences.getInstance(),
+      ambientCapabilities,
+    ),
+    label: 'move the notification records older builds kept',
+  );
   if (args.contains(_fcmBackgroundArg)) {
+    await retired;
     await runFcmHeadless();
     return;
   }
   if (args.contains(_unifiedPushBackgroundArg)) {
+    await retired;
     await _runHeadlessPushHandler();
     return;
   }
@@ -93,6 +103,7 @@ Future<void> _runApp(List<String> args) async {
     ),
   );
   unawaited(DiskAttachmentCache.instance.sweep());
+  await retired;
   attachFcmAppClient(client);
   if (ambientCapabilities.nativeNotificationActions) {
     nativeNotificationActionRunner.attach(client);

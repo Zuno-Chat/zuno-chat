@@ -118,6 +118,9 @@ own.
   first (`location-sharing.md`).
 - **Copy is offered on text messages only**, because any other kind's
   text is a fallback for other clients, not what its bubble shows.
+- **Copy goes through the sensitive clipboard** (`settings.md`), so a
+  copied message stays on this device and clears itself, because its text
+  is end-to-end encrypted everywhere else.
 
 ## Room updates
 

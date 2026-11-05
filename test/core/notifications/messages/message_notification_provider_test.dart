@@ -6,6 +6,7 @@ import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/events/room_updates.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
+import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';
 
@@ -51,7 +52,6 @@ void main() {
     NotifyMe notifyMe = NotifyMe.all,
     String? currentlyOpenRoomId,
     DateTime? openedAt,
-    NotificationPreview preview = NotificationPreview.full,
   }) => messageNotificationFor(
     client,
     event,
@@ -59,8 +59,14 @@ void main() {
     notifyMe: notifyMe,
     currentlyOpenRoomId: currentlyOpenRoomId,
     openedAt: openedAt,
-    preview: preview,
   );
+
+  String bodyOf(
+    MessageNotificationContent content, [
+    NotificationPreview preview = NotificationPreview.full,
+  ]) => content
+      .threadOf([content.toLine()])
+      .bodyAt(preview, englishLocalizations);
 
   test('notifies with room title + "sender: preview" body for a group message '
       'when the push rule says notify', () {
@@ -68,7 +74,7 @@ void main() {
 
     expect(decision.content, isNotNull);
     expect(decision.content!.roomId, room.id);
-    expect(decision.content!.body, 'Alice: hello there');
+    expect(bodyOf(decision.content!), 'Alice: hello there');
     expect(decision.content!.isDirectChat, isFalse);
     expect(decision.refusal, isNull);
   });
@@ -291,11 +297,7 @@ void main() {
     expect(decide(textEvent()).content?.quiet, isFalse);
   });
 
-  MessageNotificationDecision decideSummary(
-    CallSummaryStatus status, {
-    NotificationPreview preview = NotificationPreview.full,
-  }) => decide(
-    preview: preview,
+  MessageNotificationDecision decideSummary(CallSummaryStatus status) => decide(
     buildTestEvent(
       room,
       eventId: r'$1',
@@ -329,23 +331,21 @@ void main() {
     }
   });
 
-  test('Name only hides the text but keeps a missed call\'s own line', () {
-    final message = decide(
-      textEvent(),
-      preview: NotificationPreview.nameOnly,
-    ).content!;
-    expect(message.text, englishLocalizations.notificationsNewMessage);
+  test("Name only hides a message's text but keeps a missed call's own "
+      'line', () {
+    final message = decide(textEvent()).content!;
+    expect(message.kind, NotificationLineKind.message);
     expect(
-      message.body,
+      bodyOf(message, NotificationPreview.nameOnly),
       'Alice: ${englishLocalizations.notificationsNewMessage}',
     );
 
-    final missed = decideSummary(
-      CallSummaryStatus.missed,
-      preview: NotificationPreview.nameOnly,
-    ).content!;
-    expect(missed.text, decideSummary(CallSummaryStatus.missed).content!.text);
-    expect(missed.text, isNot(englishLocalizations.notificationsNewMessage));
+    final missed = decideSummary(CallSummaryStatus.missed).content!;
+    expect(missed.kind, NotificationLineKind.callSummary);
+    expect(
+      bodyOf(missed, NotificationPreview.nameOnly),
+      'Alice: ${missed.text}',
+    );
   });
 
   test('describes a photo by its caption, with no thumbnail to fetch', () {
@@ -364,7 +364,7 @@ void main() {
     final decision = decide(event);
 
     expect(decision.content, isNotNull);
-    expect(decision.content!.body, contains('a cat'));
+    expect(bodyOf(decision.content!), contains('a cat'));
     expect(decision.content!.text, contains('a cat'));
     expect(decision.content!.isPhoto, isTrue);
   });

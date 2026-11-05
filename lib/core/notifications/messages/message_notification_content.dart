@@ -1,10 +1,14 @@
+import 'package:clock/clock.dart';
+
+import 'notification_thread.dart';
+
 class MessageNotificationContent {
   final String roomId;
   final String? threadKey;
   final String title;
-  final String body;
 
-  final String? text;
+  final String text;
+  final NotificationLineKind kind;
 
   final String? eventId;
 
@@ -22,8 +26,8 @@ class MessageNotificationContent {
     required this.roomId,
     this.threadKey,
     required this.title,
-    required this.body,
-    this.text,
+    required this.text,
+    this.kind = NotificationLineKind.message,
     this.eventId,
     this.isDirectChat = true,
     this.senderId,
@@ -41,8 +45,8 @@ class MessageNotificationContent {
       other.roomId == roomId &&
       other.threadKey == threadKey &&
       other.title == title &&
-      other.body == body &&
       other.text == text &&
+      other.kind == kind &&
       other.eventId == eventId &&
       other.isDirectChat == isDirectChat &&
       other.senderId == senderId &&
@@ -58,8 +62,8 @@ class MessageNotificationContent {
     roomId,
     threadKey,
     title,
-    body,
     text,
+    kind,
     eventId,
     isDirectChat,
     senderId,
@@ -72,4 +76,37 @@ class MessageNotificationContent {
   );
 
   String get thread => threadKey ?? roomId;
+
+  NotificationLine toLine({
+    StoredNotificationLine? previous,
+    bool placeholder = false,
+    String? imageUri,
+    String? imageMimeType,
+  }) =>
+      StoredNotificationLine(
+        eventId: eventId,
+        senderId: senderId ?? previous?.senderId ?? roomId,
+        kind: kind,
+        timestamp:
+            (placeholder ? previous?.timestamp : null) ??
+            timestamp ??
+            clock.now(),
+        placeholder: placeholder,
+        imageUri: imageUri ?? previous?.imageUri,
+        imageMimeType: imageMimeType ?? previous?.imageMimeType,
+        quiet: quiet,
+      ).rendered(
+        senderName: senderName ?? title,
+        senderAvatarUrl: senderAvatarUrl,
+        text: text,
+      );
+
+  NotificationThread threadOf(List<NotificationLine> lines) =>
+      NotificationThread(
+        roomId: roomId,
+        key: thread,
+        title: title,
+        isGroupChat: !isDirectChat,
+        lines: lines,
+      );
 }

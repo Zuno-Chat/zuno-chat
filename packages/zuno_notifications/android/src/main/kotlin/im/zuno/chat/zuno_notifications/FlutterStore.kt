@@ -6,10 +6,10 @@ import android.content.SharedPreferences
 object FlutterStore {
     const val FILE = "FlutterSharedPreferences"
     const val PREFIX = "flutter."
+    const val THREADS_FILE = "notification_threads.json"
     const val RINGING_CALL = "${PREFIX}calls.ringing_notification"
     const val RESOLVED_CALL_PREFIX = "${PREFIX}calls.resolved."
     const val ROOM_CACHE = "${PREFIX}notifications.rooms"
-    const val THREADS = "${PREFIX}notifications.threads"
     const val RECENT_DELIVERIES = "${PREFIX}push.recent_deliveries"
     const val FCM_TOKEN = "${PREFIX}push.fcm.token"
     const val NOTIFICATION_PREVIEW = "${PREFIX}settings.notification_preview"

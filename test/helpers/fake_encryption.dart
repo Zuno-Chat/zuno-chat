@@ -90,6 +90,9 @@ class EncryptedTestClient extends Client {
 }
 
 class FakeRoomDecryption extends Fake implements Encryption {
+  FakeRoomDecryption({this.keepsKeys = false});
+
+  final bool keepsKeys;
   final decrypted = <Event>[];
   final storedAfterDecrypt = <bool>[];
 
@@ -110,6 +113,10 @@ class FakeRoomDecryption extends Fake implements Encryption {
     EventUpdateType updateType = EventUpdateType.timeline,
   }) async {
     storedAfterDecrypt.add(store);
+    if (keepsKeys) {
+      return decrypted.where((e) => e.eventId == event.eventId).firstOrNull ??
+          event;
+    }
     return decrypted.isEmpty ? event : decrypted.removeAt(0);
   }
 }

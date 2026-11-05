@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/best_effort.dart';
+import '../../notifications/messages/message_notifications.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../push/nse/session_exporter.dart';
 import '../../settings/app_preferences_provider.dart';
@@ -83,6 +84,7 @@ Future<void> Function() _wipeKeepingProcess(
   }
   forgetAccountAttachments();
   SessionExporter.instance.forgetAccount();
+  await MessageNotifications.instance.settled();
   try {
     await vacuum();
   } finally {

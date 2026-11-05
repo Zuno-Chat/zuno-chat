@@ -109,7 +109,8 @@ flowchart TD
     while it is on screen, whatever the Prevent screenshots setting says
     (`settings.md`).
   - It shows as text that cannot be selected, so copying goes only through
-    the Copy button and the clipboard that clears itself.
+    the Copy button and the sensitive clipboard, which clears itself
+    (`settings.md`).
   - Its fields offer only cut, copy, paste and select all, copying through
     that same clipboard, with keyboard learning off.
 - **Saving offers writing it down, a file or copying it**, with no "save to
@@ -438,9 +439,6 @@ the commonest words of ordinary prose break any run.
   storage**, so the copy is deleted after reading, or the code lingers there
   in plaintext; only a copy inside that storage is ever deleted, never the
   user's original.
-- **Android 10 and later lets only the focused app read the clipboard**, so
-  clearing a copied recovery code that comes due in the background waits for
-  the next resume.
 - **Replacing a code asks for the password first**, because `Bootstrap`
   reaches the password checkpoint only after the old code is gone.
 - **`Bootstrap` reports its first state from inside its constructor**,

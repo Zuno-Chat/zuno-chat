@@ -97,6 +97,14 @@ draw over the secret. One ref-counted owner combines the setting with every
 such screen, so closing one never turns protection off under another or
 under the setting.
 
+Copied messages and secrets go through the sensitive clipboard, which keeps
+the copy on this device and clears it after 90 seconds, as its notice says.
+iOS marks the copy local-only, so Universal Clipboard never carries it to
+another device, and sets it to expire; Android marks it sensitive, which
+hides it from the system's copy preview. On both, Zuno clears it when due if
+the clipboard still holds that copy. Other copies, such as IDs, use the plain
+clipboard.
+
 On Android 14+ Zuno's window is always marked accessibility-data-sensitive,
 so only accessibility services that declare themselves assistive tools can
 read it; sign-in and registration lift the mark (`authentication.md`).
@@ -118,6 +126,9 @@ controls are server-wide and a client-only setting would enforce nothing.
 - **`client.getUserProfile` serves a cached profile** that
   `setProfileField` does not invalidate, so Account re-reads with
   `maxCacheAge: Duration.zero` after a save.
+- **Android 10 and later lets only the focused app read the clipboard**, so
+  a sensitive copy's clear that comes due in the background waits for the
+  next resume.
 - **Riverpod 3 throws on `ref` once a page is gone**, so check `mounted`
   after an `await` before touching `ref`.
 - **`expectEveryRowOnACard`** (`test/helpers/card_layout.dart`) fails a test

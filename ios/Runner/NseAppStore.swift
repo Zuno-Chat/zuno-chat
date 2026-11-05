@@ -16,8 +16,23 @@ struct NseAppStore: Sendable {
       hashing: LiveNseHashing(key: secrets.tokenKey))
   }
 
-  func writeShown(_ keys: [String]) {
-    state.recordShown(keys.map(hashing.e), in: NotifyFile.shownApp)
+  func writeShown(_ claims: [NseClaim]) {
+    state.recordShown(claims.map { hashing.e($0.key) }, in: NotifyFile.shownApp)
+  }
+
+  func shownByExtension(_ claims: [NseClaim]) -> [Bool] {
+    let shown = Set(state.shown(NotifyFile.shownNse))
+    let hidden = Set(state.shown(NotifyFile.hiddenApp))
+    return claims.map { claim in
+      let token = hashing.e(claim.key)
+      return shown.contains(token) && !hidden.contains(token)
+    }
+  }
+
+  func recordHidden(_ alert: NseDelivered) -> Bool {
+    guard !alert.claims.isEmpty else { return false }
+    state.recordShown(alert.claims, in: NotifyFile.hiddenApp)
+    return true
   }
 
   func takeMarks(_ defaults: UserDefaults) -> [[String: Any]] {

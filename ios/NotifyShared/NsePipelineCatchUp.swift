@@ -94,11 +94,13 @@ extension NsePipeline {
     case .hidden, .ring:
       return .hidden
     case .invitation(let roomName):
-      guard claimInvitation(item.roomId, context: context, nowMs: now) else { return .hidden }
+      guard let claim = claimInvitation(item.roomId, context: context, nowMs: now) else {
+        return .hidden
+      }
       let line = NseComposer.invitation(
         inviter: NseComposer.inviter(event: event, fetched: fetched), roomName: roomName,
         tone: false, tokens: tokens)
-      return .shown(title: line.title, body: line.body, kind: "inv")
+      return .shown(title: line.title, body: line.body, kind: "inv", claim: claim)
     case .verification:
       let line = NseComposer.verification(
         sender: names.sender.isEmpty ? names.title : names.sender, tone: false, tokens: tokens)

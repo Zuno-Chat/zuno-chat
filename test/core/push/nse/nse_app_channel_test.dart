@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/push/nse/nse_app_channel.dart';
 import 'package:zuno/core/push/nse/opaque_thread_ids.dart';
 
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -31,7 +32,10 @@ void main() {
     final nse = NseAppChannel(capabilities: ios);
     reply = true;
 
-    await nse.writeShown([r'$e1', 'invite:!r:x']);
+    await nse.writeShown([
+      const ExtensionClaim.event(r'$e1'),
+      const ExtensionClaim.invite('!r:x'),
+    ]);
     final stored = await nse.setCredential('cred', expiresTs: 9);
 
     expect(stored, isTrue);
@@ -39,7 +43,10 @@ void main() {
       [
         'writeShown',
         {
-          'e': [r'$e1', 'invite:!r:x'],
+          'claims': [
+            {'kind': 'event', 'id': r'$e1'},
+            {'kind': 'invite', 'id': '!r:x'},
+          ],
         },
       ],
       [
@@ -47,6 +54,66 @@ void main() {
         {'credential': 'cred', 'expires_ts': 9},
       ],
     ]);
+  });
+
+  test('asks the native store in one call which claims the extension still '
+      'holds; without it, or on an error, it holds none', () async {
+    const event = ExtensionClaim.event(r'$e1');
+    const invite = ExtensionClaim.invite('!r:x');
+    const other = ExtensionClaim.event(r'$e2');
+    reply = [true, false, true];
+    expect(
+      await NseAppChannel(capabilities: ios)
+          .shownByExtension([event, invite, other]),
+      {event, other},
+    );
+    expect(calls.single.method, 'shownByExtension');
+    expect(calls.single.arguments, {
+      'claims': [
+        {'kind': 'event', 'id': r'$e1'},
+        {'kind': 'invite', 'id': '!r:x'},
+        {'kind': 'event', 'id': r'$e2'},
+      ],
+    });
+
+    reply = [true];
+    expect(
+      await NseAppChannel(capabilities: ios).shownByExtension([event, invite]),
+      {event},
+    );
+
+    expect(
+      await NseAppChannel(capabilities: androidCapabilities)
+          .shownByExtension([event]),
+      isEmpty,
+    );
+    expect(calls, hasLength(2));
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          channel,
+          (call) async => throw PlatformException(code: 'boom'),
+        );
+    expect(
+      await NseAppChannel(capabilities: ios).shownByExtension([event]),
+      isEmpty,
+    );
+  });
+
+  test('hears each alert native code hid in front until told to '
+      'stop', () async {
+    final nse = NseAppChannel(capabilities: ios);
+    var hidden = 0;
+    nse.onAlertHidden(() => hidden++);
+    addTearDown(() => nse.onAlertHidden(null));
+
+    await callFromNative(channel, 'alertHiddenInFront');
+    await callFromNative(channel, 'something else');
+    expect(hidden, 1);
+
+    nse.onAlertHidden(null);
+    await callFromNative(channel, 'alertHiddenInFront');
+    expect(hidden, 1);
   });
 
   test('marks and outcomes are read from records', () async {
@@ -71,7 +138,7 @@ void main() {
     'without the extension, or without the native side, nothing is sent',
     () async {
       final android = NseAppChannel(capabilities: androidCapabilities);
-      await android.writeShown([r'$e']);
+      await android.writeShown([const ExtensionClaim.event(r'$e')]);
       expect(await android.syncBadge(['t']), isNull);
       expect(calls, isEmpty);
 

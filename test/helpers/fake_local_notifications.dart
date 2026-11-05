@@ -60,12 +60,35 @@ class RecordedNotifications {
   final List<String> methods = [];
   final List<Map<String, Object?>> channels = [];
   List<Map<String, Object?>> active = const [];
+  bool shownStylesReadable = true;
   List<Map<String, Object?>> deviceChannels = const [];
   final List<String> deletedChannels = [];
   Object? showError;
   Future<void>? heldShows;
   Map<String, Object?>? initializeArguments;
   Map<String, Object?> launchDetails = const {'notificationLaunchedApp': false};
+
+  Map<String, Object?>? _activeStyle(int id) {
+    if (!shownStylesReadable || !active.any((n) => n['id'] == id)) return null;
+    final posted = shown.where((n) => n.id == id).lastOrNull;
+    final style = posted?.android['styleInformation'];
+    if (style is! Map || style['messages'] is! List) return null;
+    Map<String, Object?>? withoutIcon(Object? person) => person is Map
+        ? {...person.cast<String, Object?>(), 'icon': null}
+        : null;
+    return {
+      'groupConversation': style['groupConversation'],
+      'conversationTitle': style['conversationTitle'],
+      'person': withoutIcon(style['person']),
+      'messages': [
+        for (final message in style['messages'] as List)
+          {
+            ...(message as Map).cast<String, Object?>(),
+            'person': withoutIcon(message['person']),
+          },
+      ],
+    };
+  }
 
   void clear() {
     shown.clear();
@@ -147,6 +170,8 @@ RecordedNotifications installFakeLocalNotifications({
         return null;
       case 'getActiveNotifications':
         return recorded.active;
+      case 'getActiveNotificationMessagingStyle':
+        return recorded._activeStyle((call.arguments as Map)['id'] as int);
       case 'getNotificationChannels':
         return recorded.deviceChannels;
       case 'getNotificationAppLaunchDetails':

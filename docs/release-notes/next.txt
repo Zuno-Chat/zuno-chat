@@ -5,4 +5,4 @@ New
 • Sign in and create an account on servers that use their own sign-in page.
 • Usernames can use more characters, and passwords can be 8 characters with a mix of letters, numbers and symbols.
 
-Fixed 22 bugs.
+Fixed 30 bugs.

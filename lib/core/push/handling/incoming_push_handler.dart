@@ -19,6 +19,7 @@ import '../../notifications/messages/message_notification_image.dart';
 import '../../notifications/messages/message_notification_poster.dart';
 import '../../notifications/messages/message_notification_provider.dart';
 import '../../notifications/messages/message_notifications.dart';
+import '../../notifications/notification_line_renderer.dart';
 import '../../notifications/room_invite_notification_provider.dart';
 import '../../notifications/settings/notification_preview.dart';
 import '../../notifications/settings/notify_me.dart';
@@ -319,7 +320,6 @@ class _Dispatch {
       pushRuleAction: client.pushruleEvaluator.match(event),
       notifyMe: notifyMe,
       currentlyOpenRoomId: currentlyOpenRoomId,
-      preview: await preview,
     );
     final content = decision.content;
     if (content == null) {
@@ -437,6 +437,7 @@ class _Placeholder {
       roomId,
       eventId,
       preview: await preview,
+      render: ClientNotificationRenderer(client),
     );
   }
 }

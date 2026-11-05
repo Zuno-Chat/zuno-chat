@@ -9,6 +9,7 @@ import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/fake_notification_renderer.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/test_clock.dart';
@@ -19,9 +20,11 @@ void main() {
   late RecordedNotifications notifications;
   late Map<String, String> noticed;
   late RecordedMethodCalls conversations;
+  late FakeNotificationRenderer renderer;
   final clockedTest = testsOnClock(() => DateTime(2031, 6, 1, 12));
 
   setUp(() {
+    renderer = FakeNotificationRenderer();
     SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
@@ -31,19 +34,21 @@ void main() {
 
   Future<void> post({String eventId = r'$e1', bool refine = false}) =>
       MessageNotifications.instance.showMessage(
-        MessageNotificationContent(
-          roomId: roomId,
-          title: 'Alice',
-          body: 'hi',
-          text: 'hi',
-          eventId: eventId,
-          isDirectChat: true,
-          senderId: '@a:x',
-          senderName: 'Alice',
-          timestamp: DateTime.utc(2031),
+        renderer.remembered(
+          MessageNotificationContent(
+            roomId: roomId,
+            title: 'Alice',
+            text: 'hi',
+            eventId: eventId,
+            isDirectChat: true,
+            senderId: '@a:x',
+            senderName: 'Alice',
+            timestamp: DateTime.utc(2031),
+          ),
         ),
         preview: NotificationPreview.full,
         refine: refine,
+        render: renderer,
       );
 
   clockedTest(
@@ -108,18 +113,20 @@ void main() {
     expect(await service.takePushNotice(roomId, r'$e1'), isFalse);
     await service.retractPushNotice(roomId, r'$e1');
     await service.showMessage(
-      MessageNotificationContent(
-        roomId: roomId,
-        title: 'Alice',
-        body: 'hi',
-        text: 'hi',
-        eventId: r'$e1',
-        isDirectChat: true,
-        senderId: '@a:x',
-        senderName: 'Alice',
-        timestamp: DateTime.utc(2031),
+      renderer.remembered(
+        MessageNotificationContent(
+          roomId: roomId,
+          title: 'Alice',
+          text: 'hi',
+          eventId: r'$e1',
+          isDirectChat: true,
+          senderId: '@a:x',
+          senderName: 'Alice',
+          timestamp: DateTime.utc(2031),
+        ),
       ),
       preview: NotificationPreview.full,
+      render: renderer,
     );
 
     expect(conversations.takenNotices, isEmpty);
@@ -137,23 +144,19 @@ void main() {
 
   clockedTest('a stale stored thread is dropped when the notice made the room '
       'look like it was showing', () async {
-    final prefs = await SharedPreferences.getInstance();
-    await writeNotificationThread(
-      prefs,
-      NotificationThread(
+    await NotificationThreadStore.instance.write(
+      StoredNotificationThread(
         roomId: roomId,
-        title: 'Alice',
         isGroupChat: false,
         lines: [
-          NotificationLine(
+          StoredNotificationLine(
             eventId: r'$old',
             senderId: '@a:x',
-            senderName: 'Alice',
-            text: 'yesterday',
             timestamp: DateTime.utc(2030),
           ),
         ],
       ),
+      showing: () async => null,
     );
     noticed[roomId] = r'$e1';
     notifications.active = [
@@ -162,7 +165,7 @@ void main() {
 
     await post();
 
-    final thread = readNotificationThread(prefs, roomId)!;
+    final thread = (await NotificationThreadStore.instance.read(roomId))!;
     expect(thread.lines.map((l) => l.eventId), [r'$e1']);
   });
 

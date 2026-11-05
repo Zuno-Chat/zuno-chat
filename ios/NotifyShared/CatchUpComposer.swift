@@ -2,7 +2,7 @@ import UserNotifications
 
 enum CatchUpRender: Equatable, Sendable {
   case hidden
-  case shown(title: String, body: String, kind: String, floor: Bool = false)
+  case shown(title: String, body: String, kind: String, floor: Bool = false, claim: String? = nil)
 }
 
 enum CatchUpComposer {
@@ -12,17 +12,15 @@ enum CatchUpComposer {
 
   static func request(
     for event: PlannedEvent, title: String, body: String, kind: String, floor: Bool = false,
-    level: String
+    claim: String? = nil, level: String
   ) -> UNNotificationRequest {
     let content = UNMutableNotificationContent()
     content.title = title
     content.body = body
     content.threadIdentifier = event.roomToken
-    var userInfo = [
-      "t": event.roomToken, "e": event.eventToken, "o": String(event.missed.seconds), "k": kind,
-    ]
-    if floor { userInfo["f"] = "1" }
-    content.userInfo = userInfo
+    content.userInfo = NseComposer.userInfo(
+      NseTokens(t: event.roomToken, e: event.eventToken, o: Int64(event.missed.seconds)),
+      kind: kind, floor: floor, claim: claim)
     content.interruptionLevel = .passive
     content.categoryIdentifier =
       NotificationCategories.identifier(forKind: kind, level: level) ?? ""

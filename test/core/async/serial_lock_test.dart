@@ -74,5 +74,36 @@ void main() {
       await expectLater(failing, throwsStateError);
       expect(await next, 'ran');
     });
+
+    test('idle waits for every key, failed actions included', () async {
+      final lock = KeyedSerialLock();
+      final gate = Completer<void>();
+      var finished = false;
+      unawaited(
+        lock.run('a', () async {
+          await gate.future;
+          finished = true;
+        }),
+      );
+      unawaited(
+        lock
+            .run<void>('b', () async => throw StateError('x'))
+            .catchError((_) {}),
+      );
+
+      var idle = false;
+      unawaited(lock.idle().then((_) => idle = true));
+      await pumpEventQueue();
+      expect(idle, isFalse);
+
+      gate.complete();
+      await pumpEventQueue();
+      expect(finished, isTrue);
+      expect(idle, isTrue);
+    });
+
+    test('an unused lock is idle at once', () async {
+      await KeyedSerialLock().idle();
+    });
   });
 }

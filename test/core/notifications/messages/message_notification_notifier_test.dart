@@ -18,6 +18,7 @@ import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/messages/notification_avatar_cache.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
+import 'package:zuno/core/notifications/messages/notification_room_cache.dart';
 import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/messages/notified_events_store.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
@@ -39,7 +40,7 @@ import '../../../helpers/preferences_container.dart';
 
 class _DecryptingClient extends NotifyingClient with TestDecryption {
   @override
-  final FakeRoomDecryption decryption = FakeRoomDecryption();
+  final FakeRoomDecryption decryption = FakeRoomDecryption(keepsKeys: true);
 
   @override
   PushruleEvaluator get pushruleEvaluator => PushruleEvaluator.fromRuleset(
@@ -276,6 +277,76 @@ void main() {
     expect(notifications.shown.single.body, 'New message');
   });
 
+  group('the room directory', () {
+    Future<String?> syncedDirectory() async {
+      client.rooms.add(room..membership = Membership.join);
+      client.onSync.add(SyncUpdate(nextBatch: 's1'));
+      await pumpEventQueue();
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(notificationRoomCacheKey);
+    }
+
+    test('is written for the instant notice', () async {
+      expect(await syncedDirectory(), contains(room.id));
+    });
+
+    test('at Nothing keeps each room and its kind but no name, and gets the '
+        'names back once the level comes up again', () async {
+      final level = container.read(notificationPreviewProvider.notifier);
+      await level.set(NotificationPreview.nothing);
+
+      expect(await syncedDirectory(), '${room.id}\tg\t');
+
+      await level.set(NotificationPreview.nameOnly);
+      await pumpEventQueue();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(
+        prefs.getString(notificationRoomCacheKey),
+        '${room.id}\tg\tEmpty chat',
+      );
+    });
+
+    test('switching to Nothing while a slow write with names is still '
+        'running leaves no names behind', () async {
+      final db = client.database as StoredMembersFakeDatabaseApi;
+      final lookups = Completer<void>();
+      db.heldLookups = lookups.future;
+      room.summary.mHeroes = ['@c:x'];
+      client.rooms.add(room..membership = Membership.join);
+      client.onSync.add(SyncUpdate(nextBatch: 's1'));
+      await pumpEventQueue();
+
+      await container
+          .read(notificationPreviewProvider.notifier)
+          .set(NotificationPreview.nothing);
+      lookups.complete();
+      await pumpEventQueue();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(notificationRoomCacheKey), '${room.id}\tg\t');
+    });
+
+    test('switching level before any write still writes the room '
+        'directory at that level', () async {
+      client.rooms.add(room..membership = Membership.join);
+
+      await container
+          .read(notificationPreviewProvider.notifier)
+          .set(NotificationPreview.nothing);
+      await pumpEventQueue();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(notificationRoomCacheKey), '${room.id}\tg\t');
+    });
+
+    test('is never written on an iPhone, where nothing reads it', () async {
+      ambientCapabilities = iosCapabilities;
+
+      expect(await syncedDirectory(), isNull);
+    });
+  });
+
   test('a message read elsewhere in the same sync is taken down after it '
       'posts, never before', () async {
     client.rooms.add(room..membership = Membership.join);
@@ -410,34 +481,24 @@ void main() {
   group('a "New message" line another engine left', () {
     Event locked() => lockedTestEvent(room, eventId: r'$1', senderId: '@a:x');
 
-    Map<String, Object> waiting([List<String> eventIds = const [r'$1']]) => {
-      notificationThreadsKey: jsonEncode({
-        room.id: NotificationThread(
-          roomId: room.id,
-          title: 'Alice',
-          isGroupChat: false,
-          lines: [
-            for (final eventId in eventIds)
-              NotificationLine(
-                eventId: eventId,
-                senderId: '@a:x',
-                senderName: 'Alice',
-                text: 'New message',
-                timestamp: DateTime(2026, 10, 30, 17, 34),
-                placeholder: true,
-              ),
-          ],
-        ).toJson(),
-      }),
-    };
-
-    Future<void> anotherEngineLeavesALine() async {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString(
-        notificationThreadsKey,
-        waiting()[notificationThreadsKey]! as String,
-      );
-    }
+    Future<void> anotherEngineLeavesALine([
+      List<String> eventIds = const [r'$1'],
+    ]) => NotificationThreadStore.instance.write(
+      StoredNotificationThread(
+        roomId: room.id,
+        isGroupChat: false,
+        lines: [
+          for (final eventId in eventIds)
+            StoredNotificationLine(
+              eventId: eventId,
+              senderId: '@a:x',
+              timestamp: DateTime(2026, 10, 30, 17, 34),
+              placeholder: true,
+            ),
+        ],
+      ),
+      showing: () async => null,
+    );
 
     Future<void> appStartsWithNoLine() async {
       client.rooms.add(room);
@@ -451,7 +512,8 @@ void main() {
       client.rooms.add(room);
       (client.database as StoredMembersFakeDatabaseApi).events.add(locked());
       container.dispose();
-      await startNotifier(stored: waiting());
+      await anotherEngineLeavesALine();
+      await startNotifier();
       await pumpEventQueue();
     }
 
@@ -543,10 +605,9 @@ void main() {
         );
       }
       container.dispose();
+      await anotherEngineLeavesALine([r'$1', r'$2', r'$3']);
       final time = FakeAsync();
-      time.run(
-        (_) => unawaited(startNotifier(stored: waiting([r'$1', r'$2', r'$3']))),
-      );
+      time.run((_) => unawaited(startNotifier()));
 
       await time.advance(const Duration(milliseconds: 1));
       final first = notifications.shown.length;
@@ -935,6 +996,57 @@ void main() {
         await deliver(locked());
         inFront(false);
         await keyArrives(opens: textEvent(body: 'are you around?'));
+
+        expect(notifications.shown, hasLength(1));
+      });
+
+      test('a message the extension already showed is not shown again when '
+          'Zuno comes to the front', () async {
+        recordMethodChannel(
+          'zuno/nse',
+          reply: (call) => switch (call.method) {
+            'threadKey' => 'tok',
+            'shownByExtension' => [true],
+            _ => null,
+          },
+        );
+        inFront(true);
+
+        await deliver(textEvent(body: 'are you around?'));
+
+        expect(notifications.shown, isEmpty);
+      });
+
+      test('a message the extension claimed is shown once Zuno learns it hid '
+          'that alert in front', () async {
+        var claimed = true;
+        recordMethodChannel(
+          'zuno/nse',
+          reply: (call) => switch (call.method) {
+            'threadKey' => 'tok',
+            'shownByExtension' => [claimed],
+            _ => null,
+          },
+        );
+        inFront(true);
+        await deliver(textEvent(body: 'are you around?'));
+        expect(notifications.shown, isEmpty);
+
+        claimed = false;
+        await callFromNative(
+          const MethodChannel('zuno/nse'),
+          'alertHiddenInFront',
+        );
+        await pumpEventQueue();
+
+        expect(notifications.shown, hasLength(1));
+        expect(notifications.shown.single.body, contains('are you around?'));
+      });
+
+      test('a message the extension did not show is shown in front', () async {
+        inFront(true);
+
+        await deliver(textEvent(body: 'are you around?'));
 
         expect(notifications.shown, hasLength(1));
       });

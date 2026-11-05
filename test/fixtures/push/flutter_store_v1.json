@@ -1,11 +1,11 @@
 {
   "file": "FlutterSharedPreferences",
   "prefix": "flutter.",
+  "threadsFile": "notification_threads.json",
   "keys": {
     "ringingCall": "calls.ringing_notification",
     "resolvedCallPrefix": "calls.resolved.",
     "roomCache": "notifications.rooms",
-    "threads": "notifications.threads",
     "recentDeliveries": "push.recent_deliveries",
     "fcmToken": "push.fcm.token",
     "notificationPreview": "settings.notification_preview",

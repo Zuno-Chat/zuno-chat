@@ -14,6 +14,7 @@ import '../settings/app_preferences_provider.dart';
 import 'messages/message_notification_content.dart';
 import 'messages/message_notification_poster.dart';
 import 'messages/message_notifications.dart';
+import 'messages/notification_thread_store.dart';
 
 const _nameLimit = 40;
 
@@ -48,13 +49,12 @@ MessageNotificationContent? joinRequestNotificationFor(
   );
   final avatar = event.content.tryGet<String>('avatar_url');
   final l10n = deviceLocalizations();
-  final body = l10n.notificationsAsksToJoin(name);
   return MessageNotificationContent(
     roomId: room.id,
     threadKey: joinRequestThread(room.id, userId),
     title: roomTitle(room, l10n),
-    body: body,
-    text: body,
+    text: l10n.notificationsAsksToJoin(name),
+    kind: NotificationLineKind.notice,
     eventId: event.eventId,
     isDirectChat: false,
     senderId: userId,

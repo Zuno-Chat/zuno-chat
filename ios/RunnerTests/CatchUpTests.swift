@@ -220,6 +220,14 @@ final class CatchUpTests: XCTestCase {
     XCTAssertEqual(outcome.overflow, 2)
   }
 
+  func testAnInvitationsClaimRidesOnItsLine() async {
+    let platform = FakeCatchUpPlatform(now: start)
+    platform.renders["$i1"] = .shown(
+      title: "Alice", body: "Invited you to chat", kind: "inv", claim: "einvite:!a:hs")
+    _ = await run(platform, body([("!a:hs", "$i1", 100, false)]))
+    XCTAssertEqual(platform.posted.first?.content.userInfo["c"] as? String, "einvite:!a:hs")
+  }
+
   func testAnEventAnotherRunShowedMeanwhileIsNotPostedAgain() async {
     let platform = FakeCatchUpPlatform(now: start)
     platform.showsMeanwhile["$a1"] = "e$a2"

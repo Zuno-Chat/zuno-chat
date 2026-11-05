@@ -2,6 +2,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/best_effort.dart';
 import '../../notifications/messages/message_notifications.dart';
+import '../../notifications/notification_line_renderer.dart';
 import '../../notifications/settings/notification_preview.dart';
 import '../../platform/platform_capabilities.dart';
 import '../matrixrtc/incoming_call.dart';
@@ -24,6 +25,7 @@ Future<void> takeDownLinesUnderRing(IncomingCall call) async {
       call.room.id,
       call.callerId,
       preview: await currentNotificationPreview(),
+      render: ClientNotificationRenderer(call.room.client),
     ),
     label: 'ring line takedown',
   );

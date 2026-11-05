@@ -70,12 +70,14 @@ enum NseComposer {
     (sender, L10n.notificationsWantsToVerify)
   }
 
-  static func userInfo(_ tokens: NseTokens, kind: String, floor: Bool = false, rg: String? = nil)
-    -> [String: String]
-  {
+  static func userInfo(
+    _ tokens: NseTokens, kind: String, floor: Bool = false, rg: String? = nil,
+    claim: String? = nil
+  ) -> [String: String] {
     var info = ["t": tokens.t, "e": tokens.e, "o": String(tokens.o), "k": kind]
     if floor { info["f"] = "1" }
     if let rg { info["rg"] = rg }
+    if let claim { info["c"] = claim }
     return info
   }
 
@@ -124,14 +126,15 @@ enum NseComposer {
       sound: sound)
   }
 
-  static func invitation(inviter: String, roomName: String?, tone: Bool, tokens: NseTokens)
-    -> NseDelivery
-  {
+  static func invitation(
+    inviter: String, roomName: String?, tone: Bool, tokens: NseTokens, claim: String? = nil
+  ) -> NseDelivery {
     let lines = invitationLines(inviter: inviter, roomName: roomName)
     let (interruption, sound) = alert(loud: true, tone: tone)
     return delivery(
       title: lines.title, body: lines.body, thread: tokens.t,
-      userInfo: userInfo(tokens, kind: "inv"), interruption: interruption, sound: sound)
+      userInfo: userInfo(tokens, kind: "inv", claim: claim), interruption: interruption,
+      sound: sound)
   }
 
   static func verification(sender: String, tone: Bool, tokens: NseTokens) -> NseDelivery {

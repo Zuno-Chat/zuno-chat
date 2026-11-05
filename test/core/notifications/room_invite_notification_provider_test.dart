@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
 
 import '../../helpers/fake_local_notifications.dart';
@@ -50,7 +51,8 @@ void main() {
     expect(content, isNotNull);
     expect(content!.roomId, room.id);
     expect(content.title, 'Alice');
-    expect(content.body, 'Invited you to chat');
+    expect(content.text, 'Invited you to chat');
+    expect(content.kind, NotificationLineKind.notice);
     expect(content.isDirectChat, isFalse);
     expect(content.eventId, r'$invite');
   });
@@ -69,7 +71,7 @@ void main() {
     );
 
     expect(
-      inviteNotificationFor(client, inviteEvent())?.body,
+      inviteNotificationFor(client, inviteEvent())?.text,
       'Invited you to Weekend plans',
     );
   });

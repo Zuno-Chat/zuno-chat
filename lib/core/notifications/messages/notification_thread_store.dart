@@ -1,185 +1,134 @@
 import 'dart:convert';
+import 'dart:io' show PathNotFoundException;
 
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:file/file.dart';
+import 'package:path/path.dart' as p;
 
+import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
+import '../../files/file_system.dart';
+import '../../files/unique_name.dart';
 import 'notification_ids.dart';
+import 'notification_thread.dart';
 
-const notificationThreadsKey = 'notifications.threads';
-const maxNotificationLines = 8;
+export 'notification_thread.dart';
+
+const notificationThreadsFileName = 'notification_threads.json';
 const maxNotificationThreads = 32;
-
-class NotificationLine {
-  final String? eventId;
-  final String senderId;
-  final String senderName;
-  final Uri? senderAvatarUrl;
-  final String text;
-  final DateTime timestamp;
-  final bool placeholder;
-  final String? imageUri;
-  final String? imageMimeType;
-  final bool quiet;
-
-  const NotificationLine({
-    required this.eventId,
-    required this.senderId,
-    required this.senderName,
-    this.senderAvatarUrl,
-    required this.text,
-    required this.timestamp,
-    this.placeholder = false,
-    this.imageUri,
-    this.imageMimeType,
-    this.quiet = false,
-  });
-
-  Map<String, Object?> toJson() => {
-    'eventId': eventId,
-    'senderId': senderId,
-    'senderName': senderName,
-    'senderAvatarUrl': senderAvatarUrl?.toString(),
-    'text': text,
-    'ts': timestamp.toUtc().millisecondsSinceEpoch,
-    'placeholder': placeholder,
-    'imageUri': imageUri,
-    'imageMimeType': imageMimeType,
-    'quiet': quiet,
-  };
-
-  static NotificationLine? fromJson(Object? json) {
-    if (json is! Map) return null;
-    final senderId = json['senderId'];
-    final text = json['text'];
-    final ts = json['ts'];
-    if (senderId is! String || text is! String || ts is! int) return null;
-    final avatar = json['senderAvatarUrl'];
-    return NotificationLine(
-      eventId: json['eventId'] as String?,
-      senderId: senderId,
-      senderName: json['senderName'] as String? ?? senderId,
-      senderAvatarUrl: avatar is String ? Uri.tryParse(avatar) : null,
-      text: text,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(ts, isUtc: true),
-      placeholder: json['placeholder'] == true,
-      imageUri: json['imageUri'] as String?,
-      imageMimeType: json['imageMimeType'] as String?,
-      quiet: json['quiet'] == true,
-    );
-  }
-}
-
-class NotificationThread {
-  final String key;
-  final String roomId;
-  final String title;
-  final bool isGroupChat;
-  final List<NotificationLine> lines;
-
-  const NotificationThread({
-    required this.roomId,
-    String? key,
-    required this.title,
-    required this.isGroupChat,
-    required this.lines,
-  }) : key = key ?? roomId;
-
-  Map<String, Object?> toJson() => {
-    'roomId': roomId,
-    'title': title,
-    'isGroupChat': isGroupChat,
-    'lines': lines.map((l) => l.toJson()).toList(),
-  };
-
-  static NotificationThread? fromJson(String key, Object? json) {
-    if (json is! Map) return null;
-    final rawLines = json['lines'];
-    final roomId = json['roomId'];
-    return NotificationThread(
-      key: key,
-      roomId: roomId is String ? roomId : key,
-      title: json['title'] as String? ?? '',
-      isGroupChat: json['isGroupChat'] == true,
-      lines: rawLines is List
-          ? rawLines.map(NotificationLine.fromJson).nonNulls.toList()
-          : const [],
-    );
-  }
-}
-
-Map<String, Object?> _readAll(SharedPreferences prefs) {
-  try {
-    final decoded = jsonDecode(prefs.getString(notificationThreadsKey) ?? '');
-    return decoded is Map ? decoded.cast<String, Object?>() : {};
-  } on FormatException {
-    return {};
-  } catch (e, s) {
-    reportCaught('notification threads read', e, s);
-    return {};
-  }
-}
-
-Future<void> _writeAll(SharedPreferences prefs, Map<String, Object?> all) =>
-    prefs.setString(notificationThreadsKey, jsonEncode(all));
 
 typedef WaitingLine = ({String roomId, String eventId});
 
-Map<String, List<WaitingLine>> waitingLines(SharedPreferences prefs) {
-  final waiting = <String, List<WaitingLine>>{};
-  for (final MapEntry(:key, :value) in _readAll(prefs).entries) {
-    final thread = NotificationThread.fromJson(key, value);
-    if (thread == null) continue;
-    final lines = [
-      for (final line in thread.lines)
-        if (line.placeholder)
-          if (line.eventId case final eventId?)
-            (roomId: thread.roomId, eventId: eventId),
-    ];
-    if (lines.isNotEmpty) waiting[key] = lines;
+class NotificationThreadStore {
+  NotificationThreadStore({Future<Directory> Function()? directory})
+    : _directory = directory ?? applicationSupportDirectory;
+
+  static NotificationThreadStore instance = NotificationThreadStore();
+
+  final Future<Directory> Function() _directory;
+  final _lock = SerialLock();
+  File? _file;
+
+  Future<T> _run<T>(
+    String label,
+    T fallback,
+    Future<T> Function(File file) step,
+  ) => _lock.run(() async {
+    try {
+      final file = _file ??= fileSystem.file(
+        p.join((await _directory()).path, notificationThreadsFileName),
+      );
+      return await step(file);
+    } catch (e, s) {
+      reportCaught('notification threads $label', e, s);
+      return fallback;
+    }
+  });
+
+  Future<Map<String, Object?>> _readAll(File file) async {
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      return decoded is Map ? decoded.cast<String, Object?>() : {};
+    } on PathNotFoundException {
+      return {};
+    } on FormatException {
+      return {};
+    }
   }
-  return waiting;
-}
 
-NotificationThread? readNotificationThread(
-  SharedPreferences prefs,
-  String key,
-) => NotificationThread.fromJson(key, _readAll(prefs)[key]);
-
-Future<void> writeNotificationThread(
-  SharedPreferences prefs,
-  NotificationThread thread, {
-  Set<int> showing = const {},
-}) async {
-  final all = _readAll(prefs)..remove(thread.key);
-  final trimmed = thread.lines.length > maxNotificationLines
-      ? thread.lines.sublist(thread.lines.length - maxNotificationLines)
-      : thread.lines;
-  all[thread.key] = NotificationThread(
-    roomId: thread.roomId,
-    key: thread.key,
-    title: thread.title,
-    isGroupChat: thread.isGroupChat,
-    lines: trimmed,
-  ).toJson();
-  final gone = [
-    for (final key in all.keys)
-      if (key != thread.key && !showing.contains(messageNotificationIdFor(key)))
-        key,
-  ];
-  while (all.length > maxNotificationThreads) {
-    all.remove(gone.isEmpty ? all.keys.first : gone.removeAt(0));
+  Future<void> _writeAll(File file, Map<String, Object?> all) async {
+    final pending = fileSystem.file('${file.path}.${uniqueName()}');
+    try {
+      await pending.writeAsString(jsonEncode(all));
+      await pending.rename(file.path);
+    } catch (_) {
+      await _delete(pending);
+      rethrow;
+    }
   }
-  await _writeAll(prefs, all);
-}
 
-Future<void> clearNotificationThread(
-  SharedPreferences prefs,
-  String key,
-) async {
-  final all = _readAll(prefs);
-  if (all.remove(key) == null) return;
-  await _writeAll(prefs, all);
-}
+  Future<void> _delete(File file) async {
+    try {
+      await file.delete();
+    } on PathNotFoundException {
+      return;
+    }
+  }
 
-Future<void> clearAllNotificationThreads(SharedPreferences prefs) =>
-    prefs.remove(notificationThreadsKey);
+  Future<StoredNotificationThread?> read(String key) => _run(
+    'read',
+    null,
+    (file) async =>
+        StoredNotificationThread.fromJson(key, (await _readAll(file))[key]),
+  );
+
+  Future<Map<String, List<WaitingLine>>> waitingLines() =>
+      _run('read', const {}, (file) async {
+        final waiting = <String, List<WaitingLine>>{};
+        for (final MapEntry(:key, :value) in (await _readAll(file)).entries) {
+          final thread = StoredNotificationThread.fromJson(key, value);
+          if (thread == null) continue;
+          final lines = [
+            for (final line in thread.lines)
+              if (line.placeholder)
+                if (line.eventId case final eventId?)
+                  (roomId: thread.roomId, eventId: eventId),
+          ];
+          if (lines.isNotEmpty) waiting[key] = lines;
+        }
+        return waiting;
+      });
+
+  Future<void> write(
+    StoredNotificationThread thread, {
+    required Future<Set<int>?> Function() showing,
+  }) => _run('write', null, (file) async {
+    final ids = await showing();
+    final all = await _readAll(file);
+    if (ids != null) {
+      all.removeWhere((key, _) => !ids.contains(messageNotificationIdFor(key)));
+    }
+    all
+      ..remove(thread.key)
+      ..[thread.key] = thread.toJson();
+    while (all.length > maxNotificationThreads) {
+      all.remove(all.keys.first);
+    }
+    await _writeAll(file, all);
+  });
+
+  Future<void> clear(String key) => _run('clear', null, (file) async {
+    final all = await _readAll(file);
+    if (all.remove(key) == null) return;
+    await _writeAll(file, all);
+  });
+
+  Future<void> clearAll() => _run('clear', null, (file) async {
+    await _delete(file);
+    final leftover = '${file.basename}.';
+    await for (final entry in file.parent.list()) {
+      if (entry is File && entry.basename.startsWith(leftover)) {
+        await _delete(entry);
+      }
+    }
+  });
+}

@@ -42,6 +42,7 @@ PlatformCapabilities capabilitiesLike(
   bool? clientLease,
   bool? instantPushNotices,
   bool? notificationAvatars,
+  bool? conversationNotifications,
   bool? pushDiagnostics,
   bool? voipRing,
   bool? nseNotifications,
@@ -99,6 +100,8 @@ PlatformCapabilities capabilitiesLike(
   clientLease: clientLease ?? base.clientLease,
   instantPushNotices: instantPushNotices ?? base.instantPushNotices,
   notificationAvatars: notificationAvatars ?? base.notificationAvatars,
+  conversationNotifications:
+      conversationNotifications ?? base.conversationNotifications,
   pushDiagnostics: pushDiagnostics ?? base.pushDiagnostics,
   voipRing: voipRing ?? base.voipRing,
   nseNotifications: nseNotifications ?? base.nseNotifications,

@@ -5,7 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
 import 'package:zuno/core/notifications/messages/message_notifications.dart';
 import 'package:zuno/core/notifications/messages/notification_avatar_cache.dart';
@@ -16,6 +15,7 @@ import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/fake_notification_renderer.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/test_clock.dart';
 
@@ -26,11 +26,13 @@ void main() {
   late RecordedNotifications notifications;
   late RecordedMethodCalls conversations;
   late Directory avatarDir;
+  late FakeNotificationRenderer renderer;
   var preview = NotificationPreview.full;
   final clockedTest = testsOnClock(() => DateTime(2031, 6));
 
   setUp(() async {
     preview = NotificationPreview.full;
+    renderer = FakeNotificationRenderer();
     SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
     notifications = installFakeLocalNotifications();
     installSilentNotificationSideChannels();
@@ -62,20 +64,23 @@ void main() {
     String? imageUri,
     String? imageMimeType,
     bool quiet = false,
+    NotificationLineKind kind = NotificationLineKind.message,
   }) => MessageNotifications.instance.showMessage(
-    MessageNotificationContent(
-      roomId: room,
-      title: title,
-      body: body ?? text,
-      text: text,
-      eventId: eventId,
-      isDirectChat: !isGroupChat,
-      senderId: senderId,
-      senderName: senderName,
-      senderAvatarUrl: senderAvatarUrl,
-      timestamp: timestamp ?? noon,
-      unreadCount: unreadCount,
-      quiet: quiet,
+    renderer.remembered(
+      MessageNotificationContent(
+        roomId: room,
+        title: title,
+        text: text,
+        kind: kind,
+        eventId: eventId,
+        isDirectChat: !isGroupChat,
+        senderId: senderId,
+        senderName: senderName,
+        senderAvatarUrl: senderAvatarUrl,
+        timestamp: timestamp ?? noon,
+        unreadCount: unreadCount,
+        quiet: quiet,
+      ),
     ),
     preview: preview,
     senderAvatar: senderAvatar,
@@ -83,6 +88,7 @@ void main() {
     refine: refine,
     imageUri: imageUri,
     imageMimeType: imageMimeType,
+    render: renderer,
   );
 
   void showing() {
@@ -91,10 +97,181 @@ void main() {
     ];
   }
 
+  Future<StoredNotificationThread?> stored(String key) =>
+      NotificationThreadStore.instance.read(key);
+
+  clockedTest(
+    'forgets the lines of a conversation whose notification is gone',
+    () async {
+      await post(room: '!other:x', eventId: r'$0', text: 'old secret');
+
+      await post(eventId: r'$1');
+
+      expect(await stored('!other:x'), isNull);
+      expect(await stored(roomId), isNotNull);
+    },
+  );
+
+  clockedTest(
+    'keeps the lines of another conversation still showing',
+    () async {
+      await post(room: '!other:x', eventId: r'$0', text: 'still up');
+      notifications.active = [
+        {'id': messageNotificationIdFor('!other:x'), 'payload': ''},
+      ];
+
+      await post(eventId: r'$1');
+
+      expect((await stored('!other:x'))?.lines.single.eventId, r'$0');
+    },
+  );
+
   ShownNotification roomPost() =>
       notifications.shown.lastWhere((n) => n.id == roomNotificationId);
 
   Map<String, Object?> lastRoomPost() => roomPost().android;
+
+  clockedTest(
+    'earlier lines come back from the notification Android shows, never '
+    'from the database',
+    () async {
+      await post(eventId: r'$1', text: 'hi');
+      showing();
+
+      await post(eventId: r'$2', text: 'there?');
+
+      expect(roomPost().lineTexts, ['hi', 'there?']);
+      expect(renderer.rebuilt, 0);
+    },
+  );
+
+  clockedTest(
+    'taking a placeholder back names the conversation as a post would, not '
+    'by the title the notification still shows',
+    () async {
+      await post(eventId: r'$1', title: 'Weekend plans', text: 'hi');
+      showing();
+      await post(
+        eventId: r'$2',
+        title: 'Weekend plans',
+        text: 'New message',
+        placeholder: true,
+      );
+      notifications.active = [
+        {
+          'id': roomNotificationId,
+          'channelId': 'direct_messages',
+          'payload': '',
+          'title': 'Old name',
+        },
+      ];
+
+      await MessageNotifications.instance.retractPlaceholder(
+        roomId,
+        r'$2',
+        preview: preview,
+        render: renderer,
+      );
+
+      expect(roomPost().title, 'Weekend plans');
+      expect(roomPost().lineTexts, ['hi']);
+    },
+  );
+
+  clockedTest(
+    'taking a placeholder back after the level was raised from Nothing names '
+    'the conversation again',
+    () async {
+      preview = NotificationPreview.nothing;
+      await post(eventId: r'$1', title: 'Weekend plans', text: 'hi');
+      showing();
+      await post(
+        eventId: r'$2',
+        title: 'Weekend plans',
+        text: 'New message',
+        placeholder: true,
+      );
+      notifications.active = [
+        {
+          'id': roomNotificationId,
+          'channelId': 'direct_messages',
+          'payload': '',
+          'title': 'Zuno',
+        },
+      ];
+      preview = NotificationPreview.full;
+
+      await MessageNotifications.instance.retractPlaceholder(
+        roomId,
+        r'$2',
+        preview: preview,
+        render: renderer,
+      );
+
+      expect(roomPost().title, 'Weekend plans');
+    },
+  );
+
+  clockedTest(
+    'lines posted at a lower preview level are rebuilt from the database, '
+    'not read back with the text that level hid',
+    () async {
+      preview = NotificationPreview.nameOnly;
+      await post(eventId: r'$1', text: 'hi');
+      showing();
+      preview = NotificationPreview.full;
+
+      await post(eventId: r'$2', text: 'there?');
+
+      expect(roomPost().lineTexts, ['hi', 'there?']);
+      expect(renderer.rebuilt, 1);
+    },
+  );
+
+  clockedTest(
+    'at Nothing no earlier line is rebuilt, since none is shown',
+    () async {
+      preview = NotificationPreview.nothing;
+      await post(eventId: r'$1', text: 'hi');
+      showing();
+
+      await post(eventId: r'$2', text: 'there?');
+
+      expect(renderer.rebuilt, 0);
+      expect(roomPost().body, 'New message');
+    },
+  );
+
+  clockedTest(
+    'a line the notification can no longer give back is rebuilt from the '
+    'database',
+    () async {
+      await post(eventId: r'$1', text: 'hi');
+      showing();
+      notifications.shownStylesReadable = false;
+
+      await post(eventId: r'$2', text: 'there?');
+
+      expect(roomPost().lineTexts, ['hi', 'there?']);
+      expect(renderer.rebuilt, 1);
+    },
+  );
+
+  clockedTest(
+    'a store that cannot be written still records the message as notified',
+    () async {
+      NotificationThreadStore.instance = NotificationThreadStore(
+        directory: () async => throw const FileSystemException('disk full'),
+      );
+
+      await post(eventId: r'$1');
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      expect(wasEventNotified(prefs, r'$1'), isTrue);
+      expect(notifications.shown, hasLength(1));
+    },
+  );
 
   clockedTest(
     'posts a MessagingStyle line with the sender as the person',
@@ -168,19 +345,21 @@ void main() {
     addTearDown(forget);
 
     await MessageNotifications.instance.showMessage(
-      MessageNotificationContent(
-        roomId: roomId,
-        threadKey: own,
-        title: 'Beginners',
-        body: 'Ines asks to join',
-        text: 'Ines asks to join',
-        eventId: r'$knock',
-        isDirectChat: false,
-        senderId: '@ines:x',
-        senderName: 'Ines',
-        timestamp: noon,
+      renderer.remembered(
+        MessageNotificationContent(
+          roomId: roomId,
+          threadKey: own,
+          title: 'Beginners',
+          text: 'Ines asks to join',
+          eventId: r'$knock',
+          isDirectChat: false,
+          senderId: '@ines:x',
+          senderName: 'Ines',
+          timestamp: noon,
+        ),
       ),
       preview: preview,
+      render: renderer,
     );
 
     final knock = notifications.shown.last;
@@ -188,9 +367,8 @@ void main() {
     expect(jsonDecode(knock.payload)['roomId'], roomId);
     expect(knock.lineTexts, ['Ines asks to join']);
     expect(noticed.takenNotices, isEmpty);
-    final prefs = await SharedPreferences.getInstance();
-    expect(readNotificationThread(prefs, roomId)?.lines, hasLength(1));
-    expect(readNotificationThread(prefs, own)?.roomId, roomId);
+    expect((await stored(roomId))?.lines, hasLength(1));
+    expect((await stored(own))?.roomId, roomId);
   });
 
   clockedTest(
@@ -259,6 +437,7 @@ void main() {
         roomId,
         r'$2',
         preview: preview,
+        render: renderer,
       );
 
       expect(conversations.named('pushConversationShortcut'), hasLength(1));
@@ -295,7 +474,12 @@ void main() {
       await post(eventId: r'$1');
       showing();
 
-      await post(eventId: r'$1', refine: true, senderAvatar: bytes);
+      await post(
+        eventId: r'$1',
+        refine: true,
+        senderAvatarUrl: Uri.parse('mxc://x/alice'),
+        senderAvatar: bytes,
+      );
 
       final posts = notifications.shown.where(
         (n) => n.id == roomNotificationId,
@@ -426,8 +610,7 @@ void main() {
 
     await MessageNotifications.instance.cancelMessageNotification(roomId);
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(readNotificationThread(prefs, roomId), isNull);
+    expect(await stored(roomId), isNull);
     expect(notifications.cancelled, [roomNotificationId]);
   });
 
@@ -441,11 +624,11 @@ void main() {
         roomId,
         r'$1',
         preview: preview,
+        render: renderer,
       );
 
       expect(notifications.cancelled, contains(roomNotificationId));
-      final prefs = await SharedPreferences.getInstance();
-      expect(readNotificationThread(prefs, roomId), isNull);
+      expect(await stored(roomId), isNull);
     },
   );
 
@@ -460,6 +643,7 @@ void main() {
         roomId,
         r'$2',
         preview: preview,
+        render: renderer,
       );
 
       expect(roomPost().lineTexts, ['hi']);
@@ -469,8 +653,13 @@ void main() {
   );
 
   group('taking down one sender\'s placeholders', () {
-    Future<void> takeDown(String senderId) => MessageNotifications.instance
-        .retractPlaceholdersFrom(roomId, senderId, preview: preview);
+    Future<void> takeDown(String senderId) =>
+        MessageNotifications.instance.retractPlaceholdersFrom(
+          roomId,
+          senderId,
+          preview: preview,
+          render: renderer,
+        );
 
     clockedTest(
       'leaves their messages and other people\'s placeholders',
@@ -494,11 +683,10 @@ void main() {
         await takeDown('@a:x');
 
         expect(roomPost().lineTexts, ['hi', 'New message']);
-        final prefs = await SharedPreferences.getInstance();
-        expect(
-          readNotificationThread(prefs, roomId)!.lines.map((l) => l.eventId),
-          [r'$1', r'$3'],
-        );
+        expect((await stored(roomId))!.lines.map((l) => l.eventId), [
+          r'$1',
+          r'$3',
+        ]);
       },
     );
 
@@ -575,11 +763,7 @@ void main() {
       placeholder: true,
     );
 
-    final prefs = await SharedPreferences.getInstance();
-    expect(
-      readNotificationThread(prefs, roomId)!.lines.single.senderId,
-      '@a:x',
-    );
+    expect((await stored(roomId))!.lines.single.senderId, '@a:x');
   });
 
   clockedTest('a placeholder posted again keeps its place among the other '
@@ -604,8 +788,7 @@ void main() {
       timestamp: noon.add(const Duration(minutes: 2)),
     );
 
-    final prefs = await SharedPreferences.getInstance();
-    final lines = readNotificationThread(prefs, roomId)!.lines;
+    final lines = (await stored(roomId))!.lines;
     expect(lines.map((l) => l.eventId), [r'$1', r'$2']);
     expect(lines.first.senderId, '@a:x');
   });
@@ -712,9 +895,9 @@ void main() {
       expect(roomPost().lineTexts, ['one', 'two']);
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
-      expect(readNotificationThread(prefs, roomId)!.lines.map((l) => l.text), [
-        'one',
-        'two',
+      expect((await stored(roomId))!.lines.map((l) => l.eventId), [
+        r'$1',
+        r'$2',
       ]);
       expect(wasEventNotified(prefs, r'$1'), isTrue);
       expect(wasEventNotified(prefs, r'$2'), isTrue);
@@ -766,23 +949,20 @@ void main() {
       'put up, so stale lines never come back and the notice\'s own post '
       'wipes nothing',
       () async {
-        final prefs = await SharedPreferences.getInstance();
-        await writeNotificationThread(
-          prefs,
-          NotificationThread(
+        final stale = renderer.remembered(
+          MessageNotificationContent(
             roomId: roomId,
             title: 'Alice',
-            isGroupChat: false,
-            lines: [
-              NotificationLine(
-                eventId: r'$stale',
-                senderId: '@a:x',
-                senderName: 'Alice',
-                text: 'from yesterday',
-                timestamp: noon.subtract(const Duration(days: 1)),
-              ),
-            ],
+            text: 'from yesterday',
+            eventId: r'$stale',
+            senderId: '@a:x',
+            senderName: 'Alice',
+            timestamp: noon.subtract(const Duration(days: 1)),
           ),
+        );
+        await NotificationThreadStore.instance.write(
+          stale.threadOf([stale.toLine()]).storedAt(NotificationPreview.full),
+          showing: () async => null,
         );
         noticePendingFor(r'$a');
         showing();
@@ -830,21 +1010,23 @@ void main() {
       String text = 'New message',
       bool isGroupChat = true,
     }) => MessageNotifications.instance.showMessage(
-      MessageNotificationContent(
-        roomId: roomId,
-        title: 'Team',
-        body: 'Alice: $text',
-        text: text,
-        eventId: eventId,
-        isDirectChat: !isGroupChat,
-        senderId: '@a:x',
-        senderName: 'Alice',
-        senderAvatarUrl: Uri.parse('mxc://x/alice'),
-        timestamp: noon,
+      renderer.remembered(
+        MessageNotificationContent(
+          roomId: roomId,
+          title: 'Team',
+          text: text,
+          eventId: eventId,
+          isDirectChat: !isGroupChat,
+          senderId: '@a:x',
+          senderName: 'Alice',
+          senderAvatarUrl: Uri.parse('mxc://x/alice'),
+          timestamp: noon,
+        ),
       ),
       preview: preview,
       isMessage: true,
       senderAvatar: avatar,
+      render: renderer,
     );
 
     clockedTest('Name and message offers Reply and Mark as read', () async {
@@ -868,6 +1050,7 @@ void main() {
           eventId: r'$1',
           title: 'Team',
           text: 'New message',
+          senderAvatarUrl: Uri.parse('mxc://x/alice'),
           refine: true,
           imageUri: 'content://zuno/1',
           imageMimeType: 'image/jpeg',
@@ -912,6 +1095,70 @@ void main() {
     );
 
     clockedTest(
+      'Nothing caches no pictures, and keeps each line only by its event',
+      () async {
+        choose(NotificationPreview.nothing);
+
+        await postWithActions(text: 'secret plans');
+        showing();
+        await post(
+          eventId: r'$2',
+          title: 'Team',
+          text: 'New message',
+          senderName: 'Alice',
+          placeholder: true,
+        );
+
+        final kept = (await stored(roomId))!;
+        expect(kept.lines.map((l) => l.eventId), [r'$1', r'$2']);
+        expect(kept.lines.last.placeholder, isTrue);
+        expect(await avatarDir.list().isEmpty, isTrue);
+      },
+    );
+
+    clockedTest(
+      'Name only takes the text and photo off earlier lines too, but keeps a '
+      "missed call's own line",
+      () async {
+        await post(
+          eventId: r'$1',
+          text: 'from before',
+          imageUri: 'content://zuno/1',
+          imageMimeType: 'image/jpeg',
+        );
+        showing();
+        await post(
+          eventId: r'$2',
+          text: 'Missed call',
+          kind: NotificationLineKind.callSummary,
+        );
+        choose(NotificationPreview.nameOnly);
+
+        await post(eventId: r'$3', text: 'New message');
+
+        const shown = ['New message', 'Missed call', 'New message'];
+        expect(roomPost().lines.map((l) => l['text']), shown);
+        expect(
+          roomPost().lines.map((l) => (l['person'] as Map)['name']),
+          everyElement('Alice'),
+        );
+        expect((await stored(roomId))!.lines.first.imageUri, isNull);
+      },
+    );
+
+    clockedTest('Nothing needs no earlier line rebuilt', () async {
+      choose(NotificationPreview.nothing);
+      await post(eventId: r'$1', text: 'hi');
+      showing();
+      notifications.shownStylesReadable = false;
+
+      await post(eventId: r'$2', text: 'there?');
+
+      expect(renderer.rebuilt, 0);
+      expect(notifications.shown.last.body, 'New message');
+    });
+
+    clockedTest(
       'Nothing takes the earlier lines of a showing thread off it too',
       () async {
         await post(eventId: r'$1', text: 'from before');
@@ -942,6 +1189,7 @@ void main() {
           roomId,
           r'$2',
           preview: preview,
+          render: renderer,
         );
 
         final shown = notifications.shown.last;

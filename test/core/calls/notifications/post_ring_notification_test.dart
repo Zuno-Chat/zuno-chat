@@ -21,6 +21,7 @@ import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_notification_renderer.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
@@ -249,7 +250,6 @@ void main() {
         MessageNotificationContent(
           roomId: room.id,
           title: 'Climbing club',
-          body: 'New message',
           text: 'New message',
           eventId: eventId,
           isDirectChat: false,
@@ -258,6 +258,7 @@ void main() {
         preview: NotificationPreview.full,
         isMessage: true,
         placeholder: true,
+        render: FakeNotificationRenderer(),
       );
       notifications.active = [
         {
@@ -269,9 +270,10 @@ void main() {
     }
 
     Future<List<String>> linesLeft() async {
-      final prefs = await SharedPreferences.getInstance();
       return [
-        for (final line in readNotificationThread(prefs, room.id)?.lines ?? [])
+        for (final line
+            in (await NotificationThreadStore.instance.read(room.id))?.lines ??
+                [])
           line.senderId,
       ];
     }

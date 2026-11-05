@@ -18,7 +18,6 @@ void main() {
         const MessageNotificationContent(
           roomId: '!room:example.org',
           title: 'New message',
-          body: 'Tap to open',
           text: 'New message',
           eventId: r'$e',
           senderName: 'New message',

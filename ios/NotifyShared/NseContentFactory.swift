@@ -43,7 +43,7 @@ enum NseContentFactory {
   static func delivered(_ notification: UNNotification) -> NseDelivered {
     let content = notification.request.content
     var info: [String: String] = [:]
-    for key in ["t", "e", "o", "k", "f", "rg"] {
+    for key in ["t", "e", "c", "o", "k", "f", "rg"] {
       if let value = content.userInfo[key] as? String { info[key] = value }
     }
     return NseDelivered(

@@ -76,7 +76,9 @@ final class NseCatchUpRenderTests: XCTestCase {
       type: "m.room.member", content: ["membership": "invite"], stateKey: NseTestData.me)
     XCTAssertEqual(
       try render(invite, in: harness),
-      .shown(title: "Alice", body: "Invited you to chat", kind: "inv"))
+      .shown(
+        title: "Alice", body: "Invited you to chat", kind: "inv",
+        claim: "einvite:\(NseTestData.roomId)"))
     XCTAssertEqual(try render(invite, in: harness), .hidden)
     let verification = NseTestData.event(content: [
       "msgtype": "m.key.verification.request", "to": NseTestData.me,
@@ -89,7 +91,7 @@ final class NseCatchUpRenderTests: XCTestCase {
   func testTextIsCleanedAndCappedLikeEveryOtherLine() throws {
     let text = "Hi\u{7}" + String(repeating: "a", count: 400)
     let event = NseTestData.event(content: ["msgtype": "m.text", "body": text])
-    guard case .shown(_, let body, _, _) = try render(event) else { return XCTFail("hidden") }
+    guard case .shown(_, let body, _, _, _) = try render(event) else { return XCTFail("hidden") }
     XCTAssertEqual(body.unicodeScalars.count, NseComposer.maxCharacters)
     XCTAssertFalse(body.unicodeScalars.contains("\u{7}"))
     XCTAssertTrue(body.hasPrefix("Alice: Hi"))

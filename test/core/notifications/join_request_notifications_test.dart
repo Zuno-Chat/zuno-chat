@@ -1,17 +1,22 @@
 import 'package:clock/clock.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/notifications/join_request_notification_provider.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/messages/notification_ids.dart';
+import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
 import 'package:zuno/core/notifications/settings/notification_preview.dart';
+import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../helpers/fake_local_notifications.dart';
 import '../../helpers/fake_matrix.dart';
+import '../../helpers/native_method_calls.dart';
+import '../../helpers/platform_capabilities.dart';
 import '../../helpers/preferences_container.dart';
 
 const _me = '@me:example.org';
@@ -69,6 +74,67 @@ void main() {
       await pumpEventQueue();
 
       expect(notifications.shown, isEmpty);
+    });
+
+    group('on an iPhone', () {
+      setUp(() {
+        ambientCapabilities = iosCapabilities;
+        notifications = installFakeLocalNotifications(
+          platform: TargetPlatform.iOS,
+        );
+        TestWidgetsFlutterBinding.instance.handleAppLifecycleStateChanged(
+          AppLifecycleState.resumed,
+        );
+      });
+
+      test(
+        'an invitation the extension already showed is not shown again',
+        () async {
+          final asked = recordMethodChannel(
+            'zuno/nse',
+            reply: (call) => call.method == 'shownByExtension' ? [true] : null,
+          );
+          final trips = named('!trips:x', 'Trips', Membership.invite);
+          final c = await container();
+          c.read(roomInviteNotificationProvider);
+
+          client.onNotification.add(invite(trips));
+          await pumpEventQueue();
+
+          expect(notifications.shown, isEmpty);
+          expect(asked.argsOf('shownByExtension'), [
+            {
+              'claims': [
+                {'kind': 'invite', 'id': trips.id},
+              ],
+            },
+          ]);
+        },
+      );
+
+      test('an invitation whose alert Zuno hid in front is shown once that is '
+          'known', () async {
+        var claimed = true;
+        recordMethodChannel(
+          'zuno/nse',
+          reply: (call) => call.method == 'shownByExtension' ? [claimed] : null,
+        );
+        final trips = named('!trips:x', 'Trips', Membership.invite);
+        final c = await container();
+        c.read(roomInviteNotificationProvider);
+        client.onNotification.add(invite(trips));
+        await pumpEventQueue();
+        expect(notifications.shown, isEmpty);
+
+        claimed = false;
+        await callFromNative(
+          const MethodChannel('zuno/nse'),
+          'alertHiddenInFront',
+        );
+        await pumpEventQueue();
+
+        expect(notifications.shown.single.body, 'Invited you to Trips');
+      });
     });
 
     test('any other invitation still notifies', () async {
@@ -312,7 +378,8 @@ void main() {
       expect(content, isNotNull);
       expect(content!.roomId, room.id);
       expect(content.title, 'Beginners');
-      expect(content.body, 'Ines asks to join');
+      expect(content.text, 'Ines asks to join');
+      expect(content.kind, NotificationLineKind.notice);
       expect(content.isDirectChat, isFalse);
     });
 
@@ -338,7 +405,7 @@ void main() {
 
       final content = joinRequestNotificationFor(client, plain)!;
 
-      expect(content.body, '@ines asks to join');
+      expect(content.text, '@ines asks to join');
       expect(content.senderAvatarUrl, Uri.parse('mxc://x/ines'));
     });
 
@@ -348,7 +415,7 @@ void main() {
         content: {'membership': 'knock', 'displayname': 'I' * 200},
       );
 
-      final body = joinRequestNotificationFor(client, long)!.body;
+      final body = joinRequestNotificationFor(client, long)!.text;
 
       expect(body.length, lessThan(60));
       expect(body, endsWith('… asks to join'));

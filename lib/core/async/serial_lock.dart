@@ -26,6 +26,8 @@ class KeyedSerialLock {
 
   final _tails = <String, Future<void>>{};
 
+  Future<void> idle() => Future.wait([..._tails.values]);
+
   Future<T> run<T>(String key, Future<T> Function() action) {
     final previous = _tails[key] ?? Future<void>.value();
     final done = Completer<void>();

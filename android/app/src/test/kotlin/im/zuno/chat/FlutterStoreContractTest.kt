@@ -20,7 +20,6 @@ class FlutterStoreContractTest {
         "ringingCall" to FlutterStore.RINGING_CALL,
         "resolvedCallPrefix" to FlutterStore.RESOLVED_CALL_PREFIX,
         "roomCache" to FlutterStore.ROOM_CACHE,
-        "threads" to FlutterStore.THREADS,
         "recentDeliveries" to FlutterStore.RECENT_DELIVERIES,
         "fcmToken" to FlutterStore.FCM_TOKEN,
         "notificationPreview" to FlutterStore.NOTIFICATION_PREVIEW,
@@ -37,6 +36,11 @@ class FlutterStoreContractTest {
     fun `native code opens Dart's preferences file under Dart's prefix`() {
         assertEquals(contract.getString("file"), FlutterStore.FILE)
         assertEquals(prefix, FlutterStore.PREFIX)
+    }
+
+    @Test
+    fun `native code clears the notification lines file Dart writes`() {
+        assertEquals(contract.getString("threadsFile"), FlutterStore.THREADS_FILE)
     }
 
     @Test

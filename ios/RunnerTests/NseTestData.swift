@@ -51,14 +51,15 @@ enum NseTestData {
   }
 
   static func delivered(
-    _ identifier: String, t: String? = "t\(roomId)", e: String? = nil, o: Int64? = nil,
-    k: String = "msg", dateMs: Int64 = now - 60_000, title: String = "Design team",
+    _ identifier: String, t: String? = "t\(roomId)", e: String? = nil, c: String? = nil,
+    o: Int64? = nil, k: String = "msg", dateMs: Int64 = now - 60_000, title: String = "Design team",
     body: String = "Alice: earlier", threadId: String? = nil, payloadEventId: String? = nil,
     pushed: Bool = true
   ) -> NseDelivered {
     var info: [String: String] = ["k": k]
     if let t { info["t"] = t }
     if let e { info["e"] = e }
+    if let c { info["c"] = c }
     if let o { info["o"] = String(o) }
     return NseDelivered(
       identifier: identifier, dateMs: dateMs, title: title, body: body,

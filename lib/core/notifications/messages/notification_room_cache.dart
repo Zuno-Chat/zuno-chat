@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../l10n/l10n.dart';
 import '../../matrix/rooms/room_title.dart';
+import '../settings/notification_preview.dart';
 
 const notificationRoomCacheKey = 'notifications.rooms';
 
@@ -19,16 +20,22 @@ String _singleLine(String name) =>
 
 Future<List<NotificationRoomEntry>> notificationRoomEntriesOf(
   Client client,
+  NotificationPreview preview,
 ) async {
   final joined = [
     for (final room in client.rooms)
       if (room.membership == Membership.join) room,
   ];
-  await Future.wait(joined.map(loadRoomNameMembers));
+  final named = preview.showsSenders;
+  if (named) await Future.wait(joined.map(loadRoomNameMembers));
   final l10n = deviceLocalizations();
   return [
     for (final room in joined)
-      (id: room.id, name: roomTitle(room, l10n), isDirect: room.isDirectChat),
+      (
+        id: room.id,
+        name: named ? roomTitle(room, l10n) : '',
+        isDirect: room.isDirectChat,
+      ),
   ];
 }
 

@@ -72,7 +72,7 @@ enum CatchUp {
         guard platform.claim(event.eventToken) else { continue }
         let decrypt = platform.availableMemory() >= decryptFloorBytes
         guard
-          case .shown(let title, let text, let kind, let floor) = platform.render(
+          case .shown(let title, let text, let kind, let floor, let claim) = platform.render(
             event.missed, decrypt: decrypt)
         else {
           platform.release(event.eventToken)
@@ -80,7 +80,8 @@ enum CatchUp {
           continue
         }
         let request = CatchUpComposer.request(
-          for: event, title: title, body: text, kind: kind, floor: floor, level: level)
+          for: event, title: title, body: text, kind: kind, floor: floor, claim: claim,
+          level: level)
         guard await platform.post(request) else {
           platform.release(event.eventToken)
           continue

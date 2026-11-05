@@ -2,6 +2,7 @@ import 'package:matrix/matrix.dart';
 
 import '../l10n/l10n.dart';
 import 'messages/message_notification_content.dart';
+import 'messages/notification_thread_store.dart';
 
 MessageNotificationContent? verificationRequestNotificationFor(
   Client client,
@@ -15,12 +16,11 @@ MessageNotificationContent? verificationRequestNotificationFor(
   final room = event.room;
   final sender = room.unsafeGetUserFromMemoryOrFallback(event.senderId);
   final name = sender.calcDisplayname();
-  final body = deviceLocalizations().notificationsWantsToVerify;
   return MessageNotificationContent(
     roomId: room.id,
     title: name,
-    body: body,
-    text: body,
+    text: deviceLocalizations().notificationsWantsToVerify,
+    kind: NotificationLineKind.notice,
     eventId: event.eventId,
     isDirectChat: room.isDirectChat,
     senderId: event.senderId,

@@ -349,12 +349,22 @@ class LocalNotifications {
     ),
   ];
 
-  Future<List<ActiveNotification>> activeNotifications() async {
+  Future<List<ActiveNotification>?> activeNotifications() async {
     try {
       return await plugin.getActiveNotifications();
     } catch (e, s) {
       reportCaught('read active notifications', e, s);
-      return const [];
+      return null;
+    }
+  }
+
+  Future<List<Message>> shownMessages(int id) async {
+    try {
+      final style = await android?.getActiveNotificationMessagingStyle(id: id);
+      return [...?style?.messages];
+    } catch (e, s) {
+      reportCaught('read the lines a notification shows', e, s);
+      return [];
     }
   }
 

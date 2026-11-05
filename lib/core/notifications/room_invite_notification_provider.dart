@@ -12,37 +12,54 @@ import '../l10n/l10n.dart';
 import '../matrix/client/matrix_client_provider.dart';
 import '../matrix/rooms/membership/join_requests.dart';
 import '../platform/platform_capabilities.dart';
+import '../push/nse/extension_claims.dart';
 import '../push/nse/nse_app_channel.dart';
 import '../settings/app_preferences_provider.dart';
 import 'messages/message_notification_poster.dart';
 import 'messages/message_notification_provider.dart';
 import 'messages/message_notifications.dart';
+import 'messages/notification_thread_store.dart';
 import 'messages/notified_events_store.dart';
 
-MessageNotificationContent? inviteNotificationFor(Client client, Event event) {
-  if (event.type != EventTypes.RoomMember) return null;
-  if (event.stateKey != client.userID) return null;
-  if (event.content['membership'] != 'invite') return null;
-  if (event.senderId == client.userID) return null;
+MessageNotificationContent? inviteNotificationFor(Client client, Event event) =>
+    inviteNotificationOf(
+      client,
+      event.room,
+      event,
+      eventId: event.eventId == 'invite_for_${event.room.id}'
+          ? null
+          : event.eventId,
+      timestamp: event.originServerTs,
+    );
 
-  final room = event.room;
-  final inviter = room.unsafeGetUserFromMemoryOrFallback(event.senderId);
+MessageNotificationContent? inviteNotificationOf(
+  Client client,
+  Room room,
+  StrippedStateEvent member, {
+  String? eventId,
+  required DateTime timestamp,
+}) {
+  if (member.type != EventTypes.RoomMember) return null;
+  if (member.stateKey != client.userID) return null;
+  if (member.content['membership'] != 'invite') return null;
+  if (member.senderId == client.userID) return null;
+
+  final inviter = room.unsafeGetUserFromMemoryOrFallback(member.senderId);
   final name = inviter.calcDisplayname();
   final l10n = deviceLocalizations();
-  final body = room.name.isEmpty
-      ? l10n.roomsInvitedYouToChat
-      : l10n.notificationsInvitedToRoom(room.name);
   return MessageNotificationContent(
     roomId: room.id,
     title: name,
-    body: body,
-    text: body,
-    eventId: event.eventId == 'invite_for_${room.id}' ? null : event.eventId,
+    text: room.name.isEmpty
+        ? l10n.roomsInvitedYouToChat
+        : l10n.notificationsInvitedToRoom(room.name),
+    kind: NotificationLineKind.notice,
+    eventId: eventId,
     isDirectChat: room.isDirectChat,
-    senderId: event.senderId,
+    senderId: member.senderId,
     senderName: name,
     senderAvatarUrl: inviter.avatarUrl,
-    timestamp: event.originServerTs,
+    timestamp: timestamp,
   );
 }
 
@@ -113,6 +130,14 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
         lifecycle != AppLifecycleState.inactive) {
       return;
     }
+    if (await ref
+        .read(extensionClaimsProvider)
+        .deferredToExtension(
+          ExtensionClaim.invite(content.roomId),
+          retry: () => _handleEvent(client, event),
+        )) {
+      return;
+    }
     final claim = await claimInviteAnnouncement(
       content.roomId,
       userId: client.userID,
@@ -128,7 +153,7 @@ class RoomInviteNotificationNotifier extends Notifier<void> {
       if (presentsInFrontOnly) {
         unawaited(
           ref.read(nseAppChannelProvider).writeShown([
-            'invite:${content.roomId}',
+            ExtensionClaim.invite(content.roomId),
           ]),
         );
       }

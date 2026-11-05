@@ -198,6 +198,8 @@ struct NseDelivered: Equatable, Sendable {
   var t: String? { userInfo["t"] }
   var e: String? { userInfo["e"] }
   var k: String? { userInfo["k"] }
+  var c: String? { userInfo["c"] }
+  var claims: [String] { [e, c].compactMap { $0 } }
   var isFloor: Bool { userInfo["f"] == "1" }
 
   var note: DeliveredNote {

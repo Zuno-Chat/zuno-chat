@@ -7,8 +7,10 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/matrixrtc/incoming_call_provider.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/notifications/messages/message_notification_provider.dart';
 import 'package:zuno/core/notifications/room_invite_notification_provider.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notify_me.dart';
 import 'package:zuno/core/notifications/verification_request_notification.dart';
 import 'package:zuno/core/push/nse/mention_spec.dart';
@@ -42,14 +44,18 @@ Map<String, Object?> _dispatch(Client client, Event event) {
   }
   final invite = inviteNotificationFor(client, event);
   if (invite != null) {
-    return {'class': 'invitation', 'title': invite.title, 'body': invite.body};
+    return {
+      'class': 'invitation',
+      'title': invite.title,
+      'body': _body(invite),
+    };
   }
   final verification = verificationRequestNotificationFor(client, event);
   if (verification != null) {
     return {
       'class': 'verification',
       'title': verification.title,
-      'body': verification.body,
+      'body': _body(verification),
     };
   }
   final content = messageNotificationFor(
@@ -60,8 +66,12 @@ Map<String, Object?> _dispatch(Client client, Event event) {
     currentlyOpenRoomId: null,
   ).content;
   if (content == null) return {'class': 'hidden'};
-  return {'class': 'message', 'title': content.title, 'body': content.body};
+  return {'class': 'message', 'title': content.title, 'body': _body(content)};
 }
+
+String _body(MessageNotificationContent content) => content
+    .threadOf([content.toLine()])
+    .bodyAt(NotificationPreview.full, englishLocalizations);
 
 class _RulesClient extends Client {
   _RulesClient(this.rules) : super('test', database: FakeDatabaseApi());

@@ -7,6 +7,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import im.zuno.chat.zuno_notifications.FlutterStore
 import im.zuno.chat.zuno_notifications.PushNotice
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -108,6 +109,11 @@ class FcmService : FirebaseMessagingService() {
     private fun clearMessageNotifications() {
         Log.i(TAG, "Badge push says everything is read, clearing chat notifications")
         try {
+            File(filesDir, FlutterStore.THREADS_FILE).delete()
+        } catch (e: Exception) {
+            CaughtErrors.record(this, "fcm forget notification threads", e)
+        }
+        try {
             val manager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
             val shown = manager.activeNotifications.map {
                 ShownNotification(it.id, it.notification.channelId)
@@ -115,11 +121,6 @@ class FcmService : FirebaseMessagingService() {
             FcmBadgeDecision.messageNotificationIds(shown).forEach { manager.cancel(it) }
         } catch (e: Exception) {
             CaughtErrors.record(this, "fcm clear chat notifications", e)
-        }
-        try {
-            FlutterStore.preferences(this).edit().remove(FlutterStore.THREADS).apply()
-        } catch (e: Exception) {
-            CaughtErrors.record(this, "fcm forget notification threads", e)
         }
     }
 

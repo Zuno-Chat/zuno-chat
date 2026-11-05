@@ -90,18 +90,27 @@ One level (`NotificationPreview`, default Name and message) applies on both plat
 | Nothing | "Zuno", "New message" | No | "Zuno call" |
 
 - **The level governs every surface that can keep text**, because the OS keeps what a notification showed: the app's own posts, the iOS extension, the Android instant notice, the ring and the Android ongoing call (`calls.md`), and the Android live-location notice, which counts chats instead of naming them at Nothing (`location-sharing.md`).
+- **A line's kind owns what each level shows**: Name only hides a message's text but keeps a notice's (an invitation, a join or verification request) and a call summary's, and Nothing hides every text, name and picture.
 - **Below Name and message, Android shows no photo thumbnails.**
-- **At Nothing, Android drops every avatar, the conversation style and the conversation shortcut, and removes the shortcuts it already made**, since the Conversations section and the launcher would still show names.
+- **At Nothing, Android drops every avatar, the conversation style and the conversation shortcut, removes the shortcuts it already made and saves no sender's picture on the device**, since the Conversations section and the launcher would still show names and a saved picture would still say who wrote.
 - **At Nothing a message still posts on its direct or group channel**, so per-channel sounds keep working.
 - **With iOS Show Previews off, a message says "New message" instead of "Notification"**, because every message notification carries a category (with actions only at Name and message) whose hidden-preview placeholder says so; invitations, calls and system lines keep the system default.
 - **On an iOS version that can keep a deleted notification's text, the preview choice suggests Name only**, in Settings and onboarding's privacy page alike.
+
+### Stored lines
+
+**A thread's posted lines live in one app file as bookkeeping only** (Application Support on iOS, the files directory on Android), never in preferences, which iOS backs up. Per line it holds the event, sender, kind, time, placeholder and quiet flags and a local image, and per thread the preview level it was posted at; it holds no text, names or pictures, so each post rebuilds them:
+
+- **Android reads earlier lines back from the notification showing only when it was posted at the current level**, else rebuilds them from the encrypted database, decrypting without storing, so "New message" from a lower level never outlives raising the level.
+- **iOS never rebuilds earlier lines**, because its notification shows only the latest one.
+- **The store serializes its own writes, and each write drops the threads whose notification is gone**, so a dismissed conversation leaves no IDs behind; threads and the lines per thread are capped.
+- **Lines older builds kept in preferences, text included, move into the file at startup with their IDs only**, before any push is handled so a waiting line is still taken over, and iOS drops the room names those builds kept there; this is temporary code.
 
 ### Android presentation
 
 - **One notification per room.** Its id is an FNV-1a hash of the room id, because Dart's `String.hashCode` is not Java's and native code must hit the same id.
 - **Each join request gets its own notification**, apart from the room's conversation, and it clears once the request is answered.
 - **Each room is a `MessagingStyle` conversation** above preview Nothing: a thread of its latest lines plus a long-lived conversation shortcut, which puts it in Android's Conversations section.
-- **Stored threads are capped**, and a full store drops threads whose notification no longer shows first, so a showing conversation keeps its lines.
 - **Shortcuts of rooms the user is no longer in are removed**, after the first sync and whenever a sync reports a room left.
 - **Security alerts** (a new sign-in, a recovery code replaced on another device) post on the `security` channel, "Security alerts", which chat mute cannot silence. They post only while Zuno runs, since the app's own sync raises them, and a tap opens Your devices.
 - **Reply and Mark as read** run in flutter_local_notifications' (FLN) action engine. They go to the running app first, through its live route (`calls.md`). With no live app, they open a one-shot client under a background lease.
@@ -120,7 +129,7 @@ One level (`NotificationPreview`, default Name and message) applies on both plat
 FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart reaches it only through `FcmBridge` over `zuno/fcm`.
 
 1. `PushNoticeReceiver`, beside Firebase's own receiver, drops duplicates and posts the instant notice for an event push. For a ring push, while Zuno is signed in and not in front, it opens the payload and rings at once (`calls.md`).
-2. `FcmService` handles a badge push natively: an `unread` count of 0 clears the chat notifications without booting an engine. It hands an event push, or a ring push's opened ring, to `FcmRouter` and waits for Dart's ack, so the process keeps service priority and Firebase's wake lock while Dart works. A ring push is judged once: the service takes the receiver's verdict rather than opening the payload again.
+2. `FcmService` handles a badge push natively: an `unread` count of 0 clears the chat notifications and deletes the stored lines without booting an engine. It hands an event push, or a ring push's opened ring, to `FcmRouter` and waits for Dart's ack, so the process keeps service priority and Firebase's wake lock while Dart works. A ring push is judged once: the service takes the receiver's verdict rather than opening the payload again.
 3. `FcmRouter`, over the pure, JUnit-tested `FcmRouting`, picks the engine:
 
 | Situation | Result |
@@ -133,6 +142,7 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 
 - **One classifier for every Android push** (`PushKind`, in `zuno_notifications`): test, message, badge, ring or ring end (data pushes carrying only a sealed ring payload, which get no instant notice; a ring end never starts Dart). FCM and UnifiedPush both switch on it, so a rule for one kind of push lives in one place.
 - **The instant notice** is a "New message" line posted natively before any Dart runs, under the room's notification id and its cached name, or under "Zuno" with no conversation at preview Nothing. It posts only while the app is not in front, nothing shows for the room, and Notify me is not mentions-only. Dart later replaces it in place or retracts it.
+- **The name cache holds no names at preview Nothing** and is rewritten whenever the level changes; iOS never writes it, since nothing there reads it.
 - **Tokens.** FCM auto-init stays off until `getToken`, so a device on another mode never talks to Firebase. The deprecated token APIs stay, because their replacement needs Firebase's newer installation-ID registration, judged too new for the push path.
 - **The ring registration follows FCM** (the `zuno_push` contract): every FCM token the app registers is registered for rings too, a resume re-registers when the module holds another token, and stopping FCM delivery removes the ring registration at once, so UnifiedPush and background sync get no server ring.
 
@@ -152,14 +162,17 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 - **The pusher's app id** (`im.zuno.chat.ios` or `.ios.dev`) follows the APNs environment, read from the signing profile at runtime, because a token sent to the wrong environment is rejected and its pusher deleted.
 - **The pusher's `default_payload`** is a "New message" alert with `mutable-content: 1`, which runs the NSE. The static text shows only when the NSE cannot run. The payload names the message tone only while Message tone is on, so toggling the tone re-posts the pusher.
 - **Dropped pushers are counted.** Sygnal deletes a pusher only after APNs rejected its token, so the app counts each drop before re-posting and shows the count in the banner and diagnostics. A quiet re-post would hide a wrong environment, topic or encoding.
-- **The app presents in front, the NSE out of front.** In front, the app posts from sync and records what it showed, so no event shows twice, and a pushed alert that arrives in front shows nothing.
+- **The app presents in front, the NSE out of front.** In front, the app posts from sync and records what it showed, so no event shows twice, and a pushed or catch-up alert that arrives in front shows nothing.
+- **The app holds back an event or invitation whose alert the extension already claimed**, so an alert the user dismissed never comes back when Zuno opens.
+- **An extension alert hidden in front is posted by the app instead.** Native code records the hidden alert's claims (its event, and for an invitation the claim the extension stamps into it) in an app-written set, off the main thread, and only then signals Dart, which re-checks every held-back claim in one call and posts those whose alert was hidden.
+- **Hidden alerts get their own set rather than releasing the extension's claim**, because a released claim would let a later catch-up or duplicate push re-show an event the app chose not to notify about.
 - **The app refines its own "New message" placeholder even after it leaves the front**, because it already marked the event shown, so the extension never will.
 - **The badge is computed on the device**, from rooms with unread messages or an invitation. The app sets it from sync, and the NSE with each line. The iOS Sygnal apps need `send_badge_counts: false`, or receipt-driven badge pushes overwrite it.
 - **Alerts leave once read.** The app removes a read room's pushed alerts, and the NSE sweeps them on its next fetch.
 
 ### iOS: the notification service extension
 
-The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` (`NsePipeline`), Swift only. Every notification rule the app and the extension both apply, such as payload parsing, decoding each App Group file, the preview level and which delivered lines a read clears, has one owner there, so the two sides never disagree.
+The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` (`NsePipeline`), Swift only. Every notification rule the app and the extension both apply, such as payload parsing, decoding each App Group file, the preview level, the claim keys (Dart passes typed claims) and which delivered lines a read clears, has one owner there, so the two sides never disagree.
 
 1. With no read model (before first unlock, or signed out), Apple's static alert passes through.
 2. A floor goes in first, the room's name and "New message", so a timeout still shows names. The event is then claimed, once across concurrent runs, so a second push for it shows only a passive line. At preview Nothing it stops there, with no network call.
@@ -194,6 +207,7 @@ The target is `ios/NotificationService/`, with its logic in `ios/NotifyShared/` 
 | `rooms/<t>` | App | Title, DM partner and exported sessions |
 | `ledger` | App | Recent CallKit calls (`calls.md`) |
 | `shown.app`, `shown.nse` | Each side | Events already shown, or claimed by the extension, so nothing shows twice |
+| `hidden.app` | App | Claims of extension alerts the app hid in front |
 | `nse.marks` | Extension | What the app must act on, such as call summaries and invitations |
 
 Files are sealed under the notify Keychain item and named by HMAC tokens, and thread ids, `userInfo` and the CallKit handle carry only tokens. Dart never sees the key.
@@ -290,11 +304,12 @@ Both platforms show the permission, this device's registration and the module's 
 - **The push wake lock outlasts each release by a moment**, because some makers start a notification's sound only after a delay and hold no wake lock meanwhile, so a phone that sleeps first plays it only once woken.
 - **A plugin a push engine calls must be in `PushEnginePlugins`**, or its `MissingPluginException` is silently swallowed.
 - **FLN stores the background action handler by function name and file** (`local_notifications.dart`), so renaming or moving it leaves Reply, Mark as read and Decline dead on every notification posted before the update, until the app or a push next starts.
-- **Every Dart setting and record native Android code reads or writes is a raw SharedPreferences key**, because headless engines have no provider scope and the instant notice and instant ring read them before any Dart runs. Native code declares them all in one object (`FlutterStore`), and Dart and Kotlin tests both check it against one fixture (`test/fixtures/push/flutter_store_v1.json`), so a renamed key or changed record fails a test instead of going quietly unread.
+- **Every Dart setting and record native Android code reads or writes is a raw SharedPreferences key**, or the stored lines' file, because headless engines have no provider scope and the instant notice and instant ring read them before any Dart runs. Native code declares them all in one object (`FlutterStore`), and Dart and Kotlin tests both check it against one fixture (`test/fixtures/push/flutter_store_v1.json`), so a renamed key or changed record fails a test instead of going quietly unread.
 - **A long-lived push engine's SharedPreferences cache goes stale**, so each push re-reads Notify me and the preview level from storage, and all of its posts share that one read.
 - **Each maker's autostart package must be listed in the manifest's `<queries>`**, or Android 11+ hides it and the Autostart row never appears.
 - **Background sync must not be `dataSync` on Android 14+**, because Android 15 caps that type at 6 h a day and crashes the app past it.
 - **FLN on iOS must never prompt and gets no categories**, because its prompt would stall cold start and its categories would replace the set native code registers.
+- **On iOS, the app's claim check and the hidden-alert signal can land in either order**, so a signal that arrives during a check makes Dart re-check right after holding back, or that alert never posts.
 - **On iOS, Runner handles any response FLN did not complete synchronously**, so an FLN upgrade that completes asynchronously would open a tapped room twice.
 - **iOS reports a Keychain unavailable before first unlock under more than one error, and each counts as locked**, so the extension passes Apple's alert through and a ring stays generic, never reading as signed out.
 - **The extension needs `flutter_vodozemac`'s `ios_decrypt_event` and `ios_free_result`**, and an upgrade that drops them turns every encrypted push into a floor, which `VodozemacMegolmTests` catches.

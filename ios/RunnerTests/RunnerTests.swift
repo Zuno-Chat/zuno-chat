@@ -1163,7 +1163,7 @@ final class AppDataWipeTests: XCTestCase {
   }
 
   @MainActor
-  func testTheWipeSignsThePushSessionOutBeforeEmptyingTheFilesAndFailsWithEither() async {
+  func testTheWipeSignsThePushSessionOutAndClearsNotificationsBeforeEmptyingTheFiles() async {
     for (signedOut, emptied, wiped) in [
       (true, true, true), (false, true, false), (true, false, false),
     ] {
@@ -1173,6 +1173,7 @@ final class AppDataWipeTests: XCTestCase {
           steps.add("sign out")
           return signedOut
         },
+        clearNotifications: { steps.add("clear notifications") },
         emptyFiles: { keep in
           steps.add("empty \(keep)")
           return emptied
@@ -1181,18 +1182,19 @@ final class AppDataWipeTests: XCTestCase {
       let reply = await channelReply(from: plugin, method: "wipe", arguments: ["keep": ["/db"]])
 
       XCTAssertEqual(reply.answer as? Bool, wiped)
-      XCTAssertEqual(steps.values, ["sign out", #"empty ["/db"]"#])
+      XCTAssertEqual(steps.values, ["sign out", "clear notifications", #"empty ["/db"]"#])
     }
   }
 
   @MainActor
-  func testWithoutTheOpenDatabaseNothingIsSignedOutOrEmptied() {
+  func testWithoutTheOpenDatabaseNothingIsSignedOutClearedOrEmptied() {
     let steps = Recorder<String>()
     let plugin = AppDataPlugin(
       signOut: {
         steps.add("sign out")
         return true
       },
+      clearNotifications: { steps.add("clear notifications") },
       emptyFiles: { _ in
         steps.add("empty")
         return true

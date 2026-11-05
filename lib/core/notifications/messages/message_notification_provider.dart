@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../async/serial_lock.dart';
 import '../../calls/matrixrtc/call_summary_message.dart';
 import '../../calls/notifications/ring_over_lines.dart';
 import '../../calls/platform/incoming_call_presenter.dart';
@@ -20,9 +21,10 @@ import '../../matrix/media/media_gallery_group.dart';
 import '../../matrix/rooms/currently_open_room_provider.dart';
 import '../../matrix/rooms/room_title.dart';
 import '../../platform/platform_capabilities.dart';
+import '../../push/nse/extension_claims.dart';
 import '../../push/nse/nse_app_channel.dart';
 import '../../settings/app_preferences_provider.dart';
-import '../settings/notification_preview.dart';
+import '../notification_line_renderer.dart';
 import '../settings/notify_me.dart';
 import 'apns_alert_removal.dart';
 import 'conversation_tones.dart';
@@ -31,6 +33,7 @@ import 'message_notification_image.dart';
 import 'message_notification_poster.dart';
 import 'message_notifications.dart';
 import 'notification_room_cache.dart';
+import 'notification_thread_store.dart';
 
 export 'message_notification_content.dart';
 
@@ -105,7 +108,6 @@ MessageNotificationContent messageFloor(
   return MessageNotificationContent(
     roomId: roomId,
     title: title,
-    body: l10n.notificationsTapToOpen,
     text: l10n.notificationsNewMessage,
     eventId: eventId,
     isDirectChat: room?.isDirectChat ?? true,
@@ -122,7 +124,6 @@ MessageNotificationDecision messageNotificationFor(
   required NotifyMe notifyMe,
   required String? currentlyOpenRoomId,
   DateTime? openedAt,
-  NotificationPreview preview = NotificationPreview.full,
 }) {
   if (event.senderId == client.userID) {
     return const MessageNotificationDecision.refuse(
@@ -176,22 +177,15 @@ MessageNotificationDecision messageNotificationFor(
   final senderName = sender.calcDisplayname();
   final l10n = deviceLocalizations();
   final summary = summarize(l10n, event);
-  final text =
-      preview == NotificationPreview.nameOnly &&
-          summary.kind != MessageKind.callSummary
-      ? l10n.notificationsNewMessage
-      : summary.text;
-  final title = roomTitle(room, l10n);
-  final body = room.isDirectChat
-      ? text
-      : l10n.notificationsSenderText(senderName, text);
 
   return MessageNotificationDecision.notify(
     MessageNotificationContent(
       roomId: room.id,
-      title: title,
-      body: body,
-      text: text,
+      title: roomTitle(room, l10n),
+      text: summary.text,
+      kind: summary.kind == MessageKind.callSummary
+          ? NotificationLineKind.callSummary
+          : NotificationLineKind.message,
       eventId: event.eventId,
       isDirectChat: room.isDirectChat,
       senderId: event.senderId,
@@ -221,6 +215,7 @@ typedef _AwaitedKey = ({String roomId, bool floorPosted});
 
 class MessageNotificationNotifier extends Notifier<void> {
   final _roomCache = NotificationRoomCacheWriter();
+  final _roomCacheWrites = SerialLock();
   final _posting = <String, Set<Future<void>>>{};
   final _awaitingKeys = <String, _AwaitedKey>{};
   DateTime? _chatOpenedAt;
@@ -243,6 +238,10 @@ class MessageNotificationNotifier extends Notifier<void> {
         .listen((event) => _handleLateKey(client, event));
     final syncSub = client.onSync.stream.listen(
       (update) => _handleSync(client, update),
+    );
+    ref.listen(
+      notificationPreviewProvider,
+      (_, _) => unawaited(_writeRoomCache(client)),
     );
     final lifecycle = AppLifecycleListener(
       onResume: () => _takeOverWaitingLines(client),
@@ -324,16 +323,21 @@ class MessageNotificationNotifier extends Notifier<void> {
     );
   }
 
-  Future<void> _writeRoomCache(Client client) async {
+  Future<void> _writeRoomCache(Client client) => _roomCacheWrites.run(() async {
+    if (!ref.mounted) return;
+    if (!ref.read(platformCapabilitiesProvider).instantPushNotices) return;
     try {
       await _roomCache.write(
         await SharedPreferences.getInstance(),
-        await notificationRoomEntriesOf(client),
+        await notificationRoomEntriesOf(
+          client,
+          ref.read(notificationPreviewProvider),
+        ),
       );
     } catch (error, stack) {
       reportCaught('notification room cache write', error, stack);
     }
-  }
+  });
 
   Future<void> _handleLateKey(Client client, Event decrypted) async {
     var awaited = _awaitingKeys.remove(decrypted.eventId);
@@ -351,6 +355,7 @@ class MessageNotificationNotifier extends Notifier<void> {
       decrypted.room.id,
       decrypted.eventId,
       preview: ref.read(notificationPreviewProvider),
+      render: ClientNotificationRenderer(client),
     );
   }
 
@@ -385,7 +390,6 @@ class MessageNotificationNotifier extends Notifier<void> {
         notifyMe: ref.read(notifyMeProvider),
         currentlyOpenRoomId: ref.read(currentlyOpenRoomIdProvider),
         openedAt: _chatOpenedAt,
-        preview: preview,
       );
       final content = decision.content;
       final lifecycle = WidgetsBinding.instance.lifecycleState;
@@ -395,7 +399,9 @@ class MessageNotificationNotifier extends Notifier<void> {
       void markShown() {
         if (presentsInFrontOnly) {
           unawaited(
-            ref.read(nseAppChannelProvider).writeShown([event.eventId]),
+            ref.read(nseAppChannelProvider).writeShown([
+              ExtensionClaim.event(event.eventId),
+            ]),
           );
         }
       }
@@ -425,10 +431,20 @@ class MessageNotificationNotifier extends Notifier<void> {
       Future<bool> underRing() async =>
           decision.placeholder && await ringStandsInFor(event, ring);
       final quietInFront = content.quiet && inFront;
-      final posts =
+      var posts =
           !quietInFront &&
           (inFront || !presentsInFrontOnly || refinesFloor) &&
           !await underRing();
+      if (posts &&
+          !refinesFloor &&
+          await ref
+              .read(extensionClaimsProvider)
+              .deferredToExtension(
+                ExtensionClaim.event(event.eventId),
+                retry: () => _handleEvent(client, event),
+              )) {
+        posts = false;
+      }
       if (decision.placeholder) {
         _awaitingKeys.putIfAbsent(
           event.eventId,
@@ -450,6 +466,7 @@ class MessageNotificationNotifier extends Notifier<void> {
           roomId,
           event.eventId,
           preview: preview,
+          render: ClientNotificationRenderer(client),
         );
         return false;
       }

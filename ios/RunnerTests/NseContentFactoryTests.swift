@@ -80,7 +80,7 @@ final class NseContentFactoryTests: XCTestCase {
     let own = try NseTestData.notification(
       "42",
       userInfo: [
-        "t": "ta", "o": "100", "k": "msg", "room_id": "!r:x",
+        "t": "ta", "e": "e1", "c": "einvite:!r", "o": "100", "k": "inv", "room_id": "!r:x",
         "payload": #"{"type":"message","roomId":"!r:x","eventId":"$e"}"#,
       ],
       trigger: nil, thread: "ta")
@@ -89,10 +89,13 @@ final class NseContentFactoryTests: XCTestCase {
 
     let delivered = NseContentFactory.delivered(own)
 
-    XCTAssertEqual(delivered.userInfo, ["t": "ta", "o": "100", "k": "msg"])
+    XCTAssertEqual(
+      delivered.userInfo, ["t": "ta", "e": "e1", "c": "einvite:!r", "o": "100", "k": "inv"])
+    XCTAssertEqual(delivered.claims, ["e1", "einvite:!r"])
     XCTAssertEqual(delivered.threadId, "ta")
     XCTAssertEqual(delivered.payloadEventId, "$e")
     XCTAssertFalse(delivered.pushed)
     XCTAssertTrue(NseContentFactory.delivered(pushed).pushed)
+    XCTAssertEqual(NseContentFactory.delivered(pushed).claims, [])
   }
 }

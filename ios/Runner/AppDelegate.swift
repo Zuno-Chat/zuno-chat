@@ -40,17 +40,22 @@ import UserNotifications
     withCompletionHandler completionHandler:
       @escaping @Sendable (UNNotificationPresentationOptions) -> Void
   ) {
+    let completion = OnceCompletion(completionHandler)
+    let present = { (options: UNNotificationPresentationOptions) in
+      completion(options)
+      if options.isEmpty {
+        NsePlugin.alertHiddenInFront(NseContentFactory.delivered(notification))
+      }
+    }
     if let early = NotificationResponseRoute.earlyPresentation(
       identifier: notification.request.identifier,
       userInfo: notification.request.content.userInfo)
     {
-      completionHandler(early)
-      return
+      return present(early)
     }
-    let completion = OnceCompletion(completionHandler)
     super.userNotificationCenter(center, willPresent: notification) { completion($0) }
     guard !completion.isDone else { return }
-    completion(
+    present(
       NotificationResponseRoute.presentation(
         pushed: notification.request.trigger is UNPushNotificationTrigger))
   }

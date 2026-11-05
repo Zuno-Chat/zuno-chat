@@ -3,7 +3,10 @@ import Foundation
 
 @MainActor
 final class NsePlugin: NSObject, @preconcurrency FlutterPlugin {
+  private static weak var current: NsePlugin?
+
   private let cache: ReadModelCache
+  private var channel: FlutterMethodChannel?
 
   init(cache: ReadModelCache = .shared) {
     self.cache = cache
@@ -11,7 +14,20 @@ final class NsePlugin: NSObject, @preconcurrency FlutterPlugin {
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(name: "zuno/nse", binaryMessenger: registrar.messenger())
-    registrar.addMethodCallDelegate(NsePlugin(), channel: channel)
+    let instance = NsePlugin()
+    instance.channel = channel
+    registrar.addMethodCallDelegate(instance, channel: channel)
+    current = instance
+  }
+
+  static func alertHiddenInFront(_ alert: NseDelivered) {
+    guard !alert.claims.isEmpty else { return }
+    Task.detached(priority: .userInitiated) {
+      guard NseAppStore.current()?.recordHidden(alert) == true else { return }
+      await MainActor.run {
+        NsePlugin.current?.channel?.invokeMethod("alertHiddenInFront", arguments: nil)
+      }
+    }
   }
 
   func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {

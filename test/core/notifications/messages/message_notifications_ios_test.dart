@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
 import 'package:zuno/core/notifications/local_notifications.dart';
 import 'package:zuno/core/notifications/messages/message_notification_content.dart';
 import 'package:zuno/core/notifications/messages/message_notifications.dart';
@@ -14,6 +13,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/nse/opaque_thread_ids.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/fake_notification_renderer.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/test_clock.dart';
 
@@ -32,8 +32,10 @@ MessageNotifications _messageNotifications(PlatformCapabilities capabilities) =>
 void main() {
   late RecordedNotifications notifications;
   late MessageNotifications service;
+  late FakeNotificationRenderer renderer;
 
   setUp(() {
+    renderer = FakeNotificationRenderer();
     SharedPreferences.setMockInitialValues({});
     ambientCapabilities = iosCapabilities;
     notifications = installFakeLocalNotifications(platform: TargetPlatform.iOS);
@@ -90,7 +92,7 @@ void main() {
     const message = MessageNotificationContent(
       roomId: _roomId,
       title: 'Alice',
-      body: 'hi',
+      text: 'hi',
       eventId: r'$1',
     );
 
@@ -98,26 +100,63 @@ void main() {
       message,
       preview: NotificationPreview.full,
       isMessage: true,
+      render: renderer,
     );
     await service.showMessage(
       const MessageNotificationContent(
         roomId: _roomId,
         title: 'Alice',
-        body: 'Tap to open',
+        text: 'Tap to open',
         eventId: r'$2',
       ),
       preview: NotificationPreview.full,
       placeholder: true,
+      render: renderer,
     );
     await service.retractPlaceholder(
       _roomId,
       r'$2',
       preview: NotificationPreview.full,
+      render: renderer,
     );
     await service.retractPushNotice(_roomId, r'$1');
 
     expect(await service.takePushNotice(_roomId, r'$1'), isFalse);
     expect(conversations.named('takePushNotice'), isEmpty);
+  });
+
+  test('an iPhone notification shows only its newest line, so a new message '
+      'rebuilds none of the earlier ones', () async {
+    Future<void> post(String eventId, String text, int minute) =>
+        service.showMessage(
+          renderer.remembered(
+            MessageNotificationContent(
+              roomId: _roomId,
+              title: 'Family',
+              text: text,
+              eventId: eventId,
+              isDirectChat: false,
+              senderId: '@a:x',
+              senderName: 'Alice',
+              timestamp: DateTime.utc(2031, 1, 1, 12, minute),
+            ),
+          ),
+          preview: NotificationPreview.full,
+          isMessage: true,
+          render: renderer,
+        );
+    await post(r'$1', 'hi', 0);
+    notifications.active = [
+      {
+        'id': messageNotificationIdFor(_roomId),
+        'payload': _messagePayload(_roomId),
+      },
+    ];
+
+    await post(r'$2', 'there?', 1);
+
+    expect(renderer.rebuilt, 0);
+    expect(notifications.shown.last.body, 'Alice: there?');
   });
 
   group('posting', () {
@@ -127,11 +166,12 @@ void main() {
         const MessageNotificationContent(
           roomId: _roomId,
           title: 'Alice',
-          body: 'hi',
+          text: 'hi',
           eventId: r'$1',
         ),
         preview: NotificationPreview.full,
         isMessage: true,
+        render: renderer,
       );
 
       final ios = notifications.lastPlatformSpecifics;
@@ -145,7 +185,7 @@ void main() {
       const message = MessageNotificationContent(
         roomId: _roomId,
         title: 'Alice',
-        body: 'hi',
+        text: 'hi',
         eventId: r'$1',
       );
 
@@ -154,7 +194,11 @@ void main() {
           'list', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
 
-        await service.showMessage(message, preview: NotificationPreview.full);
+        await service.showMessage(
+          message,
+          preview: NotificationPreview.full,
+          render: renderer,
+        );
 
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentSound'], isTrue);
@@ -173,11 +217,12 @@ void main() {
           const MessageNotificationContent(
             roomId: _roomId,
             title: 'Alice',
-            body: 'hi',
+            text: 'hi',
             eventId: r'$1',
             quiet: true,
           ),
           preview: NotificationPreview.full,
+          render: renderer,
         );
 
         final ios = notifications.lastPlatformSpecifics;
@@ -192,7 +237,11 @@ void main() {
       clockedTest('a second message in the same room inside the tone interval '
           'updates the list without a banner or sound', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-        await service.showMessage(message, preview: NotificationPreview.full);
+        await service.showMessage(
+          message,
+          preview: NotificationPreview.full,
+          render: renderer,
+        );
         notifications.active = [
           {
             'id': messageNotificationIdFor(_roomId),
@@ -204,10 +253,11 @@ void main() {
           const MessageNotificationContent(
             roomId: _roomId,
             title: 'Alice',
-            body: 'and again',
+            text: 'and again',
             eventId: r'$2',
           ),
           preview: NotificationPreview.full,
+          render: renderer,
         );
 
         final ios = notifications.lastPlatformSpecifics;
@@ -221,7 +271,11 @@ void main() {
           'without sound', () async {
         SharedPreferences.setMockInitialValues({messageToneEnabledKey: false});
 
-        await service.showMessage(message, preview: NotificationPreview.full);
+        await service.showMessage(
+          message,
+          preview: NotificationPreview.full,
+          render: renderer,
+        );
 
         final ios = notifications.lastPlatformSpecifics;
         expect(ios['presentSound'], isFalse);
@@ -233,7 +287,11 @@ void main() {
         'refining a message already on screen does not light it again',
         () async {
           SharedPreferences.setMockInitialValues({messageToneEnabledKey: true});
-          await service.showMessage(message, preview: NotificationPreview.full);
+          await service.showMessage(
+            message,
+            preview: NotificationPreview.full,
+            render: renderer,
+          );
           notifications.active = [
             {
               'id': messageNotificationIdFor(_roomId),
@@ -245,11 +303,12 @@ void main() {
             const MessageNotificationContent(
               roomId: _roomId,
               title: 'Alice',
-              body: 'hi, with the photo',
+              text: 'hi, with the photo',
               eventId: r'$1',
             ),
             preview: NotificationPreview.full,
             refine: true,
+            render: renderer,
           );
 
           final ios = notifications.lastPlatformSpecifics;
@@ -345,7 +404,7 @@ void main() {
     const message = MessageNotificationContent(
       roomId: _roomId,
       title: 'Alice',
-      body: 'hi',
+      text: 'hi',
       eventId: r'$1',
     );
 
@@ -366,8 +425,12 @@ void main() {
       test(
         'at ${preview.name}, a message gets the $category category',
         () async {
-          await _messageNotifications(native)
-              .showMessage(message, preview: preview, isMessage: true);
+          await _messageNotifications(native).showMessage(
+            message,
+            preview: preview,
+            isMessage: true,
+            render: renderer,
+          );
 
           expect(
             notifications.lastPlatformSpecifics['categoryIdentifier'],
@@ -388,6 +451,7 @@ void main() {
         message,
         preview: NotificationPreview.nothing,
         isMessage: true,
+        render: renderer,
       );
 
       expect(
@@ -399,7 +463,7 @@ void main() {
     for (final preview in NotificationPreview.values) {
       test('at ${preview.name}, an invitation gets no category', () async {
         await _messageNotifications(native)
-            .showMessage(message, preview: preview);
+            .showMessage(message, preview: preview, render: renderer);
 
         expect(
           notifications.lastPlatformSpecifics['categoryIdentifier'],
@@ -412,7 +476,12 @@ void main() {
         'Name only', () async {
       const preview = NotificationPreview.nameOnly;
       final service = _messageNotifications(native);
-      await service.showMessage(message, preview: preview, isMessage: true);
+      await service.showMessage(
+        message,
+        preview: preview,
+        isMessage: true,
+        render: renderer,
+      );
       notifications.active = [
         {
           'id': messageNotificationIdFor(_roomId),
@@ -423,15 +492,21 @@ void main() {
         const MessageNotificationContent(
           roomId: _roomId,
           title: 'Alice',
-          body: 'Tap to open',
+          text: 'Tap to open',
           eventId: r'$2',
         ),
         preview: preview,
         placeholder: true,
         isMessage: true,
+        render: renderer,
       );
 
-      await service.retractPlaceholder(_roomId, r'$2', preview: preview);
+      await service.retractPlaceholder(
+        _roomId,
+        r'$2',
+        preview: preview,
+        render: renderer,
+      );
 
       expect(notifications.shown, hasLength(3));
       expect(

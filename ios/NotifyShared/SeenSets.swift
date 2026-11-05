@@ -8,8 +8,31 @@ protocol NseFiles: Sendable {
 extension NotifyFile {
   static let shownApp = "shown.app"
   static let shownNse = "shown.nse"
+  static let hiddenApp = "hidden.app"
   static let marks = "nse.marks"
   static let state = "nse.state"
+}
+
+enum NseClaim: Equatable, Sendable {
+  case event(String)
+  case invite(String)
+
+  var key: String {
+    switch self {
+    case .event(let eventId): return eventId
+    case .invite(let roomId): return "invite:\(roomId)"
+    }
+  }
+
+  init?(_ entry: Any?) {
+    guard let fields = entry as? [String: Any], let id = fields["id"] as? String, !id.isEmpty
+    else { return nil }
+    switch fields["kind"] as? String {
+    case "event": self = .event(id)
+    case "invite": self = .invite(id)
+    default: return nil
+    }
+  }
 }
 
 struct NseMark: Equatable, Sendable {

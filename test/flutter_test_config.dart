@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file/file.dart' show Directory;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ import 'package:zuno/core/calls/show_over_lockscreen.dart';
 import 'package:zuno/core/files/file_system.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
+import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/ring/ring_channel.dart';
@@ -41,6 +43,12 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     _resetAmbientCapabilities();
     backgroundRunner = runInline;
     fileSystem = const InstantFileSystem();
+    Directory? threads;
+    NotificationThreadStore.instance = NotificationThreadStore(
+      directory: () async => threads ??= await fileSystem.systemTempDirectory
+          .createTemp('threads'),
+    );
+    addTearDown(() async => threads?.delete(recursive: true));
     final messenger = _testMessenger();
     messenger?.setMockStreamHandler(
       _networkChannel,

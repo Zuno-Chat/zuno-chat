@@ -33,7 +33,6 @@ void main() {
       MessageNotificationContent(
         roomId: roomId,
         title: 'Alice',
-        body: photo ? 'a cat' : 'hi',
         text: photo ? 'a cat' : 'hi',
         eventId: r'$1',
         senderId: '@a:x',

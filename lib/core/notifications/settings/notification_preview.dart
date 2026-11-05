@@ -30,6 +30,8 @@ enum NotificationPreview {
       this == nothing ? l10n.callsGenericRingName : name;
 
   bool get showsSenders => this != nothing;
+
+  bool get showsImages => this == full;
 }
 
 const notificationPreviewKey = 'settings.notification_preview';

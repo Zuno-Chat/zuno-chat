@@ -40,6 +40,15 @@ final class CatchUpComposerTests: XCTestCase {
     XCTAssertEqual(content.userInfo.count, 5)
   }
 
+  func testAnInvitationCarriesTheInviteClaimItTook() throws {
+    let content = CatchUpComposer.request(
+      for: try planned(), title: "Alice", body: "Invited you to chat", kind: "inv",
+      claim: "einvite:!abc:zuno.im", level: "full"
+    ).content
+    XCTAssertEqual(content.userInfo["c"] as? String, "einvite:!abc:zuno.im")
+    XCTAssertEqual(content.userInfo.count, 5)
+  }
+
   func testItArrivesWithoutSoundOrBanner() throws {
     let content = CatchUpComposer.request(
       for: try planned(), title: "A", body: "B", kind: "msg", level: "full"

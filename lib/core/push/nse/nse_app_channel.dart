@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -59,6 +61,20 @@ class NseOutcomeReport {
   }
 }
 
+extension type const ExtensionClaim._(({String kind, String id}) _wire) {
+  const ExtensionClaim.event(String eventId)
+    : this._((kind: 'event', id: eventId));
+
+  const ExtensionClaim.invite(String roomId)
+    : this._((kind: 'invite', id: roomId));
+
+  Map<String, String> toChannel() => {'kind': _wire.kind, 'id': _wire.id};
+}
+
+Map<String, Object?> _claimsArgs(List<ExtensionClaim> claims) => {
+  'claims': [for (final claim in claims) claim.toChannel()],
+};
+
 class NseAppChannel {
   const NseAppChannel({this.capabilities, this.channel = nseChannel});
 
@@ -67,9 +83,34 @@ class NseAppChannel {
 
   bool get _enabled => (capabilities ?? ambientCapabilities).nseNotifications;
 
-  Future<void> writeShown(List<String> keys) async {
-    if (!_enabled || keys.isEmpty) return;
-    await _invoke<Object?>('writeShown', {'e': keys});
+  Future<void> writeShown(List<ExtensionClaim> claims) async {
+    if (!_enabled || claims.isEmpty) return;
+    await _invoke<Object?>('writeShown', _claimsArgs(claims));
+  }
+
+  Future<Set<ExtensionClaim>> shownByExtension(
+    List<ExtensionClaim> claims,
+  ) async {
+    if (!_enabled || claims.isEmpty) return const {};
+    final shown =
+        await _invoke<List<Object?>>('shownByExtension', _claimsArgs(claims)) ??
+        const [];
+    return {
+      for (var i = 0; i < claims.length && i < shown.length; i++)
+        if (shown[i] == true) claims[i],
+    };
+  }
+
+  void onAlertHidden(void Function()? hidden) {
+    if (!_enabled) return;
+    channel.setMethodCallHandler(
+      hidden == null
+          ? null
+          : (call) async {
+              if (call.method == 'alertHiddenInFront') hidden();
+              return null;
+            },
+    );
   }
 
   Future<List<NseMark>> takeMarks() async {

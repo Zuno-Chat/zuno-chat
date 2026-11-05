@@ -7,10 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/matrix/account/sign_out_wipe.dart';
 import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
+import 'package:zuno/core/notifications/messages/message_notification_content.dart';
+import 'package:zuno/core/notifications/messages/message_notifications.dart';
+import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/nse/session_exporter.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/fake_notification_renderer.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 void main() {
@@ -276,6 +281,43 @@ void main() {
         });
         expect(prefs.getString('theme'), isNull);
         expect(prefs.getBool(signedInMarkerKey), isNull);
+      });
+
+      test('the native wipe, which takes the notifications the account '
+          'showed with it, waits for any still being posted to land', () async {
+        final notifications = installFakeLocalNotifications(
+          platform: TargetPlatform.iOS,
+        );
+        installSilentNotificationSideChannels();
+        final held = Completer<void>();
+        notifications.heldShows = held.future;
+        await prefs.setBool(signedInMarkerKey, true);
+        var wiped = false;
+        messenger.setMockMethodCallHandler(channel, (call) async {
+          wiped = true;
+          return true;
+        });
+        final posting = MessageNotifications.instance.showMessage(
+          const MessageNotificationContent(
+            roomId: '!r:x',
+            title: 'Alice',
+            text: 'hi',
+            eventId: r'$1',
+          ),
+          preview: NotificationPreview.full,
+          render: FakeNotificationRenderer(),
+        );
+        await pumpEventQueue();
+
+        final wiping = providedWipe(capabilities: keepsProcess)
+            .onLoginState(false, stopDelivery: stopDelivery);
+        await pumpEventQueue();
+        expect(wiped, isFalse);
+
+        held.complete();
+        await posting;
+        await wiping;
+        expect(wiped, isTrue);
       });
 
       test('decrypted media held in memory goes with the account', () async {

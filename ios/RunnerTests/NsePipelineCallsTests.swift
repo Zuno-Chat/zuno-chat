@@ -248,6 +248,7 @@ final class NsePipelineCallsTests: XCTestCase {
     XCTAssertEqual(first.delivery.title, "Alice")
     XCTAssertEqual(first.delivery.body, "Invited you to chat")
     XCTAssertEqual(first.delivery.userInfo["k"], "inv")
+    XCTAssertEqual(first.delivery.userInfo["c"], "einvite:\(NseTestData.roomId)")
     XCTAssertEqual(second.outcome, .duplicate)
     XCTAssertEqual(SeenSets.marks(harness.files.read(NotifyFile.marks)).map(\.kind), ["invite"])
   }

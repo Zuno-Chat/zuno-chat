@@ -1,18 +1,26 @@
 @preconcurrency import Flutter
 import UIKit
+import UserNotifications
 
 @MainActor
 final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
   private nonisolated static let databaseSidecars = ["", "-wal", "-shm", "-journal"]
 
   private let signOut: @MainActor () -> Bool
+  private let clearNotifications: @MainActor () -> Void
   private let emptyFiles: @Sendable ([String]) -> Bool
 
   init(
     signOut: @escaping @MainActor () -> Bool = { PushRingHandler.shared.signOut() },
+    clearNotifications: @escaping @MainActor () -> Void = {
+      let center = UNUserNotificationCenter.current()
+      center.removeAllDeliveredNotifications()
+      center.removeAllPendingNotificationRequests()
+    },
     emptyFiles: @escaping @Sendable ([String]) -> Bool = { AppDataPlugin.wipe(keeping: $0) }
   ) {
     self.signOut = signOut
+    self.clearNotifications = clearNotifications
     self.emptyFiles = emptyFiles
   }
 
@@ -33,6 +41,7 @@ final class AppDataPlugin: NSObject, @preconcurrency FlutterPlugin {
       return
     }
     let signedOut = signOut()
+    clearNotifications()
     let emptyFiles = self.emptyFiles
     Task {
       let emptied = await withCheckedContinuation { continuation in

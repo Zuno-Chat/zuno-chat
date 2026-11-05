@@ -104,6 +104,12 @@ void caughtUp(Room room, {required Event lastEvent, required int unread}) {
   if (room.client.getRoomById(room.id) == null) room.client.rooms.add(room);
 }
 
+Future<String?> storedSender(String roomId) async =>
+    (await NotificationThreadStore.instance.read(roomId))
+        ?.lines
+        .single
+        .senderId;
+
 void main() {
   late _ScriptedClient client;
   late Room room;
@@ -769,11 +775,7 @@ void main() {
 
       await handle();
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(
-        readNotificationThread(prefs, room.id)!.lines.single.senderId,
-        '@bob:example.org',
-      );
+      expect(await storedSender(room.id), '@bob:example.org');
     });
   });
 
@@ -1143,13 +1145,7 @@ void main() {
         'its sender, without alerting again', () async {
       client.decryption = FakeRoomDecryption();
       await handleSlowly();
-      expect(
-        readNotificationThread(
-          await SharedPreferences.getInstance(),
-          room.id,
-        )!.lines.single.senderId,
-        room.id,
-      );
+      expect(await storedSender(room.id), room.id);
       notifications.active = [
         {
           'id': roomNotificationId,
@@ -1163,11 +1159,7 @@ void main() {
       );
       expect(await outcome(), IncomingPushOutcome.message);
 
-      final prefs = await SharedPreferences.getInstance();
-      expect(
-        readNotificationThread(prefs, room.id)!.lines.single.senderId,
-        '@bob:example.org',
-      );
+      expect(await storedSender(room.id), '@bob:example.org');
       expect(notifications.shown.last.android['onlyAlertOnce'], isTrue);
     });
 

@@ -18,6 +18,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_notification_renderer.dart';
 import '../../../helpers/notifying_client.dart';
 import '../../../helpers/open_chat_route.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -128,7 +129,9 @@ void main() {
         'tok-${room.id}',
       );
       expect(sent('writeShown').single.arguments, {
-        'e': [r'$1'],
+        'claims': [
+          {'kind': 'event', 'id': r'$1'},
+        ],
       });
     },
   );
@@ -143,7 +146,9 @@ void main() {
 
     expect(notifications.single.body, 'Alice: Lunch?');
     expect(sent('writeShown').single.arguments, {
-      'e': [r'$1'],
+      'claims': [
+        {'kind': 'event', 'id': r'$1'},
+      ],
     });
   });
 
@@ -212,7 +217,9 @@ void main() {
 
     expect(notifications.shown, hasLength(1));
     expect(sent('writeShown').single.arguments, {
-      'e': ['invite:${room.id}'],
+      'claims': [
+        {'kind': 'invite', 'id': room.id},
+      ],
     });
   });
 
@@ -227,7 +234,9 @@ void main() {
 
       expect(notifications.shown, hasLength(1));
       expect(sent('writeShown').single.arguments, {
-        'e': ['invite:${room.id}'],
+        'claims': [
+          {'kind': 'invite', 'id': room.id},
+        ],
       });
     },
   );
@@ -238,12 +247,15 @@ void main() {
       const content = MessageNotificationContent(
         roomId: '!r:x',
         title: 'Alice',
-        body: 'hi',
+        text: 'hi',
         eventId: r'$9',
       );
 
-      await MessageNotifications(capabilities: withExtension)
-          .showMessage(content, preview: NotificationPreview.full);
+      await MessageNotifications(capabilities: withExtension).showMessage(
+        content,
+        preview: NotificationPreview.full,
+        render: FakeNotificationRenderer(),
+      );
       expect(conversations.named('pushConversationShortcut'), isEmpty);
 
       await MessageNotifications(
@@ -255,10 +267,11 @@ void main() {
         const MessageNotificationContent(
           roomId: '!s:x',
           title: 'Bob',
-          body: 'hey',
+          text: 'hey',
           eventId: r'$10',
         ),
         preview: NotificationPreview.full,
+        render: FakeNotificationRenderer(),
       );
       expect(conversations.named('pushConversationShortcut'), hasLength(1));
     });
@@ -279,10 +292,11 @@ void main() {
         const MessageNotificationContent(
           roomId: '!plain:x',
           title: 'Alice',
-          body: 'hi',
+          text: 'hi',
           eventId: r'$11',
         ),
         preview: NotificationPreview.full,
+        render: FakeNotificationRenderer(),
       );
 
       expect(

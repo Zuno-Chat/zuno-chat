@@ -144,7 +144,7 @@ Each flag is one of these kinds:
 | Awaiting an iOS handler | `deviceSafetyChecks` |
 | Off on iOS by design (`../decisions/push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
 | Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
-| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `nativeFileShare`, `nativeLogFloor`, `overlayHiding`, `accessibilitySensitivity` |
+| Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `conversationNotifications`, `nativeFileShare`, `nativeLogFloor`, `overlayHiding`, `accessibilitySensitivity` |
 | iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `recorderNeedsAudioSession`, `tonesNeedAudioSession`, `thirdPartyKeyboardBlocking`, `notificationRetentionCheck` |
 | Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeCallAudio` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |
 | Apple limitation | `recorderWritesOgg` (Apple cannot write Ogg), `screenshotBlocking` (no app can block a screenshot) |
@@ -242,7 +242,7 @@ flowchart TD
   D -- yes --> F["stop push delivery"]
   F --> G["Android: clear app data, the process dies"]
   F --> H["iOS: forget account state in memory, VACUUM"]
-  H --> I["native: sign the push session out, empty everything but the open database"]
+  H --> I["native: sign the push session out, remove notifications, empty everything but the open database"]
   I --> J{"every step done?"}
   J -- yes --> K["clear the marker"]
   J -- no --> L["keep the marker, retry at next launch"]
@@ -252,8 +252,8 @@ flowchart TD
 - The marker separates a sign-out from a device that never signed in, and it catches a remote sign-out at the next launch. A wipe that fails keeps the marker, so the next sign-out or launch retries.
 - **Android** drops files, preferences, keys, notifications, channels, shortcuts and permissions, so the next launch is a fresh install.
 - **iOS keeps the process, so it keeps the open database** (`signOutWipeKeepsProcess`). An iOS app cannot quit itself, and deleting the live SQLCipher file or its key would strand a same-session sign-in. The SDK has already emptied the database, so Dart `VACUUM`s it, the native wipe empties everything else the app owns, and Dart reloads `SharedPreferences`.
-- **On iOS, Dart first forgets the decrypted media and the session export records it holds in memory**, because the process outlives the account, and downloads still in flight are dropped when they land.
-- **The native wipe signs the push session out before it deletes files**: the read model is marked signed out, then it and the notify and VoIP Keychain items go (`notifications.md`), so nothing reads or recreates the read model while it goes.
+- **On iOS, Dart first forgets the decrypted media and the session export records it holds in memory and waits for the notification posts in flight**, because the process outlives the account: downloads still in flight are dropped when they land, and no post lands after the wipe.
+- **The native wipe signs the push session out before it deletes files**: the read model is marked signed out, then it, the notify and VoIP Keychain items and every delivered and pending notification go (`notifications.md`), so nothing reads or recreates the read model while it goes and a signed-out account leaves no notification.
 - **Every step runs even when one fails**, and a failed `VACUUM`, file or Keychain delete keeps the marker, so the next launch retries the whole wipe.
 - **A same-session sign-in must start clean**, so a provider that keeps session state in memory watches `isLoggedInProvider`.
 

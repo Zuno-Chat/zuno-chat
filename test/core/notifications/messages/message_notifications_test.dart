@@ -13,9 +13,14 @@ import 'package:zuno/core/notifications/settings/notification_preview.dart';
 import 'package:zuno/core/notifications/settings/notification_sound_settings.dart';
 
 import '../../../helpers/fake_local_notifications.dart';
+import '../../../helpers/fake_notification_renderer.dart';
 import '../../../helpers/test_clock.dart';
 
 void main() {
+  late FakeNotificationRenderer renderer;
+
+  setUp(() => renderer = FakeNotificationRenderer());
+
   group('silencedMessageChannels', () {
     AndroidNotificationChannel channel(String id, Importance importance) =>
         AndroidNotificationChannel(id, 'Name $id', importance: importance);
@@ -67,9 +72,10 @@ void main() {
           const MessageNotificationContent(
             roomId: '!room:example.org',
             title: 'Alice',
-            body: 'hi',
+            text: 'hi',
           ),
           preview: NotificationPreview.full,
+          render: renderer,
         );
 
         final specifics = notifications.lastPlatformSpecifics;
@@ -92,9 +98,10 @@ void main() {
           const MessageNotificationContent(
             roomId: '!room:example.org',
             title: 'Alice',
-            body: 'hi',
+            text: 'hi',
           ),
           preview: NotificationPreview.full,
+          render: renderer,
         );
 
         final specifics = notifications.lastPlatformSpecifics;
@@ -114,10 +121,11 @@ void main() {
           const MessageNotificationContent(
             roomId: '!room:example.org',
             title: 'A group',
-            body: 'hi',
+            text: 'hi',
             isDirectChat: false,
           ),
           preview: NotificationPreview.full,
+          render: renderer,
         );
 
         final specifics = notifications.lastPlatformSpecifics;
@@ -138,17 +146,19 @@ void main() {
         const MessageNotificationContent(
           roomId: '!room:example.org',
           title: 'Alice',
-          body: 'hi',
+          text: 'hi',
         ),
         preview: NotificationPreview.full,
+        render: renderer,
       );
       await MessageNotifications.instance.showMessage(
         const MessageNotificationContent(
           roomId: '!room:example.org',
           title: 'Alice',
-          body: 'are you there?',
+          text: 'are you there?',
         ),
         preview: NotificationPreview.full,
+        render: renderer,
       );
 
       expect(notifications.shown, hasLength(2));
@@ -184,9 +194,10 @@ void main() {
           const MessageNotificationContent(
             roomId: '!room:example.org',
             title: 'Alice',
-            body: 'hi',
+            text: 'hi',
           ),
           preview: NotificationPreview.full,
+          render: renderer,
         ),
       );
 
@@ -211,10 +222,11 @@ void main() {
           MessageNotificationContent(
             roomId: roomId,
             title: 'Alice',
-            body: 'hi',
+            text: 'hi',
             eventId: eventId,
           ),
           preview: NotificationPreview.full,
+          render: renderer,
         );
 
     clockedTest('skips an event it already notified, so a sync catch-up cannot '
@@ -286,10 +298,11 @@ void main() {
         const MessageNotificationContent(
           roomId: '!room:example.org',
           title: 'Alice',
-          body: 'hi',
+          text: 'hi',
           eventId: r'$1',
         ),
         preview: NotificationPreview.full,
+        render: renderer,
       );
 
       expect(actionsOf(notifications.lastPlatformSpecifics), isEmpty);
@@ -300,11 +313,12 @@ void main() {
         const MessageNotificationContent(
           roomId: '!room:example.org',
           title: 'Alice',
-          body: 'hi',
+          text: 'hi',
           eventId: r'$1',
         ),
         preview: NotificationPreview.full,
         isMessage: true,
+        render: renderer,
       );
 
       final actions = actionsOf(notifications.lastPlatformSpecifics);
@@ -322,10 +336,11 @@ void main() {
         const MessageNotificationContent(
           roomId: '!room:example.org',
           title: 'New message',
-          body: 'Tap to open',
+          text: 'Tap to open',
         ),
         preview: NotificationPreview.full,
         isMessage: true,
+        render: renderer,
       );
 
       final actions = actionsOf(notifications.lastPlatformSpecifics);
@@ -338,11 +353,12 @@ void main() {
           MessageNotificationContent(
             roomId: '!room:example.org',
             title: 'Alice',
-            body: 'hi',
+            text: 'hi',
             eventId: eventId,
           ),
           preview: NotificationPreview.full,
           isMessage: true,
+          render: renderer,
         );
 
         expect(jsonDecode(notifications.shown.last.payload), {

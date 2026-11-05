@@ -27,7 +27,6 @@ void main() {
       'ringingCall': ringingCallKey,
       'resolvedCallPrefix': resolvedCallKeyPrefix,
       'roomCache': notificationRoomCacheKey,
-      'threads': notificationThreadsKey,
       'recentDeliveries': pushDeliveryLogKey,
       'fcmToken': fcmTokenKey,
       'notificationPreview': notificationPreviewKey,
@@ -37,6 +36,11 @@ void main() {
       'ringtone': ringtoneEnabledKey,
       'callVibration': callVibrationEnabledKey,
     }, keys);
+  });
+
+  test('native code clears the notification lines in the file the app keeps '
+      'them in', () {
+    expect(notificationThreadsFileName, store['threadsFile']);
   });
 
   test('the settings native code checks are stored as it expects', () {

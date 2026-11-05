@@ -2,7 +2,8 @@
 import UserNotifications
 
 enum NseAppRequest: Sendable {
-  case writeShown([String])
+  case writeShown([NseClaim])
+  case shownByExtension([NseClaim?])
   case takeMarks
   case readOutcomes
   case setCredential(String?, Int64?)
@@ -10,8 +11,10 @@ enum NseAppRequest: Sendable {
 
   init?(method: String, arguments: Any?) {
     let fields = arguments as? [String: Any] ?? [:]
+    let claims = { (fields["claims"] as? [Any] ?? []).map(NseClaim.init) }
     switch method {
-    case "writeShown": self = .writeShown(fields["e"] as? [String] ?? [])
+    case "writeShown": self = .writeShown(claims().compactMap { $0 })
+    case "shownByExtension": self = .shownByExtension(claims())
     case "takeMarks": self = .takeMarks
     case "readOutcomes": self = .readOutcomes
     case "setCredential":
@@ -22,11 +25,23 @@ enum NseAppRequest: Sendable {
     }
   }
 
+  var priority: TaskPriority {
+    if case .shownByExtension = self { return .userInitiated }
+    return .utility
+  }
+
+  static func answers(_ claims: [NseClaim?], from store: NseAppStore?) -> [Bool] {
+    var known = (store?.shownByExtension(claims.compactMap { $0 }) ?? []).makeIterator()
+    return claims.map { $0 == nil ? false : known.next() ?? false }
+  }
+
   func perform() async -> UncheckedSendable<Any?> {
     switch self {
-    case .writeShown(let keys):
-      NseAppStore.current()?.writeShown(keys)
+    case .writeShown(let claims):
+      NseAppStore.current()?.writeShown(claims)
       return UncheckedSendable(nil)
+    case .shownByExtension(let claims):
+      return UncheckedSendable(Self.answers(claims, from: NseAppStore.current()))
     case .takeMarks:
       return UncheckedSendable(NseAppStore.current()?.takeMarks(.standard) ?? [])
     case .readOutcomes:
@@ -54,7 +69,7 @@ enum NseAppMethods {
       return false
     }
     let reply = UncheckedSendable(result)
-    Task.detached(priority: .utility) {
+    Task.detached(priority: request.priority) {
       let value = await request.perform()
       await MainActor.run { reply.value(value.value) }
     }

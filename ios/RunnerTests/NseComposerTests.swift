@@ -171,6 +171,15 @@ final class NseComposerTests: XCTestCase {
     XCTAssertEqual(blank.body, "Invited you to chat")
   }
 
+  func testAnInvitationCarriesTheInviteClaimItTookBesideItsEvent() {
+    let invitation = NseComposer.invitation(
+      inviter: "Alice", roomName: nil, tone: true, tokens: tokens, claim: "einvite:!r")
+
+    XCTAssertEqual(
+      invitation.userInfo,
+      ["t": "t1", "e": "e1", "o": "1790000000", "k": "inv", "c": "einvite:!r"])
+  }
+
   func testTheNothingLevelShowsNoSenderRoomOrMessageText() {
     let loud = NseComposer.message(
       text: "Missed Voice call", keepsTextWhenNameOnly: true, names: room, level: .none,
@@ -218,7 +227,7 @@ final class NseComposerTests: XCTestCase {
   }
 
   func testARepostIsQuietAndReplacesItsOriginal() {
-    let earlier = NseTestData.delivered("old", e: "e9")
+    let earlier = NseTestData.delivered("old", e: "e9", c: "einvite:!r", k: "inv")
     let repost = NseComposer.repost(earlier, tokens: NseTokens(t: "t1", e: "e1", o: 5))
 
     XCTAssertEqual(repost.title, earlier.title)

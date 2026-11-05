@@ -27,14 +27,15 @@ Future<void> loadRoomNameMembers(Room room) async {
   final named = room.name.isNotEmpty || room.canonicalAlias.isNotEmpty;
   final ids = {if (!named) ...?room.summary.mHeroes, ?room.directChatMatrixID}
     ..remove(room.client.userID);
-  await Future.wait([
-    for (final id in ids)
-      if (room.getState(EventTypes.RoomMember, id) == null)
-        room.requestUser(
-          id,
-          ignoreErrors: true,
-          requestState: false,
-          requestProfile: false,
-        ),
-  ]);
+  await Future.wait([for (final id in ids) loadRoomMember(room, id)]);
+}
+
+Future<void> loadRoomMember(Room room, String userId) async {
+  if (room.getState(EventTypes.RoomMember, userId) != null) return;
+  await room.requestUser(
+    userId,
+    ignoreErrors: true,
+    requestState: false,
+    requestProfile: false,
+  );
 }

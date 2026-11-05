@@ -51,6 +51,7 @@ class PlatformCapabilities {
   final bool clientLease;
   final bool instantPushNotices;
   final bool notificationAvatars;
+  final bool conversationNotifications;
   final bool pushDiagnostics;
   final bool voipRing;
   final bool nseNotifications;
@@ -110,6 +111,7 @@ class PlatformCapabilities {
     required this.clientLease,
     required this.instantPushNotices,
     required this.notificationAvatars,
+    required this.conversationNotifications,
     required this.pushDiagnostics,
     required this.voipRing,
     required this.nseNotifications,
@@ -176,6 +178,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         clientLease: true,
         instantPushNotices: true,
         notificationAvatars: true,
+        conversationNotifications: true,
         pushDiagnostics: true,
         voipRing: false,
         nseNotifications: false,
@@ -239,6 +242,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         clientLease: true,
         instantPushNotices: false,
         notificationAvatars: false,
+        conversationNotifications: false,
         pushDiagnostics: true,
         voipRing: true,
         nseNotifications: true,
