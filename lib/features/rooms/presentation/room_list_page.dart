@@ -99,9 +99,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     if (tab != _tab) setState(() => _tab = tab);
   }
 
-  void _open(Room room) =>
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => pageForRoom(room)));
+  void _open(Room room) => openRoom(Navigator.of(context), room);
 
   Future<void> _newChat() async {
     final type = await showActionSheet(

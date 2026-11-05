@@ -235,7 +235,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     );
     final room = started ? client.getRoomById(roomId!) : null;
     if (room == null || !mounted) return;
-    navigator.push(MaterialPageRoute(builder: (_) => RoomPage(room: room)));
+    openChat(navigator, room);
   }
 
   Future<void> _unbanMember(String userId) async {

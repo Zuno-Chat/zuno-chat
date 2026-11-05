@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
@@ -230,8 +231,10 @@ void main() {
     await tester.pump();
   }
 
-  Future<void> pushPage(WidgetTester tester) async {
+  Future<void> pushPage(WidgetTester tester, {String? overChat}) async {
     final scope = await overrides();
+    final chats = OpenChatObserver();
+    addTearDown(chats.dispose);
     await tester.pumpWidget(
       ProviderScope(
         overrides: scope,
@@ -239,12 +242,13 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
+          navigatorObservers: [chats],
           home: routeLauncher(
             (_) => CommunityPage(
               community: club,
               loadRooms: (_) async => const [],
-              openRoom: (_, _) {},
             ),
+            chat: overChat,
           ),
         ),
       ),
@@ -695,6 +699,21 @@ void main() {
     }
 
     expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, gear);
+  });
+
+  testWidgets('a room whose chat is open under the community goes back to '
+      'that chat', (tester) async {
+    final gear = member('!gear:example.org', 'Gear swap');
+    await pushPage(tester, overChat: gear.id);
+
+    await tester.tap(find.text('Gear swap'));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(find.byType(RoomPage, skipOffstage: false), findsNothing);
+    expect(find.byType(CommunityPage, skipOffstage: false), findsNothing);
+    expect(find.text('open'), findsOneWidget);
   });
 
   group('rooms that ask for joining', () {

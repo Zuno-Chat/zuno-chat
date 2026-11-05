@@ -168,34 +168,31 @@ void main() {
     });
   });
 
-  Future<void> pumpPicker(WidgetTester tester) async {
+  Future<void> pumpPicker(
+    WidgetTester tester, {
+    void Function(Room room)? onPick,
+  }) async {
     await tester.pumpWidget(
       MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: SharePickerPage(
-          client: client,
-          destination: (room) => Scaffold(body: Text('picked ${room.id}')),
-        ),
+        home: SharePickerPage(client: client, onPick: onPick ?? (_) {}),
       ),
     );
     await tester.pump();
   }
 
-  testWidgets('tapping a chat replaces the picker with the destination', (
-    tester,
-  ) async {
+  testWidgets('tapping a chat picks it', (tester) async {
     client.rooms = [
       namedRoom(client, '!a:example.org', 'Alice'),
       namedRoom(client, '!b:example.org', 'Bob'),
     ];
-    await pumpPicker(tester);
+    Room? picked;
+    await pumpPicker(tester, onPick: (room) => picked = room);
 
     await tester.tap(find.text('Bob'));
-    await tester.pumpAndSettle();
 
-    expect(find.text('picked !b:example.org'), findsOneWidget);
-    expect(find.byType(SharePickerPage), findsNothing);
+    expect(picked?.id, '!b:example.org');
   });
 
   testWidgets('searching narrows the list', (tester) async {

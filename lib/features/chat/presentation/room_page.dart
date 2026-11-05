@@ -23,6 +23,7 @@ import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/matrix/sync/connectivity_provider.dart';
 import '../../../core/matrix/sync/sync_coordinator_provider.dart';
 import '../../../core/navigation/chat_route.dart';
+import '../../../core/navigation/launch_route.dart';
 import '../../../core/notifications/messages/message_notifications.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/recovery_code.dart';
@@ -47,6 +48,7 @@ import '../data/discarded_sends.dart';
 import '../data/message_kinds.dart';
 import '../data/room_sender.dart';
 import '../data/typing_announcer.dart';
+import '../data/unsent_text.dart';
 import 'attachment_menu.dart';
 import 'chat_wallpaper.dart';
 import 'media_viewer/media_viewer_page.dart';
@@ -72,6 +74,24 @@ class RoomPage extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<RoomPage> createState() => _RoomPageState();
+}
+
+void openChat(
+  NavigatorState navigator,
+  Room room, {
+  InboundShare? share,
+  bool instant = false,
+  RoutePush? push,
+}) {
+  final page = pageRoute<void>(
+    instant: instant,
+    builder: (_) => RoomPage(room: room, pendingShare: share),
+  );
+  if (!returnToChat(navigator, room.id)) {
+    unawaited((push ?? navigator.push<void>)(page));
+  } else if (share != null) {
+    unawaited(navigator.pushReplacement(page));
+  }
 }
 
 class _RoomPageState extends ConsumerState<RoomPage>
@@ -100,10 +120,15 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   RoomSender get _sender => ref.read(roomSenderProvider(widget.room));
 
+  late final _unsent = ref.read(unsentTextProvider);
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final unsent = _unsent.textOf(widget.room);
+    if (unsent.isNotEmpty) _showInComposer(unsent);
+    _input.addListener(_keepUnsent);
     _typing = TypingAnnouncer(
       room: widget.room,
       input: _input,
@@ -154,6 +179,11 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _markLatestRead();
   }
 
+  void _keepUnsent() => _unsent.keep(
+    widget.room,
+    _editingEvent == null ? _input.text : _draftBeforeEdit,
+  );
+
   ReplyTargetCache _newReplyTargets() =>
       ReplyTargetCache(widget.room.getEventById);
 
@@ -198,7 +228,9 @@ class _RoomPageState extends ConsumerState<RoomPage>
   void _applyPendingShare(InboundShare share) {
     if (!mounted) return;
     final text = share.text;
-    if (text != null) _showInComposer(text);
+    if (text != null) {
+      _showInComposer(_input.text.isEmpty ? text : '${_input.text}\n$text');
+    }
     unawaited(sendSharedFiles(context, ref, widget.room, share.files));
   }
 

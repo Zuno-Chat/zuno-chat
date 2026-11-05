@@ -22,6 +22,7 @@ import '../../../core/matrix/rooms/permissions/room_roles.dart';
 import '../../../core/matrix/rooms/room_access.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/matrix/rooms/room_title.dart';
+import '../../../core/navigation/launch_route.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/failure_notice.dart';
 import '../../../core/ui/notice.dart';
@@ -48,12 +49,28 @@ typedef CommunityRoomsLoader = Future<List<SpaceRoomsChunk$2>> Function(
 
 typedef RoomOpener = void Function(BuildContext context, Room room);
 
-Widget pageForRoom(Room room) =>
-    room.isSpace ? CommunityPage(community: room) : RoomPage(room: room);
+void openRoom(
+  NavigatorState navigator,
+  Room room, {
+  bool instant = false,
+  RoutePush? push,
+}) {
+  if (!room.isSpace) {
+    openChat(navigator, room, instant: instant, push: push);
+    return;
+  }
+  unawaited(
+    (push ?? navigator.push<void>)(
+      pageRoute(
+        instant: instant,
+        builder: (_) => CommunityPage(community: room),
+      ),
+    ),
+  );
+}
 
 void _pushRoomPage(BuildContext context, Room room) =>
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => RoomPage(room: room)));
+    openChat(Navigator.of(context), room);
 
 enum _Menu { settings, permissions, leave }
 

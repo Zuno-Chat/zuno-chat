@@ -352,8 +352,11 @@ void main() {
       );
     });
 
-    testWidgets('a call answered from its ring screen over its own chat goes '
-        'back to that chat without opening it twice', (tester) async {
+    Future<NavigatorState> minimizeCallOverPage(
+      WidgetTester tester,
+      String page, {
+      bool replace = false,
+    }) async {
       CallChannelMocks();
       await openRoom(tester);
       final navigator = Navigator.of(tester.element(find.byType(RoomPage)));
@@ -361,21 +364,39 @@ void main() {
       final call = container(tester).read(activeCallControllerProvider)!;
       unawaited(
         navigator.push(
-          MaterialPageRoute<void>(
-            builder: (_) => const Scaffold(body: Text('Ringing')),
-          ),
+          MaterialPageRoute<void>(builder: (_) => Scaffold(body: Text(page))),
         ),
       );
       await harness.settle(tester);
-      showCallScreen(navigator, call, replace: true);
+      showCallScreen(navigator, call, replace: replace);
       await harness.settle(tester);
-
       await tester.tap(find.byTooltip('Minimize call'));
       await harness.settle(tester);
+      return navigator;
+    }
+
+    testWidgets('a call answered from its ring screen over its own chat goes '
+        'back to that chat without opening it twice', (tester) async {
+      final navigator = await minimizeCallOverPage(
+        tester,
+        'Ringing',
+        replace: true,
+      );
 
       expect(find.byType(CallPage), findsNothing);
       expect(chatOf(harness.room), findsOneWidget);
       expect(navigator.canPop(), isFalse);
+    });
+
+    testWidgets('a call over a page above its own chat goes back to that '
+        'chat without opening it twice', (tester) async {
+      final navigator = await minimizeCallOverPage(tester, 'Elsewhere');
+
+      expect(find.byType(CallPage, skipOffstage: false), findsNothing);
+      expect(find.text('Elsewhere', skipOffstage: false), findsNothing);
+      expect(chatOf(harness.room), findsOneWidget);
+      expect(navigator.canPop(), isFalse);
+      expect(container(tester).read(activeCallProvider), isNotNull);
     });
   });
 }

@@ -76,6 +76,7 @@ void main() {
     List<Override> overrides = const [],
     bool canPost = true,
     bool encrypted = false,
+    bool launched = false,
   }) async {
     harness = RoomPageHarness(
       db: SendingFakeDatabaseApi(),
@@ -113,7 +114,11 @@ void main() {
       return null;
     };
     harness.db.events = events();
-    await harness.pumpRoomPage(tester);
+    if (launched) {
+      await harness.pumpRoomPageOverLauncher(tester);
+    } else {
+      await harness.pumpRoomPage(tester);
+    }
   }
 
   Future<void> openActions(WidgetTester tester, String body) async {
@@ -199,6 +204,52 @@ void main() {
 
       expect(find.text('Replying to Bob'), findsNothing);
       expect(composerText(tester), 'on second thought');
+    });
+  });
+
+  group('unsent text', () {
+    Future<void> leaveAndReturn(WidgetTester tester) async {
+      await tester.binding.handlePopRoute();
+      await harness.settle(tester);
+      await tester.tap(find.text('open chat'));
+      await harness.settle(tester);
+    }
+
+    testWidgets('what you were typing is there when you come back', (
+      tester,
+    ) async {
+      await openRoom(tester, () => [harness.message(r'$m1')], launched: true);
+      await tester.enterText(find.byType(TextField), 'half a thought');
+      await tester.pump();
+
+      await leaveAndReturn(tester);
+
+      expect(composerText(tester), 'half a thought');
+      expect(harness.sent, isEmpty);
+    });
+
+    testWidgets('a sent message leaves nothing behind', (tester) async {
+      await openRoom(tester, () => [harness.message(r'$m1')], launched: true);
+      await sendTyped(tester, 'all said');
+
+      await leaveAndReturn(tester);
+
+      expect(composerText(tester), '');
+    });
+
+    testWidgets('leaving mid-edit keeps what you were typing, not the edit', (
+      tester,
+    ) async {
+      await openRoom(tester, () => [own(r'$mine', 'teh plan')], launched: true);
+      await tester.enterText(find.byType(TextField), 'a long draft');
+      await tester.pump();
+      await openActions(tester, 'teh plan');
+      await tapAction(tester, 'Edit');
+
+      await leaveAndReturn(tester);
+
+      expect(composerText(tester), 'a long draft');
+      expect(find.text('Editing message'), findsNothing);
     });
   });
 

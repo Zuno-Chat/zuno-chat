@@ -13,6 +13,7 @@ import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/media/room_media_feed.dart';
 import 'package:zuno/core/matrix/rooms/membership/room_exit.dart';
 import 'package:zuno/core/matrix/rooms/optimistic_room_state.dart';
+import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
@@ -188,6 +189,7 @@ void main() {
     void Function(CallKind kind)? onStartCall,
     int? joinedCount,
     bool pushed = false,
+    String? overChat,
   }) async {
     final members = room.getParticipants();
     room.summary.mJoinedMemberCount =
@@ -209,6 +211,8 @@ void main() {
             .overrideWithValue(mediaFeed ?? mediaFeedOf(const [])),
       ],
     );
+    final chats = OpenChatObserver();
+    addTearDown(chats.dispose);
     final page = RoomInfoPage(
       room: room,
       viewerChat: ViewerChat(
@@ -226,10 +230,12 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          navigatorObservers: [chats],
           home: pushed
               ? Scaffold(
                   body: routeLauncher<RoomInfoResult>(
                     (_) => page,
+                    chat: overChat,
                     onResult: (result) => pageResult = result,
                   ),
                 )
@@ -1166,6 +1172,32 @@ void main() {
       expect(requestsTo('createRoom'), isEmpty);
       final page = tester.widget<RoomPage>(find.byType(RoomPage));
       expect(page.room, chat);
+    });
+
+    testWidgets('Start a chat with the person whose chat is open underneath '
+        'goes back to that chat', (tester) async {
+      installRoomOpeningChannels();
+      seedAdminRoom();
+      final chat = buildTestRoom(client, id: '!ann:example.org')
+        ..partial = false;
+      client.rooms.add(chat);
+      client.accountData['m.direct'] = BasicEvent(
+        type: 'm.direct',
+        content: {
+          '@ann:example.org': [chat.id],
+        },
+      );
+      await pumpPage(tester, pushed: true, overChat: chat.id);
+
+      await openMember(tester, 'Ann');
+      await tester.tap(find.text('Start a chat'));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+
+      expect(find.byType(RoomPage, skipOffstage: false), findsNothing);
+      expect(find.byType(RoomInfoPage, skipOffstage: false), findsNothing);
+      expect(find.text('open'), findsOneWidget);
     });
 
     testWidgets('a chat that cannot be started says so', (tester) async {

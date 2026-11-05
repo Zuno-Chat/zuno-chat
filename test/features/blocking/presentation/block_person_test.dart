@@ -144,6 +144,30 @@ void main() {
     expect(results, [true]);
   });
 
+  testWidgets('a block that finishes under another page closes only itself', (
+    tester,
+  ) async {
+    final gate = Completer<void>();
+    await openDialog(tester, block: (_) => gate.future);
+    await tester.tap(find.widgetWithText(TextButton, 'Block'));
+    await tester.pump();
+
+    unawaited(
+      tester
+          .state<NavigatorState>(find.byType(Navigator))
+          .push(MaterialPageRoute<void>(builder: (_) => const Text('on top'))),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    gate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(find.text('on top'), findsOneWidget);
+    expect(find.text('Block Ann?', skipOffstage: false), findsNothing);
+    expect(results, [true]);
+  });
+
   Future<List<String>> blockFailing(WidgetTester tester) =>
       reportsDuring(() async {
         await tester.tap(find.widgetWithText(TextButton, 'Block'));

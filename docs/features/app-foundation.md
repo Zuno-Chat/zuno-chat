@@ -61,6 +61,10 @@ flowchart TD
 
 **The open chat is read from the navigator**, never set by a screen: it is the topmost chat route while the app is in front, so a page pushed over the chat keeps it open, and every push, pop, replace or trip to the background updates it. Notifications skip that chat, and a send that fails there shows only its retry tile.
 
+**A chat is never open twice.** Every way into a chat (a notification, shortcut or share, Start a chat, a community, the chat list, an accepted invitation, Back from a call) goes through `openChat` next to `RoomPage`, which goes back to the chat when it is already in the stack, closing the pages above it, and pushes it only otherwise.
+
+**Going back to a chat never closes a page that refuses Back** (the ring screen, a block in progress), since closing one ends what it holds; the chat then opens on top instead. The call screen is marked as closable, because closing it only minimizes the call.
+
 **Launch targets hold the splash.** On a logged-in cold start, `_AuthGate` keeps the splash while it runs every launch check concurrently under a time cap: a pending ring, a launch shortcut, a notification tap, a call action and a launch share. The root swaps to `RoomListPage` only afterwards, so a target is already on top and the room list never flashes alone.
 
 **A launch target is taken once.** Android hands a relaunch from Recents the original launch intent again, so `MainActivity` swaps it for a bare `ACTION_MAIN` before the plugins attach, and a share or notification tap never repeats. A share or room open that arrives before anyone listens is held, latest only.

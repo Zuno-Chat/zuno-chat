@@ -412,13 +412,20 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     }
     final room = client.getRoomById(roomId);
     if (room == null || !mounted) return;
+    if (!isIncomingInvite(room)) {
+      openRoom(
+        Navigator.of(context),
+        room,
+        instant: instant,
+        push: _openOverCall,
+      );
+      return;
+    }
     unawaited(
       _openOverCall(
         pageRoute(
           instant: instant,
-          builder: (_) => isIncomingInvite(room)
-              ? RoomInvitePage(room: room)
-              : pageForRoom(room),
+          builder: (_) => RoomInvitePage(room: room),
         ),
       ),
     );
@@ -446,13 +453,19 @@ class _AuthGateState extends ConsumerState<_AuthGate>
         });
     if (!mounted || !loggedIn) return;
     final client = ref.read(matrixClientProvider);
+    final navigator = Navigator.of(context);
     unawaited(
       _openOverCall(
         pageRoute(
           instant: instant,
           builder: (_) => SharePickerPage(
             client: client,
-            destination: (room) => RoomPage(room: room, pendingShare: share),
+            onPick: (room) => openChat(
+              navigator,
+              room,
+              share: share,
+              push: navigator.pushReplacement,
+            ),
           ),
         ),
       ),

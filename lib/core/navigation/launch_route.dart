@@ -19,3 +19,5 @@ Route<T> pageRoute<T>({
   required bool instant,
   required WidgetBuilder builder,
 }) => LaunchRoute<T>(builder: builder, instant: instant);
+
+typedef RoutePush = Future<void> Function(Route<void> route);

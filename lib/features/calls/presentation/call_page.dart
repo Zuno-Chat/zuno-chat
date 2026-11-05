@@ -47,6 +47,7 @@ void showCallScreen(
 }) {
   if (call.screenOpen || call.finished) return;
   final route = _CallScreenRoute(call: call, instant: instant);
+  markClosableOnReturn(route);
   void closeOnceFinished() {
     if (call.finished) _closeScreen(navigator, route, call);
   }
@@ -99,11 +100,8 @@ class _CallScreenRoute extends LaunchRoute<void> {
   void onPopInvokedWithResult(bool didPop, void result) {
     super.onPopInvokedWithResult(didPop, result);
     if (didPop || _overCallChat) return;
-    unawaited(
-      navigator!.pushReplacement<void, void>(
-        MaterialPageRoute(builder: (_) => RoomPage(room: call.session.room)),
-      ),
-    );
+    final navigator = this.navigator!;
+    openChat(navigator, call.session.room, push: navigator.pushReplacement);
   }
 
   @override

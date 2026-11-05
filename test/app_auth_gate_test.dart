@@ -120,6 +120,22 @@ Future<void> pumpRoute(WidgetTester tester) async {
   }
 }
 
+Future<void> tapMessage(WidgetTester tester, String roomId) async {
+  LocalNotifications.instance.onResponseForTest(messageTapResponse(roomId));
+  await pumpRoute(tester);
+}
+
+Future<void> pickShareTarget(WidgetTester tester) async {
+  await tester.tap(
+    find
+        .descendant(
+          of: find.byType(SharePickerPage),
+          matching: find.byType(ListTile),
+        )
+        .first,
+  );
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -365,19 +381,39 @@ void main() {
       await settle(tester);
       await pumpRoute(tester);
 
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byType(SharePickerPage),
-              matching: find.byType(ListTile),
-            )
-            .first,
-      );
+      await pickShareTarget(tester);
       await pumpRoute(tester);
 
       final page = tester.widget<RoomPage>(find.byType(RoomPage));
       expect(page.room, same(room));
       expect(page.pendingShare?.text, 'hello there');
+    });
+
+    testWidgets('a share to the chat already open takes that chat\'s place '
+        'and keeps what you were typing', (tester) async {
+      initInboundShareChannel();
+      await pumpApp(tester);
+      await settle(tester);
+      await tapMessage(tester, room.id);
+      await tester.enterText(find.byType(TextField), 'half a thought');
+      await tester.pump();
+
+      await callFromNative(const MethodChannel('zuno/share'), 'share', {
+        'text': 'hello there',
+      });
+      await pumpRoute(tester);
+      await pickShareTarget(tester);
+      await pumpRoute(tester);
+
+      final page = tester.widget<RoomPage>(
+        find.byType(RoomPage, skipOffstage: false),
+      );
+      expect(page.room, same(room));
+      expect(page.pendingShare?.text, 'hello there');
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'half a thought\nhello there',
+      );
     });
   });
 
@@ -425,12 +461,38 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      LocalNotifications.instance.onResponseForTest(
-        messageTapResponse(room.id),
+      await tapMessage(tester, room.id);
+
+      expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, same(room));
+    });
+
+    testWidgets('a message notification for the chat already open adds no '
+        'second copy of it', (tester) async {
+      await pumpApp(tester);
+      await settle(tester);
+
+      await tapMessage(tester, room.id);
+      await tapMessage(tester, room.id);
+
+      expect(find.byType(RoomPage, skipOffstage: false), findsOneWidget);
+    });
+
+    testWidgets('a message notification for a chat under other pages goes '
+        'back to it', (tester) async {
+      await pumpApp(tester);
+      await settle(tester);
+      await tapMessage(tester, room.id);
+      unawaited(
+        globalNavigatorKey.currentState!.push(
+          MaterialPageRoute<void>(builder: (_) => const Text('over')),
+        ),
       );
       await pumpRoute(tester);
 
-      expect(tester.widget<RoomPage>(find.byType(RoomPage)).room, same(room));
+      await tapMessage(tester, room.id);
+
+      expect(find.text('over', skipOffstage: false), findsNothing);
+      expect(find.byType(RoomPage, skipOffstage: false), findsOneWidget);
     });
 
     testWidgets('a message notification during an open call takes the call '
@@ -448,10 +510,7 @@ void main() {
       await settle(tester);
       expect(find.byType(CallPage), findsOneWidget);
 
-      LocalNotifications.instance.onResponseForTest(
-        messageTapResponse(room.id),
-      );
-      await pumpRoute(tester);
+      await tapMessage(tester, room.id);
       await settle(tester);
 
       expect(find.byType(RoomPage), findsOneWidget);
@@ -476,10 +535,7 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      LocalNotifications.instance.onResponseForTest(
-        messageTapResponse(club.id),
-      );
-      await pumpRoute(tester);
+      await tapMessage(tester, club.id);
 
       expect(
         tester.widget<CommunityPage>(find.byType(CommunityPage)).community,
@@ -493,10 +549,7 @@ void main() {
       await pumpApp(tester);
       await settle(tester);
 
-      LocalNotifications.instance.onResponseForTest(
-        messageTapResponse('!gone:example.org'),
-      );
-      await pumpRoute(tester);
+      await tapMessage(tester, '!gone:example.org');
 
       expect(find.byType(RoomPage), findsNothing);
       expect(find.byType(RoomListPage), findsOneWidget);

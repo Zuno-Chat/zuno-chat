@@ -2,6 +2,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 final _rooms = Expando<String>('chat route room');
+final _closable = Expando<bool>('closable on return');
 
 void markChatRoute(BuildContext context, String roomId) {
   final route = ModalRoute.of(context);
@@ -13,6 +14,24 @@ bool isChatRoute(Route<Object?>? route, String roomId) =>
 
 bool chatInFront(AppLifecycleState? state) =>
     state == null || state == AppLifecycleState.resumed;
+
+void markClosableOnReturn(Route<Object?> route) => _closable[route] = true;
+
+bool returnToChat(NavigatorState navigator, String roomId) {
+  final routes = navigator.widget.observers
+      .whereType<OpenChatObserver>()
+      .firstOrNull
+      ?._routes;
+  final at =
+      routes?.lastIndexWhere((route) => isChatRoute(route, roomId)) ?? -1;
+  if (at < 0 || routes!.skip(at + 1).any(_keptOpen)) return false;
+  navigator.popUntil((route) => isChatRoute(route, roomId));
+  return true;
+}
+
+bool _keptOpen(Route<Object?> route) =>
+    _closable[route] != true &&
+    route.popDisposition == RoutePopDisposition.doNotPop;
 
 class OpenChatObserver extends NavigatorObserver with ChangeNotifier {
   final _routes = <Route<Object?>>[];

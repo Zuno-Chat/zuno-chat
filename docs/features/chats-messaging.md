@@ -224,6 +224,10 @@ one rule for what counts.
   session, and only when someone types a mention.
 - **Editing** sets the draft aside and puts it back when the edit is sent
   or cancelled.
+- **Unsent text waits in its chat**, kept on every change for the account
+  that typed it, in memory until Zuno closes, so leaving a chat or being
+  sent back to another one never loses it; mid-edit, the draft is kept,
+  not the edit.
 - **Recovery code check.** Sending what looks like the recovery code asks
   for confirmation first (`security-verification.md`). It warns rather
   than blocks, since blocking would also stop someone saving it to their
@@ -574,9 +578,10 @@ flowchart TD
 - **The picker** lists the chats the person can post in, through the same
   chat list as forwarding, whose search matches the name each row shows
   (`rooms-membership.md`). Picking one
-  opens `RoomPage(pendingShare:)`, which prefills the text, never sending
-  it automatically, and then copies and sends the files. One share goes
-  to one chat.
+  opens `RoomPage(pendingShare:)`, which prefills the text under any
+  unsent text, never sending it automatically, and then copies and sends
+  the files. One share goes to one chat, and a share to the chat already
+  open takes that chat's place.
 - **On iOS** the extension copies each attachment into the App Group
   inbox before it closes, and the app collects the inbox on activation.
   The URL it opens carries nothing, so a cold start needs no URL

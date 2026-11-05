@@ -6,6 +6,7 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/errors/connection_error.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/rooms/official_room.dart';
+import '../../../core/ui/close_own_route.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/notice.dart';
@@ -75,7 +76,6 @@ class _BlockDialogState extends State<_BlockDialog> {
   Object? _error;
 
   Future<void> _block() async {
-    final navigator = Navigator.of(context);
     setState(() {
       _blocking = true;
       _error = null;
@@ -92,7 +92,7 @@ class _BlockDialogState extends State<_BlockDialog> {
       }
       return;
     }
-    navigator.pop(true);
+    if (mounted) closeOwnRoute(context, true);
   }
 
   @override

@@ -4,5 +4,6 @@ New
 • Sign up with server registration token.
 • Sign in and create an account on servers that use their own sign-in page.
 • Usernames can use more characters, and passwords can be 8 characters with a mix of letters, numbers and symbols.
+• What you type in a chat waits there when you leave it.
 
-Fixed 30 bugs.
+Fixed 32 bugs.

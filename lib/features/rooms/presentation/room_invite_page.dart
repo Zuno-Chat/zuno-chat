@@ -57,11 +57,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
       return;
     }
     navigator.pop();
-    if (join) {
-      navigator.push(
-        MaterialPageRoute(builder: (_) => pageForRoom(widget.room)),
-      );
-    }
+    if (join) openRoom(navigator, widget.room);
   }
 
   Future<void> _reportAndDecline(String inviter) async {
