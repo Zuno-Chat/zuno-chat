@@ -745,7 +745,8 @@ flowchart TD
   use `plaintextBody`.
 - **Undecryptable means still `m.room.encrypted`**, checked with
   `isUndecryptableEvent`, and the SDK's decrypt error text is never shown
-  (`security-verification.md`).
+  (`security-verification.md`). The SDK's `Event.isUnableToDecrypt` is not
+  a substitute: it misses an event no decryption has been tried on yet.
 - **`room.lastEvent` can be an edit, hidden signaling or an encrypted
   envelope**, so the newest real message is resolved through
   `isPreviewableLastEvent` and `summarize`.

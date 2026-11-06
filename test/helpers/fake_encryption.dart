@@ -111,6 +111,7 @@ class FakeRoomDecryption extends Fake implements Encryption {
     Event event, {
     bool store = false,
     EventUpdateType updateType = EventUpdateType.timeline,
+    bool waitForKeyBackupAndRetry = false,
   }) async {
     storedAfterDecrypt.add(store);
     if (keepsKeys) {
