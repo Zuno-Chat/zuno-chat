@@ -192,7 +192,29 @@
   "@blockingUnblock": {
     "description": "Button next to a blocked person: stop blocking them"
   },
+  "blockingUnblockExplanation": "Messages and invitations from {name} will reach you again. Zuno then reloads your chats, which can take a moment.",
+  "@blockingUnblockExplanation": {
+    "description": "Dialog text before unblocking a person: what changes, and that Zuno reloads every chat and returns to the chat list",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "blockingUnblockFailed": "Not unblocked.",
+  "blockingUnblockInProgress": "Unblocking…",
+  "@blockingUnblockInProgress": {
+    "description": "Button label while unblocking someone"
+  },
+  "blockingUnblockTitle": "Unblock {name}?",
+  "@blockingUnblockTitle": {
+    "description": "Dialog title asking to confirm unblocking a person",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "blockingUnblocked": "{name} unblocked",
   "@blockingUnblocked": {
     "description": "Snack bar after unblocking someone; name is the person",
@@ -4138,6 +4160,10 @@
       }
     }
   },
+  "roomInfoBlockedPerson": "Blocked",
+  "@roomInfoBlockedPerson": {
+    "description": "Row on a person's sheet: you have blocked this person"
+  },
   "roomInfoCannotTurnOff": "Cannot be turned off again",
   "roomInfoChatInfo": "Chat info",
   "@roomInfoChatInfo": {
@@ -4189,6 +4215,10 @@
         "type": "String"
       }
     }
+  },
+  "roomInfoConfirmedPerson": "Confirmed",
+  "@roomInfoConfirmedPerson": {
+    "description": "Row on a person's sheet: you have confirmed this person's identity; the date you did follows on the line below"
   },
   "roomInfoCouldNotLoadMedia": "Could not load media.",
   "roomInfoCoversLater": "Covers any device they add later. You will not need to do this again.",
@@ -4296,6 +4326,10 @@
       }
     }
   },
+  "roomInfoMessagePerson": "Message",
+  "@roomInfoMessagePerson": {
+    "description": "Button on a person's sheet, under their picture: start or open your one-to-one chat with them"
+  },
   "roomInfoMoreMediaAndFiles": "More media and files",
   "roomInfoNoFiles": "No files yet.",
   "roomInfoNoMediaShared": "No media shared yet.",
@@ -4399,6 +4433,16 @@
     "description": "Row and screen title: room settings"
   },
   "roomInfoRoomSettingsHint": "Name, topic, photo",
+  "roomInfoRoomsInCommon": "{count, plural, one{{count} room in common} other{{count} rooms in common}}",
+  "@roomInfoRoomsInCommon": {
+    "description": "Row on a person's sheet: how many other rooms you and this person are both in; tapping it lists them",
+    "placeholders": {
+      "count": {
+        "type": "int",
+        "format": "decimalPattern"
+      }
+    }
+  },
   "roomInfoScanOrCompare": "Scan their code in person, or compare pictures on a call",
   "roomInfoSearchMembers": "Search members",
   "@roomInfoSearchMembers": {
@@ -4408,7 +4452,6 @@
   "@roomInfoSecurity": {
     "description": "Section heading on room info: security"
   },
-  "roomInfoStartChat": "Start a chat",
   "roomInfoTopic": "Topic",
   "@roomInfoTopic": {
     "description": "Row and field label: the room topic"

@@ -881,7 +881,7 @@ void main() {
       await openMember(tester, 'Ann');
 
       for (final action in [
-        'Start a chat',
+        'Message',
         'Change role',
         'Remove from room',
         'Ban from room',
@@ -892,9 +892,8 @@ void main() {
       }
     });
 
-    testWidgets('you, the owner and invitees cannot be managed', (
-      tester,
-    ) async {
+    testWidgets('everyone but you opens their sheet, and the owner and '
+        'invitees cannot be managed', (tester) async {
       seedAdminRoom();
       addMember('@new:example.org', 'New', membership: 'invite');
       await pumpPage(tester);
@@ -906,14 +905,27 @@ void main() {
       ]) {
         expect(
           tester.widget<MemberTile>(memberTile(id)).onTap,
-          id == '@owner:example.org' ? isNotNull : isNull,
+          id == '@me:example.org' ? isNull : isNotNull,
           reason: id,
         );
       }
       await openMember(tester, 'Olga');
       expect(find.text('Change role'), findsNothing);
       expect(find.text('Remove from room'), findsNothing);
-      expect(find.text('Start a chat'), findsOneWidget);
+      expect(find.text('Message'), findsOneWidget);
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+
+      await openMember(tester, 'New');
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('@new'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Message'), findsNothing);
+      expect(find.text('Change role'), findsNothing);
     });
 
     testWidgets('an admin changes a role and it shows at once', (tester) async {
@@ -1144,10 +1156,10 @@ void main() {
       await tester.tapAt(const Offset(10, 10));
       await tester.pumpAndSettle();
 
-      expect(find.text('Start a chat'), findsNothing);
+      expect(find.text('Message'), findsNothing);
     });
 
-    testWidgets('Start a chat opens the chat you already have with them', (
+    testWidgets('Message opens the chat you already have with them', (
       tester,
     ) async {
       installRoomOpeningChannels();
@@ -1164,7 +1176,7 @@ void main() {
       await pumpPage(tester);
 
       await openMember(tester, 'Ann');
-      await tester.tap(find.text('Start a chat'));
+      await tester.tap(find.text('Message'));
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
@@ -1174,7 +1186,7 @@ void main() {
       expect(page.room, chat);
     });
 
-    testWidgets('Start a chat with the person whose chat is open underneath '
+    testWidgets('Message to the person whose chat is open underneath '
         'goes back to that chat', (tester) async {
       installRoomOpeningChannels();
       seedAdminRoom();
@@ -1190,7 +1202,7 @@ void main() {
       await pumpPage(tester, pushed: true, overChat: chat.id);
 
       await openMember(tester, 'Ann');
-      await tester.tap(find.text('Start a chat'));
+      await tester.tap(find.text('Message'));
       for (var i = 0; i < 10; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
@@ -1206,7 +1218,7 @@ void main() {
       await pumpPage(tester);
 
       await openMember(tester, 'Ann');
-      await tester.tap(find.text('Start a chat'));
+      await tester.tap(find.text('Message'));
       await tester.pumpAndSettle();
 
       expect(requestsTo('createRoom'), hasLength(1));

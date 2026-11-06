@@ -3,7 +3,6 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/rooms/official_room.dart';
 import 'package:zuno/features/room_info/presentation/member_actions.dart';
-import 'package:zuno/features/room_info/presentation/remove_member_dialog.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
@@ -89,6 +88,17 @@ void main() {
       expect(memberActionsFor(room, member(room, '@bob:example.org')), []);
     });
 
+    test('someone you blocked can be unblocked instead', () {
+      final room = roomAs('@me:example.org', {});
+      setBlocked(room.client, ['@bob:example.org']);
+
+      expect(memberActionsFor(room, member(room, '@bob:example.org')), [
+        MemberAction.message,
+        MemberAction.unblock,
+        MemberAction.report,
+      ]);
+    });
+
     test('nobody blocks the official notices account', () {
       final room = roomAs('@me:example.org', {});
 
@@ -103,11 +113,14 @@ void main() {
     final l10n = englishLocalizations;
 
     expect(
-      MemberAction.remove.label(l10n, RemoveMemberPlace.community),
+      MemberAction.remove.label(
+        l10n,
+        roomAs('@me:example.org', {}, community: true),
+      ),
       l10n.communitiesRemoveFromCommunity,
     );
     expect(
-      MemberAction.ban.label(l10n, RemoveMemberPlace.room),
+      MemberAction.ban.label(l10n, roomAs('@me:example.org', {})),
       l10n.roomInfoBanFromRoom,
     );
   });

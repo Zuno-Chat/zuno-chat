@@ -16,13 +16,14 @@ the only source of truth.
 | Directory | `public_rooms_sheet.dart` searches the server directory. The chat list joins the chosen room and opens it once sync brings it. |
 | Access | `room_access.dart` treats access as one concept over two server facts, the join rule and the directory listing (table under Decisions). |
 | Room info | `lib/features/room_info/`: header, quick actions, members, settings, permissions and media. Which sections show depends on the kind of room (table below). |
+| Person sheet | `person_sheet.dart`: one sheet per person, opened from a face next to a message in a room and from every members list, with their details, quick actions and moderation. `member_actions.dart` is the one owner of acting on a member. |
 | Shared rules | `room_exit.dart` (the exit rule), `room_title.dart` (the one title every surface shows), `optimistic_room_state.dart`. |
 | Roles | `room_roles.dart`: read-only `-1`, member `0`, moderator `50`, admin `100`, where any other level reads as the tier below it. It also decides who may manage and who may remove whom (`canManageMember`, `canRemoveMember`, `assignableRolesFor`). |
 | Permissions | `room_permission.dart`: the permission catalog, where each entry is one field of `m.room.power_levels`, and the defaults for new rooms. `RoomPermissionsPage` shows it for rooms and communities. |
 | Call gating | `call_member_state.dart`: `canPublishCallMemberState` and `hasSomeoneToCall`, used by every call button. |
 | Invitations | `room_invite.dart`: pure functions that decide how an invitation is displayed and notified, shared by the chat list, the chat header, `RoomInvitePage` and both notification paths. |
 | Room media | `room_media_feed.dart` (the feed) and `room_media_page.dart` (the tabbed screen). |
-| Moderation | `abuse_report.dart` and `report_sheet.dart` sit behind every report entry point, and `block_person.dart` behind every Block entry point. Blocked people are listed under Settings → Security. |
+| Moderation | `abuse_report.dart` and `report_sheet.dart` sit behind every report entry point, and `block_person.dart` behind every Block and Unblock entry point. Blocked people are listed under Settings → Security. |
 
 Add to home screen is Android only: the `zuno/shortcuts` channel pins a
 native shortcut, because no Flutter plugin covers Android's pinned-shortcut
@@ -50,7 +51,24 @@ flowchart LR
 | Advanced (room ID and address) | Owners and admins | Owners and admins |
 
 Per-person trust shows only in direct chats, because encryption is universal
-and trust belongs to the one-to-one relationship.
+and trust belongs to the one-to-one relationship. The person sheet only reports
+a confirmation already made, so a room never asks you to confirm everyone in it.
+
+### Person sheet
+
+```mermaid
+flowchart LR
+  F["face in a room / members list"] --> S["person sheet"]
+  S -->|opens| L["rooms in common lookup"]
+  S -->|action chosen| A["member_actions"]
+  A --> R["role, remove, ban"]
+  A --> B["block / unblock → chat list"]
+  A --> M["message, report"]
+```
+
+- **Everyone but you opens a sheet**; actions follow the member rules, so someone who left or is only invited shows who they are and nothing else.
+- **Rooms in common come from the server's mutual-rooms lookup** (Matrix 1.19, or Synapse's stable MSC2666 flag before it), asked only when the sheet opens, never while a room loads; a server that offers neither shows no row.
+- **Only rooms count as in common**: chats and communities are dropped, since a shared community shows through its rooms.
 
 ### Room media feed
 
@@ -134,6 +152,7 @@ files, and the media viewer pages through it (`chats-messaging.md`).
 - **Moderation tooling stays out of the app** (`../decisions/excluded.md`). Room admins act inside their rooms, and reports go to the operator for what admins cannot handle: chats and invitations, an abusive admin, illegal content and account-level action.
 - **A report carries IDs and a reason, never content**, because everything is end-to-end encrypted. The reason has one filterable format, `category[: note] [(room <id>)]`, with the categories `spam`, `harassment`, `illegal` and `other` (which requires a note).
 - **An invitation is reported by its sender**, with the room ID in the reason, because invite state has no event ID and invite-abuse limits key on the sender.
+- **Unblocking asks first and stays locked until it is done**, like blocking, because both clear the local cache and take a moment.
 - **Blocking is the SDK's `ignoreUser` with its defaults**: it leaves the direct chat, declines the person's invitations and clears the local cache so the server resends rooms without their messages. A kept chat would show only one side, so leaving is deliberate, and unblocking never brings the chat back.
 - **Anyone can block anyone, whatever their role**, since Google Play requires it for direct messages. The exception is `@notices:zuno.chat`, which carries the shutdown notice the terms promise.
 
@@ -148,7 +167,7 @@ files, and the media viewer pages through it (`chats-messaging.md`).
 - **Every text line in a row is strut-locked** (`core/ui/line_strut.dart`), because the list is fixed-extent and fallback fonts would otherwise grow a row.
 - **Synapse refuses directory publishing by default** (`room_list_publication_rules`), so Public fails until the server allows it: the app keeps the room private and says so in one message, never reporting it as an error.
 - **The access label reads the join rule, not the directory listing**, which costs a request per room, so an invite-only room listed by other means reads as private.
-- **Blocking clears the local cache**, which makes every open `Room` stale, so every Block entry point returns to the chat list.
+- **Blocking and unblocking clear the local cache**, which makes every open `Room` stale, so every Block entry point, and every Unblock entry point outside Settings, returns to the chat list.
 - **Blocked people show as usernames**, because servers refuse profile lookups for people you share no room with.
 - **End-to-end encryption rules out server-side spam filtering**, so every available signal is metadata.
 

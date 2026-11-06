@@ -113,39 +113,37 @@ class _LocationShareSheetState extends State<_LocationShareSheet> {
   @override
   Widget build(BuildContext context) {
     final fix = _fix;
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              _choosingDuration
-                  ? context.l10n.locationShareLive
-                  : context.l10n.locationYourLocation,
-              style: Theme.of(context).textTheme.titleMedium,
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            _choosingDuration
+                ? context.l10n.locationShareLive
+                : context.l10n.locationYourLocation,
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 16),
+          switch (fix) {
+            null => const _Finding(),
+            LocationFound() when _choosingDuration => _LiveDuration(
+              fix: fix,
+              inChat: widget.inChat,
+              runsUnrestricted: widget.runsUnrestricted,
+              allowUnrestricted: widget.allowUnrestricted,
+              onBack: () => setState(() => _choosingDuration = false),
             ),
-            const SizedBox(height: 16),
-            switch (fix) {
-              null => const _Finding(),
-              LocationFound() when _choosingDuration => _LiveDuration(
-                fix: fix,
-                inChat: widget.inChat,
-                runsUnrestricted: widget.runsUnrestricted,
-                allowUnrestricted: widget.allowUnrestricted,
-                onBack: () => setState(() => _choosingDuration = false),
-              ),
-              LocationFound() => _Found(
-                fix: fix,
-                liveLocation: widget.liveLocation,
-                inChat: widget.inChat,
-                onShareLive: () => setState(() => _choosingDuration = true),
-              ),
-              LocationFailed() => _Failed(reason: fix.reason, retry: _locate),
-            },
-          ],
-        ),
+            LocationFound() => _Found(
+              fix: fix,
+              liveLocation: widget.liveLocation,
+              inChat: widget.inChat,
+              onShareLive: () => setState(() => _choosingDuration = true),
+            ),
+            LocationFailed() => _Failed(reason: fix.reason, retry: _locate),
+          },
+        ],
       ),
     );
   }

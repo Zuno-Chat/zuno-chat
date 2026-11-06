@@ -403,19 +403,17 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage>
   Future<void> _react() async {
     await showSheet<void>(
       context: context,
-      builder: (sheetContext) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
-          child: QuickReactionRow(
-            onReact: (emoji) {
-              Navigator.of(sheetContext).pop();
-              unawaited(_toggleReaction(emoji));
-            },
-            onMore: () {
-              Navigator.of(sheetContext).pop();
-              unawaited(_pickReaction());
-            },
-          ),
+      builder: (sheetContext) => Padding(
+        padding: const EdgeInsets.fromLTRB(12, 16, 12, 16),
+        child: QuickReactionRow(
+          onReact: (emoji) {
+            Navigator.of(sheetContext).pop();
+            unawaited(_toggleReaction(emoji));
+          },
+          onMore: () {
+            Navigator.of(sheetContext).pop();
+            unawaited(_pickReaction());
+          },
         ),
       ),
     );

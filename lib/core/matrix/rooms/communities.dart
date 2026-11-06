@@ -42,10 +42,10 @@ bool _holds(Room community, Room room) =>
 bool _linked(StrippedStateEvent? link) =>
     link?.content.tryGetList<String>('via')?.isNotEmpty ?? false;
 
-bool _belongsInCommunity(Room room) =>
+bool isJoinedGroupRoom(Room room) =>
     room.membership == Membership.join && !room.isSpace && !room.isDirectChat;
 
-int _newestFirst(Room a, Room b) =>
+int newestActivityFirst(Room a, Room b) =>
     b.latestEventReceivedTime.compareTo(a.latestEventReceivedTime);
 
 List<Room> communityRooms(Room community, {Room? Function(String id)? lookup}) {
@@ -53,9 +53,9 @@ List<Room> communityRooms(Room community, {Room? Function(String id)? lookup}) {
   return [
     for (final id in communityChildIds(community))
       if (find(id) case final room?
-          when _belongsInCommunity(room) && _holds(community, room))
+          when isJoinedGroupRoom(room) && _holds(community, room))
         room,
-  ]..sort(_newestFirst);
+  ]..sort(newestActivityFirst);
 }
 
 List<Room> communitiesOf(Room room) => [

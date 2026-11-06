@@ -177,13 +177,10 @@ Future<void> pickReaction(
     isScrollControlled: true,
     builder: (context) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SafeArea(
-        top: false,
-        child: SizedBox(
-          height: _reactionPickerHeight,
-          child: ZunoEmojiPicker(
-            onSelected: (emoji) => Navigator.of(context).pop(emoji),
-          ),
+      child: SizedBox(
+        height: _reactionPickerHeight,
+        child: ZunoEmojiPicker(
+          onSelected: (emoji) => Navigator.of(context).pop(emoji),
         ),
       ),
     ),

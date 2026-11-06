@@ -167,7 +167,8 @@ one rule for what counts.
 ## Rendering
 
 - **Runs.** Messages from one sender on one day, sent close together,
-  form a run; in a room, the name and avatar show on its first message.
+  form a run; in a room, the name and avatar show on its first message,
+  and tapping the avatar opens that person's sheet (`rooms-membership.md`).
 - **The time row tucks into the last text line.** The paragraph ends with
   an invisible twin of the row, and the visible row sits over it. If the
   twin does not fit, the paragraph wraps it, and the row lands below the

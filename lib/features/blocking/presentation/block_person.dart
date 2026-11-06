@@ -13,6 +13,8 @@ import '../../../core/ui/notice.dart';
 
 typedef BlockPerson = Future<void> Function(String userId);
 
+typedef UnblockPerson = Future<void> Function(String userId);
+
 bool canBlockPerson(String userId) => userId != officialNoticesUserId;
 
 Future<void> blockOnServer(
@@ -41,12 +43,12 @@ Future<bool> confirmAndBlockPerson(
     context: context,
     barrierDismissible: false,
     builder: (_) => _BlockDialog(
-      userId: userId,
       name: name,
+      unblocking: false,
       leavesChat: client.getDirectChatFromUserId(userId) != null,
-      block:
-          block ??
-          (userId) => blockOnServer(client, userId, endCallsIn: endCallsIn),
+      run: () => block != null
+          ? block(userId)
+          : blockOnServer(client, userId, endCallsIn: endCallsIn),
     ),
   );
   if (blocked != true) return false;
@@ -54,17 +56,100 @@ Future<bool> confirmAndBlockPerson(
   return true;
 }
 
+Future<bool> confirmAndUnblockPerson(
+  BuildContext context, {
+  required Client client,
+  required String userId,
+  required String name,
+  UnblockPerson? unblock,
+}) async {
+  final messenger = ScaffoldMessenger.of(context);
+  final l10n = context.l10n;
+  final unblocked = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => _BlockDialog(
+      name: name,
+      unblocking: true,
+      leavesChat: false,
+      run: () => (unblock ?? client.unignoreUser)(userId),
+    ),
+  );
+  if (unblocked != true) return false;
+  messenger.say(l10n.blockingUnblocked(name));
+  return true;
+}
+
+Future<bool> blockAndReturnHome(
+  BuildContext context, {
+  required Client client,
+  required String userId,
+  required String name,
+  required EndCallsIn endCallsIn,
+  BlockPerson? block,
+}) => _thenHome(
+  Navigator.of(context),
+  confirmAndBlockPerson(
+    context,
+    client: client,
+    userId: userId,
+    name: name,
+    endCallsIn: endCallsIn,
+    block: block,
+  ),
+);
+
+Future<bool> unblockAndReturnHome(
+  BuildContext context, {
+  required Client client,
+  required String userId,
+  required String name,
+  UnblockPerson? unblock,
+}) => _thenHome(
+  Navigator.of(context),
+  confirmAndUnblockPerson(
+    context,
+    client: client,
+    userId: userId,
+    name: name,
+    unblock: unblock,
+  ),
+);
+
+Future<bool> _thenHome(NavigatorState navigator, Future<bool> done) async {
+  final happened = await done;
+  if (happened) navigator.popUntil((route) => route.isFirst);
+  return happened;
+}
+
+Future<bool> unblockPerson(
+  BuildContext context, {
+  required Client client,
+  required String userId,
+  required String name,
+  UnblockPerson? unblock,
+}) {
+  final l10n = context.l10n;
+  return attempt(
+    context,
+    () => (unblock ?? client.unignoreUser)(userId),
+    label: 'unblock person',
+    failed: l10n.blockingUnblockFailed,
+    succeeded: l10n.blockingUnblocked(name),
+  );
+}
+
 class _BlockDialog extends StatefulWidget {
-  final String userId;
   final String name;
+  final bool unblocking;
   final bool leavesChat;
-  final BlockPerson block;
+  final Future<void> Function() run;
 
   const _BlockDialog({
-    required this.userId,
     required this.name,
+    required this.unblocking,
     required this.leavesChat,
-    required this.block,
+    required this.run,
   });
 
   @override
@@ -72,21 +157,21 @@ class _BlockDialog extends StatefulWidget {
 }
 
 class _BlockDialogState extends State<_BlockDialog> {
-  bool _blocking = false;
+  bool _running = false;
   Object? _error;
 
-  Future<void> _block() async {
+  Future<void> _run() async {
     setState(() {
-      _blocking = true;
+      _running = true;
       _error = null;
     });
     try {
-      await widget.block(widget.userId);
+      await widget.run();
     } catch (e, s) {
-      reportCaught('block person', e, s);
+      reportCaught(widget.unblocking ? 'unblock person' : 'block person', e, s);
       if (mounted) {
         setState(() {
-          _blocking = false;
+          _running = false;
           _error = e;
         });
       }
@@ -99,15 +184,24 @@ class _BlockDialogState extends State<_BlockDialog> {
   Widget build(BuildContext context) {
     final name = widget.name;
     final l10n = context.l10n;
+    final unblocking = widget.unblocking;
     return PopScope(
-      canPop: !_blocking,
+      canPop: !_running,
       child: AlertDialog(
-        title: Text(l10n.blockingTitle(name)),
+        title: Text(
+          unblocking
+              ? l10n.blockingUnblockTitle(name)
+              : l10n.blockingTitle(name),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l10n.blockingExplanation(name)),
+            Text(
+              unblocking
+                  ? l10n.blockingUnblockExplanation(name)
+                  : l10n.blockingExplanation(name),
+            ),
             if (widget.leavesChat) ...[
               const SizedBox(height: 12),
               Text(l10n.blockingLeavesChat(name)),
@@ -115,22 +209,31 @@ class _BlockDialogState extends State<_BlockDialog> {
             if (_error case final error?) ...[
               const SizedBox(height: 12),
               InlineError(
-                failureMessage(l10n, error, failed: l10n.blockingFailed),
+                failureMessage(
+                  l10n,
+                  error,
+                  failed: unblocking
+                      ? l10n.blockingUnblockFailed
+                      : l10n.blockingFailed,
+                ),
               ),
             ],
           ],
         ),
         actions: [
           TextButton(
-            onPressed: _blocking
-                ? null
-                : () => Navigator.of(context).pop(false),
+            onPressed: _running ? null : () => Navigator.of(context).pop(false),
             child: Text(l10n.commonCancel),
           ),
           TextButton(
-            onPressed: _blocking ? null : _block,
-            style: destructiveButtonStyle(context),
-            child: Text(_blocking ? l10n.blockingInProgress : l10n.commonBlock),
+            onPressed: _running ? null : _run,
+            style: unblocking ? null : destructiveButtonStyle(context),
+            child: Text(switch ((unblocking, _running)) {
+              (false, false) => l10n.commonBlock,
+              (false, true) => l10n.blockingInProgress,
+              (true, false) => l10n.blockingUnblock,
+              (true, true) => l10n.blockingUnblockInProgress,
+            }),
           ),
         ],
       ),

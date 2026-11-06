@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'sheet.dart';
 import 'zuno_theme.dart';
 
 TextStyle cardGroupTitleStyle(BuildContext context) {
@@ -20,7 +21,9 @@ class CardGroup extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
       child: Material(
-        color: theme.colorScheme.surfaceContainerLow,
+        color: SheetSurface.holds(context)
+            ? theme.colorScheme.surfaceContainer
+            : theme.colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(ZunoRadius.large),
         clipBehavior: Clip.antiAlias,
         child: Column(

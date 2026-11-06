@@ -51,5 +51,12 @@ bool confirmedByOwnAccount(CrossSigningKey identity) {
 bool deviceApprovedByOwner(DeviceKeys? device) =>
     device?.hasValidSignatureChain(verifiedByTheirMasterKey: true) ?? false;
 
+bool userTrustConfirmed(UserTrustState state) => switch (state) {
+  UserTrustState.confirmed || UserTrustState.confirmedWithPendingDevice => true,
+  UserTrustState.noIdentity ||
+  UserTrustState.unconfirmed ||
+  UserTrustState.identityChanged => false,
+};
+
 bool userTrustNeedsAttention(UserTrustState state) =>
     state == UserTrustState.identityChanged;

@@ -80,6 +80,34 @@ void main() {
     expect(chosen, 11);
   });
 
+  for (final tall in [false, true]) {
+    testWidgets('keeps its content above the system navigation bar '
+        '(${tall ? 'tall' : 'short'} sheet)', (tester) async {
+      tester.view.devicePixelRatio = 3;
+      tester.view.padding = const FakeViewPadding(bottom: 144);
+      tester.view.viewPadding = const FakeViewPadding(bottom: 144);
+      addTearDown(tester.view.reset);
+      final context = await pumpHost(tester);
+
+      unawaited(
+        showSheet<void>(
+          context: context,
+          isScrollControlled: tall,
+          useSafeArea: tall,
+          builder: (_) => const SizedBox(key: Key('content'), height: 100),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final screen = tester.getSize(find.byType(Scaffold)).height;
+      expect(tester.getRect(find.byType(BottomSheet)).bottom, screen);
+      expect(
+        tester.getRect(find.byKey(const Key('content'))).bottom,
+        lessThanOrEqualTo(screen - 48),
+      );
+    });
+  }
+
   testWidgets('hands its options to the bottom sheet', (tester) async {
     final context = await pumpHost(tester);
 

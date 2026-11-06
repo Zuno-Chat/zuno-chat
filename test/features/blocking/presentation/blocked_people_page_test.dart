@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/features/blocking/presentation/block_person.dart';
 import 'package:zuno/features/blocking/presentation/blocked_people_page.dart';
 
 import '../../../helpers/card_layout.dart';
@@ -18,14 +19,6 @@ void main() {
     client = buildTestClient(userId: '@me:example.org');
     unblocked = [];
   });
-
-  void setBlocked(List<String> userIds) =>
-      client.accountData['m.ignored_user_list'] = BasicEvent(
-        type: 'm.ignored_user_list',
-        content: {
-          'ignored_users': {for (final id in userIds) id: <String, Object?>{}},
-        },
-      );
 
   void syncBlockedList(String batch) => client.onSync.add(
     SyncUpdate(
@@ -51,7 +44,7 @@ void main() {
   }
 
   testWidgets('blocked people sit on a card', (tester) async {
-    setBlocked(['@ann:example.org']);
+    setBlocked(client, ['@ann:example.org']);
     await pumpPage(tester);
 
     expectEveryRowOnACard();
@@ -67,7 +60,7 @@ void main() {
   testWidgets('lists blocked people by username, without the server', (
     tester,
   ) async {
-    setBlocked(['@ann:example.org', '@ben:example.org']);
+    setBlocked(client, ['@ann:example.org', '@ben:example.org']);
     await pumpPage(tester);
 
     expect(find.text('@ann'), findsOneWidget);
@@ -76,7 +69,7 @@ void main() {
   });
 
   testWidgets('Unblock unblocks that person and drops the row', (tester) async {
-    setBlocked(['@ann:example.org', '@ben:example.org']);
+    setBlocked(client, ['@ann:example.org', '@ben:example.org']);
     await pumpPage(tester);
 
     await tester.tap(find.widgetWithText(TextButton, 'Unblock').first);
@@ -89,11 +82,11 @@ void main() {
   });
 
   testWidgets('picks up someone blocked from another device', (tester) async {
-    setBlocked(['@ann:example.org']);
+    setBlocked(client, ['@ann:example.org']);
     await pumpPage(tester);
     expect(find.text('@ben'), findsNothing);
 
-    setBlocked(['@ann:example.org', '@ben:example.org']);
+    setBlocked(client, ['@ann:example.org', '@ben:example.org']);
     syncBlockedList('s1');
     await tester.pumpAndSettle();
 
@@ -103,7 +96,7 @@ void main() {
   testWidgets('someone blocked again after an unblock shows again', (
     tester,
   ) async {
-    setBlocked(['@ann:example.org']);
+    setBlocked(client, ['@ann:example.org']);
     await pumpPage(tester);
     await tester.tap(find.widgetWithText(TextButton, 'Unblock'));
     await tester.pumpAndSettle();
@@ -118,7 +111,7 @@ void main() {
   testWidgets('a refused unblock keeps the row and says to try again', (
     tester,
   ) async {
-    setBlocked(['@ann:example.org']);
+    setBlocked(client, ['@ann:example.org']);
     await pumpPage(tester, unblock: (_) async => throw Exception('offline'));
 
     await tester.tap(find.widgetWithText(TextButton, 'Unblock'));

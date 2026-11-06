@@ -81,18 +81,16 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
   }
 
   Future<void> _blockAndDecline(String inviter, String name) async {
-    final navigator = Navigator.of(context);
-    final blocked = await confirmAndBlockPerson(
+    final room = widget.room;
+    final blocked = await blockAndReturnHome(
       context,
-      client: widget.room.client,
+      client: room.client,
       userId: inviter,
       name: name,
       endCallsIn: ref.read(endCallsInProvider),
       block: widget.blockPerson,
     );
-    if (!blocked) return;
-    unawaited(cancelInviteNotification(widget.room));
-    if (mounted) navigator.pop();
+    if (blocked) unawaited(cancelInviteNotification(room));
   }
 
   @override

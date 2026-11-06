@@ -31,8 +31,8 @@ import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/section_label.dart';
 import '../../chat/presentation/room_page.dart';
-import '../../room_info/presentation/member_actions.dart';
 import '../../room_info/presentation/members_sheet.dart';
+import '../../room_info/presentation/person_sheet.dart';
 import '../../room_info/presentation/room_access_label.dart';
 import '../../room_info/presentation/room_header.dart';
 import '../../room_info/presentation/room_permissions_page.dart';
@@ -324,31 +324,15 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       context,
       room: community,
       members: membersOwnerFirst(community, people),
-      canManage: (user) => memberActionsFor(community, user).isNotEmpty,
     );
     if (user == null || !mounted) return;
-    await _manageMember(user);
-  }
-
-  Future<void> _manageMember(User user) async {
-    final community = _community;
-    final action = await chooseMemberAction(context, community, user);
-    if (action == null || !mounted) return;
-    final bool changed;
-    switch (action) {
-      case MemberAction.changeRole:
-        changed = await changeMemberRole(context, community, user);
-      case MemberAction.remove || MemberAction.ban:
-        changed = await removeMember(
-          context,
-          community,
-          user,
-          ban: action == MemberAction.ban,
-        );
-      case MemberAction.message || MemberAction.block || MemberAction.report:
-        changed = false;
-    }
-    if (changed && mounted) setState(() {});
+    final done = await openPersonSheet(
+      context,
+      ref,
+      room: community,
+      user: user,
+    );
+    if ((done?.moderates ?? false) && mounted) setState(() {});
   }
 
   @override

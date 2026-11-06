@@ -36,6 +36,7 @@ class MessageListView extends StatefulWidget {
   final void Function(Event event) onResend;
   final void Function(FailedMediaSend failed) onRetryFailedSend;
   final void Function(Event event) onOpenMedia;
+  final void Function(Event event) onOpenSender;
   final VoidCallback onBackgroundTap;
 
   const MessageListView({
@@ -54,6 +55,7 @@ class MessageListView extends StatefulWidget {
     required this.onResend,
     required this.onRetryFailedSend,
     required this.onOpenMedia,
+    required this.onOpenSender,
     required this.onBackgroundTap,
   });
 
@@ -390,6 +392,7 @@ class _MessageListViewState extends State<MessageListView> {
             onResend: (event) => widget.onResend(event),
             onRetryFailedSend: (failed) => widget.onRetryFailedSend(failed),
             onOpenMedia: (event) => widget.onOpenMedia(event),
+            onOpenSender: () => widget.onOpenSender(message),
           );
           final dayLabel = record.dayLabel;
           return Column(

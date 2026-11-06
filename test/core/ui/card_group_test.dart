@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/core/ui/circle_icon.dart';
+import 'package:zuno/core/ui/sheet.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 
 import '../../helpers/zuno_app.dart';
@@ -33,6 +34,36 @@ void main() {
 
     await tester.tap(find.text('Row'));
     expect(taps, 1);
+  });
+
+  testWidgets('a card group on a sheet sits one surface step above it', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      inZunoApp(
+        Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showSheet<void>(
+              context: context,
+              builder: (_) => const CardGroup(children: [Text('x')]),
+            ),
+            child: const Text('open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('open'));
+    await tester.pumpAndSettle();
+
+    final material = tester.widget<Material>(
+      find
+          .descendant(
+            of: find.byType(CardGroup),
+            matching: find.byType(Material),
+          )
+          .first,
+    );
+    expect(material.color, zunoLightTheme.colorScheme.surfaceContainer);
   });
 
   testWidgets('a card group can carry a title', (tester) async {

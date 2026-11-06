@@ -6,31 +6,25 @@ import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/search_field.dart';
 import '../../../core/ui/sheet.dart';
 import 'member_tile.dart';
+import 'person_sheet.dart';
 
 Future<User?> showMembersSheet(
   BuildContext context, {
   required Room room,
   required List<User> members,
-  required bool Function(User user) canManage,
 }) => showSheet<User>(
   context: context,
   isScrollControlled: true,
   useSafeArea: true,
   showDragHandle: true,
-  builder: (_) =>
-      _MembersSheet(room: room, members: members, canManage: canManage),
+  builder: (_) => _MembersSheet(room: room, members: members),
 );
 
 class _MembersSheet extends StatefulWidget {
   final Room room;
   final List<User> members;
-  final bool Function(User user) canManage;
 
-  const _MembersSheet({
-    required this.room,
-    required this.members,
-    required this.canManage,
-  });
+  const _MembersSheet({required this.room, required this.members});
 
   @override
   State<_MembersSheet> createState() => _MembersSheetState();
@@ -88,7 +82,7 @@ class _MembersSheetState extends State<_MembersSheet> {
                         return MemberTile(
                           room: widget.room,
                           user: user,
-                          onTap: widget.canManage(user)
+                          onTap: canOpenPersonSheet(widget.room, user)
                               ? () => Navigator.of(context).pop(user)
                               : null,
                         );

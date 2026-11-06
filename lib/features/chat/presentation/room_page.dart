@@ -42,6 +42,7 @@ import '../../calls/presentation/active_call_banner.dart';
 import '../../calls/presentation/room_calls.dart';
 import '../../communities/presentation/join_requests_view.dart';
 import '../../location/presentation/live_location_banner.dart';
+import '../../room_info/presentation/person_sheet.dart';
 import '../../room_info/presentation/room_info_page.dart';
 import '../../security_alerts/presentation/security_alert_banners.dart';
 import '../data/chat_timeline.dart';
@@ -228,6 +229,15 @@ class _RoomPageState extends ConsumerState<RoomPage>
     );
     if (result == RoomInfoResult.left && mounted) navigator.pop();
   }
+
+  void _openSender(Event event) => unawaited(
+    openPersonSheet(
+      context,
+      ref,
+      room: widget.room,
+      user: event.senderFromMemoryOrFallback,
+    ),
+  );
 
   Future<void> _startCall(CallKind kind) =>
       startRoomCall(context, ref, widget.room, kind);
@@ -585,6 +595,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
                                       onResend: sender.resend,
                                       onRetryFailedSend: sender.retry,
                                       onOpenMedia: _openMedia,
+                                      onOpenSender: _openSender,
                                       onBackgroundTap: _emojiPanel.close,
                                     ),
                                   ),

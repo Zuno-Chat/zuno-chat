@@ -16,11 +16,9 @@ class ConfirmedPersonCheck extends ConsumerWidget {
     final userId = room.directChatMatrixID;
     if (!room.isDirectChat || userId == null) return const SizedBox.shrink();
 
-    final state = ref.watch(userTrustProvider(userId));
-    final confirmed =
-        state == UserTrustState.confirmed ||
-        state == UserTrustState.confirmedWithPendingDevice;
-    if (!confirmed) return const SizedBox.shrink();
+    if (!userTrustConfirmed(ref.watch(userTrustProvider(userId)))) {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.only(left: 6),

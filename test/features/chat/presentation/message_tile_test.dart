@@ -84,6 +84,7 @@ void main() {
     List<Event>? gallery,
     bool canRespond = true,
     List<Override> overrides = const [],
+    VoidCallback? onOpenSender,
   }) async {
     final all = events ?? [event];
     db.events = all;
@@ -131,6 +132,7 @@ void main() {
                 onResend: resent.add,
                 onRetryFailedSend: (_) {},
                 onOpenMedia: opened.add,
+                onOpenSender: onOpenSender ?? () {},
               ),
             ),
           ),
@@ -363,6 +365,21 @@ void main() {
       expect(find.byType(MxcAvatar), findsNothing);
     },
   );
+
+  testWidgets('tapping the avatar opens the sender', (tester) async {
+    final semantics = tester.ensureSemantics();
+    var opened = 0;
+    await pumpTile(tester, text(r'$a'), onOpenSender: () => opened++);
+
+    await tester.tap(find.byType(MxcAvatar));
+
+    expect(opened, 1);
+    expect(
+      tester.getSemantics(find.byType(MxcAvatar)),
+      isSemantics(label: 'Bob', isButton: true, hasTapAction: true),
+    );
+    semantics.dispose();
+  });
 
   testWidgets('a direct chat shows neither name nor avatar', (tester) async {
     client.accountData['m.direct'] = BasicEvent(

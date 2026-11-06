@@ -169,28 +169,26 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     final proceed = await showSheet<bool>(
       context: context,
       showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                l10n.settingsLanguage,
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              Text(l10n.settingsLanguageAddStep),
-              const SizedBox(height: 8),
-              Text(l10n.settingsLanguageChooseStep),
-              const SizedBox(height: 20),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(l10n.settingsLanguageOpenSettings),
-              ),
-            ],
-          ),
+      builder: (context) => Padding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l10n.settingsLanguage,
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            Text(l10n.settingsLanguageAddStep),
+            const SizedBox(height: 8),
+            Text(l10n.settingsLanguageChooseStep),
+            const SizedBox(height: 20),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.settingsLanguageOpenSettings),
+            ),
+          ],
         ),
       ),
     );

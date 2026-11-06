@@ -48,103 +48,99 @@ Future<MessageAction?> showMessageActionsSheet(
         );
       }
 
-      return SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (canRespond)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-                  child: QuickReactionRow(
-                    onReact: (emoji) {
-                      Navigator.of(context).pop();
-                      onReact(emoji);
-                    },
-                    onMore: () {
-                      Navigator.of(context).pop();
-                      onMoreReactions();
-                    },
+      return SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (canRespond)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                child: QuickReactionRow(
+                  onReact: (emoji) {
+                    Navigator.of(context).pop();
+                    onReact(emoji);
+                  },
+                  onMore: () {
+                    Navigator.of(context).pop();
+                    onMoreReactions();
+                  },
+                ),
+              ),
+            if (canRespond)
+              action(
+                MessageAction.reply,
+                const Icon(Icons.reply_outlined),
+                l10n.commonReply,
+              ),
+            if (canCopy)
+              action(
+                MessageAction.copy,
+                const Icon(Icons.copy_outlined),
+                l10n.commonCopy,
+              ),
+            if (canEdit)
+              action(
+                MessageAction.edit,
+                const Icon(Icons.edit_outlined),
+                l10n.chatEdit,
+              ),
+            if (forwardCount > 0)
+              action(
+                MessageAction.forward,
+                const ForwardIcon(),
+                forwardCount > 1
+                    ? l10n.chatForwardAll(forwardCount)
+                    : l10n.chatForward,
+              ),
+            if (isAttachment) ...[
+              action(
+                MessageAction.share,
+                const Icon(Icons.share_outlined),
+                isGallery ? l10n.chatShareAll(galleryCount) : l10n.commonShare,
+              ),
+              action(
+                MessageAction.save,
+                const Icon(Icons.download_outlined),
+                isGallery ? l10n.chatSaveAll(galleryCount) : l10n.commonSave,
+              ),
+            ],
+            if (canDelete)
+              action(
+                MessageAction.delete,
+                const Icon(Icons.delete_outline),
+                isGallery
+                    ? l10n.chatDeleteAllCount(galleryCount)
+                    : l10n.commonDelete,
+              ),
+            if (!isOwn)
+              action(
+                MessageAction.report,
+                const Icon(Icons.flag_outlined),
+                l10n.commonReport,
+              ),
+            if (facts.isNotEmpty) ...[
+              Divider(height: 9, color: colors.outlineVariant),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 2, 0, 10),
+                child: DefaultTextStyle.merge(
+                  style: theme.textTheme.bodySmall!.copyWith(
+                    color: colors.onSurfaceVariant,
                   ),
-                ),
-              if (canRespond)
-                action(
-                  MessageAction.reply,
-                  const Icon(Icons.reply_outlined),
-                  l10n.commonReply,
-                ),
-              if (canCopy)
-                action(
-                  MessageAction.copy,
-                  const Icon(Icons.copy_outlined),
-                  l10n.commonCopy,
-                ),
-              if (canEdit)
-                action(
-                  MessageAction.edit,
-                  const Icon(Icons.edit_outlined),
-                  l10n.chatEdit,
-                ),
-              if (forwardCount > 0)
-                action(
-                  MessageAction.forward,
-                  const ForwardIcon(),
-                  forwardCount > 1
-                      ? l10n.chatForwardAll(forwardCount)
-                      : l10n.chatForward,
-                ),
-              if (isAttachment) ...[
-                action(
-                  MessageAction.share,
-                  const Icon(Icons.share_outlined),
-                  isGallery
-                      ? l10n.chatShareAll(galleryCount)
-                      : l10n.commonShare,
-                ),
-                action(
-                  MessageAction.save,
-                  const Icon(Icons.download_outlined),
-                  isGallery ? l10n.chatSaveAll(galleryCount) : l10n.commonSave,
-                ),
-              ],
-              if (canDelete)
-                action(
-                  MessageAction.delete,
-                  const Icon(Icons.delete_outline),
-                  isGallery
-                      ? l10n.chatDeleteAllCount(galleryCount)
-                      : l10n.commonDelete,
-                ),
-              if (!isOwn)
-                action(
-                  MessageAction.report,
-                  const Icon(Icons.flag_outlined),
-                  l10n.commonReport,
-                ),
-              if (facts.isNotEmpty) ...[
-                Divider(height: 9, color: colors.outlineVariant),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 2, 0, 10),
-                  child: DefaultTextStyle.merge(
-                    style: theme.textTheme.bodySmall!.copyWith(
+                  child: IconTheme.merge(
+                    data: IconThemeData(
+                      size: 16,
                       color: colors.onSurfaceVariant,
                     ),
-                    child: IconTheme.merge(
-                      data: IconThemeData(
-                        size: 16,
-                        color: colors.onSurfaceVariant,
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisSize: MainAxisSize.min,
-                        children: facts,
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: facts,
                     ),
                   ),
                 ),
-              ],
+              ),
             ],
-          ),
+          ],
         ),
       );
     },

@@ -95,6 +95,7 @@ void main() {
               onResend: (_) {},
               onRetryFailedSend: onRetry ?? (_) {},
               onOpenMedia: (_) {},
+              onOpenSender: (_) {},
               onBackgroundTap: () {},
             ),
           ),
@@ -219,6 +220,7 @@ void main() {
                   onResend: (_) {},
                   onRetryFailedSend: (_) {},
                   onOpenMedia: (_) {},
+                  onOpenSender: (_) {},
                   onBackgroundTap: () {},
                 );
               },

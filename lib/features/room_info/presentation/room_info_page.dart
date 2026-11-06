@@ -11,13 +11,11 @@ import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/matrix_ids.dart';
-import '../../../core/matrix/rooms/abuse_report.dart';
 import '../../../core/matrix/rooms/membership/room_exit.dart';
 import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/matrix/rooms/optimistic_room_state.dart';
 import '../../../core/matrix/rooms/permissions/room_permission.dart';
 import '../../../core/matrix/rooms/permissions/room_roles.dart';
-import '../../../core/matrix/rooms/room_access.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/matrix/rooms/room_mute.dart';
 import '../../../core/matrix/rooms/room_title.dart';
@@ -32,13 +30,12 @@ import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../blocking/presentation/block_person.dart';
 import '../../chat/presentation/media_viewer/media_viewer_page.dart';
-import '../../chat/presentation/room_page.dart';
 import '../../communities/presentation/join_requests_view.dart';
-import '../../reports/presentation/report_sheet.dart';
 import 'member_actions.dart';
 import 'member_tile.dart';
 import 'members_sheet.dart';
 import 'people_trust_tile.dart';
+import 'person_sheet.dart';
 import 'room_access_label.dart';
 import 'room_header.dart';
 import 'room_media_section.dart';
@@ -154,88 +151,33 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
     });
   }
 
-  bool _canManage(User user) => memberActionsFor(widget.room, user).isNotEmpty;
-
   Future<void> _viewAllMembers() async {
     final user = await showMembersSheet(
       context,
       room: widget.room,
       members: _participants ?? const [],
-      canManage: _canManage,
     );
     if (user == null || !mounted) return;
-    await _manageMember(user);
+    await _openPerson(user);
   }
 
-  Future<void> _manageMember(User user) async {
-    final room = widget.room;
-    final action = await chooseMemberAction(context, room, user);
-    if (action == null || !mounted) return;
-
-    switch (action) {
-      case MemberAction.message:
-        await _messageMember(user);
+  Future<void> _openPerson(User user) async {
+    final done = await openPersonSheet(
+      context,
+      ref,
+      room: widget.room,
+      user: user,
+      blockPerson: widget.blockPerson,
+    );
+    switch (done) {
       case MemberAction.changeRole:
-        if (await changeMemberRole(context, room, user) && mounted) {
-          setState(() {});
-        }
-      case MemberAction.remove || MemberAction.ban:
-        final ban = action == MemberAction.ban;
-        if (await removeMember(context, room, user, ban: ban)) {
-          _listMembership(user.id, ban ? Membership.ban : Membership.leave);
-        }
-      case MemberAction.block:
-        await _blockPerson(user.id, user.calcDisplayname());
-      case MemberAction.report:
-        await _reportPerson(user.id, user.calcDisplayname());
+        if (mounted) setState(() {});
+      case MemberAction.remove:
+        _listMembership(user.id, Membership.leave);
+      case MemberAction.ban:
+        _listMembership(user.id, Membership.ban);
+      case _:
     }
-  }
-
-  Future<void> _blockPerson(String userId, String name) async {
-    final navigator = Navigator.of(context);
-    final blocked = await confirmAndBlockPerson(
-      context,
-      client: widget.room.client,
-      userId: userId,
-      name: name,
-      endCallsIn: ref.read(endCallsInProvider),
-      block: widget.blockPerson,
-    );
-    if (blocked) navigator.popUntil((route) => route.isFirst);
-  }
-
-  Future<void> _reportPerson(String userId, String name) async {
-    final room = widget.room;
-    final l10n = context.l10n;
-    await showReportSheet(
-      context,
-      title: l10n.roomInfoReportPerson(name),
-      explanation: room.isDirectChat
-          ? l10n.roomInfoReportExplainDirect
-          : l10n.roomInfoReportExplainGroup,
-      onSend: (reason, note) => reportPerson(
-        room.client,
-        userId,
-        reason,
-        note: note,
-        roomId: room.id,
-      ),
-    );
-  }
-
-  Future<void> _messageMember(User user) async {
-    final client = widget.room.client;
-    final navigator = Navigator.of(context);
-    String? roomId;
-    final started = await attempt(
-      context,
-      () async => roomId = await startEncryptedDirectChat(client, user.id),
-      label: 'start chat',
-      failed: context.l10n.roomsCouldNotStartChat,
-    );
-    final room = started ? client.getRoomById(roomId!) : null;
-    if (room == null || !mounted) return;
-    openChat(navigator, room);
   }
 
   Future<void> _unbanMember(String userId) async {
@@ -452,8 +394,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                       MemberTile(
                         room: room,
                         user: user,
-                        onTap: _canManage(user)
-                            ? () => _manageMember(user)
+                        onTap: canOpenPersonSheet(room, user)
+                            ? () => _openPerson(user)
                             : null,
                       ),
                     if (members.length > _memberPreviewCount)
@@ -492,12 +434,24 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                         Icons.do_not_disturb_on_outlined,
                       ),
                       title: Text(l10n.roomInfoBlockPerson(name)),
-                      onTap: () => _blockPerson(chatPartnerId, name),
+                      onTap: () => blockAndReturnHome(
+                        context,
+                        client: room.client,
+                        userId: chatPartnerId,
+                        name: name,
+                        endCallsIn: ref.read(endCallsInProvider),
+                        block: widget.blockPerson,
+                      ),
                     ),
                   ListTile(
                     leading: const CircleIcon(Icons.flag_outlined),
                     title: Text(l10n.roomInfoReportPerson(name)),
-                    onTap: () => _reportPerson(chatPartnerId, name),
+                    onTap: () => reportPersonIn(
+                      context,
+                      room,
+                      userId: chatPartnerId,
+                      name: name,
+                    ),
                   ),
                 ],
                 DangerTile(

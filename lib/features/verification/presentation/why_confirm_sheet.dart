@@ -34,46 +34,42 @@ class WhyConfirmSheet extends StatelessWidget {
     );
     final unavailableReason = this.unavailableReason;
     final l10n = context.l10n;
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _ConfirmDiagram(name: name),
-            const SizedBox(height: 20),
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ConfirmDiagram(name: name),
+          const SizedBox(height: 20),
+          Text(
+            l10n.verificationWhyTitle(name),
+            style: theme.textTheme.titleLarge,
+          ),
+          const SizedBox(height: 8),
+          Text(l10n.verificationWhyEncryption(name), style: body),
+          const SizedBox(height: 8),
+          Text(l10n.verificationWhyHow(name), style: body),
+          const SizedBox(height: 24),
+          if (unavailableReason == null)
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text(l10n.verificationConfirmPerson(name)),
+            )
+          else
             Text(
-              l10n.verificationWhyTitle(name),
-              style: theme.textTheme.titleLarge,
+              unavailableReason,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodyMedium,
             ),
-            const SizedBox(height: 8),
-            Text(l10n.verificationWhyEncryption(name), style: body),
-            const SizedBox(height: 8),
-            Text(l10n.verificationWhyHow(name), style: body),
-            const SizedBox(height: 24),
-            if (unavailableReason == null)
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: Text(l10n.verificationConfirmPerson(name)),
-              )
-            else
-              Text(
-                unavailableReason,
-                textAlign: TextAlign.center,
-                style: theme.textTheme.bodyMedium,
-              ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(
-                unavailableReason == null
-                    ? l10n.commonNotNow
-                    : l10n.commonClose,
-              ),
+          const SizedBox(height: 8),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text(
+              unavailableReason == null ? l10n.commonNotNow : l10n.commonClose,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

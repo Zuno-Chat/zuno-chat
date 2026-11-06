@@ -253,6 +253,14 @@ Room buildTestRoom(
   return Room(id: id, client: client, notificationCount: notificationCount);
 }
 
+void setBlocked(Client client, List<String> userIds) =>
+    client.accountData['m.ignored_user_list'] = BasicEvent(
+      type: 'm.ignored_user_list',
+      content: {
+        'ignored_users': {for (final id in userIds) id: <String, Object?>{}},
+      },
+    );
+
 void setPowerLevels(
   Room room,
   Map<String, Object?> content, {

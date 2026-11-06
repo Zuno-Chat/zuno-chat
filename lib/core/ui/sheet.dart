@@ -26,29 +26,27 @@ Future<T?> showActionSheet<T>(
   builder: (context) {
     final theme = Theme.of(context);
     final danger = theme.colorScheme.error;
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (title != null)
-            ListTile(
-              title: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleMedium,
-              ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (title != null)
+          ListTile(
+            title: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleMedium,
             ),
-          for (final action in actions)
-            ListTile(
-              leading: Icon(action.icon),
-              title: Text(action.label),
-              iconColor: action.destructive ? danger : null,
-              textColor: action.destructive ? danger : null,
-              onTap: () => Navigator.of(context).pop(action.value),
-            ),
-        ],
-      ),
+          ),
+        for (final action in actions)
+          ListTile(
+            leading: Icon(action.icon),
+            title: Text(action.label),
+            iconColor: action.destructive ? danger : null,
+            textColor: action.destructive ? danger : null,
+            onTap: () => Navigator.of(context).pop(action.value),
+          ),
+      ],
     );
   },
 );
@@ -74,35 +72,33 @@ Future<T?> showChoiceSheet<T>(
   context: context,
   builder: (context) {
     final theme = Theme.of(context);
-    return SafeArea(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (header != null)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Text(
-                header,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (header != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Text(
+              header,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
-          for (final choice in choices)
-            ListTile(
-              leading: choice.value == current
-                  ? const Icon(Icons.check_outlined)
-                  : const SizedBox(width: 24),
-              title: Text(choice.label),
-              subtitle: switch (choice.subtitle) {
-                final subtitle? => Text(subtitle),
-                null => null,
-              },
-              onTap: () => Navigator.of(context).pop(choice.value),
-            ),
-        ],
-      ),
+          ),
+        for (final choice in choices)
+          ListTile(
+            leading: choice.value == current
+                ? const Icon(Icons.check_outlined)
+                : const SizedBox(width: 24),
+            title: Text(choice.label),
+            subtitle: switch (choice.subtitle) {
+              final subtitle? => Text(subtitle),
+              null => null,
+            },
+            onTap: () => Navigator.of(context).pop(choice.value),
+          ),
+      ],
     );
   },
 );
@@ -118,12 +114,27 @@ Future<T?> showSheet<T>({
   isScrollControlled: isScrollControlled,
   useSafeArea: useSafeArea,
   showDragHandle: showDragHandle,
-  builder: (context) => KeepClearArea.surface(
-    child: isScrollControlled
-        ? builder(context)
-        : SingleChildScrollView(child: builder(context)),
+  builder: (context) => SheetSurface(
+    child: KeepClearArea.surface(
+      child: SafeArea(
+        top: false,
+        child: isScrollControlled
+            ? builder(context)
+            : SingleChildScrollView(child: builder(context)),
+      ),
+    ),
   ),
 );
+
+class SheetSurface extends InheritedWidget {
+  const SheetSurface({super.key, required super.child});
+
+  static bool holds(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<SheetSurface>() != null;
+
+  @override
+  bool updateShouldNotify(SheetSurface oldWidget) => false;
+}
 
 class SheetTitle extends StatelessWidget {
   final String text;

@@ -94,68 +94,64 @@ class _FormSheetState extends State<FormSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final above = widget.above;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.viewInsetsOf(context).bottom,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                child: Text(widget.title, style: theme.textTheme.titleLarge),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-                child: Text(
-                  widget.explanation,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+              child: Text(widget.title, style: theme.textTheme.titleLarge),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+              child: Text(
+                widget.explanation,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
                 ),
               ),
-              ?above?.call(context, _sending),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
-                child: ZunoTextField(
-                  autofillHints: null,
-                  controller: _text,
-                  enabled: !_sending,
-                  autofocus: widget.autofocus,
-                  minLines: widget.minLines,
-                  maxLines: widget.maxLines,
-                  maxLength: widget.maxLength,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: InputDecoration(
-                    labelText: widget.fieldLabel,
-                    alignLabelWithHint: true,
-                    errorText: _error == null
-                        ? null
-                        : failureMessage(
-                            context.l10n,
-                            _error,
-                            failed: widget.failed,
-                          ),
-                  ),
+            ),
+            ?above?.call(context, _sending),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+              child: ZunoTextField(
+                autofillHints: null,
+                controller: _text,
+                enabled: !_sending,
+                autofocus: widget.autofocus,
+                minLines: widget.minLines,
+                maxLines: widget.maxLines,
+                maxLength: widget.maxLength,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: widget.fieldLabel,
+                  alignLabelWithHint: true,
+                  errorText: _error == null
+                      ? null
+                      : failureMessage(
+                          context.l10n,
+                          _error,
+                          failed: widget.failed,
+                        ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
-                child: ListenableBuilder(
-                  listenable: _text,
-                  builder: (context, _) => FilledButton(
-                    onPressed: !_sending && widget.canSend(_text.text)
-                        ? _send
-                        : null,
-                    child: Text(widget.sendLabel),
-                  ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+              child: ListenableBuilder(
+                listenable: _text,
+                builder: (context, _) => FilledButton(
+                  onPressed: !_sending && widget.canSend(_text.text)
+                      ? _send
+                      : null,
+                  child: Text(widget.sendLabel),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

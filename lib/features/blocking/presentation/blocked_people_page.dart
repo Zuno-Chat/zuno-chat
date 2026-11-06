@@ -8,9 +8,7 @@ import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
-import '../../../core/ui/notice.dart';
-
-typedef UnblockPerson = Future<void> Function(String userId);
+import 'block_person.dart';
 
 class BlockedPeoplePage extends ConsumerStatefulWidget {
   final UnblockPerson? unblock;
@@ -52,16 +50,13 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
   }
 
   Future<void> _unblock(String userId) async {
-    final l10n = context.l10n;
-    final unblock =
-        widget.unblock ?? ref.read(matrixClientProvider).unignoreUser;
     setState(() => _busy = true);
-    final unblocked = await attempt(
+    final unblocked = await unblockPerson(
       context,
-      () => unblock(userId),
-      label: 'unblock person',
-      failed: l10n.blockingUnblockFailed,
-      succeeded: l10n.blockingUnblocked(withoutServer(userId)),
+      client: ref.read(matrixClientProvider),
+      userId: userId,
+      name: withoutServer(userId),
+      unblock: widget.unblock,
     );
     if (!mounted) return;
     setState(() {

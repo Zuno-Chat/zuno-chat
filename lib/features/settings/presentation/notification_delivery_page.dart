@@ -134,32 +134,30 @@ class _NotificationDeliveryPageState
   Future<void> _chooseDeliveryMode(NotificationDeliveryMode current) async {
     final chosen = await showSheet<NotificationDeliveryMode>(
       context: context,
-      builder: (context) => SafeArea(
-        child: Consumer(
-          builder: (context, ref, _) {
-            final l10n = context.l10n;
-            final fcm = ref.watch(fcmAvailabilityProvider).value;
-            return Wrap(
-              children: [
-                for (final mode
-                    in ref.watch(platformCapabilitiesProvider).deliveryModes)
-                  if (deliveryModeChoice(l10n, mode, fcm: fcm) case (
-                    :final enabled,
-                    :final subtitle,
-                  ))
-                    ListTile(
-                      enabled: enabled,
-                      leading: mode == current
-                          ? const Icon(Icons.check_outlined)
-                          : const SizedBox(width: 24),
-                      title: Text(mode.label(l10n)),
-                      subtitle: Text(subtitle),
-                      onTap: () => Navigator.of(context).pop(mode),
-                    ),
-              ],
-            );
-          },
-        ),
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final l10n = context.l10n;
+          final fcm = ref.watch(fcmAvailabilityProvider).value;
+          return Wrap(
+            children: [
+              for (final mode
+                  in ref.watch(platformCapabilitiesProvider).deliveryModes)
+                if (deliveryModeChoice(l10n, mode, fcm: fcm) case (
+                  :final enabled,
+                  :final subtitle,
+                ))
+                  ListTile(
+                    enabled: enabled,
+                    leading: mode == current
+                        ? const Icon(Icons.check_outlined)
+                        : const SizedBox(width: 24),
+                    title: Text(mode.label(l10n)),
+                    subtitle: Text(subtitle),
+                    onTap: () => Navigator.of(context).pop(mode),
+                  ),
+            ],
+          );
+        },
       ),
     );
     if (chosen == null || chosen == current || !mounted) return;

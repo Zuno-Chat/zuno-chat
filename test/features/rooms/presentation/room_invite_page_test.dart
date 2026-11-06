@@ -101,6 +101,7 @@ void main() {
   Future<void> openInvite(
     WidgetTester tester, {
     BlockPerson? blockPerson,
+    bool overChat = false,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -115,7 +116,17 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: routeLauncher(
-              (_) => RoomInvitePage(room: room, blockPerson: blockPerson),
+              (_) => overChat
+                  ? Scaffold(
+                      body: routeLauncher(
+                        (_) => RoomInvitePage(
+                          room: room,
+                          blockPerson: blockPerson,
+                        ),
+                        label: 'open invitation',
+                      ),
+                    )
+                  : RoomInvitePage(room: room, blockPerson: blockPerson),
             ),
           ),
         ),
@@ -123,6 +134,10 @@ void main() {
     );
     await tester.tap(find.text('open'));
     await tester.pumpAndSettle();
+    if (overChat) {
+      await tester.tap(find.text('open invitation'));
+      await tester.pumpAndSettle();
+    }
   }
 
   Iterable<String> requestedPaths() => requests.map((r) => r.url.path);
@@ -314,6 +329,21 @@ void main() {
 
     expect(blocked, ['@bob:example.org']);
     expect(find.byType(RoomInvitePage), findsNothing);
+  });
+
+  testWidgets('blocking from an invitation opened over a chat returns to the '
+      'chat list, since the block makes that chat stale', (tester) async {
+    inviteFromBob();
+    await openInvite(tester, blockPerson: (_) async {}, overChat: true);
+
+    await tester.tap(find.widgetWithText(TextButton, 'Block and decline'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Block'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(RoomInvitePage), findsNothing);
+    expect(find.text('open invitation'), findsNothing);
+    expect(find.text('open'), findsOneWidget);
   });
 
   testWidgets('backing out of the block keeps the invitation open', (

@@ -1,31 +1,38 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/calls/end_call.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/rooms/abuse_report.dart';
 import '../../../core/matrix/rooms/optimistic_room_state.dart';
 import '../../../core/matrix/rooms/permissions/room_roles.dart';
+import '../../../core/matrix/rooms/room_access.dart';
 import '../../../core/ui/notice.dart';
-import '../../../core/ui/sheet.dart';
 import '../../blocking/presentation/block_person.dart';
+import '../../chat/presentation/room_page.dart';
+import '../../reports/presentation/report_sheet.dart';
 import 'remove_member_dialog.dart';
 import 'role_picker.dart';
 
 enum MemberAction {
   message(Icons.chat_bubble_outline),
-  changeRole(Icons.badge_outlined),
-  remove(Icons.person_remove_outlined),
-  ban(Icons.block_outlined),
+  changeRole(Icons.badge_outlined, moderates: true),
+  remove(Icons.person_remove_outlined, moderates: true),
+  ban(Icons.block_outlined, moderates: true),
   block(Icons.do_not_disturb_on_outlined),
+  unblock(Icons.do_not_disturb_off_outlined),
   report(Icons.flag_outlined);
 
   final IconData icon;
+  final bool moderates;
 
-  const MemberAction(this.icon);
+  const MemberAction(this.icon, {this.moderates = false});
 
-  String label(AppLocalizations l10n, RemoveMemberPlace place) {
-    final community = place == RemoveMemberPlace.community;
+  String label(AppLocalizations l10n, Room room) {
+    final community = room.isSpace;
     return switch (this) {
-      message => l10n.roomInfoStartChat,
+      message => l10n.roomInfoMessagePerson,
       changeRole => l10n.commonChangeRole,
       remove =>
         community
@@ -34,6 +41,7 @@ enum MemberAction {
       ban =>
         community ? l10n.communitiesBanFromCommunity : l10n.roomInfoBanFromRoom,
       block => l10n.commonBlock,
+      unblock => l10n.blockingUnblock,
       report => l10n.commonReport,
     };
   }
@@ -58,32 +66,91 @@ List<MemberAction> memberActionsFor(Room room, User user) {
   return [
     MemberAction.message,
     ...moderation,
-    if (canBlockPerson(user.id)) MemberAction.block,
+    if (canBlockPerson(user.id))
+      room.client.ignoredUsers.contains(user.id)
+          ? MemberAction.unblock
+          : MemberAction.block,
     MemberAction.report,
   ];
 }
 
-Future<MemberAction?> chooseMemberAction(
+Future<bool> actOnMember(
   BuildContext context,
+  WidgetRef ref,
   Room room,
   User user,
-) {
-  final l10n = context.l10n;
-  final place = _placeOf(room);
-  return showActionSheet(
+  MemberAction action, {
+  BlockPerson? blockPerson,
+  UnblockPerson? unblockPerson,
+}) {
+  final name = user.calcDisplayname();
+  return switch (action) {
+    MemberAction.message => _messagePerson(context, room.client, user.id),
+    MemberAction.changeRole => _changeMemberRole(context, room, user),
+    MemberAction.remove => _removeMember(context, room, user, ban: false),
+    MemberAction.ban => _removeMember(context, room, user, ban: true),
+    MemberAction.block => blockAndReturnHome(
+      context,
+      client: room.client,
+      userId: user.id,
+      name: name,
+      endCallsIn: ref.read(endCallsInProvider),
+      block: blockPerson,
+    ),
+    MemberAction.unblock => unblockAndReturnHome(
+      context,
+      client: room.client,
+      userId: user.id,
+      name: name,
+      unblock: unblockPerson,
+    ),
+    MemberAction.report => reportPersonIn(
+      context,
+      room,
+      userId: user.id,
+      name: name,
+    ),
+  };
+}
+
+Future<bool> _messagePerson(
+  BuildContext context,
+  Client client,
+  String userId,
+) async {
+  final navigator = Navigator.of(context);
+  String? roomId;
+  final started = await attempt(
     context,
-    actions: [
-      for (final action in memberActionsFor(room, user))
-        SheetAction(
-          action,
-          icon: action.icon,
-          label: action.label(l10n, place),
-        ),
-    ],
+    () async => roomId = await startEncryptedDirectChat(client, userId),
+    label: 'start chat',
+    failed: context.l10n.roomsCouldNotStartChat,
+  );
+  final chat = started ? client.getRoomById(roomId!) : null;
+  if (chat == null) return false;
+  openChat(navigator, chat);
+  return true;
+}
+
+Future<bool> reportPersonIn(
+  BuildContext context,
+  Room room, {
+  required String userId,
+  required String name,
+}) {
+  final l10n = context.l10n;
+  return showReportSheet(
+    context,
+    title: l10n.roomInfoReportPerson(name),
+    explanation: room.isDirectChat
+        ? l10n.roomInfoReportExplainDirect
+        : l10n.roomInfoReportExplainGroup,
+    onSend: (reason, note) =>
+        reportPerson(room.client, userId, reason, note: note, roomId: room.id),
   );
 }
 
-Future<bool> changeMemberRole(
+Future<bool> _changeMemberRole(
   BuildContext context,
   Room room,
   User user,
@@ -103,7 +170,7 @@ Future<bool> changeMemberRole(
   );
 }
 
-Future<bool> removeMember(
+Future<bool> _removeMember(
   BuildContext context,
   Room room,
   User user, {

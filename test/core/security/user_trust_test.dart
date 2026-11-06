@@ -91,6 +91,19 @@ void main() {
     });
   });
 
+  group('userTrustConfirmed', () {
+    test('a confirmed person stays confirmed while a device waits', () {
+      for (final state in UserTrustState.values) {
+        expect(
+          userTrustConfirmed(state),
+          state == UserTrustState.confirmed ||
+              state == UserTrustState.confirmedWithPendingDevice,
+          reason: state.name,
+        );
+      }
+    });
+  });
+
   group('userTrustFactsOf', () {
     const alice = '@alice:example.org';
     late EncryptedTestClient client;

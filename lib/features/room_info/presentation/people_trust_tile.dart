@@ -143,13 +143,7 @@ class _GroupTrustRow extends ConsumerWidget {
 
     if (changed.isEmpty) {
       final confirmed = others
-          .where(
-            (u) => switch (ref.watch(userTrustProvider(u.id))) {
-              UserTrustState.confirmed ||
-              UserTrustState.confirmedWithPendingDevice => true,
-              _ => false,
-            },
-          )
+          .where((u) => userTrustConfirmed(ref.watch(userTrustProvider(u.id))))
           .length;
       return ListTile(
         dense: true,

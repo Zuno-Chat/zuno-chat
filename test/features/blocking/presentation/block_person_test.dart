@@ -208,4 +208,108 @@ void main() {
     expect(find.textContaining('offline'), findsNothing);
     expect(results, isEmpty);
   });
+
+  group('unblocking', () {
+    late List<String> unblocked;
+
+    setUp(() => unblocked = []);
+
+    Future<void> openUnblock(
+      WidgetTester tester, {
+      UnblockPerson? unblock,
+    }) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: Builder(
+              builder: (context) => TextButton(
+                onPressed: () async => results.add(
+                  await confirmAndUnblockPerson(
+                    context,
+                    client: client,
+                    userId: '@ann:example.org',
+                    name: 'Ann',
+                    unblock: unblock ?? (userId) async => unblocked.add(userId),
+                  ),
+                ),
+                child: const Text('open'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('says what unblocking does, then unblocks and says so', (
+      tester,
+    ) async {
+      await openUnblock(tester);
+
+      expect(find.text('Unblock Ann?'), findsOneWidget);
+      expect(
+        find.textContaining('Zuno then reloads your chats'),
+        findsOneWidget,
+      );
+      await tester.tap(find.widgetWithText(TextButton, 'Unblock'));
+      await tester.pumpAndSettle();
+
+      expect(unblocked, ['@ann:example.org']);
+      expect(results, [true]);
+      expect(find.text('Unblock Ann?'), findsNothing);
+      expect(find.text('Ann unblocked'), findsOneWidget);
+    });
+
+    testWidgets('holds both buttons and Back while the unblock runs', (
+      tester,
+    ) async {
+      final gate = Completer<void>();
+      await openUnblock(tester, unblock: (_) => gate.future);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Unblock'));
+      await tester.pump();
+
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Unblocking…'))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+            .onPressed,
+        isNull,
+      );
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+      expect(find.text('Unblock Ann?'), findsOneWidget);
+
+      gate.complete();
+      await tester.pumpAndSettle();
+      expect(results, [true]);
+    });
+
+    testWidgets('a refused unblock stays open and says to try again', (
+      tester,
+    ) async {
+      await openUnblock(
+        tester,
+        unblock: (_) async => throw StateError('server said no'),
+      );
+
+      final reports = await reportsDuring(() async {
+        await tester.tap(find.widgetWithText(TextButton, 'Unblock'));
+        await tester.pumpAndSettle();
+      });
+
+      expect(find.text('Unblock Ann?'), findsOneWidget);
+      expect(find.text('Not unblocked. Try again.'), findsOneWidget);
+      expect(results, isEmpty);
+      expect(reports, ['unblock person']);
+    });
+  });
 }

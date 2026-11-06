@@ -50,6 +50,7 @@ class MessageTile extends StatelessWidget {
   final void Function(Event) onResend;
   final void Function(FailedMediaSend) onRetryFailedSend;
   final void Function(Event event) onOpenMedia;
+  final VoidCallback onOpenSender;
 
   const MessageTile({
     super.key,
@@ -67,6 +68,7 @@ class MessageTile extends StatelessWidget {
     required this.onResend,
     required this.onRetryFailedSend,
     required this.onOpenMedia,
+    required this.onOpenSender,
   });
 
   @override
@@ -345,12 +347,23 @@ class MessageTile extends StatelessWidget {
               width: 32,
               height: 32,
               child: data.startsRun
-                  ? MxcAvatar(
-                      client: event.room.client,
-                      avatarUrl: data.senderAvatar,
-                      fallbackText: data.senderName,
-                      toneSeed: event.senderId,
-                      radius: 16,
+                  ? Semantics(
+                      container: true,
+                      button: true,
+                      label: data.senderName,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: onOpenSender,
+                        child: ExcludeSemantics(
+                          child: MxcAvatar(
+                            client: event.room.client,
+                            avatarUrl: data.senderAvatar,
+                            fallbackText: data.senderName,
+                            toneSeed: event.senderId,
+                            radius: 16,
+                          ),
+                        ),
+                      ),
                     )
                   : null,
             ),

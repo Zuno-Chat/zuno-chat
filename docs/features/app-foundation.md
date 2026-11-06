@@ -109,7 +109,7 @@ Shared pieces:
 | `FrostedSurface` | Controls floating over media: a translucent dark fill over a blurred backdrop, so they read on a white photo and on black. |
 | `hideSystemBars`, `showSystemBars` | Hiding the status and navigation bars, and bringing them back edge to edge. |
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
-| `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet. |
+| `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet and keeps its content above the system navigation bar, since Flutter's sheets run under it even with `useSafeArea`. A card on a sheet takes the next surface up by itself. |
 
 **Every yes/no question is one dialog, and its confirm button is red for a destructive answer** (delete, remove, ban, block, sign out, start over, sending what looks like the recovery code), so a destructive choice looks the same on every screen.
 
