@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/account/session_refresh.dart';
 import 'package:zuno/core/matrix/http/fresh_token_http_client.dart';
 
 import '../../../helpers/fake_http.dart';
@@ -81,6 +82,16 @@ void main() {
 
     expect(refreshes, 0);
     expect(sent.single.headers['authorization'], 'Bearer old');
+  });
+
+  test('a session that ends during the refresh sends nothing', () async {
+    refresh = () async => token = null;
+
+    await expectLater(
+      client.send(request(authorization: 'Bearer old')),
+      throwsA(isA<SessionEnded>()),
+    );
+    expect(sent, isEmpty);
   });
 
   test(

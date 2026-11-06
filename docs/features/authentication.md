@@ -190,7 +190,8 @@ sequenceDiagram
 Both paths end in `client.clear`, which triggers the `_AuthGate` wipe;
 neither cleans local data itself, and every new path must end there too.
 A session ended elsewhere, such as on the account page, ends there as well:
-the next request is refused, the refresh is refused, and the SDK clears.
+the next request is refused, the refresh is refused, and the refresh
+handler clears.
 What the push teardown does is in `notifications.md`.
 
 ## Decisions
@@ -253,10 +254,17 @@ What the push teardown does is in `notifications.md`.
 ### Sessions
 
 - **Only `M_UNKNOWN_TOKEN` and `M_FORBIDDEN` from `/refresh`, or
-  `invalid_grant` from the token endpoint, end a session.** The SDK clears
-  the local session on any `MatrixException` or `invalid_grant` from the
-  handler, so other errors become plain exceptions carrying only their code,
-  or a transient server fault would wipe the device's keys.
+  `invalid_grant` from the token endpoint, end a session, and the refresh
+  handler ends it itself.** Every other failure stays a plain exception
+  carrying only its code, so a transient server fault never wipes the
+  device's keys.
+- **The handler never hands the SDK a Matrix or OAuth error.** The SDK keeps
+  a refresh that failed that way and replays it to every later request, and
+  iOS keeps the same client across sign-out and sign-in, so the next sign-in
+  would stop syncing and sending within one token lifetime
+  (famedly/matrix-dart-sdk#2445).
+- **The SDK keeps the old token's expiry after `clear()`**, so the handler
+  also runs for a signed-out client and must end it, never refresh it.
 - **A refused refresh is retried once if the stored token changed.** The
   app and a push engine's client share one refresh token that the server
   rotates on every use, so the loser of that race re-reads the winner's

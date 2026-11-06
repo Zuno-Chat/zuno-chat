@@ -303,6 +303,25 @@ void main() {
       expect(shared.deletes, 0);
     });
 
+    test(
+      'forgets its own session when cleared, so it stops using it',
+      () async {
+        final shared = _ClearCountingStore();
+        final background = ZunoClient(
+          'Zuno',
+          database: shared,
+          appClient: false,
+        )..accessToken = 'a0';
+
+        await background.clear(
+          reason: SessionClearReason.softLogoutRefreshFailed,
+        );
+
+        expect(background.isLogged(), isFalse);
+        expect(shared.clears, 0);
+      },
+    );
+
     test('keeps the store when its token refresh is refused', () async {
       final shared = _ClearCountingStore();
       final background = _ExpiringClient(database: shared, appClient: false);

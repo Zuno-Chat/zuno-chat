@@ -1,5 +1,7 @@
 import 'package:http/http.dart' as http;
 
+import '../account/session_refresh.dart';
+
 class FreshTokenHttpClient extends http.BaseClient {
   FreshTokenHttpClient(
     this._inner, {
@@ -17,9 +19,8 @@ class FreshTokenHttpClient extends http.BaseClient {
     if (token != null && request.headers['authorization'] == 'Bearer $token') {
       await _ensureFresh();
       final fresh = _accessToken();
-      if (fresh != null && fresh != token) {
-        request.headers['authorization'] = 'Bearer $fresh';
-      }
+      if (fresh == null) throw const SessionEnded('signed out');
+      if (fresh != token) request.headers['authorization'] = 'Bearer $fresh';
     }
     return _inner.send(request);
   }

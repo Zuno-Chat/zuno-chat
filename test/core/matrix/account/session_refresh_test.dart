@@ -40,6 +40,9 @@ class _ClientRowDatabase extends FakeDatabaseApi with MediaCapableDatabase {
     row['token'] = token;
     row['refresh_token'] = refreshToken;
   }
+
+  @override
+  Future<void> clear() async => row.clear();
 }
 
 class _StaleMetadataDatabase extends _ClientRowDatabase {
@@ -195,21 +198,81 @@ void main() {
     },
   );
 
-  test('a refused refresh with nothing newer stored gives up', () async {
-    final database = _ClientRowDatabase(refreshToken: 'r0');
-    var requests = 0;
-    final server = FakeHttpClient((request) async {
-      requests++;
-      return _json(401, {'errcode': 'M_UNKNOWN_TOKEN'});
-    });
-    final client = _client(database, server);
+  test(
+    'a refused refresh with nothing newer stored ends the session',
+    () async {
+      final database = _ClientRowDatabase(refreshToken: 'r0');
+      var requests = 0;
+      final server = FakeHttpClient((request) async {
+        requests++;
+        return _json(401, {'errcode': 'M_UNKNOWN_TOKEN'});
+      });
+      final client = _client(database, server);
 
-    await expectLater(
-      refreshSession(client, settle: Duration.zero),
-      throwsA(isA<MatrixException>()),
-    );
-    expect(requests, 1);
-  });
+      await expectLater(
+        refreshSession(client, settle: Duration.zero),
+        throwsA(
+          isA<SessionEnded>().having((e) => e.code, 'code', 'M_UNKNOWN_TOKEN'),
+        ),
+      );
+      expect(requests, 1);
+      expect(client.isLogged(), isFalse);
+    },
+  );
+
+  test(
+    'a refusal of the retry with the newer token ends the session',
+    () async {
+      final database = _ClientRowDatabase(refreshToken: 'r0');
+      final sent = <String>[];
+      final server = FakeHttpClient((request) async {
+        final token = _sentRefreshToken(request);
+        sent.add(token);
+        if (token == 'r0') database.row['refresh_token'] = 'r1';
+        return _json(403, {'errcode': 'M_FORBIDDEN'});
+      });
+      final client = _client(database, server);
+
+      await expectLater(
+        refreshSession(client, settle: Duration.zero),
+        throwsA(isA<SessionEnded>()),
+      );
+      expect(sent, ['r0', 'r1']);
+      expect(client.isLogged(), isFalse);
+    },
+  );
+
+  test(
+    'a session ended by a failed refresh never blocks the next sign-in',
+    () async {
+      final database = _ClientRowDatabase();
+      final sent = <String>[];
+      final server = FakeHttpClient((request) async {
+        sent.add(_sentRefreshToken(request));
+        return _json(200, {
+          'access_token': 'a2',
+          'refresh_token': 'r2',
+          'expires_in_ms': 300000,
+        });
+      });
+      final client = _ExpiringClient(database, server);
+
+      await client.ensureNotSoftLoggedOut();
+      expect(client.isLogged(), isFalse);
+      expect(client.onLoginStateChanged.value, LoginState.loggedOut);
+
+      client
+        ..setUserId('@alice:example.org')
+        ..homeserver = Uri.parse('https://example.org')
+        ..accessToken = 'a1';
+      database.row['refresh_token'] = 'r1';
+      await client.ensureNotSoftLoggedOut();
+
+      expect(sent, ['r1']);
+      expect(client.accessToken, 'a2');
+      expect(database.row['refresh_token'], 'r2');
+    },
+  );
 
   test(
     'a refresh failure is wrapped with its errcode and nothing else',
@@ -253,6 +316,7 @@ void main() {
         throwsA(isNot(isA<MatrixException>())),
       );
       expect(requests, 1);
+      expect(client.isLogged(), isTrue);
     });
   }
 
@@ -404,24 +468,18 @@ void main() {
       expect(database.row['refresh_token'], 'r2');
     });
 
-    test(
-      'invalid_grant with an unchanged token rethrows the OidcException',
-      () async {
-        tokenAnswer = (_) => _json(400, {'error': 'invalid_grant'});
+    test('invalid_grant with an unchanged token ends the session', () async {
+      tokenAnswer = (_) => _json(400, {'error': 'invalid_grant'});
 
-        await expectLater(
-          refreshSession(client, settle: Duration.zero),
-          throwsA(
-            isA<OidcException>().having(
-              (e) => e.error,
-              'error',
-              'invalid_grant',
-            ),
-          ),
-        );
-        expect(tokenRequests, hasLength(1));
-      },
-    );
+      await expectLater(
+        refreshSession(client, settle: Duration.zero),
+        throwsA(
+          isA<SessionEnded>().having((e) => e.code, 'code', 'invalid_grant'),
+        ),
+      );
+      expect(tokenRequests, hasLength(1));
+      expect(client.isLogged(), isFalse);
+    });
 
     test('server_error is wrapped, not rethrown', () async {
       tokenAnswer = (_) => _json(400, {'error': 'server_error'});
@@ -446,7 +504,26 @@ void main() {
     });
   });
 
-  test('a session with no refresh token is given up, not retried', () async {
+  test(
+    'a client already signed out is ended without asking the server',
+    () async {
+      final database = _ClientRowDatabase(refreshToken: 'r0');
+      var requests = 0;
+      final server = FakeHttpClient((request) async {
+        requests++;
+        return _json(200, {});
+      });
+      final client = _client(database, server)..accessToken = null;
+
+      await expectLater(
+        refreshSession(client, settle: Duration.zero),
+        throwsA(isA<SessionEnded>()),
+      );
+      expect(requests, 0);
+    },
+  );
+
+  test('a session with no refresh token is ended, not retried', () async {
     final database = _ClientRowDatabase();
     var requests = 0;
     final server = FakeHttpClient((request) async {
@@ -457,8 +534,9 @@ void main() {
 
     await expectLater(
       refreshSession(client, settle: Duration.zero),
-      throwsA(isA<MatrixException>()),
+      throwsA(isA<SessionEnded>()),
     );
     expect(requests, 0);
+    expect(client.isLogged(), isFalse);
   });
 }

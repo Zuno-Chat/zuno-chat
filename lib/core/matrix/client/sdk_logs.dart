@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:matrix/matrix.dart';
 
 import '../../errors/caught_errors.dart';
+import '../account/session_refresh.dart';
 
 class SdkLoggedError implements Exception {
   const SdkLoggedError(this.title);
@@ -40,6 +41,7 @@ void handleSdkLogs() {
     Logs().outputEvents.clear();
     if (event.level.index > Level.error.index) return;
     if (_handedOn(event.title)) return;
+    if (event.exception is SessionEnded) return;
     final site = sdkCallSite(StackTrace.current) ?? event.title;
     unawaited(
       captureCaught(

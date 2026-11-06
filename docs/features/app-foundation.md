@@ -20,7 +20,7 @@ The layer every screen sits on: one Matrix client per process, startup, navigati
 **The HTTP stack** has four deliberate quirks.
 - **Dart refuses cleartext HTTP.** The process-wide `HttpOverrides` (`app_http_overrides.dart`) set the User-Agent and refuse any connection that is not https, because Android's network security config and iOS ATS govern only the platform's own network stacks, never `dart:io`. A refused connection throws its own exception, so callers can tell it from an unreachable server.
 - The `HttpClient` has a connect-only timeout, so a dead route fails fast while a slow upload or download is never cut off.
-- The SDK refreshes an expiring token only inside its sync loop, so `FreshTokenHttpClient` holds any request carrying the current token until one shared refresh has run. Without it, requests racing the first sync at cold start would go out with an expired token.
+- The SDK refreshes an expiring token only inside its sync loop, so `FreshTokenHttpClient` holds any request carrying the current token until one shared refresh has run, and drops it if that refresh ended the session. Without it, requests racing the first sync at cold start would go out with an expired token.
 - **The SDK's request timeout covers only the response body, never the wait for an answer**, so a connection that dies after its last byte waits forever. `UploadHttpClient` therefore aborts every upload, and every other request made inside a send (a `SendScope` zone value set by the room's sender), after 30 s without progress, which still falls inside the SDK's one-minute send window, so the SDK retries once on a fresh connection. Other requests keep their own layers' rules, since a scoped request reaches them as a plain `http.Request`.
 
 **Cold start** runs independent steps concurrently and joins them only where a real dependency exists:
@@ -51,7 +51,7 @@ flowchart TD
 
 - The app takes its lease before opening the store and keeps it for the life of the process. A background holder is asked to yield, and after a short grace period the app is granted anyway.
 - A background client (`createMatrixClient(backgroundSync: false)`) is denied while the app holds the lease. Each denied path falls back on something already in place: a push keeps its instant notice (`notifications.md`), and a decline or notification action hands off to the app's live route (`calls.md`).
-- **Background clients never clear the store or mint a database key.** The SDK's own `clear()` on a failed init or refresh would otherwise wipe the shared database from a push engine.
+- **Background clients never clear the store or mint a database key.** The SDK's own `clear()` on a failed init or refresh would otherwise wipe the shared database from a push engine, so a background clear only drops that client's session in memory, and a push engine stops using a session the server ended.
 - Native code arbitrates across engines: `ClientLeases` in `zuno_notifications` on Android, `ClientLeasePlugin` on iOS.
 - A new background entry point (engine or isolate) opens its client only through `createMatrixClient(backgroundSync: false)`, or `createPushClient()` for a push engine (`notifications.md`), and handles `ClientLeaseDenied`. It runs inside the device-log floor (Errors) and calls `installAppHttpOverrides()` first, because both are set per isolate, the https-only rule included.
 

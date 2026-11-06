@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
+import 'package:zuno/core/matrix/account/session_refresh.dart';
 import 'package:zuno/core/matrix/client/sdk_logs.dart';
 
 import '../../../helpers/recording_sentry.dart';
@@ -62,6 +63,18 @@ void main() {
     Logs().wtf('Client initialization failed', StateError('x'));
     Logs().e('Logout failed', StateError('x'));
     Logs().e('[Bootstrapping] Error setting up cross signing', StateError('x'));
+    await reportsSent();
+
+    expect(transport.events, isEmpty);
+  });
+
+  test('a session Zuno ended is never reported', () async {
+    handleSdkLogs();
+
+    Logs().e(
+      'Unable to refresh session after soft logout. Try again...',
+      const SessionEnded('M_UNKNOWN_TOKEN'),
+    );
     await reportsSent();
 
     expect(transport.events, isEmpty);

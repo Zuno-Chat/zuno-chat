@@ -60,6 +60,7 @@ class ZunoClient extends Client with TypedServerAnswers {
   }) async {
     if (!appClient) {
       Logs().w('A background client kept the shared store ($reason)');
+      accessToken = null;
       return;
     }
     if (_restoringSession && reason == SessionClearReason.initFailed) return;

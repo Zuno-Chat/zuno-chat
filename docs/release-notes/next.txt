@@ -6,4 +6,4 @@ New
 • Usernames can use more characters, and passwords can be 8 characters with a mix of letters, numbers and symbols.
 • What you type in a chat waits there when you leave it.
 
-Fixed 32 bugs.
+Fixed 33 bugs.
