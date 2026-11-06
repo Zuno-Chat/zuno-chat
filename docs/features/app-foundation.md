@@ -147,7 +147,7 @@ Each flag is one of these kinds:
 | Native handler on both platforms | `screenSecurity`, `inboundShare`, `nativeSignOutWipe`, `clientLease`, `pictureInPicture`, `liveLocation` |
 | Awaiting an iOS handler | `deviceSafetyChecks` |
 | Off on iOS by design (`../decisions/push-and-ring.md`) | `notificationImages`, `notificationAvatars` |
-| Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts` |
+| Android concept, iOS `false` for good | `batteryExemption`, `foregroundSyncService`, `fullScreenIntent`, `homeScreenShortcuts`, `systemBackButton` |
 | Android-only behavior | `atomicDatabaseBatches`, `instantPushNotices`, `conversationNotifications`, `nativeFileShare`, `nativeLogFloor`, `overlayHiding`, `accessibilitySensitivity` |
 | iOS-only behavior | `apnsRegistration`, `voipRing`, `nseNotifications`, `signOutWipeKeepsProcess`, `nativeSensitiveFileExport`, `recorderNeedsAudioSession`, `tonesNeedAudioSession`, `thirdPartyKeyboardBlocking`, `notificationRetentionCheck` |
 | Call seam selectors | `nativeIncomingRingUi`, `callForegroundService` and `nativeCallAudio` on Android, `callKit` on iOS. The factories check `callKit` first, so the Android three never flip. |

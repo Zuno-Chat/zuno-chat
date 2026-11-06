@@ -8,10 +8,13 @@ import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/media/media_audio_session.dart';
+import '../../../core/settings/app_preferences_provider.dart';
+import '../../../core/ui/bottom_bars.dart';
 import '../../../core/ui/page_dots.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../data/composed_media.dart';
 import 'caption_bar.dart';
+import 'emoji_panel.dart';
 import 'preview_decode_width.dart';
 
 export '../data/composed_media.dart';
@@ -50,6 +53,10 @@ class _MediaCaptionComposerPageState
   Future<void>? _playerReady;
   final _pageController = PageController();
   int _page = 0;
+  late final _emojiPanel = EmojiPanelController(
+    text: () => _captionControllers[_page],
+    preferences: ref.read(sharedPreferencesProvider),
+  );
 
   @override
   void initState() {
@@ -69,6 +76,7 @@ class _MediaCaptionComposerPageState
     }
     _player?.dispose();
     _pageController.dispose();
+    _emojiPanel.dispose();
     super.dispose();
   }
 
@@ -158,48 +166,66 @@ class _MediaCaptionComposerPageState
     final multiple = _items.length > 1;
     final l10n = context.l10n;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          multiple
-              ? l10n.chatCaptionPageOf(_page + 1, _items.length)
-              : l10n.chatCaptionTitle,
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.delete_outline),
-            tooltip: _items.every((item) => item is PickedImage)
-                ? l10n.chatRemovePhoto
-                : l10n.chatRemoveItem,
-            onPressed: _removeCurrent,
+    return EmojiPanelBackGuard(
+      controller: _emojiPanel,
+      child: Scaffold(
+        appBar: AppBar(
+          leading: leaveButton(context),
+          title: Text(
+            multiple
+                ? l10n.chatCaptionPageOf(_page + 1, _items.length)
+                : l10n.chatCaptionTitle,
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                itemCount: _items.length,
-                onPageChanged: (page) => setState(() {
-                  _page = page;
-                  _showPlayerFor(_items[page]);
-                }),
-                itemBuilder: (context, i) => _buildPage(i),
-              ),
-            ),
-            if (multiple)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: PageDots(count: _items.length, current: _page),
-              ),
-            CaptionBar(
-              controller: _captionControllers[_page],
-              sendTooltip: multiple ? l10n.chatSendAll : l10n.commonSend,
-              onSend: _send,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_outline),
+              tooltip: _items.every((item) => item is PickedImage)
+                  ? l10n.chatRemovePhoto
+                  : l10n.chatRemoveItem,
+              onPressed: _removeCurrent,
             ),
           ],
+        ),
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, body) => Column(
+              children: [
+                Expanded(
+                  child: PageView.builder(
+                    controller: _pageController,
+                    itemCount: _items.length,
+                    onPageChanged: (page) => setState(() {
+                      _page = page;
+                      _showPlayerFor(_items[page]);
+                    }),
+                    itemBuilder: (context, i) => _buildPage(i),
+                  ),
+                ),
+                BottomBars(
+                  maxHeight: body.maxHeight,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (multiple)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: PageDots(count: _items.length, current: _page),
+                        ),
+                      CaptionBar(
+                        controller: _captionControllers[_page],
+                        emojiPanel: _emojiPanel,
+                        sendTooltip: multiple
+                            ? l10n.chatSendAll
+                            : l10n.commonSend,
+                        onSend: _send,
+                      ),
+                      EmojiPanel(controller: _emojiPanel),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

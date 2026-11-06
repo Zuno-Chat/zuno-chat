@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_store.dart';
+import 'core/emoji/legacy_emoji_recents.dart';
 import 'core/errors/best_effort.dart';
 import 'core/errors/crash_reporting.dart';
 import 'core/errors/device_log.dart';
@@ -70,6 +71,10 @@ Future<void> _runApp(List<String> args) async {
   final preferencesFuture = SharedPreferences.getInstance();
   await WidgetsBinding.instance.endOfFrame;
   final preferences = await preferencesFuture;
+  await runBestEffort(
+    () => importLegacyEmojiRecents(preferences),
+    label: 'import the recent emoji older builds kept',
+  );
   await initCrashReporting(
     preferences,
     optedIn: readCrashReporting(preferences),

@@ -11,6 +11,7 @@ import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/calls/platform/call_tone_player.dart';
 import 'package:zuno/core/calls/platform/system_ring.dart';
 import 'package:zuno/core/calls/show_over_lockscreen.dart';
+import 'package:zuno/core/emoji/emoji_catalog_provider.dart';
 import 'package:zuno/core/files/file_system.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
@@ -42,6 +43,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   setUp(() {
     _resetAmbientCapabilities();
     backgroundRunner = runInline;
+    drawableProbe = (emoji) async => [for (final _ in emoji) true];
     fileSystem = const InstantFileSystem();
     Directory? threads;
     NotificationThreadStore.instance = NotificationThreadStore(

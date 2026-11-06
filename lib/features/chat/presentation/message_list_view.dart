@@ -11,7 +11,6 @@ import '../../../core/matrix/events/room_updates.dart';
 import '../../../core/matrix/media/media_gallery_group.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/ui/inline_feedback.dart';
-import '../../../core/ui/keyboard.dart';
 import '../../../core/ui/row_memo.dart';
 import '../data/message_row_data.dart';
 import '../data/pending_attachment_send.dart';
@@ -37,6 +36,7 @@ class MessageListView extends StatefulWidget {
   final void Function(Event event) onResend;
   final void Function(FailedMediaSend failed) onRetryFailedSend;
   final void Function(Event event) onOpenMedia;
+  final VoidCallback onBackgroundTap;
 
   const MessageListView({
     super.key,
@@ -54,6 +54,7 @@ class MessageListView extends StatefulWidget {
     required this.onResend,
     required this.onRetryFailedSend,
     required this.onOpenMedia,
+    required this.onBackgroundTap,
   });
 
   @override
@@ -299,6 +300,7 @@ class _MessageListViewState extends State<MessageListView> {
         );
 
     return _MessageScrollView(
+      onBackgroundTap: widget.onBackgroundTap,
       controller: widget.controller,
       reverse: true,
       padding: const EdgeInsets.only(bottom: 8),
@@ -404,7 +406,10 @@ class _MessageListViewState extends State<MessageListView> {
 }
 
 class _MessageScrollView extends ListView {
+  final VoidCallback onBackgroundTap;
+
   _MessageScrollView({
+    required this.onBackgroundTap,
     super.controller,
     super.reverse,
     super.padding,
@@ -422,7 +427,7 @@ class _MessageScrollView extends ListView {
   ) => GestureDetector(
     behavior: HitTestBehavior.opaque,
     excludeFromSemantics: true,
-    onTap: closeKeyboard,
+    onTap: onBackgroundTap,
     child: super.buildViewport(context, offset, axisDirection, slivers),
   );
 }

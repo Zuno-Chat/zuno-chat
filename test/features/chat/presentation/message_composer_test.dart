@@ -1,10 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media/voice/voice_recording.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/chat/presentation/emoji_panel.dart';
 import 'package:zuno/features/chat/presentation/message_composer.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 import 'package:zuno/features/chat/presentation/voice_recorder.dart';
@@ -33,13 +35,21 @@ class _ShownRecorder extends VoiceRecorder {
 
 void main() {
   late TextEditingController controller;
+  late EmojiPanelController emojiPanel;
   late ValueNotifier<Duration> duration;
   late int sends;
   late int attaches;
   late int probeBuilds;
 
-  setUp(() {
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
     controller = TextEditingController();
+    emojiPanel = EmojiPanelController(
+      text: () => controller,
+      preferences: preferences,
+    );
+    addTearDown(emojiPanel.dispose);
     duration = ValueNotifier(Duration.zero);
     sends = 0;
     attaches = 0;
@@ -65,6 +75,7 @@ void main() {
               ),
               MessageComposer(
                 controller: controller,
+                emojiPanel: emojiPanel,
                 onSend: () => sends++,
                 onAttach: () => attaches++,
                 attaching: attaching,

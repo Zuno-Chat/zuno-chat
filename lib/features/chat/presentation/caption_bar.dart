@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/security/zuno_text_field.dart';
 import '../../../core/ui/keep_clear.dart';
+import 'emoji_panel.dart';
 import 'send_icon.dart';
 
 class CaptionBar extends StatelessWidget {
   final TextEditingController controller;
+  final EmojiPanelController emojiPanel;
   final String? sendTooltip;
   final VoidCallback onSend;
 
   const CaptionBar({
     required this.controller,
+    required this.emojiPanel,
     required this.onSend,
     this.sendTooltip,
     super.key,
@@ -24,14 +27,22 @@ class CaptionBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: ZunoTextField(
-              autofillHints: null,
-              controller: controller,
-              decoration: InputDecoration(
-                hintText: context.l10n.chatCaptionHint,
+            child: ListenableBuilder(
+              listenable: emojiPanel,
+              builder: (context, _) => ZunoTextField(
+                autofillHints: null,
+                controller: controller,
+                focusNode: emojiPanel.focus,
+                onTap: emojiPanel.fieldTapped,
+                readOnly: emojiPanel.typingPaused,
+                showCursor: true,
+                decoration: InputDecoration(
+                  hintText: context.l10n.chatCaptionHint,
+                  suffixIcon: EmojiToggleButton(controller: emojiPanel),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => onSend(),
               ),
-              textInputAction: TextInputAction.done,
-              onSubmitted: (_) => onSend(),
             ),
           ),
           const SizedBox(width: 8),

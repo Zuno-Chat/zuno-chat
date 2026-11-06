@@ -24,6 +24,8 @@ in `features/chat/presentation/`.
 | `message_list_view.dart` | The reversed list, its row memo and the upload and failed-send tiles |
 | `message_tile.dart`, `message_bubble.dart`, `message_contents/` | One row, its bubble and each kind of content |
 | `message_composer.dart` | The message box, recording row and reply or edit bar |
+| `emoji_panel.dart`, `zuno_emoji_picker.dart` | The emoji list in the keyboard's place, and the picker with Zuno's texts and storage |
+| `packages/zuno_emoji/` (repo root) | The emoji list itself: data, search, recent emoji, which emoji the device draws, and the picker widget |
 | `media_viewer/` | The full-screen viewer for the room's photos and videos |
 | `features/chat/data/` | Sending, typing and unsent-message rules, and shared types such as `MessageRowData` |
 | `core/matrix/events/event_display.dart` | What an event is, for every surface |
@@ -240,7 +242,69 @@ one rule for what counts.
   mid-gesture.
 - **The keyboard** closes on a tap on empty space in the message list and
   stays open through taps on messages, scrolling and recording. Typing
-  during a recording does nothing, since the message box is hidden.
+  during a recording does nothing, since the message box is hidden. The
+  emoji list follows the same rules (Emoji).
+- **The bottom bars never overflow**: the message box, reply bar and emoji
+  list are capped at the page body's height and scroll inside it when they
+  don't fit, as in landscape with the keyboard up. The caption page does the
+  same.
+
+## Emoji
+
+The emoji list is Zuno's own internal package, `packages/zuno_emoji`, in the
+message box, photo captions and More reactions.
+
+```
+packages/zuno_emoji                        app
+─────────────────────────────────────      ─────────────────────────────────
+emoji table and names (generated)          where the list shows
+search, recent emoji, skin tones           keyboard ↔ list swap
+which emoji this device draws              texts (ARB), storage, theme
+the picker widget
+```
+
+- **Emoji data is generated, never hand-edited**: the package's generator
+  builds the emoji table and each language's names and search words from
+  pinned Unicode and CLDR releases, so a new Unicode version is a pin bump
+  and a run. A name a language lacks falls back to English, and flags CLDR
+  leaves unnamed take the country's own name.
+- **Search covers the app language and English**, ignoring case and accents.
+- **Only emoji Flutter can draw are shown**, asked of Flutter's own text
+  engine: the emoji must lay out as wide as a reference emoji (an unknown
+  sequence falls apart into wider pieces) and draw the same pixels in two
+  text colors (a missing-glyph box takes the text color). A native check is
+  wrong on Android: Flutter reads fonts only from `/system/fonts`, while the
+  platform's glyph check also sees emoji fonts updated in `/data/fonts`.
+- **Emoji up to 5.0 are trusted, not checked**: every supported platform
+  draws them, and Flutter draws some as plain text symbols the color test
+  would reject.
+- **The check runs once per OS version and Flutter engine**, in small batches
+  at animation priority; the list waits for it up to a deadline, then shows
+  the trusted emoji and swaps in the full list when the answer lands. A
+  failed check is retried when the list shows again.
+- **Recent emoji and skin tones stay on the device**, since account data sits
+  unencrypted on the server. They are read through storage, so the iPhone
+  sign-out wipe, which keeps the process, empties them at once.
+- **The list takes the keyboard's place**: it opens at the keyboard's last
+  height for that orientation, and the space under the message box stays the
+  same while the two swap.
+- **The message box turns read-only, cursor shown, while the list shows**,
+  which hides the keyboard and keeps focus the same way on both platforms. A
+  raw keyboard hide unfocuses on iPhone, and on Android the keyboard comes
+  back after any sheet closes.
+- **A tap in the box or on the keyboard icon brings the keyboard back**; a tap
+  on empty space in the chat closes both.
+- **Search sits at the top of the list's space** as the keyboard rises. It
+  ends only once the keyboard is nearly gone, so rotating or switching
+  keyboards keeps it open, and the message box glides down with the keyboard.
+- **The list is built on first open and kept, hidden, for the life of the
+  page**, the grid included while searching, so later opens and searches only
+  show or hide it.
+- **Android Back closes the list first** (`systemBackButton`; iPhone has no
+  system Back). The header back arrow and the iPhone swipe always leave, and a
+  chat with the list open still counts as closable when a notification
+  returns to an earlier chat.
+- **Losing the right to post closes the list**, so Back isn't swallowed.
 
 ## Unsent messages
 
@@ -647,6 +711,9 @@ flowchart TD
 
 ## Gotchas
 
+- **Never schedule emoji work at idle priority**: Flutter refuses idle tasks
+  while anything animates and re-arms them in a busy loop, which hangs tests
+  and burns CPU on phones.
 - **A stale record is a stale message**, so anything that changes a
   message's look joins `MessageRowData`, with a test.
 - **The keyed list needs `findChildIndexCallback`**, or a new message
@@ -735,3 +802,10 @@ flowchart TD
 `RoomPage` runs on `room_page_harness.dart` (never `pumpAndSettle`). The
 harness settles the sign-in state before opening the page, as the app
 does, because the room's sender resets when it changes.
+
+Widget tests use the fake emoji catalog in `test/helpers/fake_emoji.dart`:
+real emoji names load through a background isolate that never finishes in
+fake time. Every test also gets a drawable-emoji check that draws nothing
+(`flutter_test_config.dart`), so a chat warming the emoji list leaves no
+timer behind. The package's own tests run separately
+(`cd packages/zuno_emoji && flutter test`), as CI does.

@@ -8,9 +8,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:zuno/core/matrix/media/media_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno_emoji/zuno_emoji.dart';
 
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_audio_session.dart';
+import '../../../helpers/fake_emoji.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/opus_caf.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -311,6 +313,28 @@ void main() {
     expect(find.byTooltip('Cancel recording'), findsNothing);
     expect(voiceMessages(), isEmpty);
     expect(leftoverRecordings(), isEmpty);
+  });
+
+  testWidgets('holding to record keeps the emoji list open, mic in place', (
+    tester,
+  ) async {
+    await openRoom(tester);
+    await showEmojiList(tester);
+    final micAt = tester.getCenter(mic());
+
+    final gesture = await holdMic(tester);
+    expect(find.text('Slide up to cancel'), findsOneWidget);
+    expect(find.byType(EmojiPicker), findsOneWidget);
+    expect(tester.getCenter(mic()), micAt);
+
+    await tester.pump(const Duration(milliseconds: 350));
+    await gesture.up();
+    await pumpUntil(
+      tester,
+      () => voiceMessages().isNotEmpty && recordingDone(),
+      reason: 'the voice message to be sent',
+    );
+    expect(find.byType(EmojiPicker), findsOneWidget);
   });
 
   group('with the keyboard open', () {

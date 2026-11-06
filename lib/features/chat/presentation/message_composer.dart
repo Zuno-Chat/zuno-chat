@@ -8,11 +8,13 @@ import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/message_text.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
+import 'emoji_panel.dart';
 import 'send_icon.dart';
 import 'voice_recorder.dart';
 
 class MessageComposer extends StatelessWidget {
   final TextEditingController controller;
+  final EmojiPanelController emojiPanel;
   final VoidCallback onSend;
   final VoidCallback onAttach;
   final bool attaching;
@@ -21,6 +23,7 @@ class MessageComposer extends StatelessWidget {
   const MessageComposer({
     super.key,
     required this.controller,
+    required this.emojiPanel,
     required this.onSend,
     required this.onAttach,
     required this.attaching,
@@ -28,8 +31,10 @@ class MessageComposer extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) =>
-      ListenableBuilder(listenable: recorder, builder: _build);
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: Listenable.merge([recorder, emojiPanel]),
+    builder: _build,
+  );
 
   Widget _build(BuildContext context, Widget? _) {
     final isRecording = recorder.isRecording;
@@ -74,6 +79,10 @@ class MessageComposer extends StatelessWidget {
                           child: ZunoTextField(
                             autofillHints: null,
                             controller: controller,
+                            focusNode: emojiPanel.focus,
+                            onTap: emojiPanel.fieldTapped,
+                            readOnly: emojiPanel.typingPaused,
+                            showCursor: true,
                             inputFormatters: isRecording
                                 ? [
                                     TextInputFormatter.withFunction(
@@ -102,7 +111,10 @@ class MessageComposer extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 14),
+                        EmojiToggleButton(
+                          controller: emojiPanel,
+                          color: hintColor,
+                        ),
                       ],
                     ),
                   ),

@@ -912,15 +912,6 @@ void main() {
       await openActions(tester, 'hello');
       await tester.tap(find.byTooltip('More reactions'));
       await harness.settle(tester);
-      await tester.tap(
-        find
-            .descendant(
-              of: find.byType(BottomSheet),
-              matching: find.byType(Tab),
-            )
-            .at(1),
-      );
-      await harness.settle(tester);
       final emoji = find.descendant(
         of: find.byType(BottomSheet),
         matching: find.text('😀'),

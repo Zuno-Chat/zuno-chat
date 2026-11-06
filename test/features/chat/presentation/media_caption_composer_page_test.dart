@@ -3,14 +3,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media/media_audio_session.dart';
+import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/keep_clear.dart';
 import 'package:zuno/core/ui/page_dots.dart';
+import 'package:zuno/features/chat/presentation/caption_bar.dart';
 import 'package:zuno/features/chat/presentation/media_caption_composer_page.dart';
+import 'package:zuno_emoji/zuno_emoji.dart';
 
 import '../../../helpers/fake_audio_session.dart';
+import '../../../helpers/fake_emoji.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/pump_until.dart';
 import '../../../helpers/route_launcher.dart';
@@ -33,12 +38,16 @@ void main() {
     List<PickedMedia> items, {
     bool settle = true,
   }) async {
+    SharedPreferences.setMockInitialValues({});
+    final preferences = await SharedPreferences.getInstance();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           mediaAudioSessionProvider.overrideWithValue(
             fakeMediaAudioSession(port),
           ),
+          sharedPreferencesProvider.overrideWithValue(preferences),
+          fakeEmojiCatalog,
         ],
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -462,5 +471,44 @@ void main() {
 
     expect(result, hasLength(2));
     expect(result!.whereType<ComposedVideo>(), isEmpty);
+  });
+
+  testWidgets('the caption gets the emoji list too', (tester) async {
+    await open(tester, [photo('a.jpg')]);
+
+    await showEmojiList(tester);
+    await tester.tap(
+      find.descendant(of: find.byType(EmojiPicker), matching: find.text('😀')),
+    );
+    await tester.pump();
+
+    final caption = tester.widget<TextField>(
+      find.descendant(
+        of: find.byType(CaptionBar),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(caption.controller!.text, '😀');
+  });
+
+  testWidgets('searching emoji sideways with the keyboard up still fits', (
+    tester,
+  ) async {
+    final ratio = tester.view.devicePixelRatio;
+    tester.view.physicalSize = const Size(844, 390) * ratio;
+    addTearDown(tester.view.reset);
+    await open(tester, [photo('a.jpg'), photo('b.jpg')]);
+    await showEmojiList(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(EmojiPicker),
+        matching: find.byTooltip('Search emoji'),
+      ),
+    );
+    tester.view.viewInsets = FakeViewPadding(bottom: 200 * ratio);
+    await tester.pump();
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
   });
 }

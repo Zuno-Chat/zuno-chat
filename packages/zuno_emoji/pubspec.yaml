@@ -1,0 +1,25 @@
+name: zuno_emoji
+description: >
+  Zuno's emoji picker: every Unicode emoji the device can draw, search in the
+  app's languages, recent emoji, skin tones and the picker widget. Emoji data
+  is generated from Unicode and CLDR by tool/generate.dart. Not published;
+  internal to the Zuno app.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.13.4
+  flutter: '>=3.3.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  assets:
+    - assets/names/

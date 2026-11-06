@@ -13,6 +13,7 @@ import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/line_strut.dart';
 import '../../room_info/presentation/room_access_label.dart';
 import 'confirmed_person_check.dart';
+import 'emoji_panel.dart';
 
 class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Room room;
@@ -41,6 +42,7 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
     final display = roomInviteDisplay(room, l10n);
 
     return AppBar(
+      leading: leaveButton(context),
       leadingWidth: 48,
       titleSpacing: 0,
       title: InkWell(

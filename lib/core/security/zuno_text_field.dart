@@ -22,12 +22,14 @@ class KeyboardLearning extends InheritedWidget {
 class ZunoTextField extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final InputDecoration? decoration;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final TextCapitalization textCapitalization;
   final TextStyle? style;
   final bool readOnly;
+  final bool? showCursor;
   final bool canRequestFocus;
   final bool autofocus;
   final bool obscureText;
@@ -38,18 +40,21 @@ class ZunoTextField extends StatelessWidget {
   final int? maxLength;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final VoidCallback? onTap;
   final List<TextInputFormatter>? inputFormatters;
   final bool? enabled;
 
   const ZunoTextField({
     required this.autofillHints,
     this.controller,
+    this.focusNode,
     this.decoration = const InputDecoration(),
     this.keyboardType,
     this.textInputAction,
     this.textCapitalization = TextCapitalization.none,
     this.style,
     this.readOnly = false,
+    this.showCursor,
     this.canRequestFocus = true,
     this.autofocus = false,
     this.obscureText = false,
@@ -60,6 +65,7 @@ class ZunoTextField extends StatelessWidget {
     this.maxLength,
     this.onChanged,
     this.onSubmitted,
+    this.onTap,
     this.inputFormatters,
     this.enabled,
     super.key,
@@ -69,12 +75,14 @@ class ZunoTextField extends StatelessWidget {
   Widget build(BuildContext context) => TextField(
     autofillHints: autofillHints,
     controller: controller,
+    focusNode: focusNode,
     decoration: decoration,
     keyboardType: keyboardType,
     textInputAction: textInputAction,
     textCapitalization: textCapitalization,
     style: style,
     readOnly: readOnly,
+    showCursor: showCursor,
     canRequestFocus: canRequestFocus,
     autofocus: autofocus,
     obscureText: obscureText,
@@ -85,6 +93,7 @@ class ZunoTextField extends StatelessWidget {
     maxLength: maxLength,
     onChanged: onChanged,
     onSubmitted: onSubmitted,
+    onTap: onTap,
     inputFormatters: inputFormatters,
     enabled: enabled,
     enableIMEPersonalizedLearning: KeyboardLearning.allowedIn(context),

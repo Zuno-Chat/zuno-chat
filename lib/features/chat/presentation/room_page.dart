@@ -31,6 +31,7 @@ import '../../../core/security/recovery_code_leak.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/share/inbound_share.dart';
+import '../../../core/ui/bottom_bars.dart';
 import '../../../core/ui/close_own_route.dart';
 import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/keep_clear.dart';
@@ -51,6 +52,7 @@ import '../data/typing_announcer.dart';
 import '../data/unsent_text.dart';
 import 'attachment_menu.dart';
 import 'chat_wallpaper.dart';
+import 'emoji_panel.dart';
 import 'media_viewer/media_viewer_page.dart';
 import 'mention_suggestions.dart';
 import 'message_actions.dart';
@@ -97,6 +99,10 @@ void openChat(
 class _RoomPageState extends ConsumerState<RoomPage>
     with WidgetsBindingObserver, RouteSettled<RoomPage> {
   final _input = TextEditingController();
+  late final _emojiPanel = EmojiPanelController(
+    text: () => _input,
+    preferences: ref.read(sharedPreferencesProvider),
+  );
   final _scrollController = ScrollController();
   final _showScrollToBottom = ValueNotifier(false);
   late final TypingAnnouncer _typing;
@@ -201,6 +207,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _syncSub?.cancel();
     _typing.dispose();
     _input.dispose();
+    _emojiPanel.dispose();
     _recorder.dispose();
     super.dispose();
   }
@@ -430,6 +437,13 @@ class _RoomPageState extends ConsumerState<RoomPage>
     }
   }
 
+  void _closeEmojiAfterFrame() {
+    if (!_emojiPanel.open) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _emojiPanel.close();
+    });
+  }
+
   void _showInComposer(String text) {
     _input.text = text;
     _input.selection = TextSelection.collapsed(offset: text.length);
@@ -503,149 +517,162 @@ class _RoomPageState extends ConsumerState<RoomPage>
     final canCall = canStartCall(widget.room);
     final l10n = context.l10n;
     final canPost = canPostInRoom(widget.room);
+    if (!canPost) _closeEmojiAfterFrame();
 
-    return Scaffold(
-      appBar: RoomAppBar(
-        room: widget.room,
-        canCall: canCall,
-        onOpenInfo: _openRoomInfo,
-        onStartCall: _startCall,
-        menuBuilder: (_) => roomMenuItems(
-          context,
-          ref,
-          widget.room,
+    return EmojiPanelBackGuard(
+      controller: _emojiPanel,
+      child: Scaffold(
+        appBar: RoomAppBar(
+          room: widget.room,
+          canCall: canCall,
           onOpenInfo: _openRoomInfo,
-          onReload: () => unawaited(_reloadMessages()),
+          onStartCall: _startCall,
+          menuBuilder: (_) => roomMenuItems(
+            context,
+            ref,
+            widget.room,
+            onOpenInfo: _openRoomInfo,
+            onReload: () => unawaited(_reloadMessages()),
+          ),
         ),
-      ),
-      body: SafeArea(
-        child: Stack(
-          children: [
-            const ChatWallpaperBackground(),
-            Positioned.fill(
-              child: Column(
-                children: [
-                  SecurityAlertBanners.room(widget.room),
-                  PendingInviteBanner(room: widget.room),
-                  JoinRequestsBanner(room: widget.room),
-                  if (canCall) _RoomCallBanner(room: widget.room),
-                  LiveLocationBanner(room: widget.room),
-                  Expanded(
-                    child: timeline == null
-                        ? _TimelinePlaceholder(loading: routeSettled)
-                        : Stack(
-                            children: [
-                              ListenableBuilder(
-                                listenable: sender,
-                                builder: (_, _) => MessageListView(
-                                  room: widget.room,
-                                  timeline: _timelineNotifier,
-                                  controller: _scrollController,
-                                  showHiddenMessages: showHiddenMessages,
-                                  canRespond: canPost,
-                                  failedSends: sender.failed,
-                                  pendingSend: sender.pending,
-                                  replyTargets: _replyTargets,
-                                  onLongPress: (event, gallery) =>
-                                      showMessageActions(
+        body: SafeArea(
+          child: Stack(
+            children: [
+              const ChatWallpaperBackground(),
+              Positioned.fill(
+                child: LayoutBuilder(
+                  builder: (context, body) => Column(
+                    children: [
+                      SecurityAlertBanners.room(widget.room),
+                      PendingInviteBanner(room: widget.room),
+                      JoinRequestsBanner(room: widget.room),
+                      if (canCall) _RoomCallBanner(room: widget.room),
+                      LiveLocationBanner(room: widget.room),
+                      Expanded(
+                        child: timeline == null
+                            ? _TimelinePlaceholder(loading: routeSettled)
+                            : Stack(
+                                children: [
+                                  ListenableBuilder(
+                                    listenable: sender,
+                                    builder: (_, _) => MessageListView(
+                                      room: widget.room,
+                                      timeline: _timelineNotifier,
+                                      controller: _scrollController,
+                                      showHiddenMessages: showHiddenMessages,
+                                      canRespond: canPost,
+                                      failedSends: sender.failed,
+                                      pendingSend: sender.pending,
+                                      replyTargets: _replyTargets,
+                                      onLongPress: (event, gallery) =>
+                                          showMessageActions(
+                                            context,
+                                            ref,
+                                            room: widget.room,
+                                            timeline: timeline,
+                                            event: event,
+                                            gallery: gallery,
+                                            onReply: _startReply,
+                                            onEdit: _startEdit,
+                                          ),
+                                      onDoubleTap: (event) => reactToMessage(
                                         context,
-                                        ref,
-                                        room: widget.room,
-                                        timeline: timeline,
-                                        event: event,
-                                        gallery: gallery,
-                                        onReply: _startReply,
-                                        onEdit: _startEdit,
+                                        event,
+                                        timeline,
+                                        _doubleTapReaction,
                                       ),
-                                  onDoubleTap: (event) => reactToMessage(
-                                    context,
-                                    event,
-                                    timeline,
-                                    _doubleTapReaction,
+                                      onSwipeReply: _startReply,
+                                      onResend: sender.resend,
+                                      onRetryFailedSend: sender.retry,
+                                      onOpenMedia: _openMedia,
+                                      onBackgroundTap: _emojiPanel.close,
+                                    ),
                                   ),
-                                  onSwipeReply: _startReply,
-                                  onResend: sender.resend,
-                                  onRetryFailedSend: sender.retry,
-                                  onOpenMedia: _openMedia,
-                                ),
+                                  Positioned(
+                                    right: 12,
+                                    bottom: 12,
+                                    child: _ScrollToLatestButton(
+                                      visible: _showScrollToBottom,
+                                      onPressed: _scrollToBottom,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              Positioned(
-                                right: 12,
-                                bottom: 12,
-                                child: _ScrollToLatestButton(
-                                  visible: _showScrollToBottom,
-                                  onPressed: _scrollToBottom,
+                      ),
+                      KeepClearArea(
+                        child: BottomBars(
+                          maxHeight: body.maxHeight,
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (timeline != null &&
+                                  (_editingEvent != null ||
+                                      _replyingToEvent != null))
+                                ListenableBuilder(
+                                  listenable: _timelineNotifier,
+                                  builder: (context, _) => ComposeBar(
+                                    title: _editingEvent != null
+                                        ? l10n.chatEditingMessage
+                                        : l10n.chatReplyingTo(
+                                            _replyingToEvent!
+                                                .senderFromMemoryOrFallback
+                                                .calcDisplayname(),
+                                          ),
+                                    snippet: previewSnippet(
+                                      l10n,
+                                      _editingEvent ?? _replyingToEvent!,
+                                      timeline,
+                                    ),
+                                    onCancel: _cancelCompose,
+                                  ),
                                 ),
-                              ),
+                              if (!widget.room.isDirectChat && canPost)
+                                MentionSuggestions(
+                                  room: widget.room,
+                                  controller: _input,
+                                ),
+                              if (canPost) ...[
+                                MessageComposer(
+                                  controller: _input,
+                                  emojiPanel: _emojiPanel,
+                                  onSend: _send,
+                                  onAttach: _showAttachmentMenu,
+                                  attaching: _gettingFile,
+                                  recorder: _recorder,
+                                ),
+                                EmojiPanel(controller: _emojiPanel),
+                              ] else
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 12,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      widget.room.isAbandonedDMRoom
+                                          ? l10n.chatPartnerLeft(
+                                              roomTitle(widget.room, l10n),
+                                            )
+                                          : l10n.chatCannotSend,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
+                        ),
+                      ),
+                    ],
                   ),
-                  KeepClearArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (timeline != null &&
-                            (_editingEvent != null || _replyingToEvent != null))
-                          ListenableBuilder(
-                            listenable: _timelineNotifier,
-                            builder: (context, _) => ComposeBar(
-                              title: _editingEvent != null
-                                  ? l10n.chatEditingMessage
-                                  : l10n.chatReplyingTo(
-                                      _replyingToEvent!
-                                          .senderFromMemoryOrFallback
-                                          .calcDisplayname(),
-                                    ),
-                              snippet: previewSnippet(
-                                l10n,
-                                _editingEvent ?? _replyingToEvent!,
-                                timeline,
-                              ),
-                              onCancel: _cancelCompose,
-                            ),
-                          ),
-                        if (!widget.room.isDirectChat && canPost)
-                          MentionSuggestions(
-                            room: widget.room,
-                            controller: _input,
-                          ),
-                        if (canPost)
-                          MessageComposer(
-                            controller: _input,
-                            onSend: _send,
-                            onAttach: _showAttachmentMenu,
-                            attaching: _gettingFile,
-                            recorder: _recorder,
-                          )
-                        else
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            child: Center(
-                              child: Text(
-                                widget.room.isAbandonedDMRoom
-                                    ? l10n.chatPartnerLeft(
-                                        roomTitle(widget.room, l10n),
-                                      )
-                                    : l10n.chatCannotSend,
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -17,6 +17,7 @@ import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/share/presentation/forward_picker_page.dart';
 
+import '../../../helpers/fake_emoji.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/preferences_container.dart';
@@ -177,6 +178,7 @@ class RoomPageHarness {
         matrixClientProvider.overrideWithValue(client),
         if (capabilities case final capabilities?)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
+        fakeEmojiCatalog,
         ...overrides,
       ],
     );

@@ -109,6 +109,7 @@ PlatformCapabilities capabilitiesLike(
       nativeNotificationActions ?? base.nativeNotificationActions,
   notificationRetentionCheck: base.notificationRetentionCheck,
   cameraStopsInBackground: base.cameraStopsInBackground,
+  systemBackButton: base.systemBackButton,
   externalPaymentLinks: externalPaymentLinks ?? base.externalPaymentLinks,
   nativeSensitiveFileExport: base.nativeSensitiveFileExport,
   nativeFileShare: base.nativeFileShare,

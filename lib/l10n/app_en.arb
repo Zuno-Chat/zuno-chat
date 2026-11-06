@@ -659,6 +659,58 @@
   "@chatEditingMessage": {
     "description": "Bar above the composer while editing a message"
   },
+  "chatEmojiActivities": "Activities",
+  "@chatEmojiActivities": {
+    "description": "Emoji list: tab and heading for sports, games and celebrations"
+  },
+  "chatEmojiAnimalsNature": "Animals and nature",
+  "@chatEmojiAnimalsNature": {
+    "description": "Emoji list: tab and heading for animals and plants"
+  },
+  "chatEmojiBackToAll": "Back to all emoji",
+  "@chatEmojiBackToAll": {
+    "description": "Emoji list: tooltip on the back button in the search field, returning to all emoji"
+  },
+  "chatEmojiFlags": "Flags",
+  "@chatEmojiFlags": {
+    "description": "Emoji list: tab and heading for flags"
+  },
+  "chatEmojiFoodDrink": "Food and drink",
+  "@chatEmojiFoodDrink": {
+    "description": "Emoji list: tab and heading for food and drink"
+  },
+  "chatEmojiNoRecents": "No recent emoji yet",
+  "@chatEmojiNoRecents": {
+    "description": "Emoji list: shown under Recent before the user has picked any emoji"
+  },
+  "chatEmojiNoResults": "No emoji found",
+  "@chatEmojiNoResults": {
+    "description": "Emoji list: shown when a search finds nothing"
+  },
+  "chatEmojiObjects": "Objects",
+  "@chatEmojiObjects": {
+    "description": "Emoji list: tab and heading for everyday objects"
+  },
+  "chatEmojiRecent": "Recent",
+  "@chatEmojiRecent": {
+    "description": "Emoji list: tab and heading for the emoji the user picked lately"
+  },
+  "chatEmojiSearch": "Search emoji",
+  "@chatEmojiSearch": {
+    "description": "Emoji list: tooltip on the search button and hint in the search field"
+  },
+  "chatEmojiSmileysPeople": "Smileys and people",
+  "@chatEmojiSmileysPeople": {
+    "description": "Emoji list: tab and heading for faces, hands and people"
+  },
+  "chatEmojiSymbols": "Symbols",
+  "@chatEmojiSymbols": {
+    "description": "Emoji list: tab and heading for signs and symbols"
+  },
+  "chatEmojiTravelPlaces": "Travel and places",
+  "@chatEmojiTravelPlaces": {
+    "description": "Emoji list: tab and heading for vehicles, buildings and places"
+  },
   "chatEmptyEncryptedConfirmed": "Messages here are end-to-end encrypted. Only you and {name} can read them.",
   "@chatEmptyEncryptedConfirmed": {
     "placeholders": {
@@ -946,6 +998,14 @@
   "chatShortcutFailed": "Shortcut not added.",
   "chatShortcutRequested": "Confirm on your home screen to finish adding it",
   "chatShortcutUnsupported": "This launcher does not support home screen shortcuts",
+  "chatShowEmoji": "Show emoji",
+  "@chatShowEmoji": {
+    "description": "Tooltip on the smiley button in the message box: swaps the keyboard for the emoji list"
+  },
+  "chatShowKeyboard": "Show keyboard",
+  "@chatShowKeyboard": {
+    "description": "Tooltip on the keyboard button in the message box while the emoji list shows: brings the keyboard back"
+  },
   "chatSlideToCancel": "Slide up to cancel",
   "chatStartVideoCall": "Start a video call.",
   "chatStartVoiceCall": "Start a voice call.",

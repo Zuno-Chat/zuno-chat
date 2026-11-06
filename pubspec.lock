@@ -177,14 +177,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.3.2"
-  emoji_picker_flutter:
-    dependency: "direct main"
-    description:
-      name: emoji_picker_flutter
-      sha256: "50f4da413a3dc5d2f59f2b0835ab3b3cce76c0779eb275058213506e6709503b"
-      url: "https://pub.dev"
-    source: hosted
-    version: "4.5.4"
   fake_async:
     dependency: "direct dev"
     description:
@@ -1706,6 +1698,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.4"
+  zuno_emoji:
+    dependency: "direct main"
+    description:
+      path: "packages/zuno_emoji"
+      relative: true
+    source: path
+    version: "0.0.1"
   zuno_notifications:
     dependency: "direct main"
     description:

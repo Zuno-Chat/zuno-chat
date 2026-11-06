@@ -58,6 +58,7 @@ class PlatformCapabilities {
   final bool nativeNotificationActions;
   final bool notificationRetentionCheck;
   final bool cameraStopsInBackground;
+  final bool systemBackButton;
   final bool externalPaymentLinks;
   final bool nativeSensitiveFileExport;
   final bool nativeFileShare;
@@ -118,6 +119,7 @@ class PlatformCapabilities {
     required this.nativeNotificationActions,
     required this.notificationRetentionCheck,
     required this.cameraStopsInBackground,
+    required this.systemBackButton,
     required this.externalPaymentLinks,
     required this.nativeSensitiveFileExport,
     required this.nativeFileShare,
@@ -185,6 +187,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeNotificationActions: false,
         notificationRetentionCheck: false,
         cameraStopsInBackground: false,
+        systemBackButton: true,
         externalPaymentLinks: true,
         nativeSensitiveFileExport: false,
         nativeFileShare: true,
@@ -249,6 +252,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         nativeNotificationActions: true,
         notificationRetentionCheck: true,
         cameraStopsInBackground: true,
+        systemBackButton: false,
         externalPaymentLinks: false,
         nativeSensitiveFileExport: true,
         nativeFileShare: false,

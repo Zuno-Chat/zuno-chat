@@ -19,6 +19,8 @@ dependencies:
   # its own action FlutterEngine and only GeneratedPluginRegistrant reaches it.
   zuno_notifications:
     path: packages/zuno_notifications
+  zuno_emoji:
+    path: packages/zuno_emoji
 
   flutter_riverpod: ^3.4.2
   matrix: ^15.0.0
@@ -60,7 +62,6 @@ dependencies:
   http: ^1.6.0
   share_plus: ^13.3.1
   gal: ^2.3.3
-  emoji_picker_flutter: ^4.5.3
   # Calls (see docs/features/calls.md): WebRTC media for the
   # CallEngine/Cloudflare Calls adapter, runtime camera/mic permission
   # prompts, the ongoing-call notification, and keeping the screen on

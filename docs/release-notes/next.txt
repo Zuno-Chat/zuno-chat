@@ -5,5 +5,6 @@ New
 • Sign in and create an account on servers that use their own sign-in page.
 • Usernames can use more characters, and passwords can be 8 characters with a mix of letters, numbers and symbols.
 • What you type in a chat waits there when you leave it.
+• Pick any emoji from the message box, with search in your language.
 
-Fixed 33 bugs.
+Fixed 34 bugs.

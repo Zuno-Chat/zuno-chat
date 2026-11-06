@@ -1,4 +1,3 @@
-import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
@@ -29,6 +28,7 @@ import 'message_actions_sheet.dart';
 import 'message_contents/reactions_row.dart';
 import 'seen_by_tile.dart';
 import 'sender_device_tile.dart';
+import 'zuno_emoji_picker.dart';
 
 Future<void> showMessageActions(
   BuildContext context,
@@ -165,6 +165,8 @@ Future<void> reactToMessage(
   key,
 );
 
+const _reactionPickerHeight = 360.0;
+
 Future<void> pickReaction(
   BuildContext context,
   Event event,
@@ -173,11 +175,16 @@ Future<void> pickReaction(
   final key = await showSheet<String>(
     context: context,
     isScrollControlled: true,
-    builder: (context) => SizedBox(
-      height: 320,
-      child: EmojiPicker(
-        onEmojiSelected: (category, emoji) =>
-            Navigator.of(context).pop(emoji.emoji),
+    builder: (context) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: _reactionPickerHeight,
+          child: ZunoEmojiPicker(
+            onSelected: (emoji) => Navigator.of(context).pop(emoji),
+          ),
+        ),
       ),
     ),
   );

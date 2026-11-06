@@ -31,6 +31,8 @@ jobs:
         working-directory: tool/zuno_lints
       - run: dart test
         working-directory: tool/zuno_lints
+      - run: flutter test
+        working-directory: packages/zuno_emoji
       - run: dart analyze --fatal-infos
       - run: |
           flutter test --file-reporter json:build/test-report.json ${{ inputs.coverage && '--coverage' || '' }} || {
