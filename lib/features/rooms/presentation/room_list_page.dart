@@ -3,21 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../../core/calls/end_call.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/client/matrix_client_provider.dart';
-import '../../../core/matrix/events/read_receipts.dart';
 import '../../../core/matrix/rooms/communities.dart';
 import '../../../core/matrix/rooms/membership/join_requests.dart';
 import '../../../core/matrix/rooms/membership/join_room.dart';
 import '../../../core/matrix/rooms/membership/local_username_dialog.dart';
-import '../../../core/matrix/rooms/membership/room_exit.dart';
 import '../../../core/matrix/rooms/room_access.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
-import '../../../core/matrix/rooms/room_mute.dart';
 import '../../../core/onboarding/onboarding_provider.dart';
 import '../../../core/onboarding/onboarding_step.dart';
 import '../../../core/security/security_prompt.dart';
@@ -37,6 +33,7 @@ import 'home_bottom_bar.dart';
 import 'new_room_dialog.dart';
 import 'notification_delivery_banner.dart';
 import 'public_rooms_sheet.dart';
+import 'room_actions.dart';
 
 enum _NewChatType {
   directMessage,
@@ -45,8 +42,6 @@ enum _NewChatType {
   community,
   findPublicCommunities,
 }
-
-enum _RoomAction { markRead, mute, unmute, exit }
 
 List<SheetAction<_NewChatType>> _newChatActions(
   HomeTab tab,
@@ -260,72 +255,8 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
         .push(MaterialPageRoute(builder: (_) => const SecureBackupPage()));
   }
 
-  Future<void> _showRoomActions(Room room) async {
-    final l10n = context.l10n;
-    final isCommunity = room.isSpace;
-    final isMuted = isRoomMuted(room);
-    final hasUnread = !isCommunity && room.notificationCount > 0;
-
-    final action = await showActionSheet(
-      context,
-      actions: [
-        if (hasUnread)
-          SheetAction(
-            _RoomAction.markRead,
-            icon: Icons.mark_chat_read_outlined,
-            label: l10n.commonMarkAsRead,
-          ),
-        if (!isCommunity)
-          isMuted
-              ? SheetAction(
-                  _RoomAction.unmute,
-                  icon: Icons.notifications_active_outlined,
-                  label: l10n.roomsUnmute,
-                )
-              : SheetAction(
-                  _RoomAction.mute,
-                  icon: Icons.notifications_off_outlined,
-                  label: l10n.roomsMute,
-                ),
-        SheetAction(
-          _RoomAction.exit,
-          icon: roomExitIcon(room),
-          label: roomExitLabel(room, l10n),
-          destructive: true,
-        ),
-      ],
-    );
-    if (action == null || !mounted) return;
-
-    switch (action) {
-      case _RoomAction.markRead:
-        await attempt(
-          context,
-          () async {
-            final eventId = await newestReadMarkerEventId(room);
-            if (eventId == null) return;
-            await markRoomRead(room, eventId);
-          },
-          label: 'room action mark read',
-          failed: l10n.roomsNotMarkedAsRead,
-        );
-      case _RoomAction.mute || _RoomAction.unmute:
-        await _setMuted(room, action == _RoomAction.mute);
-      case _RoomAction.exit:
-        await confirmAndExitRoom(
-          context,
-          room,
-          endCallsIn: ref.read(endCallsInProvider),
-        );
-    }
-  }
-
-  Future<void> _setMuted(Room room, bool muted) async {
-    final asked = askToMuteRoom(context, room, muted);
-    setState(() {});
-    await asked;
-    if (mounted) setState(() {});
-  }
+  Future<void> _showRoomActions(Room room) =>
+      showRoomActions(context, ref, room);
 
   @override
   Widget build(BuildContext context) {

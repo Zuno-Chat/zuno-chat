@@ -30,3 +30,8 @@ class RowMemo<T> {
 
   void clear() => _entries.clear();
 }
+
+ChildIndexGetter rowIndexById(List<String> ids) {
+  final positions = {for (var i = 0; i < ids.length; i++) ids[i]: i};
+  return (key) => key is ValueKey<String> ? positions[key.value] : null;
+}

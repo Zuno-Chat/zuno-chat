@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../ui/visible_in_front.dart';
+import 'room_mute.dart';
 
 bool syncTouchesRoom(SyncUpdate update, String roomId) {
   final rooms = update.rooms;
@@ -34,6 +35,7 @@ bool syncCarriesEphemeral(SyncUpdate update, String roomId, String type) =>
     update.rooms?.join?[roomId]?.ephemeral?.any((e) => e.type == type) ?? false;
 
 typedef SyncFilter = bool Function(SyncUpdate update);
+typedef RoomIdFilter = bool Function(String roomId);
 typedef RoomStateFilter = bool Function(
   String roomId,
   StrippedStateEvent state,
@@ -43,37 +45,43 @@ class RoomChanges {
   final Client client;
   final SyncFilter? syncs;
   final RoomStateFilter? states;
+  final RoomIdFilter? mutes;
   final Object _identity;
 
-  RoomChanges.where(this.client, {this.syncs, this.states})
-    : _identity = (client, syncs, states);
+  RoomChanges.where(this.client, {this.syncs, this.states, this.mutes})
+    : _identity = (client, syncs, states, mutes);
 
   RoomChanges.state(Room room)
     : client = room.client,
       syncs = ((update) => syncChangesRoomState(update, room.id)),
       states = ((roomId, _) => roomId == room.id),
+      mutes = ((roomId) => roomId == room.id),
       _identity = (#state, room);
 
   RoomChanges.any(Room room)
     : client = room.client,
       syncs = ((update) => syncTouchesRoom(update, room.id)),
       states = ((roomId, _) => roomId == room.id),
+      mutes = ((roomId) => roomId == room.id),
       _identity = (#any, room);
 
   RoomChanges.ephemeral(Room room, String type)
     : client = room.client,
       syncs = ((update) => syncCarriesEphemeral(update, room.id, type)),
       states = null,
+      mutes = null,
       _identity = (#ephemeral, room, type);
 
   RoomChanges.everywhere(this.client)
     : syncs = ((_) => true),
       states = ((_, _) => true),
+      mutes = ((_) => true),
       _identity = (#everywhere, client);
 
   Stream<void> get stream {
     StreamSubscription<SyncUpdate>? syncSub;
     StreamSubscription<({String roomId, StrippedStateEvent state})>? stateSub;
+    StreamSubscription<String>? muteSub;
     var pending = false;
     late final StreamController<void> controller;
 
@@ -91,6 +99,7 @@ class RoomChanges {
       onListen: () {
         final syncs = this.syncs;
         final states = this.states;
+        final mutes = this.mutes;
         if (syncs != null) {
           syncSub = client.onSync.stream.listen((update) {
             if (syncs(update)) changed();
@@ -101,10 +110,16 @@ class RoomChanges {
             if (states(update.roomId, update.state)) changed();
           });
         }
+        if (mutes != null) {
+          muteSub = roomMuteChanges(client).listen((roomId) {
+            if (mutes(roomId)) changed();
+          });
+        }
       },
       onCancel: () async {
         await syncSub?.cancel();
         await stateSub?.cancel();
+        await muteSub?.cancel();
         await controller.close();
       },
     );

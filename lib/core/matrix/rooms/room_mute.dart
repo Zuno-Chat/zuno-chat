@@ -9,6 +9,7 @@ import '../../ui/notice.dart';
 const _confirmWithin = Duration(seconds: 10);
 
 final _asked = Expando<_AskedMute>('mute asked of the server');
+final _changes = Expando<StreamController<String>>('asked mute changes');
 
 class _AskedMute {
   final bool muted;
@@ -20,6 +21,13 @@ class _AskedMute {
 
 bool isRoomMuted(Room room) => _asked[room]?.muted ?? _serverMuted(room);
 
+Stream<String> roomMuteChanges(Client client) =>
+    (_changes[client] ??= StreamController<String>.broadcast(
+      sync: true,
+    )).stream;
+
+void _announce(Room room) => _changes[room.client]?.add(room.id);
+
 @visibleForTesting
 bool isRoomMuteSettling(Room room) => !(_asked[room]?.settled ?? true);
 
@@ -27,6 +35,7 @@ Future<void> setRoomMuted(Room room, bool muted) async {
   if (isRoomMuteSettling(room)) return;
   _forget(room);
   final asked = _asked[room] = _AskedMute(muted);
+  _announce(room);
   Completer<void>? arrived;
   asked.rulesSub = room.client.onSync.stream.listen((update) {
     if (!(update.accountData?.any(_isPushRules) ?? false)) return;
@@ -64,6 +73,7 @@ void _forget(Room room, [_AskedMute? only]) {
   if (asked == null || (only != null && !identical(asked, only))) return;
   unawaited(asked.rulesSub?.cancel());
   _asked[room] = null;
+  _announce(room);
 }
 
 Future<bool> askToMuteRoom(BuildContext context, Room room, bool muted) {

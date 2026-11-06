@@ -70,13 +70,6 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
   List<User>? _participants;
   bool _loadingParticipants = true;
 
-  Future<void> _setMuted(bool muted) async {
-    final asked = askToMuteRoom(context, widget.room, muted);
-    setState(() {});
-    await asked;
-    if (mounted) setState(() {});
-  }
-
   Future<void> _exit() async {
     final navigator = Navigator.of(context);
     if (!await confirmAndExitRoom(
@@ -304,7 +297,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                           ? Icons.notifications_outlined
                           : Icons.notifications_off_outlined,
                       label: muted ? l10n.roomsUnmute : l10n.roomsMute,
-                      onTap: () => _setMuted(!muted),
+                      onTap: () => askToMuteRoom(context, room, !muted),
                     ),
                   ),
                   if (!room.isDirectChat && room.canInvite)

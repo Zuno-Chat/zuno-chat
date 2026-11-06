@@ -107,4 +107,12 @@ void main() {
     memo.clear();
     expect(identical(memo.obtain('a', 1, () => Container()), a), isFalse);
   });
+
+  test('a row is found by its id key; other keys find nothing', () {
+    final indexOf = rowIndexById(['!a', '!b']);
+
+    expect(indexOf(const ValueKey('!b')), 1);
+    expect(indexOf(const ValueKey('!c')), isNull);
+    expect(indexOf(const ValueKey(1)), isNull);
+  });
 }

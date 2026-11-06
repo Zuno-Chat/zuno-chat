@@ -6,17 +6,21 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/communities.dart';
+import '../../../core/matrix/rooms/room_title.dart';
+import '../../../core/ui/card_group.dart';
 import '../../../core/ui/empty_state.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/section_label.dart';
 import '../../chat/presentation/chat_wallpaper.dart';
 import '../data/chat_row_data.dart';
 import 'chat_row.dart';
-import 'community_preview.dart';
 import 'home_bottom_bar.dart';
 import 'invitation_group.dart';
-import 'last_message_preview.dart';
+import 'room_kind_avatar.dart';
+
+const _headingAvatarRadius = 17.0;
 
 class ChatListView extends StatefulWidget {
   final Client client;
@@ -48,11 +52,6 @@ class ChatListView extends StatefulWidget {
     HomeTab.communities => layout.communities,
   };
 
-  Map<String, List<Room>> get communityRooms => switch (section) {
-    HomeTab.chats => const {},
-    HomeTab.communities => layout.communityRooms,
-  };
-
   @override
   State<ChatListView> createState() => _ChatListViewState();
 }
@@ -71,12 +70,6 @@ class _ChatListViewState extends State<ChatListView> {
   void didChangeDependencies() {
     super.didChangeDependencies();
     _prototype = null;
-  }
-
-  @override
-  void didUpdateWidget(ChatListView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.client != widget.client) _prototype = null;
   }
 
   EmptyState _emptyState(AppLocalizations l10n) => switch (widget.section) {
@@ -100,6 +93,62 @@ class _ChatListViewState extends State<ChatListView> {
     });
   }
 
+  List<Room> _roomsOf(Room community) =>
+      widget.layout.communityRooms[community.id] ?? const [];
+
+  Widget _row(
+    Room room,
+    DateTime now,
+    DateLabels labels, {
+    bool compact = false,
+  }) => roomChatRow(
+    _memo,
+    room,
+    unreadCorrections: widget.unreadCorrections,
+    now: now,
+    labels: labels,
+    onOpen: widget.onOpen,
+    onActions: widget.onActions,
+    compact: compact,
+  );
+
+  Widget _chats(List<Room> rooms, DateTime now, DateLabels labels) =>
+      SliverPrototypeExtentList(
+        prototypeItem: _rowPrototype,
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => _row(rooms[index], now, labels),
+          childCount: rooms.length,
+          findChildIndexCallback: rowIndexById([
+            for (final room in rooms) room.id,
+          ]),
+        ),
+      );
+
+  Widget _communityCard(Room community, DateTime now, DateLabels labels) {
+    final rooms = _roomsOf(community);
+    final title = roomTitle(community, labels.l10n);
+    return SliverCardGroup(
+      key: ValueKey(community.id),
+      title: title,
+      leading: RoomKindAvatar(
+        client: community.client,
+        avatarUrl: community.avatar,
+        fallbackText: title,
+        isDirect: false,
+        community: true,
+        radius: _headingAvatarRadius,
+        toneSeed: roomToneSeed(community),
+      ),
+      onTitleTap: () => widget.onOpen(community),
+      onTitleLongPress: () => widget.onActions(community),
+      itemCount: rooms.isEmpty ? 1 : rooms.length,
+      findChildIndexCallback: rowIndexById([for (final room in rooms) room.id]),
+      itemBuilder: (context, index) => rooms.isEmpty
+          ? _NoRoomsJoined(onTap: () => widget.onOpen(community))
+          : _row(rooms[index], now, labels, compact: true),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final invitations = widget.invitations;
@@ -107,7 +156,10 @@ class _ChatListViewState extends State<ChatListView> {
     const physics = AlwaysScrollableScrollPhysics();
     final l10n = context.l10n;
     final storage = PageStorageKey<String>(widget.section.name);
-    _memo.retainOnly(rows.map((room) => room.id));
+    _memo.retainOnly(switch (widget.section) {
+      HomeTab.chats => rows.map((room) => room.id),
+      HomeTab.communities => rows.expand(_roomsOf).map((room) => room.id),
+    });
 
     if (invitations.isEmpty && rows.isEmpty) {
       return CustomScrollView(
@@ -126,7 +178,6 @@ class _ChatListViewState extends State<ChatListView> {
 
     final now = clock.now();
     final labels = DateLabels.of(context);
-    final positions = {for (var i = 0; i < rows.length; i++) rows[i].id: i};
 
     return CustomScrollView(
       key: storage,
@@ -138,57 +189,38 @@ class _ChatListViewState extends State<ChatListView> {
           if (rows.isNotEmpty)
             SliverToBoxAdapter(child: SectionLabel(widget.section.label(l10n))),
         ],
-        SliverPrototypeExtentList(
-          prototypeItem: _rowPrototype,
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final room = rows[index];
-              final inside = widget.communityRooms[room.id];
-              final data = inside == null
-                  ? chatRowDataFor(
-                      room,
-                      unreadCorrections: widget.unreadCorrections,
-                      now: now,
-                      labels: labels,
-                    )
-                  : communityRowDataFor(
-                      room,
-                      inside,
-                      unreadCorrections: widget.unreadCorrections,
-                      now: now,
-                      labels: labels,
-                    );
-              return _memo.obtain(
-                room.id,
-                data,
-                source: room,
-                () => ChatRow(
-                  key: ValueKey(room.id),
-                  data: data,
-                  client: widget.client,
-                  preview: inside == null
-                      ? LastMessagePreview(
-                          room: room,
-                          event: room.lastEvent,
-                          summary: data.preview,
-                        )
-                      : CommunityPreview(
-                          room: inside.firstOrNull,
-                          source: data.previewSource,
-                          summary: data.preview,
-                        ),
-                  onTap: () => widget.onOpen(room),
-                  onLongPress: () => widget.onActions(room),
-                ),
-              );
-            },
-            childCount: rows.length,
-            findChildIndexCallback: (key) =>
-                key is ValueKey<String> ? positions[key.value] : null,
-          ),
-        ),
+        ...switch (widget.section) {
+          HomeTab.chats => [_chats(rows, now, labels)],
+          HomeTab.communities => [
+            for (final community in rows)
+              _communityCard(community, now, labels),
+          ],
+        },
         const SliverToBoxAdapter(child: SizedBox(height: 12)),
       ],
+    );
+  }
+}
+
+class _NoRoomsJoined extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _NoRoomsJoined({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 16),
+        child: Text(
+          context.l10n.roomsNoRoomsJoined,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ),
     );
   }
 }

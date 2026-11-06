@@ -8,8 +8,8 @@ Matrix spaces, called communities in the app: a family, club or team with severa
 |---|---|
 | `core/matrix/rooms/communities.dart` | `arrangeHome` splits the rooms once per sync, and one result feeds both tabs and the unread dots in the bottom bar. The file also holds community creation, leaving, and the `/hierarchy` read. |
 | `rooms/presentation/home_bottom_bar.dart` | The tab pill, with the + button beside it. Only the visible tab is built. |
-| `ChatListView` | One list widget for both tabs, its section picking the feed. A community row is an ordinary `ChatRow` whose preview comes from the community's newest room and whose unread count adds up its unmuted rooms. |
-| `communities/presentation/community_page.dart` | The header, your rooms, joinable rooms, members with their roles, and the community's settings, permissions and leave. |
+| `ChatListView` | One list widget for both tabs, its section picking the feed. On Communities, each joined community is a card (`SliverCardGroup`): a heading that opens the community, then its rooms as compact `ChatRow`s, or a line saying none are joined that also opens it. |
+| `communities/presentation/community_page.dart` | The header, your rooms, joinable rooms, members with their roles, and the community's settings, permissions and leave. Its rooms long-press into the same sheet as the home tab (`room_actions.dart`). |
 | `core/matrix/rooms/membership/join_requests.dart` | Ask to join, for both the requester and the approvers. |
 
 `arrangeHome` produces five buckets:
@@ -20,7 +20,7 @@ Matrix spaces, called communities in the app: a family, club or team with severa
 | Chats | Joined rooms that are not communities and that no joined community holds | The Chats tab |
 | Community invitations | Invitations to communities | The Communities tab |
 | Communities | Joined communities, ordered by the activity of their newest room | The Communities tab |
-| Community rooms | The joined rooms each community holds, except direct chats, newest first | Community rows and `CommunityPage` |
+| Community rooms | The joined rooms each community holds, except direct chats, newest first | Its community's card and `CommunityPage` |
 
 **Flows**
 - **Joinable rooms.** `/hierarchy`, one level deep, runs when the page opens and on pull to refresh, and only when the community lists a child you have not joined.
@@ -45,6 +45,8 @@ A joinable room shows Join when its join rule is not `knock`, and Ask or Request
 ## Decisions
 
 - **A community holds a room only when both sides link it**: the community lists the room (`m.space.child`) and the room names the community (`m.space.parent`), each with a `via`, as Matrix requires. This one rule decides home placement, the community page, Community access, the access label and what leaving takes along.
+- **A community card's heading has no preview or unread count**, because each room under it shows its own.
+- **A room held by two joined communities shows in both cards**, since each card lists everything its community holds.
 - **Chats never shows a community or a room a joined community holds.** A direct chat listed in a community stays in Chats, and so do a room whose community you have not joined and a room linked one way only.
 - **A community is Public or Private**, and its access works like a room's.
 - **New communities lock everything except rooms and invites.** Settings and messages are admin-only, adding rooms needs a moderator, and any member can invite.

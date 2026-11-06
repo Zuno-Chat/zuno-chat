@@ -30,6 +30,7 @@ import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/section_label.dart';
+import '../../../core/ui/trailing_action_row.dart';
 import '../../chat/presentation/room_page.dart';
 import '../../room_info/presentation/members_sheet.dart';
 import '../../room_info/presentation/person_sheet.dart';
@@ -39,8 +40,8 @@ import '../../room_info/presentation/room_permissions_page.dart';
 import '../../room_info/presentation/room_settings_page.dart';
 import '../../rooms/data/chat_row_data.dart';
 import '../../rooms/presentation/chat_row.dart';
-import '../../rooms/presentation/last_message_preview.dart';
 import '../../rooms/presentation/new_room_dialog.dart';
+import '../../rooms/presentation/room_actions.dart';
 import '../../rooms/presentation/room_kind_avatar.dart';
 
 typedef CommunityRoomsLoader = Future<List<SpaceRoomsChunk$2>> Function(
@@ -118,6 +119,9 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         touches(rooms.leave?.keys) ||
         touches(rooms.invite?.keys);
   }
+
+  bool _holdsRoom(String roomId) =>
+      communityChildIds(_community).contains(roomId);
 
   void _closeIfLeft() {
     if (_community.membership != Membership.join) _close();
@@ -281,27 +285,14 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     DateTime now,
     DateLabels labels,
   ) {
-    final data = chatRowDataFor(
+    return roomChatRow(
+      _memo,
       room,
       unreadCorrections: corrections,
       now: now,
       labels: labels,
-    );
-    return _memo.obtain(
-      room.id,
-      data,
-      source: room,
-      () => ChatRow(
-        key: ValueKey(room.id),
-        data: data,
-        client: _client,
-        preview: LastMessagePreview(
-          room: room,
-          event: room.lastEvent,
-          summary: data.preview,
-        ),
-        onTap: () => widget.openRoom(context, room),
-      ),
+      onOpen: (room) => widget.openRoom(context, room),
+      onActions: (room) => showRoomActions(context, ref, room),
     );
   }
 
@@ -340,7 +331,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     final corrections = ref.watch(callUnreadCorrectionProvider);
     final asked = ref.watch(joinRequestsProvider);
     return RoomChangesBuilder(
-      changes: RoomChanges.where(_client, syncs: _concerns),
+      changes: RoomChanges.where(_client, syncs: _concerns, mutes: _holdsRoom),
       onChange: _closeIfLeft,
       builder: (context) => _page(context, corrections, asked),
     );
@@ -354,7 +345,6 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     final community = _community;
     final rooms = communityRooms(community);
     _memo.retainOnly(rooms.map((room) => room.id));
-    final positions = {for (var i = 0; i < rooms.length; i++) rooms[i].id: i};
     final joinable = _more
         ?.where(
           (c) => _client.getRoomById(c.roomId)?.membership != Membership.join,
@@ -446,8 +436,9 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
                 ),
                 SliverList.builder(
                   itemCount: rooms.length,
-                  findChildIndexCallback: (key) =>
-                      key is ValueKey<String> ? positions[key.value] : null,
+                  findChildIndexCallback: rowIndexById([
+                    for (final room in rooms) room.id,
+                  ]),
                   itemBuilder: (context, index) =>
                       _roomRow(rooms[index], corrections, now, labels),
                 ),
@@ -544,66 +535,57 @@ class _JoinableRoom extends StatelessWidget {
     ]);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 10, 16, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              RoomKindAvatar(
-                client: client,
-                avatarUrl: chunk.avatarUrl,
-                fallbackText: title,
-                isDirect: false,
-                radius: ChatRow.avatarRadius,
-                toneSeed: chunk.roomId,
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      detail,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: colors.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Align(
-            alignment: AlignmentDirectional.centerEnd,
-            child: entry == _Entry.requested
-                ? OutlinedButton(
-                    onPressed: busy ? null : onTap,
-                    child: Text(l10n.communitiesRequested),
-                  )
-                : FilledButton(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: colors.secondaryContainer,
-                      foregroundColor: colors.onSecondaryContainer,
-                    ),
-                    onPressed: busy ? null : onTap,
-                    child: Text(
-                      entry == _Entry.ask
-                          ? l10n.communitiesAsk
-                          : l10n.commonJoin,
+      child: TrailingActionRow(
+        main: Row(
+          children: [
+            RoomKindAvatar(
+              client: client,
+              avatarUrl: chunk.avatarUrl,
+              fallbackText: title,
+              isDirect: false,
+              radius: ChatRow.avatarRadius,
+              toneSeed: chunk.roomId,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: colors.onSurfaceVariant,
                     ),
                   ),
-          ),
-        ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        action: entry == _Entry.requested
+            ? OutlinedButton(
+                onPressed: busy ? null : onTap,
+                child: Text(l10n.communitiesRequested),
+              )
+            : FilledButton(
+                style: FilledButton.styleFrom(
+                  backgroundColor: colors.secondaryContainer,
+                  foregroundColor: colors.onSecondaryContainer,
+                ),
+                onPressed: busy ? null : onTap,
+                child: Text(
+                  entry == _Entry.ask ? l10n.communitiesAsk : l10n.commonJoin,
+                ),
+              ),
       ),
     );
   }

@@ -9,7 +9,6 @@ import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/matrix/rooms/official_room.dart';
 import '../../../core/matrix/rooms/room_mute.dart';
-import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/matrix/rooms/typing_indicator_text.dart';
 
 @immutable
@@ -18,12 +17,10 @@ class ChatRowData {
   final String title;
   final Uri? avatarUrl;
   final bool isDirect;
-  final bool community;
   final String toneSeed;
   final String? lastEventId;
   final EventStatus? lastEventStatus;
   final MessageSummary? preview;
-  final String? previewSource;
   final String? typingText;
   final String timeLabel;
   final int unread;
@@ -39,12 +36,10 @@ class ChatRowData {
     required this.title,
     required this.avatarUrl,
     required this.isDirect,
-    this.community = false,
     required this.toneSeed,
     required this.lastEventId,
     required this.lastEventStatus,
     required this.preview,
-    this.previewSource,
     required this.typingText,
     required this.timeLabel,
     required this.unread,
@@ -83,12 +78,10 @@ class ChatRowData {
     title,
     avatarUrl,
     isDirect,
-    community,
     toneSeed,
     lastEventId,
     lastEventStatus,
     preview,
-    previewSource,
     typingText,
     timeLabel,
     unread,
@@ -146,48 +139,5 @@ ChatRowData chatRowDataFor(
         : null,
     partnerLeft: display.partnerLeft,
     official: isOfficialZunoRoom(room),
-  );
-}
-
-ChatRowData communityRowDataFor(
-  Room community,
-  List<Room> rooms, {
-  required Map<String, int> unreadCorrections,
-  required DateTime now,
-  required DateLabels labels,
-}) {
-  final newest = rooms.firstOrNull;
-  final event = newest?.lastEvent;
-  final summary = event != null && isPreviewableLastEvent(event)
-      ? summarize(labels.l10n, event)
-      : null;
-  var unread = 0;
-  for (final room in rooms) {
-    if (isRoomMuted(room)) continue;
-    unread += displayedUnreadCount(unreadCorrections, room);
-  }
-
-  return ChatRowData(
-    roomId: community.id,
-    title: roomTitle(community, labels.l10n),
-    avatarUrl: community.avatar,
-    isDirect: false,
-    community: true,
-    toneSeed: community.id,
-    lastEventId: event?.eventId,
-    lastEventStatus: event?.status,
-    preview: summary,
-    previewSource: newest == null ? null : roomTitle(newest, labels.l10n),
-    typingText: null,
-    timeLabel: event == null
-        ? ''
-        : labels.chatList(event.originServerTs, now: now),
-    unread: unread,
-    muted: false,
-    notEncrypted: false,
-    awaitingAcceptance: false,
-    pendingInviteSubtitle: null,
-    partnerLeft: false,
-    official: false,
   );
 }

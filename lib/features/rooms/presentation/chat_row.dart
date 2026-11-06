@@ -1,21 +1,62 @@
 import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/rooms/official_room.dart';
 import '../../../core/security/security_emphasis.dart';
 import '../../../core/ui/line_strut.dart';
+import '../../../core/ui/row_memo.dart';
 import '../data/chat_row_data.dart';
+import 'last_message_preview.dart';
 import 'room_kind_avatar.dart';
+
+Widget roomChatRow(
+  RowMemo<ChatRowData> memo,
+  Room room, {
+  required Map<String, int> unreadCorrections,
+  required DateTime now,
+  required DateLabels labels,
+  required void Function(Room room) onOpen,
+  required void Function(Room room) onActions,
+  bool compact = false,
+}) {
+  final data = chatRowDataFor(
+    room,
+    unreadCorrections: unreadCorrections,
+    now: now,
+    labels: labels,
+  );
+  return memo.obtain(
+    room.id,
+    data,
+    source: room,
+    () => ChatRow(
+      key: ValueKey(room.id),
+      data: data,
+      client: room.client,
+      compact: compact,
+      preview: LastMessagePreview(
+        room: room,
+        event: room.lastEvent,
+        summary: data.preview,
+      ),
+      onTap: () => onOpen(room),
+      onLongPress: () => onActions(room),
+    ),
+  );
+}
 
 class ChatRow extends StatelessWidget {
   static const avatarRadius = 26.0;
+  static const _compactAvatarRadius = 20.0;
 
   final ChatRowData data;
   final Client client;
   final Widget preview;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final bool compact;
 
   const ChatRow({
     required this.data,
@@ -23,6 +64,7 @@ class ChatRow extends StatelessWidget {
     required this.preview,
     this.onTap,
     this.onLongPress,
+    this.compact = false,
     super.key,
   });
 
@@ -47,7 +89,9 @@ class ChatRow extends StatelessWidget {
       onTap: onTap,
       onLongPress: onLongPress,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        padding: compact
+            ? const EdgeInsets.symmetric(horizontal: 16, vertical: 8)
+            : const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         child: Row(
           children: [
             RoomKindAvatar(
@@ -55,11 +99,10 @@ class ChatRow extends StatelessWidget {
               avatarUrl: data.avatarUrl,
               fallbackText: data.title,
               isDirect: data.isDirect,
-              community: data.community,
-              radius: avatarRadius,
+              radius: compact ? _compactAvatarRadius : avatarRadius,
               toneSeed: data.toneSeed,
             ),
-            const SizedBox(width: 14),
+            SizedBox(width: compact ? 12 : 14),
             Expanded(
               child: Column(
                 mainAxisSize: MainAxisSize.min,

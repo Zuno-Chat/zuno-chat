@@ -97,7 +97,8 @@ Shared pieces:
 
 | Piece | Used for |
 |---|---|
-| `CardListView`, `CardGroup`, `CircleIcon` | The grouped-card look of Settings, room info and the pages under them. |
+| `CardListView`, `CardGroup`, `CircleIcon` | The grouped-card look of Settings, room info and the pages under them. `SliverCardGroup` is the same card built lazily in a scroll view, with an optional tappable heading: the Communities tab and invitations. |
+| `TrailingActionRow` | A row's button beside its content, dropping below only when the content would get less room than the button, so large text and long translations never push it off screen. |
 | `StepLayout`, `StepHero` | One-question screens, with the actions pinned at the bottom above the keyboard. |
 | `TimelinePill` | The pill of the timeline's date labels and room updates. |
 | `RowMemo` | Returns the identical widget for an equal record from the same SDK object, so a list row rebuilds only when its value-equal record changes, and never keeps a `Room` the SDK has replaced. |

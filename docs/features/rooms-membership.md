@@ -11,7 +11,7 @@ the only source of truth.
 
 | Area | Components |
 |---|---|
-| Chat list | `RoomListPage` owns the new-chat flows and the long-press sheet, and `ChatListView` draws the list. The Chats and Communities tabs share one `arrangeHome` split per sync (`communities.md`). |
+| Chat list | `RoomListPage` owns the new-chat flows, `showRoomActions` is the long-press sheet for both tabs and the community page, and `ChatListView` draws the list. The Chats and Communities tabs share one `arrangeHome` split per sync (`communities.md`). |
 | Rows | Each visible room is read into a value-equal `ChatRowData`, and `RowMemo` hands back the identical `ChatRow` for an unchanged record (pattern: `app-foundation.md`). Incoming invitations sit above the rows, built lazily and memoized the same way. |
 | Directory | `public_rooms_sheet.dart` searches the server directory. The chat list joins the chosen room and opens it once sync brings it. |
 | Access | `room_access.dart` treats access as one concept over two server facts, the join rule and the directory listing (table under Decisions). |
@@ -161,7 +161,7 @@ files, and the media viewer pages through it (`chats-messaging.md`).
 - **Member state is not loaded at cold start**, so invitation checks after a restart read the `RoomSummary` counts and heroes, and `loadInviteMembers` restores the member state before an accept or decline.
 - **A member event whose sender is its own subject is an SDK-made substitute**, since nobody invites themselves, so it is treated as not loaded rather than allowed to overwrite real invite data.
 - **Never reload members right after changing one**, because `requestParticipants` would re-read the database and restore the old membership, so room info edits its list in place.
-- **Mute shows as asked on every surface at once, and the next change waits, briefly at most, until sync delivers `m.push_rules`**, because `setPushRuleState` compares against a value only that sync updates; the asked state stays shown until it lands.
+- **Mute shows as asked on every surface at once, and the next change waits, briefly at most, until sync delivers `m.push_rules`**, because `setPushRuleState` compares against a value only that sync updates; the asked state stays shown until it lands, and asking or dropping it rebuilds every `RoomChanges` that covers the room.
 - **A field missing from `ChatRowData` is a stale row**: the record must hold everything the row or its preview shows.
 - **The list delegate needs `findChildIndexCallback` keyed on the room ID**, or a chat jumping to the top remounts every row in between.
 - **Every text line in a row is strut-locked** (`core/ui/line_strut.dart`), because the list is fixed-extent and fallback fonts would otherwise grow a row.

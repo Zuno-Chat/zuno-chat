@@ -45,6 +45,7 @@ void main() {
   late int loads;
   late bool offline;
   bool Function(String path)? refuse;
+  Completer<void>? holdPushRules;
   Room? opened;
 
   void putState(
@@ -127,6 +128,7 @@ void main() {
     opened = null;
     offline = false;
     refuse = null;
+    holdPushRules = null;
     stored = _StoredStateDatabase();
     client = buildTestClient(
       userId: _me,
@@ -137,6 +139,7 @@ void main() {
         if (offline) {
           throw http.ClientException('Failed host lookup', request.url);
         }
+        if (path.contains('/pushrules/')) await holdPushRules?.future;
         if (refuse?.call(path) ?? false) {
           return http.Response(
             jsonEncode({'errcode': 'M_FORBIDDEN', 'error': 'no'}),
@@ -308,6 +311,22 @@ void main() {
     expect(find.text('Beginners'), findsOneWidget);
     expect(find.text('8 members · Start here if you are new'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Join'), findsOneWidget);
+  });
+
+  testWidgets('a room you can join keeps its button on its row, topic and '
+      'all', (tester) async {
+    await pump(tester);
+
+    more.complete([chunk('!beginners:example.org', 'Beginners')]);
+    await tester.pump();
+
+    final name = tester.getRect(find.text('Beginners'));
+    final topic = tester.getRect(
+      find.text('8 members · Start here if you are new'),
+    );
+    final join = tester.getRect(find.widgetWithText(FilledButton, 'Join'));
+    expect(join.left, greaterThan(topic.right));
+    expect(join.top, lessThan(name.bottom));
   });
 
   testWidgets('joining a room joins it through the servers the community lists '
@@ -954,6 +973,45 @@ void main() {
 
       expect(find.text('Change role'), findsNothing);
       expect(find.text('Remove from community'), findsNothing);
+    });
+  });
+
+  group('long-pressing a room you are in', () {
+    Future<void> openRoomMenu(WidgetTester tester) async {
+      member('!gear:example.org', 'Gear swap').notificationCount = 2;
+      await pump(tester);
+      more.complete(const []);
+      await tester.longPress(find.text('Gear swap'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('offers the same menu as on the home page', (tester) async {
+      await openRoomMenu(tester);
+
+      expect(find.text('Mark as read'), findsOneWidget);
+      expect(find.text('Mute'), findsOneWidget);
+      expect(find.text('Leave room'), findsOneWidget);
+    });
+
+    testWidgets('Mute shows the room muted at once, and a refusal shows it '
+        'unmuted again', (tester) async {
+      final answer = holdPushRules = Completer<void>();
+      refuse = (path) => path.contains('/pushrules/');
+      Finder mutedBell() => find.descendant(
+        of: find.byType(ChatRow),
+        matching: find.byIcon(Icons.notifications_off_outlined),
+      );
+      await openRoomMenu(tester);
+
+      await tester.tap(find.text('Mute'));
+      await tester.pumpAndSettle();
+      expect(mutedBell(), findsOneWidget);
+
+      answer.complete();
+      await tester.pumpAndSettle();
+
+      expect(mutedBell(), findsNothing);
+      expect(find.textContaining('Not muted.'), findsOneWidget);
     });
   });
 

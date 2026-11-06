@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/rooms/communities.dart';
+import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/core/ui/empty_state.dart';
 import 'package:zuno/core/ui/section_label.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
@@ -29,8 +30,9 @@ void main() {
     client.setUserId('@me:example.org');
   });
 
-  Room joined(String id, String body) {
-    final room = buildTestRoom(client, id: id)..partial = false;
+  Room joined(String id, String body, {DateTime? at, int unread = 0}) {
+    final room = buildTestRoom(client, id: id, notificationCount: unread)
+      ..partial = false;
     room.setState(
       buildTestEvent(
         room,
@@ -46,7 +48,7 @@ void main() {
       eventId: '\$msg-$id',
       senderId: '@bob:example.org',
       content: {'msgtype': 'm.text', 'body': body},
-      originServerTs: DateTime(2026, 9, 20, 9, 41),
+      originServerTs: at ?? DateTime(2026, 9, 20, 9, 41),
     );
     return room;
   }
@@ -290,20 +292,124 @@ void main() {
     expect(find.text('spare shoes in 41'), findsNothing);
   });
 
-  testWidgets('communities show one row each with their newest room, and no '
-      'chats', (tester) async {
+  Finder card(String name) => find.ancestor(
+    of: find.text(name),
+    matching: find.byType(SliverCardGroup),
+  );
+
+  Finder inCard(String community, String text) =>
+      find.descendant(of: card(community), matching: find.text(text));
+
+  double top(WidgetTester tester, String text) =>
+      tester.getTopLeft(find.text(text)).dy;
+
+  testWidgets('each community is a card of every room joined in it, newest '
+      'first, and no chats', (tester) async {
     final chat = joined('a', 'hello');
-    final gear = joined('gear', 'spare shoes in 41');
-    community('!club', 'Climbing club', [gear]);
+    final gear = joined('gear', 'spare shoes in 41', at: DateTime(2026, 9, 20));
+    final news = joined('news', 'wall 3 is closed', at: DateTime(2026, 9, 21));
+    community('!club', 'Climbing club', [gear, news]);
     client.rooms.add(chat);
 
     await pump(tester, client.rooms, communities: true);
 
-    expect(find.byType(ChatRow), findsOneWidget);
-    expect(find.text('Climbing club'), findsOneWidget);
-    expect(find.text('Room gear ·', findRichText: true), findsOneWidget);
+    expect(find.byType(SliverCardGroup), findsOneWidget);
+    expect(inCard('Climbing club', 'Room gear'), findsOneWidget);
+    expect(inCard('Climbing club', 'Room news'), findsOneWidget);
     expect(find.text('spare shoes in 41'), findsOneWidget);
+    expect(find.text('wall 3 is closed'), findsOneWidget);
+    expect(top(tester, 'Climbing club'), lessThan(top(tester, 'Room news')));
+    expect(top(tester, 'Room news'), lessThan(top(tester, 'Room gear')));
     expect(find.text('Room a'), findsNothing);
+  });
+
+  testWidgets('cards are ordered by their newest room', (tester) async {
+    community('!club', 'Climbing club', [
+      joined('gear', 'hi', at: DateTime(2026, 9, 20)),
+    ]);
+    community('!family', 'Okafor family', [
+      joined('general', 'landed', at: DateTime(2026, 9, 21)),
+    ]);
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(find.byType(SliverCardGroup), findsNWidgets(2));
+    expect(
+      top(tester, 'Okafor family'),
+      lessThan(top(tester, 'Climbing club')),
+    );
+  });
+
+  testWidgets('the heading shows no count; each room shows its own', (
+    tester,
+  ) async {
+    community('!club', 'Climbing club', [
+      joined('gear', 'hi', unread: 2, at: DateTime(2026, 9, 20)),
+      joined('news', 'hey', unread: 3, at: DateTime(2026, 9, 21)),
+    ]);
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('3'), findsOneWidget);
+    expect(find.text('5'), findsNothing);
+  });
+
+  testWidgets('tapping and long-pressing a room in a card report the room', (
+    tester,
+  ) async {
+    final gear = joined('gear', 'hi');
+    community('!club', 'Climbing club', [gear]);
+    Room? opened;
+    Room? actedOn;
+
+    await pump(
+      tester,
+      client.rooms,
+      communities: true,
+      onOpen: (r) => opened = r,
+      onActions: (r) => actedOn = r,
+    );
+    await tester.tap(find.text('Room gear'));
+    await tester.longPress(find.text('Room gear'));
+
+    expect(opened, same(gear));
+    expect(actedOn, same(gear));
+  });
+
+  testWidgets('rooms in a card are compact rows', (tester) async {
+    community('!club', 'Climbing club', [joined('gear', 'hi')]);
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(tester.widget<ChatRow>(find.byType(ChatRow)).compact, isTrue);
+  });
+
+  testWidgets('a room in two joined communities shows in both cards', (
+    tester,
+  ) async {
+    final shared = joined('carpool', 'leaving at 8');
+    community('!club', 'Climbing club', [shared]);
+    community('!family', 'Okafor family', [shared]);
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(inCard('Climbing club', 'Room carpool'), findsOneWidget);
+    expect(inCard('Okafor family', 'Room carpool'), findsOneWidget);
+  });
+
+  testWidgets('an unchanged room in a card keeps the identical row across '
+      'rebuilds', (tester) async {
+    community('!club', 'Climbing club', [joined('gear', 'hi')]);
+    await pump(tester, client.rooms, communities: true);
+    final before = tester.widget<ChatRow>(find.byType(ChatRow));
+
+    await pump(tester, client.rooms, communities: true);
+
+    expect(
+      identical(before, tester.widget<ChatRow>(find.byType(ChatRow))),
+      isTrue,
+    );
   });
 
   testWidgets('no communities shows its own empty state', (tester) async {
@@ -332,11 +438,11 @@ void main() {
     expect(find.text('Communities'), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('Join')).dy,
-      lessThan(tester.getTopLeft(find.byType(ChatRow)).dy),
+      lessThan(tester.getTopLeft(find.text('Climbing club')).dy),
     );
   });
 
-  testWidgets('tapping and long-pressing a community report the community', (
+  testWidgets('tapping and long-pressing a heading report the community', (
     tester,
   ) async {
     final club = community('!club', 'Climbing club', [joined('gear', 'hi')]);
@@ -357,19 +463,28 @@ void main() {
     expect(actedOn, club);
   });
 
-  testWidgets('a community with none of its rooms joined says so', (
-    tester,
-  ) async {
-    community('!club', 'Climbing club', const []);
+  testWidgets('a community with none of its rooms joined says so in its '
+      'card, and tapping that opens the community', (tester) async {
+    final club = community('!club', 'Climbing club', const []);
+    Room? opened;
 
-    await pump(tester, client.rooms, communities: true);
+    await pump(
+      tester,
+      client.rooms,
+      communities: true,
+      onOpen: (r) => opened = r,
+    );
 
-    expect(find.text('Climbing club'), findsOneWidget);
-    expect(find.text('No rooms joined yet'), findsOneWidget);
+    expect(inCard('Climbing club', 'No rooms joined yet'), findsOneWidget);
     expect(find.byType(EmptyState), findsNothing);
+    expect(find.byType(ChatRow), findsNothing);
+
+    await tester.tap(find.text('No rooms joined yet'));
+
+    expect(opened, same(club));
   });
 
-  testWidgets('a community row survives the layout matrix', (tester) async {
+  testWidgets('a community card survives the layout matrix', (tester) async {
     final gear = joined(
       'gear',
       'Maya: I have spare shoes in size 41 if anyone needs them',

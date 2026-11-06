@@ -8,6 +8,7 @@ import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/data/chat_row_data.dart';
 import 'package:zuno/features/rooms/presentation/chat_row.dart';
+import 'package:zuno/features/rooms/presentation/room_kind_avatar.dart';
 
 import '../../../helpers/fake_matrix.dart';
 
@@ -50,6 +51,7 @@ void main() {
     ChatRowData row, {
     VoidCallback? onTap,
     VoidCallback? onLongPress,
+    bool compact = false,
   }) => tester.pumpWidget(
     MaterialApp(
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -62,6 +64,7 @@ void main() {
           preview: const Text('See you at seven'),
           onTap: onTap,
           onLongPress: onLongPress,
+          compact: compact,
         ),
       ),
     ),
@@ -202,5 +205,27 @@ void main() {
     expect(busy, plain);
     expect(prototype, plain);
     expect(plain, 72);
+  });
+
+  testWidgets('a compact row, for inside a card, has a smaller avatar, the '
+      "card's padding and the same type", (tester) async {
+    await pump(tester, data());
+    final regularName = nameText(tester).style;
+    final regularHeight = tester.getSize(find.byType(ChatRow)).height;
+
+    await pump(tester, data(), compact: true);
+
+    final avatar = tester.widget<RoomKindAvatar>(find.byType(RoomKindAvatar));
+    expect(avatar.radius, lessThan(ChatRow.avatarRadius));
+    expect(
+      tester.getTopLeft(find.byType(RoomKindAvatar)).dx -
+          tester.getTopLeft(find.byType(ChatRow)).dx,
+      16,
+    );
+    expect(nameText(tester).style, regularName);
+    expect(
+      tester.getSize(find.byType(ChatRow)).height,
+      lessThan(regularHeight),
+    );
   });
 }

@@ -127,6 +127,35 @@ void main() {
     });
   });
 
+  test('asking tells listeners at once, and again once the server answers', () {
+    fakeAsync((async) {
+      final told = <String>[];
+      roomMuteChanges(client).listen(told.add);
+
+      setRoomMuted(room, true);
+      async.flushMicrotasks();
+      expect(told, [room.id]);
+
+      serverSaysMuted(true);
+      async.flushMicrotasks();
+      expect(told, [room.id, room.id]);
+    });
+  });
+
+  test('a refused change tells listeners it fell back', () {
+    fakeAsync((async) {
+      refuse = true;
+      final told = <String>[];
+      roomMuteChanges(client).listen(told.add);
+
+      setRoomMuted(room, true).then((_) {}, onError: (Object _) {});
+      async.flushMicrotasks();
+
+      expect(told, [room.id, room.id]);
+      expect(isRoomMuted(room), isFalse);
+    });
+  });
+
   test('a refused change falls back to what the server has, and fails', () {
     fakeAsync((async) {
       refuse = true;

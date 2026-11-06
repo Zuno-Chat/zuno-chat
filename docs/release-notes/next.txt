@@ -3,9 +3,10 @@ New
 • A soft tone when someone joins your call.
 • Sign up with server registration token.
 • Sign in and create an account on servers that use their own sign-in page.
-• Usernames can use more characters, and passwords can be 8 characters with a mix of letters, numbers and symbols.
+• Usernames can use more characters, and passwords can be shorter.
 • What you type in a chat waits there when you leave it.
 • Pick any emoji from the message box, with search.
 • Tap a face in a room to see who it is.
+• Your rooms show right under each community.
 
-Fixed 37 bugs.
+Fixed 38 bugs.

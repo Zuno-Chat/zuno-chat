@@ -1,9 +1,12 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/rooms/room_changes.dart';
+import 'package:zuno/core/matrix/rooms/room_mute.dart';
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
 const roomId = '!room:example.org';
@@ -233,6 +236,29 @@ void main() {
       await settle(tester);
 
       expect(builds, 1);
+    });
+
+    testWidgets('a mute asked for the room rebuilds it; another room\'s '
+        'leaves it alone', (tester) async {
+      final refusing = buildTestClient(
+        userId: '@me:example.org',
+        httpClient: FakeHttpClient(
+          (_) async => http.Response('{"errcode":"M_FORBIDDEN"}', 403),
+        ),
+      );
+      final muted = buildTestRoom(refusing)..membership = Membership.join;
+      final elsewhere = buildTestRoom(refusing, id: otherId)
+        ..membership = Membership.join;
+      await tester.pumpWidget(counted(RoomChanges.state(muted)));
+      builds = 0;
+
+      await setRoomMuted(elsewhere, true).then((_) {}, onError: (Object _) {});
+      await settle(tester);
+      expect(builds, 0);
+
+      await setRoomMuted(muted, true).then((_) {}, onError: (Object _) {});
+      await settle(tester);
+      expect(builds, greaterThan(0));
     });
 
     testWidgets('while covered it waits, then rebuilds once on return', (
