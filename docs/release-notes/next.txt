@@ -9,4 +9,4 @@ New
 • Tap a face in a room to see who it is.
 • Your rooms show right under each community.
 
-Fixed 38 bugs.
+Fixed 39 bugs.

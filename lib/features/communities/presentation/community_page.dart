@@ -13,6 +13,7 @@ import '../../../core/format/date_labels.dart';
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/rooms/communities.dart';
+import '../../../core/matrix/rooms/joinable_rooms_feed.dart';
 import '../../../core/matrix/rooms/membership/join_requests.dart';
 import '../../../core/matrix/rooms/membership/join_room.dart';
 import '../../../core/matrix/rooms/membership/room_exit.dart';
@@ -25,6 +26,7 @@ import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/navigation/launch_route.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/failure_notice.dart';
+import '../../../core/ui/load_more_trigger.dart';
 import '../../../core/ui/notice.dart';
 import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
@@ -43,10 +45,6 @@ import '../../rooms/presentation/chat_row.dart';
 import '../../rooms/presentation/new_room_dialog.dart';
 import '../../rooms/presentation/room_actions.dart';
 import '../../rooms/presentation/room_kind_avatar.dart';
-
-typedef CommunityRoomsLoader = Future<List<SpaceRoomsChunk$2>> Function(
-  Room community,
-);
 
 typedef RoomOpener = void Function(BuildContext context, Room room);
 
@@ -77,12 +75,12 @@ enum _Menu { settings, permissions, leave }
 
 class CommunityPage extends ConsumerStatefulWidget {
   final Room community;
-  final CommunityRoomsLoader loadRooms;
+  final CommunityRoomsPageLoader loadRooms;
   final RoomOpener openRoom;
 
   const CommunityPage({
     required this.community,
-    this.loadRooms = joinableCommunityRooms,
+    this.loadRooms = communityRoomsPage,
     this.openRoom = _pushRoomPage,
     super.key,
   });
@@ -95,8 +93,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     with RouteSettled {
   final _memo = RowMemo<ChatRowData>();
   final _joining = <String>{};
-  List<SpaceRoomsChunk$2>? _more;
-  bool _failed = false;
+  late final _more = JoinableRoomsFeed(_community, loadPage: widget.loadRooms);
   bool _loadingMembers = false;
 
   Room get _community => widget.community;
@@ -106,6 +103,12 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
   void initState() {
     super.initState();
     if (_community.partial) unawaited(_loadFullState());
+  }
+
+  @override
+  void dispose() {
+    _more.dispose();
+    super.dispose();
   }
 
   bool _concerns(SyncUpdate update) {
@@ -137,18 +140,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
   }
 
   @override
-  void onRouteSettled() => unawaited(_loadMore());
-
-  Future<void> _loadMore() async {
-    setState(() => _failed = false);
-    try {
-      final rooms = await widget.loadRooms(_community);
-      if (mounted) setState(() => _more = rooms);
-    } catch (e, s) {
-      reportCaught('community rooms', e, s);
-      if (mounted) setState(() => _failed = true);
-    }
-  }
+  void onRouteSettled() => unawaited(_more.refresh());
 
   List<String> _viaFor(String roomId) {
     for (final child in _community.spaceChildren) {
@@ -333,7 +325,10 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     return RoomChangesBuilder(
       changes: RoomChanges.where(_client, syncs: _concerns, mutes: _holdsRoom),
       onChange: _closeIfLeft,
-      builder: (context) => _page(context, corrections, asked),
+      builder: (context) => ListenableBuilder(
+        listenable: _more,
+        builder: (context, _) => _page(context, corrections, asked),
+      ),
     );
   }
 
@@ -345,11 +340,9 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     final community = _community;
     final rooms = communityRooms(community);
     _memo.retainOnly(rooms.map((room) => room.id));
-    final joinable = _more
-        ?.where(
-          (c) => _client.getRoomById(c.roomId)?.membership != Membership.join,
-        )
-        .toList();
+    final loaded = _more.rooms;
+    final joinable = loaded ?? const [];
+    final footer = _footer(context, loaded: loaded != null);
     final canInvite = community.canInvite;
     final canAddRooms = community.canChangeStateEvent(EventTypes.SpaceChild);
     final now = clock.now();
@@ -387,7 +380,7 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
         ],
       ),
       body: RefreshIndicator(
-        onRefresh: _loadMore,
+        onRefresh: _more.refresh,
         child: MediaQuery.removePadding(
           context: context,
           removeBottom: true,
@@ -443,30 +436,17 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
                       _roomRow(rooms[index], corrections, now, labels),
                 ),
               ],
-              if (_failed)
-                SliverToBoxAdapter(
-                  child: FailureNotice(
-                    message: l10n.communitiesLoadFailed,
-                    onRetry: _loadMore,
-                  ),
-                )
-              else if (joinable == null)
-                const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                )
-              else if (joinable.isNotEmpty) ...[
+              if (joinable.isNotEmpty)
                 SliverToBoxAdapter(
                   child: SectionLabel(l10n.communitiesMoreRooms),
                 ),
-                SliverList.builder(
-                  itemCount: joinable.length,
-                  itemBuilder: (context, index) =>
-                      _joinable(joinable[index], asked),
-                ),
-              ] else if (rooms.isEmpty)
+              SliverList.builder(
+                itemCount: joinable.length + (footer == null ? 0 : 1),
+                itemBuilder: (context, index) => index < joinable.length
+                    ? _joinable(joinable[index], asked)
+                    : footer,
+              ),
+              if (footer == null && joinable.isEmpty && rooms.isEmpty)
                 SliverToBoxAdapter(child: _NoRooms(canAddRooms: canAddRooms)),
               SliverToBoxAdapter(child: SizedBox(height: 24 + bottomInset)),
             ],
@@ -475,6 +455,34 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
       ),
     );
   }
+
+  Widget? _footer(BuildContext context, {required bool loaded}) {
+    if (_more.failed) {
+      return FailureNotice(
+        message: context.l10n.communitiesLoadFailed,
+        onRetry: _more.retry,
+      );
+    }
+    if (!loaded || _more.loading) {
+      return const _ListEnd(child: CircularProgressIndicator());
+    }
+    if (!_more.hasMore) return null;
+    return _ListEnd(
+      child: LoadMoreTrigger(onVisible: () => unawaited(_more.loadMore())),
+    );
+  }
+}
+
+class _ListEnd extends StatelessWidget {
+  final Widget child;
+
+  const _ListEnd({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.all(24),
+    child: Center(child: child),
+  );
 }
 
 class _MembersButton extends StatelessWidget {

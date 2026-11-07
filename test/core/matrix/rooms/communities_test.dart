@@ -777,58 +777,5 @@ void main() {
         isEmpty,
       );
     });
-
-    test('a community whose listed rooms are all joined asks the server '
-        'nothing', () async {
-      final gear = addRoom(client, '!gear:example.org');
-      final club = addSpace(client, '!club:example.org', children: [gear.id]);
-
-      expect(await joinableCommunityRooms(club), isEmpty);
-      expect(requests, isEmpty);
-    });
-
-    test(
-      'joinable rooms come from one hierarchy request and leave out the '
-      'community itself, other communities and rooms already joined',
-      () async {
-        addRoom(client, '!joined:example.org');
-        final club = addSpace(
-          client,
-          '!club:example.org',
-          children: [
-            '!joined:example.org',
-            '!nested:example.org',
-            '!open:example.org',
-          ],
-        );
-        Map<String, Object?> chunk(String id, {String? type}) => {
-          'room_id': id,
-          'name': id,
-          'num_joined_members': 3,
-          'guest_can_join': false,
-          'world_readable': false,
-          'children_state': <Object>[],
-          'room_type': ?type,
-        };
-        respond = (request) => http.Response(
-          jsonEncode({
-            'rooms': [
-              chunk(club.id, type: 'm.space'),
-              chunk('!joined:example.org'),
-              chunk('!nested:example.org', type: 'm.space'),
-              chunk('!open:example.org'),
-            ],
-          }),
-          200,
-        );
-
-        final rooms = await joinableCommunityRooms(club);
-
-        expect(rooms.map((r) => r.roomId), ['!open:example.org']);
-        final request = requests.single;
-        expect(request.url.path, endsWith('/hierarchy'));
-        expect(request.url.queryParameters['max_depth'], '1');
-      },
-    );
   });
 }

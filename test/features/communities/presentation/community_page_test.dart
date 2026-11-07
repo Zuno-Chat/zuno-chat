@@ -11,6 +11,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/rooms/joinable_rooms_feed.dart';
 import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
@@ -26,7 +27,8 @@ import '../../../helpers/route_launcher.dart';
 
 const _me = '@me:example.org';
 
-class _StoredStateDatabase extends TimelineCapableFakeDatabaseApi {
+class _StoredStateDatabase extends TimelineCapableFakeDatabaseApi
+    with MediaCapableDatabase {
   List<Event> states = [];
 
   @override
@@ -146,6 +148,14 @@ void main() {
             403,
           );
         }
+        if (path.endsWith('/versions')) {
+          return http.Response(
+            jsonEncode({
+              'versions': ['v1.11'],
+            }),
+            200,
+          );
+        }
         if (path.endsWith('/members')) {
           return http.Response(
             jsonEncode({
@@ -206,11 +216,22 @@ void main() {
       'invite': 0,
       'events': {EventTypes.SpaceChild: 50},
     });
+    putState(club, EventTypes.SpaceChild, {
+      'via': ['example.org'],
+    }, stateKey: '!beginners:example.org');
     club.summary.mJoinedMemberCount = 24;
     client.rooms.add(club);
   });
 
-  Future<void> pump(WidgetTester tester) async {
+  GetSpaceHierarchyResponse page(
+    List<SpaceRoomsChunk$2> rooms, {
+    String? next,
+  }) => GetSpaceHierarchyResponse(rooms: rooms, nextBatch: next);
+
+  Future<void> pump(
+    WidgetTester tester, {
+    CommunityRoomsPageLoader? loadRooms,
+  }) async {
     more = Completer();
     final scope = await overrides();
     await tester.pumpWidget(
@@ -222,10 +243,12 @@ void main() {
           theme: zunoLightTheme,
           home: CommunityPage(
             community: club,
-            loadRooms: (_) {
-              loads++;
-              return more.future;
-            },
+            loadRooms:
+                loadRooms ??
+                (_, {from}) {
+                  loads++;
+                  return more.future.then(page);
+                },
             openRoom: (_, room) => opened = room,
           ),
         ),
@@ -249,7 +272,7 @@ void main() {
           home: routeLauncher(
             (_) => CommunityPage(
               community: club,
-              loadRooms: (_) async => const [],
+              loadRooms: (_, {from}) async => page(const []),
             ),
             chat: overChat,
           ),
@@ -402,6 +425,103 @@ void main() {
     expect(loads, 2);
     expect(find.text('Trips'), findsOneWidget);
     expect(find.text('Could not load more rooms.'), findsNothing);
+  });
+
+  group('more rooms than one page', () {
+    late List<String?> asked;
+
+    CommunityRoomsPageLoader pages(
+      FutureOr<GetSpaceHierarchyResponse> Function(String? from) answer,
+    ) => (_, {from}) async {
+      asked.add(from);
+      return answer(from);
+    };
+
+    setUp(() => asked = []);
+
+    testWidgets('scrolling to the end loads the next rooms', (tester) async {
+      await pump(
+        tester,
+        loadRooms: pages(
+          (from) => from == null
+              ? page([
+                  for (var i = 1; i <= 20; i++)
+                    chunk('!room$i:example.org', 'Room $i'),
+                ], next: 'p2')
+              : page([chunk('!room21:example.org', 'Room 21')]),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Room 1'), findsOneWidget);
+      expect(asked, [null]);
+
+      await tester.scrollUntilVisible(
+        find.text('Room 21'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pump();
+
+      expect(asked, [null, 'p2']);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('a later page that fails keeps the rooms shown and tries '
+        'again', (tester) async {
+      var later = 0;
+      await pump(
+        tester,
+        loadRooms: pages(
+          (from) => switch (from) {
+            null => page([
+              chunk('!beginners:example.org', 'Beginners'),
+            ], next: 'p2'),
+            _ when later++ == 0 => throw Exception('offline'),
+            _ => page([chunk('!trips:example.org', 'Trips')]),
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Beginners'), findsOneWidget);
+      expect(find.text('Could not load more rooms.'), findsOneWidget);
+
+      await tester.tap(find.text('Try again'));
+      await tester.pump();
+
+      expect(asked, [null, 'p2', 'p2']);
+      expect(find.text('Beginners'), findsOneWidget);
+      expect(find.text('Trips'), findsOneWidget);
+      expect(find.text('Could not load more rooms.'), findsNothing);
+    });
+
+    testWidgets('pulling down starts the list over', (tester) async {
+      var starts = 0;
+      await pump(
+        tester,
+        loadRooms: pages(
+          (_) => starts++ == 0
+              ? page([chunk('!beginners:example.org', 'Beginners')])
+              : page([chunk('!trips:example.org', 'Trips')]),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Beginners'), findsOneWidget);
+
+      await tester.fling(
+        find.byType(CustomScrollView),
+        const Offset(0, 400),
+        1000,
+      );
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+
+      expect(asked, [null, null]);
+      expect(find.text('Beginners'), findsNothing);
+      expect(find.text('Trips'), findsOneWidget);
+    });
   });
 
   testWidgets('a community with no rooms says so', (tester) async {
@@ -705,7 +825,7 @@ void main() {
           theme: zunoLightTheme,
           home: CommunityPage(
             community: club,
-            loadRooms: (_) async => const [],
+            loadRooms: (_, {from}) async => page(const []),
           ),
         ),
       ),
@@ -1049,7 +1169,7 @@ void main() {
         overrides: scope,
         child: CommunityPage(
           community: club,
-          loadRooms: (_) async => [
+          loadRooms: (_, {from}) async => page([
             chunk(
               '!beginners:example.org',
               'Beginners who have never climbed before',
@@ -1065,7 +1185,7 @@ void main() {
               'Coaches for the youth team on weekday evenings',
               joinRule: 'knock',
             ),
-          ],
+          ]),
           openRoom: (_, _) {},
         ),
       ),

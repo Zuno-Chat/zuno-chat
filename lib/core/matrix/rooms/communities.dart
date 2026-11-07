@@ -17,8 +17,6 @@ const communityPowerLevels = <String, Object?>{
   'events': {EventTypes.SpaceChild: 50},
 };
 
-const _hierarchyPageSize = 50;
-
 class RoomNotAddedToCommunity implements Exception {
   final String roomId;
 
@@ -235,23 +233,4 @@ Future<void> _awaitInSync(Client client, String roomId) async {
   if (client.getRoomById(roomId) == null) {
     await client.waitForRoomInSync(roomId, join: true);
   }
-}
-
-Future<List<SpaceRoomsChunk$2>> joinableCommunityRooms(Room community) async {
-  final client = community.client;
-  final unjoined = communityChildIds(community)
-      .where((id) => client.getRoomById(id)?.membership != Membership.join);
-  if (unjoined.isEmpty) return const [];
-  final response = await client.getSpaceHierarchy(
-    community.id,
-    maxDepth: 1,
-    limit: _hierarchyPageSize,
-  );
-  return [
-    for (final chunk in response.rooms)
-      if (chunk.roomId != community.id &&
-          chunk.roomType != RoomCreationTypes.mSpace &&
-          client.getRoomById(chunk.roomId)?.membership != Membership.join)
-        chunk,
-  ];
 }

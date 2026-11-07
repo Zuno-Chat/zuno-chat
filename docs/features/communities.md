@@ -6,7 +6,8 @@ Matrix spaces, called communities in the app: a family, club or team with severa
 
 | Piece | Role |
 |---|---|
-| `core/matrix/rooms/communities.dart` | `arrangeHome` splits the rooms once per sync, and one result feeds both tabs and the unread dots in the bottom bar. The file also holds community creation, leaving, and the `/hierarchy` read. |
+| `core/matrix/rooms/communities.dart` | `arrangeHome` splits the rooms once per sync, and one result feeds both tabs and the unread dots in the bottom bar. The file also holds community creation and leaving. |
+| `core/matrix/rooms/joinable_rooms_feed.dart` | The rooms `CommunityPage` offers to join, read from `/hierarchy` a page at a time. |
 | `rooms/presentation/home_bottom_bar.dart` | The tab pill, with the + button beside it. Only the visible tab is built. |
 | `ChatListView` | One list widget for both tabs, its section picking the feed. On Communities, each joined community is a card (`SliverCardGroup`): a heading that opens the community, then its rooms as compact `ChatRow`s, or a line saying none are joined that also opens it. |
 | `communities/presentation/community_page.dart` | The header, your rooms, joinable rooms, members with their roles, and the community's settings, permissions and leave. Its rooms long-press into the same sheet as the home tab (`room_actions.dart`). |
@@ -23,7 +24,7 @@ Matrix spaces, called communities in the app: a family, club or team with severa
 | Community rooms | The joined rooms each community holds, except direct chats, newest first | Its community's card and `CommunityPage` |
 
 **Flows**
-- **Joinable rooms.** `/hierarchy`, one level deep, runs when the page opens and on pull to refresh, and only when the community lists a child you have not joined.
+- **Joinable rooms.** `/hierarchy`, one level deep, a page at a time: the first page when the page opens and on pull to refresh, the next as the end of the list comes into view, and nothing at all when the community lists no child you have not joined. A page with nothing new to join loads the next at once, so the list never waits on a spinner nobody can scroll to.
 - **New community.** One `createRoom` call with the space type and the community's power levels. A public community is listed in the same call, so a server that refuses the listing creates nothing.
 - **New room in a community.** The room carries its join rule and `m.space.parent` in its initial state, and then the community gets an `m.space.child` event. If that second write fails, the room exists outside the community, and the user is told so.
 - **Directory.** The server filters by room type: Find public communities asks for spaces only, and Find public rooms for rooms without a type.
@@ -63,3 +64,4 @@ A joinable room shows Join when its join rule is not `knock`, and Ask or Request
 - **The SDK never creates a `Room` for your own knock**, so the requested state is Zuno's to keep.
 - **`requestParticipants` caches members only in encrypted rooms unless asked to**, so the knock lookup asks explicitly.
 - **Removing someone from a community leaves them in its rooms**, and the dialog says so.
+- **The server forgets a `/hierarchy` position after a few minutes** and refuses it with `M_INVALID_PARAM`, so the list starts over and skips the rooms already shown.
