@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Ciemny",
   "settingsChatsCallsFollowSystem": "Jak w systemie",
   "settingsChatsCallsLight": "Jasny",
+  "settingsChatsCallsMatrixExperience": "Tryb Matrix",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Pokazuje pełne nazwy użytkowników i adresy pokoi, np. {username}",
   "settingsChatsCallsPreventAccidental": "Zapobiegaj przypadkowym połączeniom",
   "settingsChatsCallsPreventAccidentalSubtitle": "Pyta przed rozpoczęciem połączenia głosowego lub wideo",
   "settingsChatsCallsTitle": "Czaty i połączenia",

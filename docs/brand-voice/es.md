@@ -85,6 +85,7 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | approve (own device) | Aprobar / aprobar | |
 | verify, verification | verificar · la verificación | |
 | security details | los datos de seguridad | |
+| Matrix experience (the Settings switch) | Experiencia Matrix | |
 | key, room keys | la clave · las claves de las salas | |
 | backup, key backup, restore | la copia de seguridad · la copia de seguridad de claves · restaurar | |
 | security key, security phrase, recovery key | la clave de seguridad · la frase de seguridad · la clave de recuperación | |

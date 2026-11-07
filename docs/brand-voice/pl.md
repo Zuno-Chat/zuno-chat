@@ -87,6 +87,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | approve (own device) | Zatwierdź · zatwierdzenie | |
 | verify, verification | zweryfikuj · weryfikacja | |
 | security details | dane bezpieczeństwa | |
+| Matrix experience (the Settings switch) | Tryb Matrix | |
 | key, room keys | klucz · klucze pokoju | |
 | backup, key backup, restore | kopia zapasowa · kopia zapasowa kluczy · przywróć | |
 | security key, security phrase, recovery key | klucz bezpieczeństwa · fraza bezpieczeństwa · klucz odzyskiwania | |

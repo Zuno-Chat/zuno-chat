@@ -7,13 +7,13 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/format/date_labels.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/membership/rooms_in_common.dart';
 import '../../../core/matrix/rooms/permissions/room_roles.dart';
 import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/user_trust.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/sheet.dart';
@@ -167,7 +167,7 @@ class _PersonSheetState extends ConsumerState<_PersonSheet> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  withoutServer(user.id),
+                  context.matrixIdLabel(user.id),
                   style: theme.textTheme.bodyMedium?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

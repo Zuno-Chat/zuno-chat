@@ -12,20 +12,29 @@ Future<String?> showLocalUsernameDialog(
   required String title,
   required String actionLabel,
 }) async {
+  final server = ownServerName(client)!;
   final username = await showDialog<String>(
     context: context,
-    builder: (context) =>
-        _LocalUsernameDialog(title: title, actionLabel: actionLabel),
+    builder: (context) => _LocalUsernameDialog(
+      title: title,
+      actionLabel: actionLabel,
+      server: server,
+    ),
   );
   if (username == null || username.isEmpty) return null;
-  return '@$username:${ownServerName(client)!}';
+  return '@$username:$server';
 }
 
 class _LocalUsernameDialog extends StatefulWidget {
   final String title;
   final String actionLabel;
+  final String server;
 
-  const _LocalUsernameDialog({required this.title, required this.actionLabel});
+  const _LocalUsernameDialog({
+    required this.title,
+    required this.actionLabel,
+    required this.server,
+  });
 
   @override
   State<_LocalUsernameDialog> createState() => _LocalUsernameDialogState();
@@ -33,6 +42,11 @@ class _LocalUsernameDialog extends StatefulWidget {
 
 class _LocalUsernameDialogState extends State<_LocalUsernameDialog> {
   final _controller = TextEditingController();
+  late final _formatters = [
+    ownServerIdFormatter(widget.server),
+    lowercaseFormatter,
+    usernameCharsFormatter,
+  ];
 
   @override
   void dispose() {
@@ -51,7 +65,7 @@ class _LocalUsernameDialogState extends State<_LocalUsernameDialog> {
         controller: _controller,
         autofocus: true,
         onSubmitted: (_) => _submit(),
-        inputFormatters: [lowercaseFormatter, usernameCharsFormatter],
+        inputFormatters: _formatters,
         decoration: InputDecoration(
           prefixText: '@',
           border: const OutlineInputBorder(),

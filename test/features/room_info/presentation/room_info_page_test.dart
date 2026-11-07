@@ -16,6 +16,7 @@ import 'package:zuno/core/matrix/rooms/optimistic_room_state.dart';
 import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
+import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/media_viewer_page.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
@@ -190,6 +191,7 @@ void main() {
     int? joinedCount,
     bool pushed = false,
     String? overChat,
+    bool matrixExperience = false,
   }) async {
     final members = room.getParticipants();
     room.summary.mJoinedMemberCount =
@@ -231,6 +233,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           navigatorObservers: [chats],
+          builder: (context, child) =>
+              MatrixExperience(on: matrixExperience, child: child!),
           home: pushed
               ? Scaffold(
                   body: routeLauncher<RoomInfoResult>(
@@ -868,6 +872,13 @@ void main() {
     });
   }
 
+  void seedChessRoom({int ownLevel = 100}) {
+    seedAdminRoom(ownLevel: ownLevel);
+    applyOptimisticRoomState(room, EventTypes.RoomCanonicalAlias, {
+      'alias': '#chess:example.org',
+    });
+  }
+
   Future<void> openMember(WidgetTester tester, String name) async {
     await tester.tap(find.text(name));
     await tester.pumpAndSettle();
@@ -1480,10 +1491,7 @@ void main() {
         null,
       ),
     );
-    seedAdminRoom();
-    applyOptimisticRoomState(room, EventTypes.RoomCanonicalAlias, {
-      'alias': '#chess:example.org',
-    });
+    seedChessRoom();
     await pumpPage(tester);
 
     await tester.tap(find.text('Room ID'));
@@ -1498,6 +1506,45 @@ void main() {
     expect(find.text('Room alias copied'), findsOneWidget);
 
     expect(copied, ['!room:example.org', '#chess:example.org']);
+  });
+
+  testWidgets('the room ID, address and usernames leave out the server', (
+    tester,
+  ) async {
+    seedChessRoom();
+    await pumpPage(tester);
+
+    expect(find.text('!room'), findsOneWidget);
+    expect(find.text('#chess'), findsOneWidget);
+    expect(find.text('@ann'), findsOneWidget);
+    expect(find.textContaining('example.org'), findsNothing);
+  });
+
+  testWidgets('with the Matrix experience on, the room ID, address and '
+      'usernames keep their server', (tester) async {
+    seedChessRoom();
+    await pumpPage(tester, matrixExperience: true);
+
+    expect(find.text('!room:example.org'), findsOneWidget);
+    expect(find.text('#chess:example.org'), findsNWidgets(2));
+    expect(find.text('@ann:example.org'), findsOneWidget);
+  });
+
+  testWidgets('with the Matrix experience on, a member who is not an admin '
+      'sees the room address under its name', (tester) async {
+    seedChessRoom(ownLevel: 0);
+    await pumpPage(tester, matrixExperience: true);
+
+    expect(find.text('#chess:example.org'), findsOneWidget);
+    expect(find.text('Advanced'), findsNothing);
+  });
+
+  testWidgets('with the Matrix experience off, a member who is not an admin '
+      'sees no room address', (tester) async {
+    seedChessRoom(ownLevel: 0);
+    await pumpPage(tester);
+
+    expect(find.textContaining('#chess'), findsNothing);
   });
 
   testWidgets('a room without an address offers only its ID to copy', (

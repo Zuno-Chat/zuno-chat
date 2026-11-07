@@ -89,6 +89,7 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | approve (own device) | Godkjenn · godkjenning | |
 | verify, verification | verifiser · verifisering | |
 | security details | sikkerhetsopplysninger | |
+| Matrix experience (the Settings switch) | Matrix-opplevelse | |
 | key, room keys | nøkkel · romnøkler | |
 | backup, key backup, restore | sikkerhetskopi · sikkerhetskopi av nøkler · gjenopprett | |
 | security key, security phrase, recovery key | sikkerhetsnøkkel · sikkerhetsfrase · gjenopprettingsnøkkel | |

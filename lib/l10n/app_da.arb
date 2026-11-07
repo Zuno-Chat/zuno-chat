@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Mørkt",
   "settingsChatsCallsFollowSystem": "Følg systemet",
   "settingsChatsCallsLight": "Lyst",
+  "settingsChatsCallsMatrixExperience": "Matrix-oplevelse",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Viser fulde brugernavne og rumadresser, f.eks. {username}",
   "settingsChatsCallsPreventAccidental": "Undgå utilsigtede opkald",
   "settingsChatsCallsPreventAccidentalSubtitle": "Spørger, før et tale- eller videoopkald startes",
   "settingsChatsCallsTitle": "Chats og opkald",

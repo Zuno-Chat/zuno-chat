@@ -89,6 +89,7 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | approve (own device) | Godkend · godkendelse | |
 | verify, verification | verificer · verificering | |
 | security details | sikkerhedsoplysninger | |
+| Matrix experience (the Settings switch) | Matrix-oplevelse | |
 | key, room keys | nøgle · rumnøgler | |
 | backup, key backup, restore | sikkerhedskopi · sikkerhedskopi af nøgler · gendan | |
 | security key, security phrase, recovery key | sikkerhedsnøgle · sikkerhedssætning · gendannelsesnøgle | |

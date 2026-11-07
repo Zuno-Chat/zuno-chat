@@ -13,6 +13,7 @@ import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/security/account_security_status.dart';
 import '../../../core/security/security_providers.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/circle_icon.dart';
@@ -270,7 +271,7 @@ class _ProfileRowState extends State<_ProfileRow> {
                   ),
                   Text(
                     context.l10n.settingsPageProfileSubtitle(
-                      userId.localpart ?? userId,
+                      context.matrixIdLabel(userId),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

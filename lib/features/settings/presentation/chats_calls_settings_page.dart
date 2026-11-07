@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/l10n/l10n.dart';
+import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
+import 'matrix_logo_icon.dart';
 
 class ChatsCallsSettingsPage extends ConsumerWidget {
   const ChatsCallsSettingsPage({super.key});
@@ -15,6 +17,8 @@ class ChatsCallsSettingsPage extends ConsumerWidget {
     final themeMode = ref.watch(themeModeProvider);
     final sendTypingIndicator = ref.watch(sendTypingIndicatorProvider);
     final confirmBeforeCalling = ref.watch(confirmBeforeCallingProvider);
+    final matrixExperience = ref.watch(matrixExperienceProvider);
+    final userId = ref.watch(matrixClientProvider).userID ?? '';
 
     return Scaffold(
       appBar: AppBar(title: Text(l10n.settingsChatsCallsTitle)),
@@ -56,6 +60,16 @@ class ChatsCallsSettingsPage extends ConsumerWidget {
                 value: sendTypingIndicator,
                 onChanged: (value) =>
                     ref.read(sendTypingIndicatorProvider.notifier).set(value),
+              ),
+              SwitchListTile(
+                secondary: const MatrixLogoIcon(),
+                title: Text(l10n.settingsChatsCallsMatrixExperience),
+                subtitle: Text(
+                  l10n.settingsChatsCallsMatrixExperienceSubtitle(userId),
+                ),
+                value: matrixExperience,
+                onChanged: (value) =>
+                    ref.read(matrixExperienceProvider.notifier).set(value),
               ),
             ],
           ),

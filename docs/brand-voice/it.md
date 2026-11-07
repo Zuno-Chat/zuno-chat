@@ -85,6 +85,7 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | approve (own device) | Approva / approvare | |
 | verify, verification | verificare · la verifica | |
 | security details | i dati di sicurezza | |
+| Matrix experience (the Settings switch) | Esperienza Matrix | |
 | key, room keys | la chiave · le chiavi delle stanze | |
 | backup, key backup, restore | il backup · il backup delle chiavi · ripristinare | |
 | security key, security phrase, recovery key | la chiave di sicurezza · la frase di sicurezza · la chiave di recupero | |

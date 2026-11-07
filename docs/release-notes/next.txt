@@ -1,13 +1,14 @@
 New
-• Tap an empty part of a chat to close the keyboard.
+• Tap a chat's empty space to close the keyboard.
 • A soft tone when someone joins your call.
 • Sign up with server registration token.
-• Sign in and sign up on servers with their own sign-in page.
-• Usernames can use more characters, and passwords can be shorter.
+• Sign in on servers with their own sign-in page.
+• More username characters, shorter passwords.
 • What you type waits in its chat.
 • Pick any emoji, with search.
 • Tap a face in a room to see who it is.
-• Your rooms show right under each community.
-• See what a community room is about before you join.
+• Your rooms show under each community.
+• Preview a community room before you join.
+• Full usernames and addresses with Matrix experience.
 
-Fixed 42 bugs.
+Fixed 44 bugs.

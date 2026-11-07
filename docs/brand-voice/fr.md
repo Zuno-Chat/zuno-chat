@@ -85,6 +85,7 @@ French for `lib/l10n/app_fr.arb`, written for France and served to every French-
 | approve (own device) | Approuver / approuver | |
 | verify, verification | vérifier · la vérification | |
 | security details | les informations de sécurité | |
+| Matrix experience (the Settings switch) | Expérience Matrix | |
 | key, room keys | la clé · les clés des salons | |
 | backup, key backup, restore | la sauvegarde · la sauvegarde des clés · restaurer | |
 | security key, security phrase, recovery key | la clé de sécurité · la phrase de sécurité · la clé de récupération | |

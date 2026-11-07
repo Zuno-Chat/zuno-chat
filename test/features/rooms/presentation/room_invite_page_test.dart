@@ -8,7 +8,9 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/matrix/rooms/optimistic_room_state.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/features/blocking/presentation/block_person.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/rooms/presentation/room_invite_page.dart';
@@ -102,6 +104,7 @@ void main() {
     WidgetTester tester, {
     BlockPerson? blockPerson,
     bool overChat = false,
+    bool matrixExperience = false,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
@@ -114,6 +117,8 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) =>
+              MatrixExperience(on: matrixExperience, child: child!),
           home: Scaffold(
             body: routeLauncher(
               (_) => overChat
@@ -395,5 +400,17 @@ void main() {
     );
     expect(find.textContaining('Exception'), findsNothing);
     expect(find.byType(RoomInvitePage), findsOneWidget);
+  });
+
+  testWidgets('with the Matrix experience on, a room invitation shows the '
+      'room address under its name', (tester) async {
+    applyOptimisticRoomState(room, EventTypes.RoomName, {'name': 'Chess'});
+    applyOptimisticRoomState(room, EventTypes.RoomCanonicalAlias, {
+      'alias': '#chess:example.org',
+    });
+    inviteFromBob();
+    await openInvite(tester, matrixExperience: true);
+
+    expect(find.text('#chess:example.org'), findsOneWidget);
   });
 }

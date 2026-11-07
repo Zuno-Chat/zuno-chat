@@ -14,6 +14,7 @@ import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/rooms/joinable_rooms_feed.dart';
 import 'package:zuno/core/navigation/chat_route.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
@@ -244,6 +245,7 @@ void main() {
   Future<void> pump(
     WidgetTester tester, {
     CommunityRoomsPageLoader? loadRooms,
+    bool matrixExperience = false,
   }) async {
     more = Completer();
     final scope = await overrides();
@@ -254,6 +256,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           theme: zunoLightTheme,
+          builder: (context, child) =>
+              MatrixExperience(on: matrixExperience, child: child!),
           home: CommunityPage(
             community: club,
             loadRooms:
@@ -1369,5 +1373,15 @@ void main() {
         }
       },
     );
+  });
+
+  testWidgets('with the Matrix experience on, the community shows its '
+      'address under its name', (tester) async {
+    putState(club, EventTypes.RoomCanonicalAlias, {
+      'alias': '#climbing:example.org',
+    });
+    await pump(tester, matrixExperience: true);
+
+    expect(find.text('#climbing:example.org'), findsOneWidget);
   });
 }

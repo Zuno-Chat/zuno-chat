@@ -66,7 +66,8 @@ When traits pull apart:
 The app avoids the server: name it only where a privacy point, or who sends
 or receives something, depends on it. Zuno is the app, never the server: the
 server's admin hands out sign-up codes, and the server receives reports.
-Matrix never appears in the app.
+Matrix never appears in the app, except in the Matrix experience switch in
+Settings, which is for people who already know Matrix.
 
 ## Claims and limits
 
@@ -81,14 +82,14 @@ Matrix never appears in the app.
   a compromised device.
 - Wherever calls or notifications are promised, say they need a server set up
   for Zuno, such as zuno.chat.
-- Matrix appears on the site and store listing only: as what Zuno connects
-  to, and as the reason the encryption can be trusted.
+- On the site and store listing, Matrix appears as what Zuno connects to
+  and as the reason the encryption can be trusted.
 
 ## By surface
 
 | Surface | Voice |
 |---|---|
-| App | Plainest. No dry edge. Avoid the server; never Matrix. Sign-up never suggests a phone number is needed. |
+| App | Plainest. No dry edge. Avoid the server; never Matrix outside the Matrix experience switch. Sign-up never suggests a phone number is needed. |
 | Notifications | Shortest. Messages, calls and invites only; never to pull people back in. |
 | Site and store listing | Lead with what Zuno is, matter-of-fact. A dry line allowed, sparingly. Free and open source, any Matrix server and encryption by default are the story; zuno.chat is one place to make an account, never the product. |
 | Support and social | Same rules. Answer in the first sentence. |

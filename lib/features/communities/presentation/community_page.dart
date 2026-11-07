@@ -392,8 +392,8 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
             slivers: [
               SliverToBoxAdapter(
                 child: RoomHeader.of(
+                  context,
                   community,
-                  l10n,
                   details: [
                     RoomAccessLabel.of(community, l10n),
                     _MembersButton(count: members, onTap: _viewMembers),

@@ -14,12 +14,14 @@ import 'package:zuno/core/matrix/account/account_capabilities.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/platform/app_settings_opener.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/features/settings/presentation/account_settings_page.dart';
 import 'package:zuno/features/settings/presentation/change_password_dialog.dart';
 
 import '../../../helpers/fake_attachments.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_sign_in_browser.dart';
+import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 const _me = '@alice:example.org';
@@ -111,6 +113,7 @@ void main() {
     WidgetTester tester, {
     Future<bool> Function()? openSettings,
     Future<AccountCapabilities>? capabilities,
+    bool matrixExperience = false,
   }) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -122,10 +125,12 @@ void main() {
           if (openSettings != null)
             appSettingsOpenerProvider.overrideWithValue(openSettings),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: AccountSettingsPage(),
+          builder: (context, child) =>
+              MatrixExperience(on: matrixExperience, child: child!),
+          home: const AccountSettingsPage(),
         ),
       ),
     );
@@ -471,29 +476,26 @@ void main() {
   testWidgets('tapping the username copies it without the server', (
     tester,
   ) async {
-    final copied = <String?>[];
-    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-      SystemChannels.platform,
-      (call) async {
-        if (call.method == 'Clipboard.setData') {
-          copied.add((call.arguments as Map)['text'] as String?);
-        }
-        return null;
-      },
-    );
-    addTearDown(
-      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
-        SystemChannels.platform,
-        null,
-      ),
-    );
+    final platform = recordChannel(SystemChannels.platform);
     await pumpPage(tester);
 
     await tester.tap(row('Username'));
     await tester.pumpAndSettle();
 
-    expect(copied, ['@alice']);
+    expect(platform.valuesOf('Clipboard.setData', 'text'), ['@alice']);
     expect(find.text('Username copied'), findsOneWidget);
+  });
+
+  testWidgets('with the Matrix experience on, the username keeps its server '
+      'and copies whole', (tester) async {
+    final platform = recordChannel(SystemChannels.platform);
+    await pumpPage(tester, matrixExperience: true);
+
+    expect(subtitleOf(tester, 'Username'), _me);
+    await tester.tap(row('Username'));
+    await tester.pumpAndSettle();
+
+    expect(platform.valuesOf('Clipboard.setData', 'text'), [_me]);
   });
 
   group('Change password', () {

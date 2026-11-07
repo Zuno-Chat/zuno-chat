@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Σκούρο",
   "settingsChatsCallsFollowSystem": "Όπως το σύστημα",
   "settingsChatsCallsLight": "Ανοιχτό",
+  "settingsChatsCallsMatrixExperience": "Εμπειρία Matrix",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Εμφανίζει πλήρως τα ονόματα χρήστη και τις διευθύνσεις αιθουσών, όπως {username}",
   "settingsChatsCallsPreventAccidental": "Αποτροπή τυχαίων κλήσεων",
   "settingsChatsCallsPreventAccidentalSubtitle": "Ρωτά πριν ξεκινήσει μια φωνητική κλήση ή βιντεοκλήση",
   "settingsChatsCallsTitle": "Συνομιλίες και κλήσεις",

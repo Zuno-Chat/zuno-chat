@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/matrix/matrix_ids.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import 'block_person.dart';
@@ -90,7 +91,7 @@ class _BlockedPeoplePageState extends ConsumerState<BlockedPeoplePage> {
                     for (final userId in blocked)
                       ListTile(
                         leading: const Icon(Icons.block_outlined),
-                        title: Text(withoutServer(userId)),
+                        title: Text(context.matrixIdLabel(userId)),
                         trailing: TextButton(
                           onPressed: _busy ? null : () => _unblock(userId),
                           child: Text(context.l10n.blockingUnblock),

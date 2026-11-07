@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Mørkt",
   "settingsChatsCallsFollowSystem": "Følg systemet",
   "settingsChatsCallsLight": "Lyst",
+  "settingsChatsCallsMatrixExperience": "Matrix-opplevelse",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Viser fullstendige brukernavn og romadresser, for eksempel {username}",
   "settingsChatsCallsPreventAccidental": "Unngå utilsiktede anrop",
   "settingsChatsCallsPreventAccidentalSubtitle": "Spør før et tale- eller videoanrop startes",
   "settingsChatsCallsTitle": "Chatter og anrop",

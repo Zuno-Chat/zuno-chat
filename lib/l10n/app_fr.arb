@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Sombre",
   "settingsChatsCallsFollowSystem": "Selon le système",
   "settingsChatsCallsLight": "Clair",
+  "settingsChatsCallsMatrixExperience": "Expérience Matrix",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Affiche en entier les noms d’utilisateur et les adresses des salons, par exemple {username}",
   "settingsChatsCallsPreventAccidental": "Éviter les appels accidentels",
   "settingsChatsCallsPreventAccidentalSubtitle": "Demande une confirmation avant de lancer un appel vocal ou vidéo",
   "settingsChatsCallsTitle": "Conversations et appels",

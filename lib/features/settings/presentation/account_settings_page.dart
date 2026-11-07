@@ -10,11 +10,11 @@ import '../../../core/matrix/account/account_page_browser.dart';
 import '../../../core/matrix/account/own_profile.dart';
 import '../../../core/matrix/auth/auth_error_message.dart';
 import '../../../core/matrix/client/matrix_client_provider.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/media/avatars/avatar_photo.dart';
 import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/platform/app_settings_opener.dart';
 import '../../../core/platform/platform_capabilities.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/edit_text_dialog.dart';
@@ -232,6 +232,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
     final client = ref.watch(matrixClientProvider);
     final displayName = _profile?.displayname;
     final userId = client.userID;
+    final username = userId == null ? null : context.matrixIdLabel(userId);
     final capabilities = ref.watch(accountCapabilitiesProvider).known;
     final accountPage = capabilities?.accountPage;
 
@@ -277,12 +278,12 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
               ListTile(
                 leading: const Icon(Icons.alternate_email_outlined),
                 title: Text(l10n.commonUsername),
-                subtitle: Text(userId == null ? '' : withoutServer(userId)),
+                subtitle: Text(username ?? ''),
                 trailing: const Icon(Icons.copy_outlined),
-                onTap: userId == null
+                onTap: username == null
                     ? null
                     : () => ScaffoldMessenger.of(context).copy(
-                        withoutServer(userId),
+                        username,
                         copied: l10n.settingsAccountUsernameCopied,
                       ),
               ),

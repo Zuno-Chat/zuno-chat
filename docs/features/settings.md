@@ -9,7 +9,7 @@ are documented with that feature.
 |---|---|---|
 | Account (the profile card) | Picture, display name, username, language, change password, or Manage account on a server with its own account page | here; language in `app-foundation.md`, password and account page in `authentication.md` |
 | Notifications | Enable, notify-for, sounds, content, Delivery (Android), Diagnostics hub | `notifications.md` |
-| Chats & calls | Theme, typing indicator, prevent accidental calls | here; accidental calls in `calls.md` |
+| Chats & calls | Theme, typing indicator, Matrix experience, prevent accidental calls | here; accidental calls in `calls.md`, what Matrix experience shows in `rooms-membership.md` |
 | Data & storage | Reduce media size, less data for calls, clear cache, clear media cache | here; `chats-messaging.md`, `calls.md` |
 | Security | Status, recovery, devices, blocked people, on-device protections, Advanced | `security-verification.md`; blocked people in `rooms-membership.md`; on-device protections here |
 | About | Versions, donate (Android), privacy policy, terms, source, licenses, crash and error reports, hidden messages | here; `crash-reporting.md`, `chats-messaging.md` |
@@ -46,6 +46,10 @@ Delete account (`authentication.md`).
 - **Avatars shrink before upload** (`prepareAvatarPhoto`, shared with room
   avatars): GPS EXIF is dropped and the image is scaled to avatar size. Any
   new avatar upload path must go through it too.
+- **Matrix experience is the one place the app names Matrix**, for people
+  who already know it (`../brand-voice/README.md`). It is a device
+  preference every screen reads from the app root, so turning it on redraws
+  what is already open.
 - **Privacy and data-saving settings start on**: prevent accidental calls,
   reduce media size, use less data for calls, incognito keyboard, and
   prevent screenshots. A default applies only while nothing is stored, so a

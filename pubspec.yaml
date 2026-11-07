@@ -132,6 +132,7 @@ flutter:
   assets:
     - assets/logo/zuno-mark-amber.svg
     - assets/logo/zuno-mark-ink.svg
+    - assets/icons/matrix.svg
     # Recovery-code wordlist — generated, not hand-written, and frozen
     # once shipped; see tool/generate_wordlist.py and
     # lib/core/security/recovery_code.dart.

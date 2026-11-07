@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Dunkel",
   "settingsChatsCallsFollowSystem": "Systemstandard",
   "settingsChatsCallsLight": "Hell",
+  "settingsChatsCallsMatrixExperience": "Matrix-Erlebnis",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Zeigt Nutzernamen und Raumadressen vollständig an, etwa {username}",
   "settingsChatsCallsPreventAccidental": "Versehentliche Anrufe verhindern",
   "settingsChatsCallsPreventAccidentalSubtitle": "Fragt nach, bevor ein Sprach- oder Videoanruf startet",
   "settingsChatsCallsTitle": "Chats und Anrufe",

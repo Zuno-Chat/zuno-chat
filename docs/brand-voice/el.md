@@ -89,6 +89,7 @@ The Greek column gives the article, which shows the gender, and the plural where
 | approve (own device) | Έγκριση / εγκρίνω (εγκρίθηκε) | "Approved" → «Εγκρίθηκε». |
 | verify, verification, check | επαληθεύω / η επαλήθευση · ο έλεγχος | "Verification request" → «Αίτημα επαλήθευσης». A verification run is «ο έλεγχος». |
 | security details | τα στοιχεία ασφαλείας | |
+| Matrix experience (the Settings switch) | Εμπειρία Matrix | |
 | key, room keys | το κλειδί · τα κλειδιά αιθουσών | |
 | backup, key backup, restore | το αντίγραφο ασφαλείας (κλειδιών) · επαναφέρω / η επαναφορά | "Manage key backup" → «Διαχείριση αντιγράφου ασφαλείας κλειδιών». |
 | security key, security phrase, recovery key | το κλειδί ασφαλείας · η φράση ασφαλείας · το κλειδί ανάκτησης | |

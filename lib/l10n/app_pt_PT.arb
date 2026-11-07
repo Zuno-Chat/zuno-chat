@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Escuro",
   "settingsChatsCallsFollowSystem": "Predefinição do sistema",
   "settingsChatsCallsLight": "Claro",
+  "settingsChatsCallsMatrixExperience": "Experiência Matrix",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Mostra os nomes de utilizador e os endereços das salas completos, como {username}",
   "settingsChatsCallsPreventAccidental": "Evitar chamadas acidentais",
   "settingsChatsCallsPreventAccidentalSubtitle": "Pergunta antes de iniciar uma chamada de voz ou videochamada",
   "settingsChatsCallsTitle": "Conversas e chamadas",

@@ -51,6 +51,29 @@ void main() {
     expect(userId, '@bob-smith_1:zuno.chat');
   });
 
+  testWidgets('a pasted full username on your own server keeps only the '
+      'username', (tester) async {
+    await openDialog(tester);
+
+    await tester.enterText(find.byType(TextField), '@Bob:Zuno.chat');
+    expect(find.text('bob'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Invite'));
+    await tester.pumpAndSettle();
+
+    expect(userId, '@bob:zuno.chat');
+  });
+
+  testWidgets('a pasted username on another server is never taken for '
+      'someone on yours', (tester) async {
+    await openDialog(tester);
+
+    await tester.enterText(find.byType(TextField), '@bob:other.org');
+    await tester.tap(find.widgetWithText(TextButton, 'Invite'));
+    await tester.pumpAndSettle();
+
+    expect(userId, isNot('@bob:zuno.chat'));
+  });
+
   testWidgets('cancelling yields nothing', (tester) async {
     await openDialog(tester);
 

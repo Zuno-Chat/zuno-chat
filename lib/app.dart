@@ -45,6 +45,7 @@ import 'core/push/nse/opaque_thread_ids.dart';
 import 'core/security/alerts/security_alert_notifications.dart';
 import 'core/security/zuno_text_field.dart';
 import 'core/settings/app_preferences_provider.dart';
+import 'core/settings/matrix_experience.dart';
 import 'core/share/inbound_share.dart';
 import 'core/shortcuts/home_screen_shortcut.dart';
 import 'core/ui/zuno_splash.dart';
@@ -104,11 +105,14 @@ class _AppFrame extends ConsumerWidget {
       ConnectionStatus.unreachable => l10n.appCannotConnect,
       ConnectionStatus.online || null => null,
     };
-    return KeyboardLearning(
-      allowed: !ref.watch(incognitoKeyboardProvider),
-      child: CallLayer(
-        banners: [message == null ? null : _ConnectivityBanner(message)],
-        child: child,
+    return MatrixExperience(
+      on: ref.watch(matrixExperienceProvider),
+      child: KeyboardLearning(
+        allowed: !ref.watch(incognitoKeyboardProvider),
+        child: CallLayer(
+          banners: [message == null ? null : _ConnectivityBanner(message)],
+          child: child,
+        ),
       ),
     );
   }

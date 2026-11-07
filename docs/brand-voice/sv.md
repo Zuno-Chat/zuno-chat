@@ -89,6 +89,7 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | approve (own device) | Godkänn · godkännande | |
 | verify, verification | verifiera · verifiering | |
 | security details | säkerhetsuppgifter | |
+| Matrix experience (the Settings switch) | Matrix-upplevelse | |
 | key, room keys | nyckel · rumsnycklar | |
 | backup, key backup, restore | säkerhetskopia · säkerhetskopia av nycklar · återställ | |
 | security key, security phrase, recovery key | säkerhetsnyckel · säkerhetsfras · återställningsnyckel | |

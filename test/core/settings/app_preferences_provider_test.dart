@@ -430,6 +430,11 @@ void main() {
           read: (c) => c.read(showHiddenMessagesProvider),
           set: (c, v) => c.read(showHiddenMessagesProvider.notifier).set(v),
         ),
+        'settings.matrix_experience': (
+          defaultValue: false,
+          read: (c) => c.read(matrixExperienceProvider),
+          set: (c, v) => c.read(matrixExperienceProvider.notifier).set(v),
+        ),
         conversationTonesEnabledKey: (
           defaultValue: true,
           read: (c) => c.read(conversationTonesEnabledProvider),

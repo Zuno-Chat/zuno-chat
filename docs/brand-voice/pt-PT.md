@@ -86,6 +86,7 @@ European Portuguese for `lib/l10n/app_pt_PT.arb`, written for Portugal. The rule
 | approve (own device) | Aprovar / aprovar | |
 | verify, verification | verificar · a verificação | |
 | security details | os dados de segurança | |
+| Matrix experience (the Settings switch) | Experiência Matrix | |
 | key, room keys | a chave · as chaves das salas | |
 | backup, key backup, restore | a cópia de segurança · a cópia de segurança das chaves · restaurar | |
 | security key, security phrase, recovery key | a chave de segurança · a frase de segurança · a chave de recuperação | |

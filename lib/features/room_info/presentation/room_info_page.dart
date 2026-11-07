@@ -10,7 +10,6 @@ import '../../../core/calls/models/call_kind.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/rooms/membership/room_exit.dart';
 import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/matrix/rooms/optimistic_room_state.dart';
@@ -20,6 +19,7 @@ import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/matrix/rooms/room_mute.dart';
 import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/security/security_emphasis.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/circle_icon.dart';
@@ -262,8 +262,8 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
             RoomHeader.of(
+              context,
               room,
-              l10n,
               details: [
                 if (room.encrypted) const EncryptedLabel(),
                 if (!room.isDirectChat) RoomAccessLabel.of(room, l10n),
@@ -463,7 +463,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                     dense: true,
                     leading: const Icon(Icons.tag_outlined),
                     title: Text(l10n.roomInfoRoomId),
-                    subtitle: Text(withoutServer(room.id)),
+                    subtitle: Text(context.matrixIdLabel(room.id)),
                     trailing: const Icon(Icons.copy_outlined, size: 18),
                     onTap: () => messenger.copy(
                       room.id,
@@ -475,7 +475,7 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
                       dense: true,
                       leading: const Icon(Icons.alternate_email_outlined),
                       title: Text(l10n.roomInfoRoomAlias),
-                      subtitle: Text(withoutServer(canonicalAlias)),
+                      subtitle: Text(context.matrixIdLabel(canonicalAlias)),
                       trailing: const Icon(Icons.copy_outlined, size: 18),
                       onTap: () => messenger.copy(
                         canonicalAlias,

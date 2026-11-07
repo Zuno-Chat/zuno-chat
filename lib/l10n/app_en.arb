@@ -5011,6 +5011,19 @@
   "@settingsChatsCallsLight": {
     "description": "Theme option: light"
   },
+  "settingsChatsCallsMatrixExperience": "Matrix experience",
+  "@settingsChatsCallsMatrixExperience": {
+    "description": "Settings switch: show Zuno the way people who know Matrix expect, such as usernames and room addresses with their server"
+  },
+  "settingsChatsCallsMatrixExperienceSubtitle": "Shows usernames and room addresses in full, like {username}",
+  "@settingsChatsCallsMatrixExperienceSubtitle": {
+    "description": "Subtitle of the Matrix experience switch. The placeholder is the reader's own full username, such as @sam:example.org",
+    "placeholders": {
+      "username": {
+        "type": "String"
+      }
+    }
+  },
   "settingsChatsCallsPreventAccidental": "Prevent accidental calls",
   "settingsChatsCallsPreventAccidentalSubtitle": "Asks before starting a voice or video call",
   "settingsChatsCallsTitle": "Chats & calls",

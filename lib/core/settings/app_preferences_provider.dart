@@ -30,6 +30,7 @@ const _sendTypingIndicatorKey = 'settings.send_typing_indicator';
 const _lowDataCallsKey = 'settings.low_data_calls';
 const _confirmBeforeCallingKey = 'settings.confirm_before_calling';
 const _showHiddenMessagesKey = 'settings.show_hidden_messages';
+const _matrixExperienceKey = 'settings.matrix_experience';
 const _notificationDeliveryModeKey = 'settings.notification_delivery_mode';
 const _notificationDeliveryModeChosenKey =
     'settings.notification_delivery_mode_chosen';
@@ -239,6 +240,25 @@ class ShowHiddenMessagesNotifier extends Notifier<bool> {
     await ref
         .read(sharedPreferencesProvider)
         .setBool(_showHiddenMessagesKey, value);
+  }
+}
+
+final matrixExperienceProvider =
+    NotifierProvider<MatrixExperienceNotifier, bool>(
+      MatrixExperienceNotifier.new,
+    );
+
+class MatrixExperienceNotifier extends Notifier<bool> {
+  @override
+  bool build() =>
+      ref.watch(sharedPreferencesProvider).getBool(_matrixExperienceKey) ??
+      false;
+
+  Future<void> set(bool value) async {
+    state = value;
+    await ref
+        .read(sharedPreferencesProvider)
+        .setBool(_matrixExperienceKey, value);
   }
 }
 

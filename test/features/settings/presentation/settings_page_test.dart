@@ -14,6 +14,7 @@ import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_providers.dart';
+import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/settings_page.dart';
 
@@ -66,6 +67,7 @@ Future<void> _pumpSettingsPage(
   bool showFeedback = false,
   PlatformCapabilities? capabilities,
   Client? client,
+  bool matrixExperience = false,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -83,6 +85,8 @@ Future<void> _pumpSettingsPage(
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) =>
+            MatrixExperience(on: matrixExperience, child: child!),
         home: const SettingsPage(),
       ),
     ),
@@ -131,11 +135,18 @@ void main() {
     await _pumpSettingsPage(tester);
 
     expect(find.text('Alex Doe'), findsOneWidget);
-    expect(find.text('alex · Profile, password'), findsOneWidget);
+    expect(find.text('@alex · Profile, password'), findsOneWidget);
     expect(
       tester.getTopLeft(find.text('Alex Doe')).dy,
       lessThan(tester.getTopLeft(find.text('Notifications')).dy),
     );
+  });
+
+  testWidgets('with the Matrix experience on, your username keeps its '
+      'server', (tester) async {
+    await _pumpSettingsPage(tester, matrixExperience: true);
+
+    expect(find.text('@alex:example.org · Profile, password'), findsOneWidget);
   });
 
   testWidgets('a rename shows on the card without reopening Settings', (

@@ -41,6 +41,7 @@ import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/security/device_safety.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
+import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/core/share/inbound_share.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/core/ui/zuno_splash.dart';
@@ -1097,6 +1098,26 @@ void main() {
 
       expect(learning(tester), isNotEmpty);
       expect(learning(tester), everyElement(isTrue));
+    });
+  });
+
+  group('the Matrix experience', () {
+    bool shown(WidgetTester tester) =>
+        tester.widget<MatrixExperience>(find.byType(MatrixExperience)).on;
+
+    testWidgets('is off app-wide by default', (tester) async {
+      await pumpApp(tester, loggedIn: const AsyncData(false));
+      await settle(tester);
+
+      expect(shown(tester), isFalse);
+    });
+
+    testWidgets('applies app-wide once turned on', (tester) async {
+      final container = await pumpApp(tester, loggedIn: const AsyncData(false));
+      await container.read(matrixExperienceProvider.notifier).set(true);
+      await settle(tester);
+
+      expect(shown(tester), isTrue);
     });
   });
 

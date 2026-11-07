@@ -4,10 +4,10 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/rooms/membership/join_requests.dart';
 import '../../../core/matrix/rooms/room_access.dart';
 import '../../../core/matrix/rooms/room_title.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/sheet.dart';
 import '../../../core/ui/trailing_action_row.dart';
 import '../../room_info/presentation/room_access_label.dart';
@@ -143,7 +143,7 @@ class _JoinableRoomSheet extends ConsumerWidget {
             avatarUrl: chunk.avatarUrl,
             title: listedRoomTitle(chunk, l10n),
             toneSeed: chunk.roomId,
-            address: alias == null ? null : withoutServer(alias),
+            address: alias == null ? null : context.matrixIdLabel(alias),
             details: [
               if (chunk.encryption != null) const EncryptedLabel(),
               RoomAccessLabel.listed(chunk, client, l10n),

@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "Donker",
   "settingsChatsCallsFollowSystem": "Systeem volgen",
   "settingsChatsCallsLight": "Licht",
+  "settingsChatsCallsMatrixExperience": "Matrix-ervaring",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Toont gebruikersnamen en kameradressen volledig, zoals {username}",
   "settingsChatsCallsPreventAccidental": "Onbedoelde oproepen voorkomen",
   "settingsChatsCallsPreventAccidentalSubtitle": "Vraagt eerst of je een spraak- of video-oproep wilt starten",
   "settingsChatsCallsTitle": "Chats en oproepen",

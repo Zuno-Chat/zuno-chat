@@ -90,6 +90,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | approve (own device) | Mirato · miratim | |
 | verify, verification | verifiko · verifikim | |
 | security details | të dhënat e sigurisë | |
+| Matrix experience (the Settings switch) | Përvoja Matrix | |
 | key, room keys | çelës · çelësat e dhomës | |
 | backup, key backup, restore | kopje rezervë · kopje rezervë e çelësave · rikthe | |
 | security key, security phrase, recovery key | çelës sigurie · frazë sigurie · çelës rikuperimi | |

@@ -10,6 +10,7 @@ import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/membership/join_requests.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/matrix/rooms/room_title.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/notice.dart';
 import '../../../core/ui/route_settled.dart';
@@ -277,7 +278,7 @@ class _JoinRequestRowState extends State<JoinRequestRow> {
             room: widget.room,
             user: user,
             title: _nameOf(user),
-            subtitle: widget.subtitle ?? withoutServer(user.id),
+            subtitle: widget.subtitle ?? context.matrixIdLabel(user.id),
           ),
           OverflowBar(
             alignment: MainAxisAlignment.end,

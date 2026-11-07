@@ -6,15 +6,16 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/abuse_report.dart';
 import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/notifications/room_invite_notification_provider.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/notice.dart';
 import '../../blocking/presentation/block_person.dart';
 import '../../communities/presentation/community_page.dart';
 import '../../reports/presentation/report_sheet.dart';
+import '../../room_info/presentation/room_header.dart';
 
 class RoomInvitePage extends ConsumerStatefulWidget {
   final Room room;
@@ -125,6 +126,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.headlineSmall,
               ),
+              RoomAddress(context.matrixRoomAddress(room)),
               const SizedBox(height: 8),
               Text(
                 view.community
@@ -140,7 +142,7 @@ class _RoomInvitePageState extends ConsumerState<RoomInvitePage> {
               if (inviter != null && view.inviterNamed) ...[
                 const SizedBox(height: 4),
                 Text(
-                  withoutServer(inviter),
+                  context.matrixIdLabel(inviter),
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,

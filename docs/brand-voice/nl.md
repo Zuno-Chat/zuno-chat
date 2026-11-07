@@ -90,6 +90,7 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | approve (own device) | Goedkeuren · goedkeuring | |
 | verify, verification | verifiëren · verificatie | |
 | security details | beveiligingsgegevens | |
+| Matrix experience (the Settings switch) | Matrix-ervaring | |
 | key, room keys | sleutel · kamersleutels | |
 | backup, key backup, restore | back-up · sleutelback-up · terugzetten | «herstel» is recovery only. |
 | security key, security phrase, recovery key | beveiligingssleutel · beveiligingszin · herstelsleutel | |

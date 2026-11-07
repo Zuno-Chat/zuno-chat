@@ -9,6 +9,7 @@ import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
+import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/features/room_info/presentation/member_actions.dart';
 import 'package:zuno/features/room_info/presentation/person_sheet.dart';
 
@@ -79,6 +80,7 @@ void main() {
     Map<String, UserTrustState> trust = const {},
     Map<String, Object> stored = const {},
     List<String>? unblocked,
+    bool matrixExperience = false,
   }) async {
     chosen = null;
     final container = await containerWithPreferences(
@@ -96,6 +98,8 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) =>
+              MatrixExperience(on: matrixExperience, child: child!),
           home: Scaffold(
             body: routeLauncher<void>(
               (_) => Scaffold(
@@ -145,6 +149,20 @@ void main() {
     ]) {
       expect(inSheet(find.text(text)), findsOneWidget, reason: text);
     }
+    expect(inSheet(find.textContaining('example.org')), findsNothing);
+  });
+
+  testWidgets('with the Matrix experience on, the username keeps its server', (
+    tester,
+  ) async {
+    await show(
+      tester,
+      member('@ann:example.org', 'Ann'),
+      matrixExperience: true,
+    );
+
+    expect(inSheet(find.text('@ann:example.org')), findsOneWidget);
+    expect(inSheet(find.text('@ann')), findsNothing);
   });
 
   testWidgets('a chosen action closes the sheet and is acted on', (

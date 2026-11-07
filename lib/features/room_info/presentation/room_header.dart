@@ -5,6 +5,7 @@ import '../../../core/l10n/display_text.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/membership/room_invite.dart';
+import '../../../core/settings/matrix_experience.dart';
 import 'room_topic.dart';
 
 class RoomHeader extends StatelessWidget {
@@ -30,18 +31,19 @@ class RoomHeader extends StatelessWidget {
   });
 
   factory RoomHeader.of(
-    Room room,
-    AppLocalizations l10n, {
+    BuildContext context,
+    Room room, {
     List<Widget> details = const [],
     Key? key,
   }) {
-    final display = roomInviteDisplay(room, l10n);
+    final display = roomInviteDisplay(room, context.l10n);
     return RoomHeader(
       client: room.client,
       avatarUrl: display.avatarUrl,
       title: display.title,
       toneSeed: roomToneSeed(room),
       shape: AvatarShape.forRoom(room),
+      address: context.matrixRoomAddress(room),
       details: details,
       topic: room.topic,
       key: key,
@@ -52,7 +54,6 @@ class RoomHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final topic = this.topic?.trim() ?? '';
-    final address = this.address?.trim() ?? '';
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 4, 24, 18),
       child: Column(
@@ -71,16 +72,7 @@ class RoomHeader extends StatelessWidget {
             style: theme.textTheme.headlineSmall,
             textAlign: TextAlign.center,
           ),
-          if (address.isNotEmpty && address != title) ...[
-            const SizedBox(height: 2),
-            Text(
-              address,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
+          if (address?.trim() != title) RoomAddress(address),
           if (details.isNotEmpty) ...[
             const SizedBox(height: 4),
             Row(
@@ -102,6 +94,29 @@ class RoomHeader extends StatelessWidget {
             RoomTopic(topic: topic),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class RoomAddress extends StatelessWidget {
+  final String? address;
+
+  const RoomAddress(this.address, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final address = this.address?.trim() ?? '';
+    if (address.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Text(
+        address,
+        style: theme.textTheme.bodyMedium?.copyWith(
+          color: theme.colorScheme.onSurfaceVariant,
+        ),
+        textAlign: TextAlign.center,
       ),
     );
   }

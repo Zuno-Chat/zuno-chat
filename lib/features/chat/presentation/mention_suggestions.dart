@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
-import '../../../core/matrix/matrix_ids.dart';
 import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
+import '../../../core/settings/matrix_experience.dart';
 import 'mention_query.dart';
 
 const _maxSuggestions = 30;
@@ -160,7 +160,7 @@ class _MentionSuggestionsState extends State<MentionSuggestions> {
                 radius: 16,
               ),
               title: Text(user.calcDisplayname()),
-              subtitle: Text(withoutServer(user.id)),
+              subtitle: Text(context.matrixIdLabel(user.id)),
               onTap: () => _pick(user, query),
             );
           },

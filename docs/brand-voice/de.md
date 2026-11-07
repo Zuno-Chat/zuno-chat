@@ -85,6 +85,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | approve (own device) | Freigeben / freigeben | |
 | verify, verification | verifizieren · die Verifizierung | |
 | security details | die Sicherheitsdaten | |
+| Matrix experience (the Settings switch) | Matrix-Erlebnis | |
 | key, room keys | der Schlüssel · die Raumschlüssel | |
 | backup, key backup, restore | die Sicherung · die Schlüsselsicherung · wiederherstellen | |
 | security key, security phrase, recovery key | der Sicherheitsschlüssel · die Sicherheitsphrase · der Wiederherstellungsschlüssel | |

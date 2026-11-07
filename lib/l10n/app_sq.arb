@@ -1354,6 +1354,8 @@
   "settingsChatsCallsDark": "E errët",
   "settingsChatsCallsFollowSystem": "Si sistemi",
   "settingsChatsCallsLight": "E çelët",
+  "settingsChatsCallsMatrixExperience": "Përvoja Matrix",
+  "settingsChatsCallsMatrixExperienceSubtitle": "Shfaq plotësisht emrat e përdoruesve dhe adresat e dhomave, si {username}",
   "settingsChatsCallsPreventAccidental": "Parandalo thirrjet e paqëllimshme",
   "settingsChatsCallsPreventAccidentalSubtitle": "Pyet para se të nisë një thirrje zanore ose me video",
   "settingsChatsCallsTitle": "Bisedat dhe thirrjet",

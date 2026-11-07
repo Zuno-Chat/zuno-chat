@@ -9,3 +9,18 @@ final lowercaseFormatter = TextInputFormatter.withFunction(
 final usernameCharsFormatter = FilteringTextInputFormatter.allow(
   RegExp('[$matrixLocalpartChars]'),
 );
+
+TextInputFormatter ownServerIdFormatter(String server) {
+  final ownId = RegExp(
+    '^@?([^:]*):${RegExp.escape(server)}\$',
+    caseSensitive: false,
+  );
+  return TextInputFormatter.withFunction((_, value) {
+    final username = ownId.firstMatch(value.text.trim())?.group(1);
+    if (username == null) return value;
+    return TextEditingValue(
+      text: username,
+      selection: TextSelection.collapsed(offset: username.length),
+    );
+  });
+}

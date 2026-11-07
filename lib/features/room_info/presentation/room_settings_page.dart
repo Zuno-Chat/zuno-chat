@@ -13,6 +13,7 @@ import '../../../core/matrix/rooms/room_access.dart';
 import '../../../core/matrix/rooms/room_history.dart';
 import '../../../core/matrix/rooms/room_name_check.dart';
 import '../../../core/matrix/rooms/room_title.dart';
+import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/confirm_dialog.dart';
@@ -365,7 +366,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   Widget build(BuildContext context) {
     final room = widget.room;
     final l10n = context.l10n;
-    final aliasLocalpart = room.canonicalAlias.localpart;
+    final alias = room.canonicalAlias;
     bool shown(_Field field) => field.shownIn(room);
 
     return Scaffold(
@@ -425,9 +426,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                   leading: const Icon(Icons.tag_outlined),
                   title: l10n.roomInfoMainAddress,
                   subtitle: Text(
-                    aliasLocalpart == null
+                    alias.localpart == null
                         ? l10n.roomInfoNotSet
-                        : '#$aliasLocalpart',
+                        : context.matrixIdLabel(alias),
                   ),
                   edit: _editAlias,
                 ),

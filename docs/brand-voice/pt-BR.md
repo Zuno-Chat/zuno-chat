@@ -85,6 +85,7 @@ Brazilian Portuguese for `lib/l10n/app_pt.arb`, the base Portuguese file, writte
 | approve (own device) | Aprovar / aprovar | |
 | verify, verification | verificar · a verificação | |
 | security details | os dados de segurança | |
+| Matrix experience (the Settings switch) | Experiência Matrix | |
 | key, room keys | a chave · as chaves das salas | |
 | backup, key backup, restore | o backup · o backup de chaves · restaurar | |
 | security key, security phrase, recovery key | a chave de segurança · a frase de segurança · a chave de recuperação | |
