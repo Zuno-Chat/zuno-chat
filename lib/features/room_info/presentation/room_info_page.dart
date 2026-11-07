@@ -261,10 +261,11 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
         child: CardListView(
           physics: const AlwaysScrollableScrollPhysics(),
           children: [
-            RoomHeader(
-              room: room,
+            RoomHeader.of(
+              room,
+              l10n,
               details: [
-                if (room.encrypted) const _EncryptedLabel(),
+                if (room.encrypted) const EncryptedLabel(),
                 if (!room.isDirectChat) RoomAccessLabel.of(room, l10n),
               ],
             ),
@@ -495,32 +496,4 @@ int _summaryMemberCount(Room room, int known) {
   final invited = room.summary.mInvitedMemberCount ?? 0;
   final summary = joined + invited;
   return summary > known ? summary : known;
-}
-
-class _EncryptedLabel extends StatelessWidget {
-  const _EncryptedLabel();
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          Icons.lock_outline,
-          size: 16,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            context.l10n.roomInfoEncrypted,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
-          ),
-        ),
-      ],
-    );
-  }
 }

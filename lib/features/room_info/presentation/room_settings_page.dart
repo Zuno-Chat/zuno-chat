@@ -268,7 +268,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     final room = widget.room;
     final l10n = context.l10n;
     final current = roomAccessOf(room);
-    final communities = _community ? const <Room>[] : communitiesOf(room);
+    final communities = _community ? const <Room>[] : mutualCommunitiesOf(room);
     final inCommunity = !_community && room.spaceParents.isNotEmpty;
     final chosen = await showChoiceSheet(
       context,

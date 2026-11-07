@@ -40,26 +40,58 @@ void main() {
     ),
   );
 
-  testWidgets('a room open to its community names the community', (
-    tester,
-  ) async {
-    put(room, EventTypes.RoomJoinRules, {'join_rule': 'restricted'});
-    final club = buildTestRoom(client, id: '!club:example.org')
-      ..membership = Membership.join;
-    put(club, EventTypes.RoomCreate, {'type': 'm.space'});
-    put(club, EventTypes.RoomName, {'name': 'Climbing club'});
-    put(club, EventTypes.SpaceChild, {
+  Room community(String id, String name) {
+    final space = buildTestRoom(client, id: id)..membership = Membership.join;
+    put(space, EventTypes.RoomCreate, {'type': 'm.space'});
+    put(space, EventTypes.RoomName, {'name': name});
+    put(space, EventTypes.SpaceChild, {
       'via': ['example.org'],
     }, key: room.id);
     put(room, EventTypes.SpaceParent, {
       'via': ['example.org'],
-    }, key: club.id);
-    client.rooms.add(club);
+    }, key: id);
+    client.rooms.add(space);
+    return space;
+  }
+
+  void openTo(List<String> communities) => put(room, EventTypes.RoomJoinRules, {
+    'join_rule': 'restricted',
+    'allow': [
+      for (final id in communities)
+        {'type': 'm.room_membership', 'room_id': id},
+    ],
+  });
+
+  testWidgets('a room open to its community names the community', (
+    tester,
+  ) async {
+    final club = community('!club:example.org', 'Climbing club');
+    openTo([club.id]);
 
     await pump(tester);
 
     expect(find.text('Climbing club'), findsOneWidget);
     expect(find.byIcon(Icons.workspaces_outlined), findsOneWidget);
+  });
+
+  testWidgets('names the community whose members can join, not another that '
+      'holds the room', (tester) async {
+    community('!hall:example.org', 'Town hall');
+    final club = community('!club:example.org', 'Climbing club');
+    openTo([club.id]);
+
+    await pump(tester);
+
+    expect(find.text('Climbing club'), findsOneWidget);
+    expect(find.text('Town hall'), findsNothing);
+  });
+
+  testWidgets('a community you are not in is not named', (tester) async {
+    openTo(['!elsewhere:example.org']);
+
+    await pump(tester);
+
+    expect(find.text('Community'), findsOneWidget);
   });
 
   testWidgets('without a known community it just says Community', (

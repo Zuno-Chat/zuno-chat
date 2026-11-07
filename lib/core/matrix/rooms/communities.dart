@@ -2,13 +2,11 @@ import 'package:matrix/matrix.dart';
 
 import '../../calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../errors/caught_errors.dart';
-import '../../l10n/l10n.dart';
 import 'optimistic_room_state.dart';
 import 'permissions/room_permission.dart';
 import 'room_access.dart';
 import 'room_history.dart';
 import 'room_mute.dart';
-import 'room_title.dart';
 
 const communityPowerLevels = <String, Object?>{
   'events_default': 100,
@@ -30,14 +28,16 @@ bool isJoinedCommunity(Room room) =>
     room.isSpace && room.membership == Membership.join;
 
 Set<String> communityChildIds(Room community) => {
-  for (final child in community.spaceChildren) ?child.roomId,
+  for (final MapEntry(key: id, value: link)
+      in community.states[EventTypes.SpaceChild]?.entries ??
+          const <MapEntry<String, StrippedStateEvent>>[])
+    if (_hasVia(link)) id,
 };
 
-bool _holds(Room community, Room room) =>
-    _linked(community.getState(EventTypes.SpaceChild, room.id)) &&
-    _linked(room.getState(EventTypes.SpaceParent, community.id));
+bool communityLists(Room community, String roomId) =>
+    _hasVia(community.getState(EventTypes.SpaceChild, roomId));
 
-bool _linked(StrippedStateEvent? link) =>
+bool _hasVia(StrippedStateEvent? link) =>
     link?.content.tryGetList<String>('via')?.isNotEmpty ?? false;
 
 bool isJoinedGroupRoom(Room room) =>
@@ -46,24 +46,23 @@ bool isJoinedGroupRoom(Room room) =>
 int newestActivityFirst(Room a, Room b) =>
     b.latestEventReceivedTime.compareTo(a.latestEventReceivedTime);
 
-List<Room> communityRooms(Room community, {Room? Function(String id)? lookup}) {
-  final find = lookup ?? community.client.getRoomById;
-  return [
-    for (final id in communityChildIds(community))
-      if (find(id) case final room?
-          when isJoinedGroupRoom(room) && _holds(community, room))
-        room,
-  ]..sort(newestActivityFirst);
-}
+List<Room> communityRooms(Room community, {Iterable<Room>? among}) => [
+  for (final room in among ?? community.client.rooms)
+    if (communityLists(community, room.id) && isJoinedGroupRoom(room)) room,
+]..sort(newestActivityFirst);
 
 List<Room> communitiesOf(Room room) => [
   for (final candidate in room.client.rooms)
-    if (isJoinedCommunity(candidate) && _holds(candidate, room)) candidate,
+    if (isJoinedCommunity(candidate) && communityLists(candidate, room.id))
+      candidate,
 ];
 
-String? communityNameOf(Room room, AppLocalizations l10n) {
-  final communities = communitiesOf(room);
-  return communities.isEmpty ? null : roomTitle(communities.first, l10n);
+List<Room> mutualCommunitiesOf(Room room) {
+  final named = {for (final parent in room.spaceParents) ?parent.roomId};
+  return [
+    for (final community in communitiesOf(room))
+      if (named.contains(community.id)) community,
+  ];
 }
 
 class HomeLayout {
@@ -111,12 +110,11 @@ HomeLayout arrangeHome(
     }
   }
 
-  final byId = {for (final room in rooms) room.id: room};
   final grouped = <String>{};
   final roomsByCommunity = <String, List<Room>>{};
   final activity = <String, DateTime>{};
   for (final community in communities) {
-    final inside = communityRooms(community, lookup: (id) => byId[id]);
+    final inside = communityRooms(community, among: rooms);
     roomsByCommunity[community.id] = inside;
     grouped.addAll(inside.map((room) => room.id));
     activity[community.id] = inside.isEmpty

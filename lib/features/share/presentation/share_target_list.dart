@@ -26,7 +26,6 @@ typedef ShareTarget = ({
 });
 
 List<ShareTarget> shareTargets(List<Room> rooms, AppLocalizations l10n) {
-  final byId = {for (final room in rooms) room.id: room};
   final communityOf = <String, CommunityMark>{};
   for (final community in rooms.where(isJoinedCommunity)) {
     final mark = (
@@ -34,7 +33,7 @@ List<ShareTarget> shareTargets(List<Room> rooms, AppLocalizations l10n) {
       name: roomTitle(community, l10n),
       toneSeed: roomToneSeed(community),
     );
-    for (final room in communityRooms(community, lookup: (id) => byId[id])) {
+    for (final room in communityRooms(community, among: rooms)) {
       communityOf.putIfAbsent(room.id, () => mark);
     }
   }

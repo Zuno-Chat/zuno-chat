@@ -24,7 +24,7 @@ Matrix spaces, called communities in the app: a family, club or team with severa
 | Community rooms | The joined rooms each community holds, except direct chats, newest first | Its community's card and `CommunityPage` |
 
 **Flows**
-- **Joinable rooms.** `/hierarchy`, one level deep, a page at a time: the first page when the page opens and on pull to refresh, the next as the end of the list comes into view, and nothing at all when the community lists no child you have not joined. A page with nothing new to join loads the next at once, so the list never waits on a spinner nobody can scroll to.
+- **Joinable rooms.** `/hierarchy`, one level deep, a page at a time: the first page when the page opens and on pull to refresh, the next as the end of the list comes into view, and nothing at all when the community lists no child you have not joined. A page with nothing new to join loads the next at once, so the list never waits on a spinner nobody can scroll to. Tapping a room opens its details from that listing (`joinable_room.dart`), with the same Join or Ask as its row.
 - **New community.** One `createRoom` call with the space type and the community's power levels. A public community is listed in the same call, so a server that refuses the listing creates nothing.
 - **New room in a community.** The room carries its join rule and `m.space.parent` in its initial state, and then the community gets an `m.space.child` event. If that second write fails, the room exists outside the community, and the user is told so.
 - **Directory.** The server filters by room type: Find public communities asks for spaces only, and Find public rooms for rooms without a type.
@@ -45,10 +45,11 @@ A joinable room shows Join when its join rule is not `knock`, and Ask or Request
 
 ## Decisions
 
-- **A community holds a room only when both sides link it**: the community lists the room (`m.space.child`) and the room names the community (`m.space.parent`), each with a `via`, as Matrix requires. This one rule decides home placement, the community page, Community access, the access label and what leaving takes along.
+- **A community holds the rooms it lists** (`m.space.child` with a `via`), as Matrix and other clients read it, so a room another app added one way stays under the community once joined. This rule decides home placement, the community page, share badges and what leaving takes along.
+- **Opening a room to a community needs both links**: the room must also name the community (`m.space.parent`), because that grant changes who can join and needs the room's own side.
 - **A community card's heading has no preview or unread count**, because each room under it shows its own.
 - **A room held by two joined communities shows in both cards**, since each card lists everything its community holds.
-- **Chats never shows a community or a room a joined community holds.** A direct chat listed in a community stays in Chats, and so do a room whose community you have not joined and a room linked one way only.
+- **Chats never shows a community or a room a joined community holds.** A direct chat listed in a community stays in Chats, and so does a room whose community you have not joined.
 - **A community is Public or Private**, and its access works like a room's.
 - **New communities lock everything except rooms and invites.** Settings and messages are admin-only, adding rooms needs a moderator, and any member can invite.
 - **A community room is Community, Ask to join or Private, never Public** (what each maps to: `rooms-membership.md`). This is an app rule only, so another client can still publish such a room.
@@ -64,4 +65,5 @@ A joinable room shows Join when its join rule is not `knock`, and Ask or Request
 - **The SDK never creates a `Room` for your own knock**, so the requested state is Zuno's to keep.
 - **`requestParticipants` caches members only in encrypted rooms unless asked to**, so the knock lookup asks explicitly.
 - **Removing someone from a community leaves them in its rooms**, and the dialog says so.
+- **Matrix removes a room from a community by emptying its link**, so only a link with a `via` counts.
 - **The server forgets a `/hierarchy` position after a few minutes** and refuses it with `M_INVALID_PARAM`, so the list starts over and skips the rooms already shown.

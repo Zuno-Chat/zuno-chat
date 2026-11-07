@@ -10,7 +10,6 @@ import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/format/date_labels.dart';
-import '../../../core/format/human_units.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/rooms/communities.dart';
 import '../../../core/matrix/rooms/joinable_rooms_feed.dart';
@@ -20,7 +19,6 @@ import '../../../core/matrix/rooms/membership/room_exit.dart';
 import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/matrix/rooms/permissions/room_permission.dart';
 import '../../../core/matrix/rooms/permissions/room_roles.dart';
-import '../../../core/matrix/rooms/room_access.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/navigation/launch_route.dart';
@@ -32,7 +30,6 @@ import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../../core/ui/row_memo.dart';
 import '../../../core/ui/section_label.dart';
-import '../../../core/ui/trailing_action_row.dart';
 import '../../chat/presentation/room_page.dart';
 import '../../room_info/presentation/members_sheet.dart';
 import '../../room_info/presentation/person_sheet.dart';
@@ -44,7 +41,7 @@ import '../../rooms/data/chat_row_data.dart';
 import '../../rooms/presentation/chat_row.dart';
 import '../../rooms/presentation/new_room_dialog.dart';
 import '../../rooms/presentation/room_actions.dart';
-import '../../rooms/presentation/room_kind_avatar.dart';
+import 'joinable_room.dart';
 
 typedef RoomOpener = void Function(BuildContext context, Room room);
 
@@ -115,16 +112,14 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     if (update.accountData?.isNotEmpty ?? false) return true;
     final rooms = update.rooms;
     if (rooms == null) return false;
-    final ids = {_community.id, ...communityChildIds(_community)};
     bool touches(Iterable<String>? changed) =>
-        changed?.any(ids.contains) ?? false;
+        changed?.any((id) => id == _community.id || _holdsRoom(id)) ?? false;
     return touches(rooms.join?.keys) ||
         touches(rooms.leave?.keys) ||
         touches(rooms.invite?.keys);
   }
 
-  bool _holdsRoom(String roomId) =>
-      communityChildIds(_community).contains(roomId);
+  bool _holdsRoom(String roomId) => communityLists(_community, roomId);
 
   void _closeIfLeft() {
     if (_community.membership != Membership.join) _close();
@@ -165,32 +160,40 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
     if (joined != null) widget.openRoom(context, joined);
   }
 
-  _Entry _entryFor(SpaceRoomsChunk$2 chunk, Set<String> asked) {
-    if (chunk.joinRule != JoinRules.knock.text) return _Entry.join;
-    if (asked.contains(chunk.roomId)) return _Entry.requested;
-    return _Entry.ask;
-  }
-
   Widget _joinable(SpaceRoomsChunk$2 chunk, Set<String> asked) {
     final id = chunk.roomId;
-    final entry = _entryFor(chunk, asked);
-    return _JoinableRoom(
+    return JoinableRoomRow(
       key: ValueKey(id),
       client: _client,
       chunk: chunk,
-      entry: entry,
+      entry: joinEntryFor(chunk, asked),
       busy: _joining.contains(id),
-      onTap: () => switch (entry) {
-        _Entry.join => _join(chunk),
-        _Entry.ask => _answer(
-          id,
-          () =>
-              ref.read(joinRequestsProvider.notifier).ask(id, via: _viaFor(id)),
-          failed: context.l10n.communitiesRequestFailed,
-        ),
-        _Entry.requested => _withdraw(id),
-      },
+      onOpen: () => _showDetails(chunk),
+      onAct: () => _act(chunk),
     );
+  }
+
+  Future<void> _showDetails(SpaceRoomsChunk$2 chunk) async {
+    final act = await showJoinableRoomSheet(
+      context,
+      community: _community,
+      chunk: chunk,
+      busy: _joining.contains(chunk.roomId),
+    );
+    if (act && mounted) await _act(chunk);
+  }
+
+  Future<void> _act(SpaceRoomsChunk$2 chunk) {
+    final id = chunk.roomId;
+    return switch (joinEntryFor(chunk, ref.read(joinRequestsProvider))) {
+      JoinEntry.join => _join(chunk),
+      JoinEntry.ask => _answer(
+        id,
+        () => ref.read(joinRequestsProvider.notifier).ask(id, via: _viaFor(id)),
+        failed: context.l10n.communitiesRequestFailed,
+      ),
+      JoinEntry.requested => _withdraw(id),
+    };
   }
 
   Future<void> _withdraw(String roomId) async {
@@ -388,8 +391,9 @@ class _CommunityPageState extends ConsumerState<CommunityPage>
             physics: const AlwaysScrollableScrollPhysics(),
             slivers: [
               SliverToBoxAdapter(
-                child: RoomHeader(
-                  room: community,
+                child: RoomHeader.of(
+                  community,
+                  l10n,
                   details: [
                     RoomAccessLabel.of(community, l10n),
                     _MembersButton(count: members, onTap: _viewMembers),
@@ -506,97 +510,6 @@ class _MembersButton extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     ),
   );
-}
-
-enum _Entry { join, ask, requested }
-
-class _JoinableRoom extends StatelessWidget {
-  final Client client;
-  final SpaceRoomsChunk$2 chunk;
-  final _Entry entry;
-  final bool busy;
-  final VoidCallback onTap;
-
-  const _JoinableRoom({
-    required this.client,
-    required this.chunk,
-    required this.entry,
-    required this.busy,
-    required this.onTap,
-    super.key,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final l10n = context.l10n;
-    final name = chunk.name?.trim();
-    final title = name == null || name.isEmpty
-        ? l10n.communitiesUnnamedRoom
-        : name;
-    final topic = chunk.topic?.trim();
-    final detail = joinDetails([
-      if (entry != _Entry.join) RoomAccess.askToJoin.label(l10n),
-      l10n.unitsMembers(chunk.numJoinedMembers),
-      if (topic != null && topic.isNotEmpty) topic,
-    ]);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 16, 10),
-      child: TrailingActionRow(
-        main: Row(
-          children: [
-            RoomKindAvatar(
-              client: client,
-              avatarUrl: chunk.avatarUrl,
-              fallbackText: title,
-              isDirect: false,
-              radius: ChatRow.avatarRadius,
-              toneSeed: chunk.roomId,
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    detail,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: colors.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        action: entry == _Entry.requested
-            ? OutlinedButton(
-                onPressed: busy ? null : onTap,
-                child: Text(l10n.communitiesRequested),
-              )
-            : FilledButton(
-                style: FilledButton.styleFrom(
-                  backgroundColor: colors.secondaryContainer,
-                  foregroundColor: colors.onSecondaryContainer,
-                ),
-                onPressed: busy ? null : onTap,
-                child: Text(
-                  entry == _Entry.ask ? l10n.communitiesAsk : l10n.commonJoin,
-                ),
-              ),
-      ),
-    );
-  }
 }
 
 class _NoRooms extends StatelessWidget {

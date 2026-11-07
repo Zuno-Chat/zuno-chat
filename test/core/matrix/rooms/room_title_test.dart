@@ -244,4 +244,37 @@ void main() {
       expect(canPostInRoom(room), isTrue);
     });
   });
+
+  group('listedRoomTitle', () {
+    PublishedRoomsChunk listed({String? name, String? alias}) =>
+        PublishedRoomsChunk(
+          roomId: '!abc123:example.org',
+          name: name,
+          canonicalAlias: alias,
+          numJoinedMembers: 3,
+          guestCanJoin: false,
+          worldReadable: false,
+        );
+
+    test('uses the name', () {
+      expect(
+        listedRoomTitle(listed(name: ' Beginners '), englishLocalizations),
+        'Beginners',
+      );
+    });
+
+    test('without a name, the address without its server', () {
+      expect(
+        listedRoomTitle(
+          listed(name: '  ', alias: '#beginners:example.org'),
+          englishLocalizations,
+        ),
+        '#beginners',
+      );
+    });
+
+    test('with neither, says it is unnamed', () {
+      expect(listedRoomTitle(listed(), englishLocalizations), 'Unnamed room');
+    });
+  });
 }

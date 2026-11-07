@@ -48,6 +48,7 @@ void main() {
   late bool offline;
   bool Function(String path)? refuse;
   Completer<void>? holdPushRules;
+  Completer<void>? holdJoin;
   Room? opened;
 
   void putState(
@@ -102,16 +103,26 @@ void main() {
     String name, {
     int members = 8,
     String? joinRule,
+    String topic = 'Start here if you are new',
+    String? alias,
+    String? encryption,
+    List<String>? allowed,
   }) => SpaceRoomsChunk$2.fromJson({
     'room_id': id,
     'name': name,
-    'topic': 'Start here if you are new',
+    'topic': topic,
     'num_joined_members': members,
     'guest_can_join': false,
     'world_readable': false,
     'children_state': <Object>[],
     'join_rule': ?joinRule,
+    'canonical_alias': ?alias,
+    'encryption': ?encryption,
+    'allowed_room_ids': ?allowed,
   });
+
+  Finder inSheet(Finder finder) =>
+      find.descendant(of: find.byType(BottomSheet), matching: finder);
 
   Future<List<Override>> overrides({List<String> asked = const []}) async {
     SharedPreferences.setMockInitialValues({
@@ -131,6 +142,7 @@ void main() {
     offline = false;
     refuse = null;
     holdPushRules = null;
+    holdJoin = null;
     stored = _StoredStateDatabase();
     client = buildTestClient(
       userId: _me,
@@ -184,6 +196,7 @@ void main() {
           );
         }
         if (path.contains('/join/')) {
+          await holdJoin?.future;
           final id = path.split('/join/').last;
           client.getRoomById(id)?.membership = Membership.join;
           return http.Response(jsonEncode({'room_id': id}), 200);
@@ -376,6 +389,155 @@ void main() {
     );
     expect(join.url.queryParametersAll['via'], ['other.example']);
     expect(opened, beginners);
+  });
+
+  group('a room you can join, tapped', () {
+    testWidgets('shows its details: address, access, members, encryption '
+        'and the whole topic', (tester) async {
+      const topic =
+          'Start here if you are new. We meet on Saturdays at the north '
+          'wall, bring chalk, and ask anything about routes or gear.';
+      await pump(tester);
+      more.complete([
+        chunk(
+          '!beginners:example.org',
+          'Beginners',
+          members: 12,
+          topic: topic,
+          alias: '#beginners:example.org',
+          encryption: 'm.megolm.v1.aes-sha2',
+        ),
+      ]);
+      await tester.pump();
+
+      await tester.tap(find.text('Beginners'));
+      await tester.pumpAndSettle();
+
+      expect(inSheet(find.text('Beginners')), findsOneWidget);
+      expect(inSheet(find.text('#beginners')), findsOneWidget);
+      expect(inSheet(find.text('Public')), findsOneWidget);
+      expect(inSheet(find.text('12 members')), findsOneWidget);
+      expect(inSheet(find.text('Encrypted')), findsOneWidget);
+      expect(inSheet(find.text(topic)), findsOneWidget);
+      expect(
+        inSheet(find.widgetWithText(FilledButton, 'Join')),
+        findsOneWidget,
+      );
+      expect(requests.where((r) => r.url.path.contains('/join/')), isEmpty);
+    });
+
+    testWidgets('Join in the details joins the room and opens it', (
+      tester,
+    ) async {
+      await pump(tester);
+      final beginners = buildTestRoom(client, id: '!beginners:example.org')
+        ..membership = Membership.invite;
+      client.rooms.add(beginners);
+      more.complete([chunk(beginners.id, 'Beginners')]);
+      await tester.pump();
+
+      await tester.tap(find.text('Beginners'));
+      await tester.pumpAndSettle();
+      await tester.tap(inSheet(find.widgetWithText(FilledButton, 'Join')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(
+        requests.map((r) => Uri.decodeComponent(r.url.path)),
+        contains('/_matrix/client/v3/join/!beginners:example.org'),
+      );
+      expect(opened, beginners);
+    });
+
+    testWidgets('a room open to the community names it', (tester) async {
+      await pump(tester);
+      more.complete([
+        chunk(
+          '!beginners:example.org',
+          'Beginners',
+          joinRule: 'restricted',
+          allowed: [club.id],
+        ),
+      ]);
+      await tester.pump();
+
+      await tester.tap(find.text('Beginners'));
+      await tester.pumpAndSettle();
+
+      expect(inSheet(find.text('Climbing club')), findsOneWidget);
+      expect(inSheet(find.text('Encrypted')), findsNothing);
+    });
+
+    testWidgets('a room that asks for joining offers Ask, which sends the '
+        'request', (tester) async {
+      await pump(tester);
+      more.complete([
+        chunk('!coaches:example.org', 'Coaches', joinRule: 'knock'),
+      ]);
+      await tester.pump();
+
+      await tester.tap(find.text('Coaches'));
+      await tester.pumpAndSettle();
+      expect(inSheet(find.text('Ask to join')), findsOneWidget);
+      await tester.tap(inSheet(find.widgetWithText(FilledButton, 'Ask')));
+      await tester.pumpAndSettle();
+
+      expect(
+        requests.map((r) => Uri.decodeComponent(r.url.path)),
+        contains('/_matrix/client/v3/knock/!coaches:example.org'),
+      );
+      expect(find.widgetWithText(OutlinedButton, 'Requested'), findsOneWidget);
+      expect(opened, isNull);
+    });
+
+    testWidgets('a room being joined opens no details until the join ends', (
+      tester,
+    ) async {
+      await pump(tester);
+      final beginners = buildTestRoom(client, id: '!beginners:example.org')
+        ..membership = Membership.invite;
+      client.rooms.add(beginners);
+      more.complete([chunk(beginners.id, 'Beginners')]);
+      await tester.pump();
+      holdJoin = Completer();
+
+      await tester.tap(find.widgetWithText(FilledButton, 'Join'));
+      await tester.pump();
+      await tester.tap(find.text('Beginners'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+
+      holdJoin!.complete();
+      await tester.pumpAndSettle();
+
+      expect(opened, beginners);
+    });
+
+    testWidgets('closing the details does nothing', (tester) async {
+      await pump(tester);
+      more.complete([chunk('!beginners:example.org', 'Beginners')]);
+      await tester.pump();
+
+      await tester.tap(find.text('Beginners'));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(20, 20));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(requests.where((r) => r.url.path.contains('/join/')), isEmpty);
+      expect(opened, isNull);
+    });
+  });
+
+  testWidgets('a room the community lists shows under Your rooms even when '
+      'it does not name the community back', (tester) async {
+    final lounge = member('!lounge:example.org', 'Lounge');
+    lounge.states[EventTypes.SpaceParent]!.remove(club.id);
+    await pump(tester);
+
+    expect(find.text('Your rooms'), findsOneWidget);
+    expect(find.text('Lounge'), findsOneWidget);
   });
 
   testWidgets('tapping a room you are in opens it', (tester) async {

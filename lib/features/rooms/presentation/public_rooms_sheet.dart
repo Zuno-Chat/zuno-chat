@@ -5,7 +5,7 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
-import '../../../core/matrix/matrix_ids.dart';
+import '../../../core/matrix/rooms/room_title.dart';
 import '../../../core/ui/failure_notice.dart';
 import '../../../core/ui/load_more_trigger.dart';
 import '../../../core/ui/search_field.dart';
@@ -49,12 +49,6 @@ PublicRoomsSearch _directorySearch(
       since: since,
       limit: _pageSize,
     );
-
-String publicRoomTitle(PublishedRoomsChunk room) {
-  final name = room.name;
-  if (name != null && name.trim().isNotEmpty) return name;
-  return withoutServer(room.canonicalAlias ?? room.roomId);
-}
 
 class _PublicRoomsSheet extends StatefulWidget {
   final Client client;
@@ -250,7 +244,7 @@ class _RoomRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = publicRoomTitle(room);
+    final title = listedRoomTitle(room, context.l10n);
     final community = room.roomType == RoomCreationTypes.mSpace;
     final topic = room.topic?.trim();
     final hasTopic = topic != null && topic.isNotEmpty;

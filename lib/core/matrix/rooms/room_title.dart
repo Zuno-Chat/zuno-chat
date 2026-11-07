@@ -23,6 +23,14 @@ String roomTitle(Room room, AppLocalizations l10n) {
   return name.trim().isEmpty ? l10n.roomNameEmpty : name;
 }
 
+String listedRoomTitle(PublishedRoomsChunk room, AppLocalizations l10n) {
+  final name = room.name?.trim();
+  if (name != null && name.isNotEmpty) return name;
+  final alias = room.canonicalAlias;
+  if (alias != null && alias.isNotEmpty) return withoutServer(alias);
+  return l10n.communitiesUnnamedRoom;
+}
+
 Future<void> loadRoomNameMembers(Room room) async {
   final named = room.name.isNotEmpty || room.canonicalAlias.isNotEmpty;
   final ids = {if (!named) ...?room.summary.mHeroes, ?room.directChatMatrixID}

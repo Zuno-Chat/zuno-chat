@@ -39,7 +39,16 @@ class JoinableRoomsFeed extends ChangeNotifier {
 
   Client get _client => community.client;
 
-  List<SpaceRoomsChunk$2>? get rooms => _chunks?.where(_unjoined).toList();
+  List<SpaceRoomsChunk$2>? get rooms {
+    final chunks = _chunks;
+    if (chunks == null) return null;
+    final joined = _joinedIds();
+    return [
+      for (final chunk in chunks)
+        if (!joined.contains(chunk.roomId)) chunk,
+    ];
+  }
+
   bool get loading => _loading;
   bool get failed => _failed;
   bool get hasMore => !_ended;
@@ -53,12 +62,15 @@ class JoinableRoomsFeed extends ChangeNotifier {
 
   Future<void> retry() => _run(fromStart: _failedAtStart);
 
-  bool _unjoined(SpaceRoomsChunk$2 chunk) =>
-      _client.getRoomById(chunk.roomId)?.membership != Membership.join;
+  Set<String> _joinedIds() => {
+    for (final room in _client.rooms)
+      if (room.membership == Membership.join) room.id,
+  };
 
-  bool get _listsUnjoined =>
-      communityChildIds(community)
-          .any((id) => _client.getRoomById(id)?.membership != Membership.join);
+  bool get _listsUnjoined {
+    final joined = _joinedIds();
+    return communityChildIds(community).any((id) => !joined.contains(id));
+  }
 
   static bool _forgotten(MatrixException e, String? from) =>
       from != null && e.error == MatrixError.M_INVALID_PARAM;
@@ -119,6 +131,7 @@ class JoinableRoomsFeed extends ChangeNotifier {
     final chunks = _chunks ??= [];
     _next = next;
     _ended = next == null;
+    final joined = _joinedIds();
     var added = 0;
     for (final chunk in page) {
       if (chunk.roomId == community.id ||
@@ -127,7 +140,7 @@ class JoinableRoomsFeed extends ChangeNotifier {
         continue;
       }
       chunks.add(chunk);
-      if (_unjoined(chunk)) added++;
+      if (!joined.contains(chunk.roomId)) added++;
     }
     return added;
   }

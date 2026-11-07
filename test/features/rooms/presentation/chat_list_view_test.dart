@@ -274,7 +274,10 @@ void main() {
         ),
       );
     }
-    client.rooms.addAll([...rooms, space]);
+    client.rooms.addAll([
+      for (final room in [...rooms, space])
+        if (!client.rooms.contains(room)) room,
+    ]);
     return space;
   }
 

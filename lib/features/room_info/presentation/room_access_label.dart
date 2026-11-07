@@ -4,6 +4,8 @@ import 'package:matrix/matrix.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/rooms/communities.dart';
 import '../../../core/matrix/rooms/room_access.dart';
+import '../../../core/matrix/rooms/room_title.dart';
+import 'room_header.dart';
 
 class RoomAccessLabel extends StatelessWidget {
   final RoomAccess access;
@@ -22,46 +24,49 @@ class RoomAccessLabel extends StatelessWidget {
     AppLocalizations l10n, {
     double iconSize = 16,
     Key? key,
-  }) {
-    final access = roomAccessOf(room);
-    return RoomAccessLabel(
-      access: access,
-      community: access == RoomAccess.community
-          ? communityNameOf(room, l10n)
-          : null,
-      iconSize: iconSize,
-      key: key,
-    );
-  }
+  }) => RoomAccessLabel(
+    access: roomAccessOf(room),
+    community: _communityName(room.client, allowedRoomIdsOf(room), l10n),
+    iconSize: iconSize,
+    key: key,
+  );
+
+  factory RoomAccessLabel.listed(
+    SpaceRoomsChunk$2 room,
+    Client client,
+    AppLocalizations l10n, {
+    Key? key,
+  }) => RoomAccessLabel(
+    access: listedRoomAccess(room.joinRule),
+    community: _communityName(client, room.allowedRoomIds ?? const [], l10n),
+    key: key,
+  );
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(
-          switch (access) {
-            RoomAccess.public => Icons.public,
-            RoomAccess.community => Icons.workspaces_outlined,
-            RoomAccess.askToJoin => Icons.front_hand_outlined,
-            RoomAccess.private => Icons.public_off,
-          },
-          size: iconSize,
-          color: theme.colorScheme.onSurfaceVariant,
-        ),
-        const SizedBox(width: 4),
-        Flexible(
-          child: Text(
-            access == RoomAccess.community
-                ? community ?? access.label(context.l10n)
-                : access.label(context.l10n),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: theme.textTheme.bodySmall,
-          ),
-        ),
-      ],
-    );
+  Widget build(BuildContext context) => RoomDetail(
+    access == RoomAccess.community
+        ? community ?? access.label(context.l10n)
+        : access.label(context.l10n),
+    icon: switch (access) {
+      RoomAccess.public => Icons.public,
+      RoomAccess.community => Icons.workspaces_outlined,
+      RoomAccess.askToJoin => Icons.front_hand_outlined,
+      RoomAccess.private => Icons.public_off,
+    },
+    iconSize: iconSize,
+  );
+}
+
+String? _communityName(
+  Client client,
+  Iterable<String> allowed,
+  AppLocalizations l10n,
+) {
+  for (final id in allowed) {
+    if (client.getRoomById(id) case final community?
+        when isJoinedCommunity(community)) {
+      return roomTitle(community, l10n);
+    }
   }
+  return null;
 }

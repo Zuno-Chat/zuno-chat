@@ -99,7 +99,7 @@ files, and the media viewer pages through it (`chats-messaging.md`).
   | Access | Join rule | Listed | Offered for |
   |---|---|---|---|
   | Public | `public` | Yes | Rooms outside a community, and communities |
-  | Community | `restricted` to the room's communities | No | Rooms inside a community (`communities.md`) |
+  | Community | `restricted` to the communities it is linked with both ways | No | Rooms inside a community (`communities.md`) |
   | Ask to join | `knock` | No | Rooms inside a community |
   | Private | `invite` | No | Everything; the default for a new room outside a community |
 
@@ -166,7 +166,7 @@ files, and the media viewer pages through it (`chats-messaging.md`).
 - **The list delegate needs `findChildIndexCallback` keyed on the room ID**, or a chat jumping to the top remounts every row in between.
 - **Every text line in a row is strut-locked** (`core/ui/line_strut.dart`), because the list is fixed-extent and fallback fonts would otherwise grow a row.
 - **Synapse refuses directory publishing by default** (`room_list_publication_rules`), so Public fails until the server allows it: the app keeps the room private and says so in one message, never reporting it as an error.
-- **The access label reads the join rule, not the directory listing**, which costs a request per room, so an invite-only room listed by other means reads as private.
+- **The access label reads the join rule, not the directory listing**, which costs a request per room, so an invite-only room listed by other means reads as private, and a Community label names the first joined community the rule lets in.
 - **Blocking and unblocking clear the local cache**, which makes every open `Room` stale, so every Block entry point, and every Unblock entry point outside Settings, returns to the chat list.
 - **Blocked people show as usernames**, because servers refuse profile lookups for people you share no room with.
 - **End-to-end encryption rules out server-side spam filtering**, so every available signal is metadata.

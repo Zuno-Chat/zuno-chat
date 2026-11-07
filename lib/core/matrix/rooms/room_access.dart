@@ -30,7 +30,25 @@ class RoomListingRefused implements Exception {
   String toString() => 'RoomListingRefused';
 }
 
-RoomAccess roomAccessOf(Room room) => switch (room.joinRules) {
+RoomAccess roomAccessOf(Room room) => _accessFor(room.joinRules);
+
+List<String> allowedRoomIdsOf(Room room) => [
+  for (final rule
+      in room
+              .getState(EventTypes.RoomJoinRules)
+              ?.content
+              .tryGetList<Object?>('allow') ??
+          const <Object?>[])
+    if (rule case {'type': 'm.room_membership', 'room_id': final String id}) id,
+];
+
+RoomAccess listedRoomAccess(String? joinRule) => _accessFor(
+  joinRule == null
+      ? JoinRules.public
+      : JoinRules.values.where((rule) => rule.text == joinRule).firstOrNull,
+);
+
+RoomAccess _accessFor(JoinRules? rule) => switch (rule) {
   JoinRules.public => RoomAccess.public,
   JoinRules.restricted || JoinRules.knockRestricted => RoomAccess.community,
   JoinRules.knock => RoomAccess.askToJoin,
@@ -76,7 +94,7 @@ Future<void> setRoomAccess(Room room, RoomAccess access) async {
       await _setListed(room, Visibility.public);
       await _setJoinRule(room, JoinRules.public);
     case RoomAccess.community:
-      final communities = communitiesOf(room).map((c) => c.id).toList();
+      final communities = mutualCommunitiesOf(room).map((c) => c.id).toList();
       if (communities.isEmpty) throw StateError('No community holds this room');
       await _setJoinRule(room, JoinRules.restricted, allow: communities);
       await _setListed(room, Visibility.private);

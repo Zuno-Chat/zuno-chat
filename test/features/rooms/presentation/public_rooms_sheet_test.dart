@@ -112,7 +112,7 @@ void main() {
     expect(await opened.result, '!a:example.org');
   });
 
-  testWidgets('falls back to the local alias, then the local id', (
+  testWidgets('falls back to the local alias, then says it is unnamed', (
     tester,
   ) async {
     await _open(
@@ -124,7 +124,7 @@ void main() {
     );
 
     expect(find.text('#chess'), findsOneWidget);
-    expect(find.text('!b'), findsOneWidget);
+    expect(find.text('Unnamed room'), findsOneWidget);
   });
 
   testWidgets('narrows the list as you type, once you pause', (tester) async {

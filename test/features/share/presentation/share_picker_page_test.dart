@@ -108,7 +108,8 @@ void main() {
       expect(targets.map((t) => t.community?.name), ['Climbing club', null]);
     });
 
-    test('a half-linked chat carries no community', () {
+    test('a chat its community lists carries it, even when the chat does '
+        'not name it back', () {
       final crew = namedRoom(client, '!crew:example.org', 'Belay crew');
       final club = namedRoom(client, '!club:example.org', 'Climbing club');
       applyOptimisticRoomState(club, EventTypes.RoomCreate, {
@@ -120,7 +121,7 @@ void main() {
 
       final targets = shareTargets([crew, club], englishLocalizations);
 
-      expect(targets.single.community, isNull);
+      expect(targets.single.community?.name, 'Climbing club');
     });
   });
 

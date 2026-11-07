@@ -59,6 +59,60 @@ void main() {
     }
   });
 
+  group('allowedRoomIdsOf', () {
+    test('reads the rooms whose members may join, skipping anything '
+        'else', () {
+      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+      room.setState(
+        StrippedStateEvent(
+          type: EventTypes.RoomJoinRules,
+          senderId: '@admin:example.org',
+          stateKey: '',
+          content: {
+            'join_rule': 'restricted',
+            'allow': [
+              {'type': 'm.room_membership', 'room_id': '!club:example.org'},
+              {'type': 'org.example.other', 'room_id': '!other:example.org'},
+              {'type': 'm.room_membership'},
+              'junk',
+              {'type': 'm.room_membership', 'room_id': '!hall:example.org'},
+            ],
+          },
+        ),
+      );
+
+      expect(allowedRoomIdsOf(room), [
+        '!club:example.org',
+        '!hall:example.org',
+      ]);
+    });
+
+    test('a room without an allow list allows no room', () {
+      final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+      setJoinRule(room, 'public');
+
+      expect(allowedRoomIdsOf(room), isEmpty);
+    });
+  });
+
+  group('listedRoomAccess', () {
+    test('reads a listed join rule the way a room reads its own', () {
+      expect(listedRoomAccess('public'), RoomAccess.public);
+      expect(listedRoomAccess('restricted'), RoomAccess.community);
+      expect(listedRoomAccess('knock_restricted'), RoomAccess.community);
+      expect(listedRoomAccess('knock'), RoomAccess.askToJoin);
+      expect(listedRoomAccess('invite'), RoomAccess.private);
+    });
+
+    test('a listing without a join rule means public', () {
+      expect(listedRoomAccess(null), RoomAccess.public);
+    });
+
+    test('an unknown join rule is private', () {
+      expect(listedRoomAccess('org.example.secret'), RoomAccess.private);
+    });
+  });
+
   group('canChangeRoomAccess', () {
     test('admins of a group can', () {
       final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
