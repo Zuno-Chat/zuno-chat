@@ -99,6 +99,39 @@ void main() {
     },
   );
 
+  test('createSession throws CallsRouteGone on 404 M_UNRECOGNIZED', () async {
+    final mock = FakeHttpClient(
+      (request) async =>
+          http.Response(jsonEncode({'errcode': 'M_UNRECOGNIZED'}), 404),
+    );
+
+    await expectLater(
+      _client(mock).createSession(roomId: _roomId, callId: _callId),
+      throwsA(
+        isA<CallsRouteGone>().having(
+          (e) => e.toString(),
+          'toString',
+          contains('POST /sessions/new'),
+        ),
+      ),
+    );
+  });
+
+  test('createSession keeps CallsModuleException on a plain 404', () async {
+    final mock = FakeHttpClient((request) async => http.Response('', 404));
+
+    await expectLater(
+      _client(mock).createSession(roomId: _roomId, callId: _callId),
+      throwsA(
+        isA<CallsModuleException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          404,
+        ),
+      ),
+    );
+  });
+
   test('createSession treats any other refusal as a module failure', () async {
     final mock = FakeHttpClient(
       (request) async =>

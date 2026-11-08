@@ -19,15 +19,15 @@ import '../../l10n/l10n.dart';
 import '../../matrix/database/ephemeral_to_device.dart';
 import '../../matrix/encryption/late_decryptions.dart';
 import '../../matrix/encryption/olm_sender.dart';
-import '../../matrix/http/bearer_authorization.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
-import '../cloudflare/cloudflare_call_engine.dart';
-import '../cloudflare/cloudflare_routes.dart';
+import '../media/call_connection.dart';
+import '../media/call_media_engine.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_failure.dart';
 import '../models/call_kind.dart';
 import '../models/voip_participant_id.dart';
+import '../module/call_provider_discovery.dart' show CallsNotOffered;
 import '../module/calls_module.dart';
 import '../notifications/call_notification_service.dart';
 import 'call_decline.dart';
@@ -36,7 +36,6 @@ import 'call_member_state.dart';
 import 'call_membership_writer.dart';
 import 'call_moderation.dart';
 import 'call_summary_message.dart';
-import 'ice_servers.dart';
 
 enum CallSessionRole { caller, callee }
 
@@ -122,7 +121,7 @@ class CallSession {
   bool _endedLocally = false;
 
   final Set<VoipParticipantId> _knownRemote = {};
-  final Map<VoipParticipantId, String?> _knownRemoteSessions = {};
+  final Map<VoipParticipantId, int> _knownRemoteCreatedAt = {};
   bool _everHadRemote = false;
   bool get everHadRemote => _everHadRemote;
 
@@ -155,6 +154,7 @@ class CallSession {
   final Duration keyRelayMaxDelay;
   final Duration ringTimeout;
   final http.Client? callsHttpClient;
+  final CallConnectionOpener _connections;
   final ValueListenable<bool> _pictureInPictureCamera;
   final Future<void>? _previousCallReleased;
 
@@ -165,6 +165,7 @@ class CallSession {
     required this.kind,
     required this.lowDataMode,
     required this._phase,
+    required this._connections,
     this.engineBuilder,
     this.keyRelayBaseDelay = _defaultKeyRelayBaseDelay,
     this.keyRelayMaxDelay = _defaultKeyRelayMaxDelay,
@@ -277,21 +278,18 @@ class CallSession {
 
   CallEngine _buildEngine() {
     if (engineBuilder case final build?) return build();
-    return CloudflareCallEngine(
-      baseUri: () => cloudflareCallsBaseUri(client),
-      authorization: () => bearerAuthorization(client),
-      roomId: _roomId,
-      callId: callId,
+    return CallMediaEngine(
+      connections: _connections,
+      spec: (roomId: _roomId, callId: callId),
       kind: kind,
-      iceServers: resolveIceServers(client, httpClient: callsHttpClient),
       lowDataMode: lowDataMode,
-      httpClient: callsHttpClient,
     );
   }
 
   static CallSession startOutgoing(
     Room room,
     CallKind kind, {
+    required CallConnectionOpener connections,
     bool lowDataMode = false,
     @visibleForTesting CallEngine Function()? engineBuilder,
     @visibleForTesting Duration? keyRelayBaseDelay,
@@ -307,6 +305,7 @@ class CallSession {
       kind: kind,
       lowDataMode: lowDataMode,
       phase: CallSessionPhase.connecting,
+      connections: connections,
       engineBuilder: engineBuilder,
       keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
       keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
@@ -355,12 +354,15 @@ class CallSession {
   Future<void> _startOutgoingConnect() async {
     final String? invite;
     try {
+      final ready = engine.ready()..ignore();
       await ensurePermissions();
       if (ending) return;
       _startLocalMedia().ignore();
+      await ready;
+      if (ending) return;
       invite = await (_invite = _sendInvite());
     } catch (e, s) {
-      if (!_shownToUser(e)) reportCaught('start an outgoing call', e, s);
+      if (_worthReporting(e)) reportCaught('start an outgoing call', e, s);
       await _failBeforeRinging(e);
       return;
     }
@@ -375,7 +377,7 @@ class CallSession {
       await _connect();
       _hangUpIfStillAlone(after: ringTimeout);
     } catch (e, s) {
-      if (!_shownToUser(e)) reportCaught('connect an outgoing call', e, s);
+      if (_worthReporting(e)) reportCaught('connect an outgoing call', e, s);
       await hangUp();
     }
   }
@@ -430,6 +432,7 @@ class CallSession {
     required Room room,
     required String callId,
     required CallKind kind,
+    required CallConnectionOpener connections,
     bool lowDataMode = false,
     @visibleForTesting CallEngine Function()? engineBuilder,
     @visibleForTesting Uint8List? initialEncryptionKeyForTesting,
@@ -446,6 +449,7 @@ class CallSession {
         kind: kind,
         lowDataMode: lowDataMode,
         phase: CallSessionPhase.ringing,
+        connections: connections,
         engineBuilder: engineBuilder,
         keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
         keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
@@ -479,7 +483,7 @@ class CallSession {
       await _connect();
       _hangUpIfStillAlone(after: emptyCallTimeout);
     } catch (e, s) {
-      if (!_shownToUser(e)) reportCaught('accept a call', e, s);
+      if (_worthReporting(e)) reportCaught('accept a call', e, s);
       await hangUp();
       rethrow;
     }
@@ -615,12 +619,17 @@ class CallSession {
       _isForbidden(error) ||
       error is MicrophoneUnavailable ||
       error is CallFullException ||
-      error is CallRemovedException;
+      error is CallRemovedException ||
+      error is CallsNotOffered;
+
+  static bool _worthReporting(Object error) =>
+      !_shownToUser(error) && !isExpectedCallsFailure(error);
 
   static CallFailure _failureOf(Object error) => switch (error) {
     _ when _isForbidden(error) => const CallNoPermissionToStart(),
     MicrophoneUnavailable() => const CallMicrophoneUnavailable(),
     CallFullException(:final maxParticipants) => CallFull(maxParticipants),
+    CallsNotOffered() => const CallsNotAvailable(),
     _ => const CallDidNotConnect(),
   };
 
@@ -927,13 +936,9 @@ class CallSession {
       if (_pendingKeys.remove(id) case final pending?) {
         _applyEncryptionKey(pending, from: id);
       }
-      final remoteSessionId = switch (membership.fociActive['sessionId']) {
-        final String sessionId => sessionId,
-        _ => null,
-      };
       final isNewDevice = _knownRemote.add(id);
-      if (isNewDevice || _knownRemoteSessions[id] != remoteSessionId) {
-        _knownRemoteSessions[id] = remoteSessionId;
+      if (isNewDevice || _knownRemoteCreatedAt[id] != membership.createdAtMs) {
+        _knownRemoteCreatedAt[id] = membership.createdAtMs;
         if (!isNewDevice || id != _keySender) _relayEncryptionKeyTo(id);
       }
       if (!_everHadRemote) {
@@ -957,7 +962,7 @@ class CallSession {
     for (final id in departed) {
       eng.removeRemoteParticipant(id);
       _knownRemote.remove(id);
-      _knownRemoteSessions.remove(id);
+      _knownRemoteCreatedAt.remove(id);
       _stopKeyRelay(id);
     }
 

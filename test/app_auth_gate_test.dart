@@ -59,6 +59,7 @@ import 'package:zuno/features/share/presentation/share_picker_page.dart';
 import 'features/verification/presentation/verification_harness.dart';
 import 'helpers/app_lifecycle.dart';
 import 'helpers/call_channel_mocks.dart';
+import 'helpers/fake_call_provider_discovery.dart';
 import 'helpers/fake_call_session.dart';
 import 'helpers/fake_call_style_channel.dart';
 import 'helpers/fake_calls_channel.dart';
@@ -219,6 +220,7 @@ void main() {
         else
           isLoggedInProvider.overrideWithValue(loggedIn),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        fakeCallDiscoveryOverride(),
         deviceRisksProvider.overrideWithValue(
           const AsyncValue.data(<DeviceRisk>{}),
         ),
@@ -897,6 +899,38 @@ void main() {
       expect(callsChannel.argsOf('setShowOverLockscreen').single, {
         'show': false,
       });
+    });
+
+    testWidgets('a return to the app asks the server again for its calls '
+        'when the answer is stale, the launch resume does not', (tester) async {
+      final container = await pumpApp(tester);
+      await settle(tester);
+      final discovery = fakeDiscoveryIn(container);
+
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+      await settle(tester);
+      expect(discovery.staleChecks, 0);
+
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+      await settle(tester);
+
+      expect(discovery.staleChecks, 1);
+    });
+
+    testWidgets('a return to the app while signed out asks nothing about '
+        'calls', (tester) async {
+      final container = await pumpApp(tester);
+      await settle(tester);
+      final discovery = fakeDiscoveryIn(container);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+      client.bearerToken = null;
+
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+      await settle(tester);
+
+      expect(discovery.staleChecks, 0);
     });
 
     testWidgets('a return to the app takes back the routes a Decline or a '

@@ -3,12 +3,13 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../matrix/http/bearer_authorization.dart';
-import '../cloudflare/cloudflare_routes.dart';
-import '../cloudflare/cloudflare_turn_client.dart';
+import '../module/calls_module.dart';
+import 'cloudflare_routes.dart';
+import 'cloudflare_turn_client.dart';
 
 const _turnBudget = Duration(seconds: 5);
 
-Future<List<Map<String, Object?>>> resolveIceServers(
+Future<List<Map<String, Object?>>> resolveCloudflareIceServers(
   Client client, {
   http.Client? httpClient,
 }) async {
@@ -19,7 +20,7 @@ Future<List<Map<String, Object?>>> resolveIceServers(
       httpClient: httpClient,
     ).timeout(_turnBudget);
   } catch (e, s) {
-    reportCaught('mint TURN credentials', e, s);
+    if (!isExpectedCallsFailure(e)) reportCaught('mint TURN credentials', e, s);
     return const [];
   }
 }

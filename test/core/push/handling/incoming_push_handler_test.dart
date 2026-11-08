@@ -33,6 +33,7 @@ import 'package:zuno/core/push/handling/incoming_push_handler.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_call_connection.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_encryption.dart';
 import '../../../helpers/fake_local_notifications.dart';
@@ -342,6 +343,7 @@ void main() {
             .read(activeCallProvider.notifier)
             .set(
               CallSession.forIncoming(
+                connections: FakeCallConnections(),
                 room: room,
                 callId: 'live',
                 kind: CallKind.voice,

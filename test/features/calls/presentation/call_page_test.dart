@@ -8,8 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
-import 'package:zuno/core/calls/cloudflare/webrtc_backend.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
+import 'package:zuno/core/calls/media/webrtc_backend.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
@@ -27,6 +27,7 @@ import 'package:zuno/features/calls/presentation/participant_tile.dart';
 import 'package:zuno/features/verification/presentation/why_confirm_sheet.dart';
 
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_call_connection.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/native_method_calls.dart';
@@ -57,6 +58,7 @@ void main() {
         tester.view.physicalSize = const Size(360, 640);
         addTearDown(tester.view.reset);
         final session = CallSession.forIncoming(
+          connections: FakeCallConnections(),
           room: room,
           callId: 'call-${kind.name}',
           kind: kind,

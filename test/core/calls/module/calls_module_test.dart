@@ -1,9 +1,13 @@
 import 'dart:convert';
+import 'dart:io' show SocketException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_routes.dart';
+import 'package:zuno/core/calls/livekit/livekit_signal_client.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
+import 'package:zuno/core/matrix/http/typed_server_answers.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -55,6 +59,123 @@ void main() {
     test('throws rather than guessing when no homeserver is set', () {
       expect(() => cloudflareCallsBaseUri(buildTestClient()), throwsStateError);
       expect(() => turnCredentialsUri(buildTestClient()), throwsStateError);
+    });
+  });
+
+  group('callsModuleUri', () {
+    test('resolves segments under the calls module on the homeserver', () {
+      final client = buildTestClient()
+        ..homeserver = Uri.parse('https://hs.example.org');
+
+      expect(
+        callsModuleUri(client, ['livekit', 'token']).toString(),
+        'https://hs.example.org/_synapse/client/zuno/calls/livekit/token',
+      );
+    });
+
+    test('throws when no homeserver is set', () {
+      expect(
+        () => callsModuleUri(buildTestClient(), ['livekit']),
+        throwsStateError,
+      );
+    });
+  });
+
+  group('isRouteGone', () {
+    test('needs a 404 whose errcode is M_UNRECOGNIZED', () {
+      expect(
+        isRouteGone(http.Response('{"errcode":"M_UNRECOGNIZED"}', 404)),
+        isTrue,
+      );
+    });
+
+    test('a 404 with another errcode or a non-JSON body is not gone', () {
+      expect(
+        isRouteGone(http.Response('{"errcode":"M_NOT_FOUND"}', 404)),
+        isFalse,
+      );
+      expect(isRouteGone(http.Response('not json', 404)), isFalse);
+    });
+
+    test('M_UNRECOGNIZED on another status is not gone', () {
+      expect(
+        isRouteGone(http.Response('{"errcode":"M_UNRECOGNIZED"}', 400)),
+        isFalse,
+      );
+    });
+  });
+
+  group('isExpectedCallsFailure', () {
+    test('a gone route, a module 5xx or 429 and a network failure are '
+        'expected', () {
+      expect(
+        isExpectedCallsFailure(const CallsRouteGone('POST /livekit/token')),
+        isTrue,
+      );
+      for (final status in [500, 503, 429]) {
+        expect(
+          isExpectedCallsFailure(
+            CallsModuleException('HTTP $status', statusCode: status),
+          ),
+          isTrue,
+        );
+      }
+      expect(isExpectedCallsFailure(const SocketException('down')), isTrue);
+    });
+
+    test('an SFU that cannot be reached is expected, and one that refuses '
+        'is not', () {
+      for (final kind in ['upgrade 503', 'no answer', 'SocketException']) {
+        expect(isExpectedCallsFailure(LiveKitSignalUnreachable(kind)), isTrue);
+      }
+      expect(
+        isExpectedCallsFailure(const LiveKitJoinRefused('upgrade 401')),
+        isFalse,
+      );
+    });
+
+    test('a client 4xx from the module is not expected', () {
+      for (final status in [400, 403, 404]) {
+        expect(
+          isExpectedCallsFailure(
+            CallsModuleException('HTTP $status', statusCode: status),
+          ),
+          isFalse,
+        );
+      }
+    });
+
+    test('a Matrix refusal is not expected, and a rate limit or a server '
+        'failure is', () {
+      for (final errcode in ['M_BAD_JSON', 'M_TOO_LARGE', 'M_FORBIDDEN']) {
+        expect(
+          isExpectedCallsFailure(
+            MatrixException.fromJson({'errcode': errcode, 'error': 'x'}),
+          ),
+          isFalse,
+        );
+      }
+      expect(
+        isExpectedCallsFailure(
+          MatrixException.fromJson({'errcode': 'M_LIMIT_EXCEEDED'}),
+        ),
+        isTrue,
+      );
+      expect(isExpectedCallsFailure(const ServerAnswerFailed(502)), isTrue);
+      expect(isExpectedCallsFailure(const ServerAnswerFailed(400)), isFalse);
+    });
+
+    test('a malformed module answer is not expected', () {
+      expect(
+        isExpectedCallsFailure(
+          CallsModuleException('POST /livekit/token answered without a token'),
+        ),
+        isFalse,
+      );
+    });
+
+    test('a defect is not expected', () {
+      expect(isExpectedCallsFailure(StateError('bug')), isFalse);
     });
   });
 

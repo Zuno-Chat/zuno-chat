@@ -18,6 +18,7 @@ abstract class CallEngine {
   Stream<void> get localStateChangedStream;
   Map<String, Object?>? get localFociInfo;
 
+  Future<void> ready();
   Future<void> startLocalMedia();
   Future<void> join();
   Future<void> leave();

@@ -1,4 +1,3 @@
-import 'package:clock/clock.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
@@ -6,6 +5,7 @@ import '../../errors/caught_errors.dart';
 import '../auth/server_choice.dart';
 import '../client/matrix_client_provider.dart';
 import '../http/typed_server_answers.dart';
+import 'saved_server_answer.dart';
 
 const accountCapabilitiesLifetime = Duration(days: 3);
 
@@ -44,14 +44,12 @@ class AccountCapabilities {
 typedef _Saved = ({AccountCapabilities capabilities, DateTime savedAt});
 
 Future<_Saved?> _readSaved(Client client) async {
-  final saved = await client.database.getCustomCacheObject(_cacheKey);
-  final content = saved?.content;
-  if (content == null) return null;
-  if (content['user_id'] != client.userID) return null;
-  final ms = content['saved_at'];
+  final saved = await readSavedServerAnswer(client, _cacheKey);
+  if (saved == null) return null;
+  final content = saved.content;
   final password = content['change_password'];
   final token = content['get_login_token'];
-  if (ms is! int || password is! bool || token is! bool) return null;
+  if (password is! bool || token is! bool) return null;
   if (!content.containsKey('account_page')) return null;
   final AccountPage? accountPage;
   switch (content['account_page']) {
@@ -71,7 +69,7 @@ Future<_Saved?> _readSaved(Client client) async {
       canMintSignInCodes: token,
       accountPage: accountPage,
     ),
-    savedAt: DateTime.fromMillisecondsSinceEpoch(ms),
+    savedAt: saved.savedAt,
   );
 }
 
@@ -95,12 +93,8 @@ Future<AccountCapabilities> readAccountCapabilities(Client client) async {
   } catch (error, stack) {
     _report(_capabilitiesLabel, error, stack);
   }
-  final now = clock.now();
-  if (saved != null) {
-    final age = now.difference(saved.savedAt);
-    if (!age.isNegative && age < accountCapabilitiesLifetime) {
-      return saved.capabilities;
-    }
+  if (saved != null && isFresh(saved.savedAt, accountCapabilitiesLifetime)) {
+    return saved.capabilities;
   }
   final Capabilities fetched;
   try {
@@ -128,9 +122,7 @@ Future<AccountCapabilities> readAccountCapabilities(Client client) async {
     accountPage: accountPage,
   );
   try {
-    await client.database.cacheCustomObject(_cacheKey, {
-      'user_id': client.userID,
-      'saved_at': now.millisecondsSinceEpoch,
+    await saveServerAnswer(client, _cacheKey, {
       'change_password': result.canChangePassword,
       'get_login_token': result.canMintSignInCodes,
       'account_page': _savedAccountPage(result.accountPage),

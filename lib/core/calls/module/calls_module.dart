@@ -6,6 +6,8 @@ import 'package:matrix/matrix.dart';
 
 import '../../errors/retry_backoff.dart';
 import '../../matrix/http/bearer_authorization.dart';
+import '../../matrix/http/typed_server_answers.dart';
+import '../models/sfu_failures.dart';
 
 const _modulePath = ['_synapse', 'client', 'zuno', 'calls'];
 
@@ -23,6 +25,14 @@ Uri callsModuleUri(Client client, List<String> segments) {
 }
 
 final _errorCodePattern = RegExp(r'^[A-Za-z0-9_.]{1,64}$');
+
+Object? _bodyJson(http.Response response) {
+  try {
+    return jsonDecode(response.body);
+  } on FormatException {
+    return null;
+  }
+}
 
 String? moduleErrorCode(Object? json) {
   if (json is! Map) return null;
@@ -50,20 +60,16 @@ class CallRemovedException implements Exception {
 
 Exception? moduleRefusalOf(http.Response response) {
   if (response.statusCode != 403) return null;
-  try {
-    return switch (jsonDecode(response.body)) {
-      {
-        'errcode': 'IM.ZUNO.CALL_FULL',
-        'max_participants': final int maxParticipants,
-      }
-          when maxParticipants >= 1 =>
-        CallFullException(maxParticipants),
-      {'errcode': callRemovedErrorCode} => const CallRemovedException(),
-      _ => null,
-    };
-  } on FormatException {
-    return null;
-  }
+  return switch (_bodyJson(response)) {
+    {
+      'errcode': 'IM.ZUNO.CALL_FULL',
+      'max_participants': final int maxParticipants,
+    }
+        when maxParticipants >= 1 =>
+      CallFullException(maxParticipants),
+    {'errcode': callRemovedErrorCode} => const CallRemovedException(),
+    _ => null,
+  };
 }
 
 class CallsModuleException implements Exception {
@@ -76,6 +82,26 @@ class CallsModuleException implements Exception {
   @override
   String toString() => 'CallsModuleException: $message';
 }
+
+class CallsRouteGone implements Exception {
+  const CallsRouteGone(this.route);
+
+  final String route;
+
+  @override
+  String toString() => 'CallsRouteGone: the module does not serve $route';
+}
+
+bool isRouteGone(http.Response response) =>
+    response.statusCode == 404 &&
+    moduleErrorCode(_bodyJson(response)) == 'M_UNRECOGNIZED';
+
+bool isExpectedCallsFailure(Object error) => switch (error) {
+  CallsRouteGone() || SfuUnreachable() => true,
+  CallsModuleException(:final statusCode?) =>
+    statusCode >= 500 || statusCode == 429,
+  _ => isExpectedServerFailure(error),
+};
 
 const _requestDeadline = Duration(seconds: 15);
 const _retryBaseDelay = Duration(milliseconds: 150);
@@ -99,11 +125,13 @@ Future<Map<String, dynamic>> sendToCallsModule({
       if (encoded != null) 'Content-Type': 'application/json',
     };
     final response = await switch (method) {
+      'GET' => client.get(uri, headers: headers),
       'POST' => client.post(uri, headers: headers, body: encoded),
       'PUT' => client.put(uri, headers: headers, body: encoded),
       _ => throw ArgumentError('Unsupported method $method'),
     }.timeout(_requestDeadline);
     if (moduleRefusalOf(response) case final refusal?) throw refusal;
+    if (isRouteGone(response)) throw CallsRouteGone(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw CallsModuleException(
         moduleFailure(response, request),
@@ -155,23 +183,13 @@ Future<void> requestCallRemoval(
 
 String moduleFailure(http.Response response, String request) {
   final failure = 'HTTP ${response.statusCode} from $request';
-  final Object? json;
-  try {
-    json = jsonDecode(response.body);
-  } on FormatException {
-    return failure;
-  }
-  final code = moduleErrorCode(json);
+  final code = moduleErrorCode(_bodyJson(response));
   return code == null ? failure : '$failure: $code';
 }
 
 Duration? retryAfterOf(http.Response response) {
   if (response.statusCode != 429) return null;
-  try {
-    final json = jsonDecode(response.body);
-    final ms = json is Map ? json['retry_after_ms'] : null;
-    return ms is int && ms > 0 ? Duration(milliseconds: ms) : null;
-  } on FormatException {
-    return null;
-  }
+  final json = _bodyJson(response);
+  final ms = json is Map ? json['retry_after_ms'] : null;
+  return ms is int && ms > 0 ? Duration(milliseconds: ms) : null;
 }

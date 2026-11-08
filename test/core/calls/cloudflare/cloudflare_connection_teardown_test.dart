@@ -1,23 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/calls/cloudflare/cloudflare_call_engine.dart';
+import 'package:zuno/core/calls/media/call_media_engine.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
-import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 
-final _baseUri = Uri.parse(
-  'https://example.org/_synapse/client/zuno/calls/cloudflare',
-);
+import 'cloudflare_engine_harness.dart';
 
-CloudflareCallEngine _buildEngine({CallKind kind = CallKind.voice}) =>
-    CloudflareCallEngine(
-      baseUri: () => _baseUri,
-      authorization: () async => 'Bearer test-token',
-      roomId: '!room:example.org',
-      callId: 'call1',
-      kind: kind,
-    );
+CallMediaEngine _buildEngine() => buildCloudflareEngine().engine;
 
 void main() {
   const remoteId = VoipParticipantId(userId: '@bob:example.org', deviceId: 'B');
@@ -26,7 +16,7 @@ void main() {
     'tracks': {'audio': 'audio'},
   };
 
-  void update(CloudflareCallEngine engine, Map<String, Object?> foci) =>
+  void update(CallMediaEngine engine, Map<String, Object?> foci) =>
       engine.updateRemoteParticipant(remoteId, foci, membershipEventId: null);
 
   group('happy path', () {

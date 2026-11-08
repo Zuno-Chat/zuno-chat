@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "L’appel n’a pas abouti",
   "callsFailureMicrophone": "Autorisez Zuno à utiliser le micro, puis rappelez.",
   "callsFailureNoPermission": "Vous n’avez pas l’autorisation de lancer des appels dans ce salon",
+  "callsFailureNotAvailable": "Les appels ne sont pas disponibles sur ce serveur.",
   "callsFailureOnAnotherDevice": "Vous êtes déjà dans cet appel sur un autre appareil. Raccrochez-y pour le rejoindre ici.",
   "callsGenericRingName": "Appel Zuno",
   "callsHangUp": "Raccrocher",

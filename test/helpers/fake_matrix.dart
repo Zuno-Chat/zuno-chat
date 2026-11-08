@@ -12,6 +12,16 @@ class FakeDatabaseApi implements DatabaseApi {
   Future<User?> getUser(String userId, Room room) async => null;
 
   @override
+  Future<({Map<String, Object?> content, DateTime savedAt})?>
+  getCustomCacheObject(String cacheKey) async => null;
+
+  @override
+  Future<void> cacheCustomObject(
+    String cacheKey,
+    Map<String, Object?> content,
+  ) async {}
+
+  @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
@@ -101,16 +111,6 @@ class MediaCapableFakeDatabaseApi extends FakeDatabaseApi
 mixin MediaCapableDatabase on FakeDatabaseApi {
   @override
   int get maxFileSize => 0;
-
-  @override
-  Future<({Map<String, Object?> content, DateTime savedAt})?>
-  getCustomCacheObject(String cacheKey) async => null;
-
-  @override
-  Future<void> cacheCustomObject(
-    String cacheKey,
-    Map<String, Object?> content,
-  ) async {}
 }
 
 class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi

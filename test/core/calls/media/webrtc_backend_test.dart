@@ -1,7 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:zuno/core/calls/cloudflare/webrtc_backend.dart';
+import 'package:zuno/core/calls/media/webrtc_backend.dart';
 
 import '../../../helpers/native_method_calls.dart';
 

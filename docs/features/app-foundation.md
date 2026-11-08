@@ -397,6 +397,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **The SDK's own sync loop must stay off for the app client**: it restarts itself when an aborted request returns, so each `abortSync()` during a request leaves one more loop running (matrix 14, reported upstream). `ZunoClient` refuses `backgroundSync = true`, and the SDK's `clear()` turns it back on behind the setter, so the coordinator turns it off at every login change.
 - **`oneShotSync` joins the request in flight instead of starting one**, so a push catch-up or an SDK flow never adds a request. Nothing but the coordinator drives the app client's sync, and a test enforces it.
 - **`softLoggedOut` is a token refresh in flight, not a sign-out**: only `loggedOut` reads as signed out.
+- **dart:io hands a custom `connectionFactory` the raw URI a WebSocket builds, whose port is 0 for a `wss://` URL without one**, so the app's https-only factory maps port 0 to 443.
 - **Riverpod 3 retries a failed provider on its own**, so a `FutureProvider` whose error must reach the UI passes `retry: (_, _) => null`.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become `build()`-driven**, because `_AuthGate` sits under every route and Flutter defers rebuilding an element under a covered route.
 - **A SnackBar or provider change made from `FlutterError.onError` or `dispose()` defers with `scheduleMicrotask`**, since both can run while the build pipeline finalizes, and `addPostFrameCallback` fires only if another frame comes.

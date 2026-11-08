@@ -20,7 +20,7 @@ the only source of truth.
 | Shared rules | `room_exit.dart` (the exit rule), `room_title.dart` (the one title every surface shows), `optimistic_room_state.dart`. |
 | Roles | `room_roles.dart`: read-only `-1`, member `0`, moderator `50`, admin `100`, where any other level reads as the tier below it. It also decides who may manage and who may remove whom (`canManageMember`, `canRemoveMember`, `assignableRolesFor`). |
 | Permissions | `room_permission.dart`: the permission catalog, where each entry is one field of `m.room.power_levels`, and the defaults for new rooms. `RoomPermissionsPage` shows it for rooms and communities. |
-| Call gating | `call_member_state.dart`: `canPublishCallMemberState` and `hasSomeoneToCall`, used by every call button. |
+| Call gating | `roomCanCall` (`room_calls.dart`), used by every call button and the call-in-progress banner: the server offers calls (`calls.md`), and `call_member_state.dart` says we may publish call membership here and have someone to call. |
 | Invitations | `room_invite.dart`: pure functions that decide how an invitation is displayed and notified, shared by the chat list, the chat header, `RoomInvitePage` and both notification paths. |
 | Room media | `room_media_feed.dart` (the feed) and `room_media_page.dart` (the tabbed screen). |
 | Moderation | `abuse_report.dart` and `report_sheet.dart` sit behind every report entry point, and `block_person.dart` behind every Block and Unblock entry point. Blocked people are listed under Settings → Security. |

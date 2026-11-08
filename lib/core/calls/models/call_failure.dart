@@ -11,6 +11,7 @@ sealed class CallFailure {
     CallFull(:final maxParticipants) => l10n.callsFailureCallFull(
       maxParticipants,
     ),
+    CallsNotAvailable() => l10n.callsFailureNotAvailable,
     CallOnAnotherDevice() => l10n.callsFailureOnAnotherDevice,
   };
 }
@@ -39,4 +40,8 @@ final class CallFull extends CallFailure {
 
 final class CallOnAnotherDevice extends CallFailure {
   const CallOnAnotherDevice();
+}
+
+final class CallsNotAvailable extends CallFailure {
+  const CallsNotAvailable();
 }

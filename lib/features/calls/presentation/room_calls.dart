@@ -4,6 +4,7 @@ import 'package:matrix/matrix.dart' hide CallSession;
 
 import '../../../core/calls/active_call_controller.dart';
 import '../../../core/calls/active_call_provider.dart';
+import '../../../core/calls/call_connections.dart';
 import '../../../core/calls/matrixrtc/active_room_call.dart';
 import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/matrixrtc/call_session.dart';
@@ -15,6 +16,9 @@ import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/confirm_dialog.dart';
 import '../../../core/ui/notice.dart';
 import 'call_page.dart';
+
+bool roomCanCall(Room room, {required bool callsOffered}) =>
+    callsOffered && canStartCall(room);
 
 Future<void> startRoomCall(
   BuildContext context,
@@ -47,6 +51,7 @@ Future<void> startRoomCall(
         () => CallSession.startOutgoing(
           room,
           kind,
+          connections: ref.read(callConnectionsProvider),
           lowDataMode: ref.read(lowDataCallsProvider),
         ),
       );

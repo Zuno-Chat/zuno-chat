@@ -23,6 +23,7 @@ import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../../helpers/fake_call_connection.dart';
 import '../../../helpers/fake_call_engine.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
@@ -95,6 +96,7 @@ void main() {
   CallSession startOngoingCall(String callId) {
     final gate = teardownGate;
     final session = CallSession.forIncoming(
+      connections: FakeCallConnections(),
       room: room,
       callId: callId,
       kind: CallKind.voice,

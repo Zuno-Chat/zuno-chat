@@ -15,6 +15,7 @@ import 'package:zuno/core/calls/notifications/ringing_call_provider.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import '../../helpers/fake_call_connection.dart';
 import '../../helpers/fake_call_session.dart';
 import '../../helpers/fake_matrix.dart';
 
@@ -31,8 +32,12 @@ void main() {
 
   ActiveCallNotifier line() => container.read(activeCallProvider.notifier);
 
-  CallSession session() =>
-      CallSession.forIncoming(room: room, callId: 'c1', kind: CallKind.voice);
+  CallSession session() => CallSession.forIncoming(
+    connections: FakeCallConnections(),
+    room: room,
+    callId: 'c1',
+    kind: CallKind.voice,
+  );
 
   FakeCallSession fakeCall() =>
       FakeCallSession(room: room, kind: CallKind.voice);

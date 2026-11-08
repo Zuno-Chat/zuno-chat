@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "Thirrja nuk u lidh",
   "callsFailureMicrophone": "Lejo Zuno të përdorë mikrofonin, pastaj thirr sërish.",
   "callsFailureNoPermission": "Nuk ke leje të fillosh thirrje në këtë dhomë",
+  "callsFailureNotAvailable": "Thirrjet nuk ofrohen në këtë server.",
   "callsFailureOnAnotherDevice": "Je në këtë thirrje në një pajisje tjetër. Mbyll thirrjen atje për t’u bashkuar këtu.",
   "callsGenericRingName": "Thirrje Zuno",
   "callsHangUp": "Mbyll thirrjen",

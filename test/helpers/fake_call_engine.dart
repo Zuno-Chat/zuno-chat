@@ -61,6 +61,17 @@ class FakeCallEngine implements CallEngine {
   @override
   final CallKind kind;
 
+  int readyCalls = 0;
+  Object? readyError;
+  Completer<void>? readyGate;
+
+  @override
+  Future<void> ready() async {
+    readyCalls++;
+    await readyGate?.future;
+    if (readyError case final error?) throw error;
+  }
+
   int startLocalMediaCalls = 0;
   Completer<void>? startGate;
 

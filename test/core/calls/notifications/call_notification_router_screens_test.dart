@@ -27,6 +27,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
+import '../../../helpers/fake_call_connection.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
 import '../../../helpers/fake_http.dart';
@@ -233,6 +234,7 @@ void main() {
         'answered one', (tester) async {
       final container = await pumpApp(tester);
       final existing = CallSession.forIncoming(
+        connections: FakeCallConnections(),
         room: room,
         callId: 'other',
         kind: CallKind.voice,

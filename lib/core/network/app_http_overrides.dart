@@ -47,8 +47,15 @@ Future<ConnectionTask<Socket>> _connectEncrypted(
     return Future.error(CleartextRefusedException(uri));
   }
   if (proxyHost != null) return Socket.startConnect(proxyHost, proxyPort!);
-  return SecureSocket.startConnect(uri.host, uri.port, context: context);
+  return SecureSocket.startConnect(
+    uri.host,
+    encryptedPort(uri),
+    context: context,
+  );
 }
+
+int encryptedPort(Uri uri) =>
+    uri.port == 0 ? HttpClient.defaultHttpsPort : uri.port;
 
 String? get appUserAgent => switch (HttpOverrides.current) {
   _AppHttpOverrides(:final userAgent) => userAgent,

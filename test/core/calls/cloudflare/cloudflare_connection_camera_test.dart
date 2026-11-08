@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
@@ -23,7 +24,7 @@ void main() {
   );
 
   Matcher placeholderOf(EngineHarness call) =>
-      same(call.backend.placeholders.last.track);
+      same(call.placeholders.created.last.track);
 
   group('turning the camera off', () {
     test('sends the black placeholder and stops the camera', () {
@@ -63,7 +64,7 @@ void main() {
         expect(call.videoSlot.sender.track, same(call.camera));
         expect(call.camera.enabled, isTrue);
         expect(call.backend.cryptors.liveLabels, contains('local-video'));
-        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
+        expect(call.placeholders.released, call.placeholders.created);
         expect(call.local.videoEnabled, isTrue);
         expect(call.local.frontCamera, isFalse);
         expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
@@ -74,7 +75,7 @@ void main() {
     test('without a placeholder only disables the camera, so its video '
         'stays published', () {
       inCall((call) {
-        call.backend.placeholderAvailable = false;
+        call.placeholders.available = false;
         call.joinEncrypted();
         final cameraStream = call.local.videoStream! as FakeMediaStream;
 
@@ -129,7 +130,7 @@ void main() {
         );
 
         expect(call.videoSlot.sender.track, placeholderOf(call));
-        expect(call.backend.releasedPlaceholders, isEmpty);
+        expect(call.placeholders.released, isEmpty);
         expect(call.local.videoEnabled, isFalse);
         expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
       });
@@ -144,7 +145,7 @@ void main() {
 
         expect(call.engine.kind, CallKind.video);
         expect(call.videoSlot.sender.track, same(call.camera));
-        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
+        expect(call.placeholders.released, call.placeholders.created);
       }, kind: CallKind.voice);
     });
 
@@ -200,7 +201,7 @@ void main() {
 
         expect(call.videoSlot.sender.track, same(camera));
         expect(call.backend.captures, hasLength(1));
-        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
+        expect(call.placeholders.released, call.placeholders.created);
         expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
       }, capabilities: iosCapabilities);
     });
@@ -226,7 +227,7 @@ void main() {
 
         expect(call.videoSlot.sender.track, same(call.camera));
         expect(call.backend.captures, hasLength(2));
-        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
+        expect(call.placeholders.released, call.placeholders.created);
         expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
       }, capabilities: androidCapabilities);
     });
@@ -428,7 +429,7 @@ void main() {
         call.joinEncrypted();
         final gate = Completer<void>();
         call.sfu.sessionGate = gate;
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.async.elapse(const Duration(seconds: 2));
@@ -448,6 +449,73 @@ void main() {
     });
   });
 
+  group('while the connection is broken', () {
+    void breakConnection(EngineHarness call) {
+      call.pc.changeState(RTCPeerConnectionState.RTCPeerConnectionStateFailed);
+      call.flush();
+    }
+
+    void rejoin(EngineHarness call) {
+      call.async.elapse(const Duration(seconds: 2));
+      call.flush();
+    }
+
+    test('a switch to video is held until the rejoin: nothing is captured '
+        'and nothing fails before it', () {
+      inCall((call) {
+        call.joinEncrypted();
+        breakConnection(call);
+        call.backend.captureError = StateError('camera in use');
+
+        call.wait(call.engine.switchToVideo());
+
+        expect(call.backend.captureConstraints, hasLength(1));
+        expect(call.local.videoStream, isNull);
+
+        call.backend.captureError = null;
+        rejoin(call);
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect(call.videoSlot.sender.track, same(call.camera));
+        expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
+      }, kind: CallKind.voice);
+    });
+
+    test('turning the camera off is held until the rejoin, so peers still '
+        'see it until then', () {
+      inCall((call) {
+        call.joinEncrypted();
+        final cameraStream = call.local.videoStream! as FakeMediaStream;
+        breakConnection(call);
+
+        call.wait(call.engine.setCameraEnabled(false));
+
+        expect(cameraStream.disposed, isFalse);
+        expect(call.engine.localFociInfo?['videoEnabled'], isTrue);
+
+        rejoin(call);
+
+        expect(call.backend.peerConnections, hasLength(2));
+        expect(call.videoSlot.sender.track, placeholderOf(call));
+        expect(cameraStream.disposed, isTrue);
+        expect(call.engine.localFociInfo?['videoEnabled'], isFalse);
+      });
+    });
+
+    test('a switch to video after removal from the call captures nothing', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.sfu.removedFromCall = true;
+        call.remoteJoins();
+        expect(call.engine.status, CallEngineStatus.removed);
+
+        call.wait(call.engine.switchToVideo());
+
+        expect(call.backend.captureConstraints, hasLength(1));
+      }, kind: CallKind.voice);
+    });
+  });
+
   group('what shows up in the logs', () {
     late List<String> logs;
 
@@ -459,7 +527,7 @@ void main() {
     test('a placeholder the platform cannot make is left to the platform to '
         'report, and its silent video slot is not reported either', () {
       inCall((call) {
-        call.backend.placeholderAvailable = false;
+        call.placeholders.available = false;
 
         call.join();
         call.mediaFlows(kinds: {'audio'});
@@ -472,7 +540,7 @@ void main() {
     test('a placeholder that fails to be made is reported once, for what '
         'failed', () {
       inCall((call) {
-        call.backend.placeholderError = StateError('no placeholder');
+        call.placeholders.error = StateError('no placeholder');
 
         call.join();
         call.mediaFlows(kinds: {'audio'});
@@ -487,7 +555,7 @@ void main() {
     test('without a placeholder, a camera turned on that sends nothing is '
         'still reported', () {
       inCall((call) {
-        call.backend.placeholderAvailable = false;
+        call.placeholders.available = false;
         call.join();
         call.wait(call.engine.setCameraEnabled(true));
 

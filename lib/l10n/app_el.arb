@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "Η κλήση δεν συνδέθηκε",
   "callsFailureMicrophone": "Επιτρέψτε στο Zuno να χρησιμοποιεί το μικρόφωνο και καλέστε ξανά.",
   "callsFailureNoPermission": "Δεν έχετε δικαίωμα να ξεκινάτε κλήσεις σε αυτή την αίθουσα",
+  "callsFailureNotAvailable": "Οι κλήσεις δεν είναι διαθέσιμες σε αυτόν τον διακομιστή.",
   "callsFailureOnAnotherDevice": "Συμμετέχετε σε αυτή την κλήση από άλλη συσκευή. Τερματίστε την κλήση εκεί για να συμμετάσχετε από εδώ.",
   "callsGenericRingName": "Κλήση Zuno",
   "callsHangUp": "Τερματισμός",

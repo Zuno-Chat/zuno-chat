@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../errors/best_effort.dart';
-import '../media/simulcast_layers.dart';
+import 'simulcast_layers.dart';
 import 'webrtc_backend.dart';
 
 class LocalMedia {

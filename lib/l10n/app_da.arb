@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "Opkaldet kunne ikke forbindes",
   "callsFailureMicrophone": "Tillad Zuno at bruge mikrofonen, og ring så tilbage.",
   "callsFailureNoPermission": "Du har ikke tilladelse til at starte opkald i dette rum",
+  "callsFailureNotAvailable": "Opkald er ikke tilgængelige på denne server.",
   "callsFailureOnAnotherDevice": "Du er med i opkaldet på en anden enhed. Læg på der for at deltage her.",
   "callsGenericRingName": "Zuno-opkald",
   "callsHangUp": "Læg på",

@@ -1,21 +1,25 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show SocketException;
-import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
-import 'package:zuno/core/calls/cloudflare/cloudflare_call_engine.dart';
+import 'package:zuno/core/calls/cloudflare/cloudflare_connection.dart';
+import 'package:zuno/core/calls/cloudflare/placeholder_video.dart';
+import 'package:zuno/core/calls/media/call_connection.dart';
+import 'package:zuno/core/calls/media/call_media_engine.dart';
+import 'package:zuno/core/calls/media/webrtc_backend.dart';
 import 'package:zuno/core/calls/models/call_engine_participant.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/call_fixtures.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_webrtc.dart';
+import '../../../helpers/hybrid_fake_async.dart';
 
 class SfuRequest {
   SfuRequest(this.method, this.path, this.body);
@@ -228,12 +232,6 @@ class FakeSfu {
   }
 }
 
-const ann = VoipParticipantId(userId: '@ann:example.org', deviceId: 'ANN');
-const bob = VoipParticipantId(userId: '@bob:example.org', deviceId: 'BOB');
-
-String receiverLabel(VoipParticipantId id, String trackName) =>
-    '$id-$trackName';
-
 String opusSdp(String fmtp) => [
   'v=0',
   'o=- 1 2 IN IP4 127.0.0.1',
@@ -246,7 +244,91 @@ String opusSdp(String fmtp) => [
   '',
 ].join('\r\n');
 
-Uint8List callKey() => Uint8List.fromList(List<int>.generate(32, (i) => i));
+final cloudflareBaseUri = Uri.parse(
+  'https://example.org/_synapse/client/zuno/calls/cloudflare',
+);
+
+class FakePlaceholderVideoSource implements PlaceholderVideoSource {
+  bool available = true;
+  Object? error;
+  final created = <PlaceholderVideo>[];
+  final released = <PlaceholderVideo>[];
+
+  @override
+  Future<PlaceholderVideo?> create() async {
+    if (error case final error?) throw error;
+    if (!available) return null;
+    final placeholder = (
+      stream: FakeMediaStream('placeholder-${created.length + 1}'),
+      track: FakeTrack('video', 'black-${created.length + 1}'),
+    );
+    created.add(placeholder);
+    return placeholder;
+  }
+
+  @override
+  Future<void> release(PlaceholderVideo placeholder) async {
+    released.add(placeholder);
+  }
+}
+
+class CloudflareTestConnections implements CallConnectionOpener {
+  CloudflareTestConnections({
+    Uri Function()? baseUri,
+    this.iceServers,
+    this.httpClient,
+    this.placeholders = const PlaceholderVideoSource(),
+  }) : baseUri = baseUri ?? (() => cloudflareBaseUri);
+
+  final Uri Function() baseUri;
+  final Future<List<Map<String, Object?>>>? iceServers;
+  final http.Client? httpClient;
+  final PlaceholderVideoSource placeholders;
+  late final CloudflareConnection connection;
+
+  @override
+  Future<CallConnection> open(
+    CallSpec spec,
+    CallConnectionHost host, {
+    bool rediscover = false,
+  }) async => connection = CloudflareConnection(
+    baseUri: baseUri,
+    authorization: () async => 'Bearer test-token',
+    spec: spec,
+    host: host,
+    iceServers: iceServers,
+    httpClient: httpClient,
+    placeholders: placeholders,
+  );
+}
+
+({CallMediaEngine engine, CloudflareConnection connection})
+buildCloudflareEngine({
+  CallKind kind = CallKind.voice,
+  bool lowDataMode = false,
+  Uri Function()? baseUri,
+  Future<List<Map<String, Object?>>>? iceServers,
+  http.Client? httpClient,
+  WebRtcBackend webRtc = const WebRtcBackend(),
+  PlaceholderVideoSource placeholders = const PlaceholderVideoSource(),
+  PlatformCapabilities? capabilities,
+}) {
+  final connections = CloudflareTestConnections(
+    baseUri: baseUri,
+    iceServers: iceServers,
+    httpClient: httpClient,
+    placeholders: placeholders,
+  );
+  final engine = CallMediaEngine(
+    connections: connections,
+    spec: (roomId: '!room:example.org', callId: 'call1'),
+    kind: kind,
+    lowDataMode: lowDataMode,
+    webRtc: webRtc,
+    capabilities: capabilities,
+  );
+  return (engine: engine, connection: connections.connection);
+}
 
 class EngineHarness {
   EngineHarness(
@@ -256,22 +338,18 @@ class EngineHarness {
     PlatformCapabilities? capabilities,
     Uri Function()? baseUri,
   }) {
-    engine = CloudflareCallEngine(
-      baseUri:
-          baseUri ??
-          () => Uri.parse(
-            'https://example.org/_synapse/client/zuno/calls/cloudflare',
-          ),
-      authorization: () async => 'Bearer test-token',
-      roomId: '!room:example.org',
-      callId: 'call1',
+    final built = buildCloudflareEngine(
       kind: kind,
       lowDataMode: lowDataMode,
+      baseUri: baseUri,
       iceServers: Future.value(iceServers),
       httpClient: sfu.client,
       webRtc: backend,
+      placeholders: placeholders,
       capabilities: capabilities,
     );
+    engine = built.engine;
+    connection = built.connection;
     engine.statusStream.listen(statuses.add);
     engine.participantsStream.listen(emitted.add);
     engine.localStateChangedStream.listen((_) => localStateChanges++);
@@ -279,8 +357,10 @@ class EngineHarness {
 
   final FakeAsync async;
   final backend = FakeWebRtcBackend();
+  final placeholders = FakePlaceholderVideoSource();
   late final sfu = FakeSfu(backend);
-  late final CloudflareCallEngine engine;
+  late final CallMediaEngine engine;
+  late final CloudflareConnection connection;
   final statuses = <CallEngineStatus>[];
   final emitted = <List<CallEngineParticipant>>[];
   var localStateChanges = 0;
@@ -289,35 +369,9 @@ class EngineHarness {
     {'urls': 'turn:turn.example.org', 'username': 'u', 'credential': 'c'},
   ];
 
-  T wait<T>(Future<T> future) {
-    late T value;
-    Object? error;
-    var done = false;
-    future.then(
-      (v) {
-        value = v;
-        done = true;
-      },
-      onError: (Object e) {
-        error = e;
-        done = true;
-      },
-    );
-    for (var i = 0; i < 10 && !done; i++) {
-      async.flushMicrotasks();
-      async.elapse(Duration.zero);
-    }
-    if (error case final e?) throw e;
-    expect(done, isTrue, reason: 'the future never completed');
-    return value;
-  }
+  T wait<T>(Future<T> future) => async.waitFor(future);
 
-  void flush() {
-    for (var i = 0; i < 10; i++) {
-      async.flushMicrotasks();
-      async.elapse(Duration.zero);
-    }
-  }
+  void flush() => async.flushAll();
 
   void join() => wait(engine.join());
 

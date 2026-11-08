@@ -22,6 +22,10 @@ void main() {
       'This call is full. Up to 6 people can join a call.',
     );
     expect(
+      of(const CallsNotAvailable()),
+      'Calls are not available on this server.',
+    );
+    expect(
       of(const CallOnAnotherDevice()),
       'You are in this call on another device. Hang up there to join here.',
     );

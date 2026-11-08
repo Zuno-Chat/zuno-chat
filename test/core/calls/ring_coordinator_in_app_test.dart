@@ -26,6 +26,7 @@ import 'package:zuno/core/navigation/global_navigator.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
+import '../../helpers/fake_call_connection.dart';
 import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_http.dart';
 import '../../helpers/fake_local_notifications.dart';
@@ -149,6 +150,7 @@ void main() {
 
   CallSession onACall(ProviderContainer container) {
     final session = CallSession.forIncoming(
+      connections: FakeCallConnections(),
       room: room,
       callId: 'active-call',
       kind: CallKind.voice,
@@ -365,6 +367,7 @@ void main() {
     testWidgets('never opens for the call already on the line', (tester) async {
       final container = await pumpApp(tester);
       final session = CallSession.forIncoming(
+        connections: FakeCallConnections(),
         room: room,
         callId: 'call1',
         kind: CallKind.voice,

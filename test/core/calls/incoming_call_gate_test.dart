@@ -24,6 +24,7 @@ import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../helpers/call_membership.dart';
+import '../../helpers/fake_call_connection.dart';
 import '../../helpers/fake_call_engine.dart';
 import '../../helpers/fake_call_session.dart';
 import '../../helpers/fake_http.dart';
@@ -304,6 +305,7 @@ void main() {
       final container = await pumpGate(tester);
       final shared = SendRecordingRoom(client: client);
       final mine = CallSession.startOutgoing(
+        connections: FakeCallConnections(),
         shared,
         CallKind.voice,
         engineBuilder: FakeCallEngine.new,

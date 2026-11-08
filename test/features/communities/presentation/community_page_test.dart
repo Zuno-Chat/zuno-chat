@@ -20,6 +20,7 @@ import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/communities/presentation/community_page.dart';
 import 'package:zuno/features/rooms/presentation/chat_row.dart';
 
+import '../../../helpers/fake_call_provider_discovery.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/layout_matrix.dart';
@@ -133,6 +134,7 @@ void main() {
     return [
       matrixClientProvider.overrideWithValue(client),
       sharedPreferencesProvider.overrideWithValue(prefs),
+      fakeCallDiscoveryOverride(),
     ];
   }
 

@@ -1,10 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/cloudflare/cloudflare_quality_channel.dart';
-import 'package:zuno/core/calls/models/voip_participant_id.dart';
+
+import '../../../helpers/call_fixtures.dart';
 
 void main() {
-  const ann = VoipParticipantId(userId: '@ann:example.org', deviceId: 'ANN');
-
   test('one claim per peer session until it is released', () {
     final channel = CloudflareQualityChannel(onRating: (_, _) {});
 

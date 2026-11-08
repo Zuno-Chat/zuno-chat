@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
+import 'fake_call_provider_discovery.dart';
+
 Future<ProviderContainer> containerWithPreferences(
   Map<String, Object> stored, {
   List<Override> overrides = const [],
@@ -13,6 +15,7 @@ Future<ProviderContainer> containerWithPreferences(
   final container = ProviderContainer(
     overrides: [
       sharedPreferencesProvider.overrideWithValue(prefs),
+      fakeCallDiscoveryOverride(),
       ...overrides,
     ],
   );

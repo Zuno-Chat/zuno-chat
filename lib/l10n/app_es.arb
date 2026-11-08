@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "La llamada no se ha conectado",
   "callsFailureMicrophone": "Permite que Zuno use el micrófono y vuelve a llamar.",
   "callsFailureNoPermission": "No tienes permiso para iniciar llamadas en esta sala",
+  "callsFailureNotAvailable": "Las llamadas no están disponibles en este servidor.",
   "callsFailureOnAnotherDevice": "Ya estás en esta llamada en otro dispositivo. Cuelga allí para unirte aquí.",
   "callsGenericRingName": "Llamada de Zuno",
   "callsHangUp": "Colgar",

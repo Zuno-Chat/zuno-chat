@@ -310,6 +310,7 @@
   "callsFailureDidNotConnect": "Call did not connect",
   "callsFailureMicrophone": "Allow Zuno to use the microphone, then call back.",
   "callsFailureNoPermission": "You do not have permission to start calls in this room",
+  "callsFailureNotAvailable": "Calls are not available on this server.",
   "callsFailureOnAnotherDevice": "You are in this call on another device. Hang up there to join here.",
   "callsGenericRingName": "Zuno call",
   "@callsGenericRingName": {

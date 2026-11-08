@@ -7,9 +7,9 @@ import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/active_call_provider.dart';
 import '../../../core/calls/matrixrtc/active_room_call.dart';
-import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/calls/models/call_kind.dart';
+import '../../../core/calls/module/calls_offer_provider.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
@@ -524,7 +524,10 @@ class _RoomPageState extends ConsumerState<RoomPage>
     bool showHiddenMessages,
   ) {
     final timeline = _timeline;
-    final canCall = canStartCall(widget.room);
+    final canCall = roomCanCall(
+      widget.room,
+      callsOffered: ref.watch(callsOfferedProvider),
+    );
     final l10n = context.l10n;
     final canPost = canPostInRoom(widget.room);
     if (!canPost) _closeEmojiAfterFrame();

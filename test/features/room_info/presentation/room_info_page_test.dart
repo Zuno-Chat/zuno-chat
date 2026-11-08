@@ -8,6 +8,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/calls/module/call_provider_discovery.dart';
+import 'package:zuno/core/calls/module/calls_offer_provider.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/media/room_media_feed.dart';
@@ -192,6 +194,7 @@ void main() {
     bool pushed = false,
     String? overChat,
     bool matrixExperience = false,
+    CallsOffer? callsOffer,
   }) async {
     final members = room.getParticipants();
     room.summary.mJoinedMemberCount =
@@ -207,6 +210,8 @@ void main() {
       {},
       overrides: [
         matrixClientProvider.overrideWithValue(client),
+        if (callsOffer != null)
+          callsOfferProvider.overrideWith((ref) => Stream.value(callsOffer)),
         for (final id in trustStubbedIds)
           userTrustProvider(id).overrideWithValue(UserTrustState.unconfirmed),
         roomMediaFeedProvider(room)
@@ -716,6 +721,16 @@ void main() {
       expect(find.text('Invite'), findsOneWidget);
       expect(find.byTooltip('Voice call'), findsOneWidget);
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('room info hides the call buttons when the server offers no '
+        'calls', (tester) async {
+      addMember('@me:example.org', 'Me');
+      addMember('@ann:example.org', 'Ann');
+      await pumpPage(tester, onStartCall: (_) {}, callsOffer: CallsOffer.none);
+
+      expect(find.byTooltip('Voice call'), findsNothing);
+      expect(find.byTooltip('Video call'), findsNothing);
     });
 
     testWidgets('no call buttons without a way to start one, or alone', (

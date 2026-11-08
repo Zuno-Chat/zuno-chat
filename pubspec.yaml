@@ -99,6 +99,8 @@ dependencies:
   geolocator: ^14.1.2
   sentry_flutter: ^10.2.0
   flutter_web_auth_2: ^5.1.0
+  protobuf: ^6.1.0
+  fixnum: ^1.1.1
 dev_dependencies:
   # Deterministic time for the poll/timeout loops on the call paths
   # (await_room.dart) — a real 10s wait is not a test.

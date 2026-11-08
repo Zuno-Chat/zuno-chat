@@ -30,7 +30,7 @@ everything else works.
 
 | Extra | What it does |
 |---|---|
-| [`zuno_calls`](https://github.com/Zuno-Chat/zuno_calls) | Synapse module for voice and video calls. It's a proxy for Cloudflare Calls signaling and issues Cloudflare TURN credentials |
+| [`zuno_calls`](https://github.com/Zuno-Chat/zuno_calls) | Synapse module for voice and video calls on Cloudflare or LiveKit. It tells the app which one the server uses, proxies Cloudflare Calls signaling and TURN credentials, and mints LiveKit tokens |
 | [`zuno_push`](https://github.com/Zuno-Chat/zuno_push) | Synapse module that rings a closed app through sealed ring pushes (VoIP on iOS, FCM on Android), and serves the notification extension's API |
 | [Sygnal](https://github.com/element-hq/sygnal) | Push gateway: FCM on Android, APNs on iOS |
 | Tile source | Maps for location messages: an `https://` URL template with `{z}`, `{x}` and `{y}`, advertised under `im.zuno.tiles` in `.well-known/matrix/client` |

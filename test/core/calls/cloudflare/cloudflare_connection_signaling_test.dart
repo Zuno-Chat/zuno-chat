@@ -4,6 +4,8 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
+import 'package:zuno/core/calls/media/call_connection.dart';
+import 'package:zuno/core/calls/media/call_media_engine.dart';
 import 'package:zuno/core/calls/media/simulcast_layers.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
@@ -11,6 +13,7 @@ import 'package:zuno/core/calls/models/call_quality.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/call_fixtures.dart';
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_webrtc.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -79,7 +82,7 @@ void main() {
         final [audio, video] = call.pc.rtpTransceivers;
         expect(audio.sender.track, call.microphone);
         expect(audio.direction, TransceiverDirection.SendOnly);
-        expect(video.sender.track, call.backend.placeholders.single.track);
+        expect(video.sender.track, call.placeholders.created.single.track);
         expect(video.direction, TransceiverDirection.SendOnly);
 
         final push = call.sfu.pushes.single;
@@ -196,7 +199,7 @@ void main() {
       'without a placeholder, a voice call publishes an empty video slot',
       () {
         inCall((call) {
-          call.backend.placeholderAvailable = false;
+          call.placeholders.available = false;
 
           call.join();
 
@@ -659,8 +662,8 @@ void main() {
         expect(
           call.backend.cryptors.liveLabels,
           containsAll([
-            receiverLabel(ann, 'audio'),
-            receiverLabel(ann, 'video'),
+            receiverLabel(ann, MediaKind.audio),
+            receiverLabel(ann, MediaKind.video),
           ]),
         );
 
@@ -741,7 +744,7 @@ void main() {
         expect(call.remote(), isNull);
         expect(
           call.backend.cryptors.liveLabels,
-          isNot(contains(receiverLabel(ann, 'audio'))),
+          isNot(contains(receiverLabel(ann, MediaKind.audio))),
         );
       });
     });
@@ -896,7 +899,7 @@ void main() {
           RTCPeerConnectionState.RTCPeerConnectionStateClosed,
           RTCPeerConnectionState.RTCPeerConnectionStateConnected,
         ]) {
-          call.engine.handleConnectionStateForTest(state);
+          call.pc.changeState(state);
         }
         call.flush();
 
@@ -985,8 +988,8 @@ void main() {
 
         call.wait(call.engine.switchToVideo());
 
-        expect(call.backend.placeholders, hasLength(1));
-        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
+        expect(call.placeholders.created, hasLength(1));
+        expect(call.placeholders.released, call.placeholders.created);
 
         expect(call.backend.captureConstraints.last, {
           'audio': false,
@@ -1013,7 +1016,7 @@ void main() {
     test('without a placeholder, a video switch whose encryption fails leaves '
         'the call a voice call and releases the camera', () {
       inCall((call) {
-        call.backend.placeholderAvailable = false;
+        call.placeholders.available = false;
         call.joinEncrypted();
         call.backend.cryptors.failEnableFor.add('local-video');
 
@@ -1050,7 +1053,7 @@ void main() {
         final firstPc = call.pc;
         final changesBefore = call.localStateChanges;
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.async.elapse(const Duration(seconds: 2));
@@ -1080,7 +1083,7 @@ void main() {
         call.joinEncrypted();
         call.mediaFlows();
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.async.elapse(const Duration(seconds: 2));
@@ -1103,7 +1106,7 @@ void main() {
       inCall((call) {
         call.joinEncrypted();
         call.remoteJoins();
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         final gate = Completer<void>();
@@ -1112,7 +1115,7 @@ void main() {
         call.flush();
         expect(call.sfu.pulls.last.path, '/sessions/s2/tracks/new');
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.sfu.pullGate = null;
@@ -1148,7 +1151,7 @@ void main() {
       inCall((call) {
         call.joinEncrypted();
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.async.elapse(const Duration(seconds: 2));
@@ -1157,9 +1160,9 @@ void main() {
         expect(call.backend.peerConnections, hasLength(2));
         expect(
           call.videoSlot.sender.track,
-          call.backend.placeholders.single.track,
+          call.placeholders.created.single.track,
         );
-        expect(call.backend.releasedPlaceholders, isEmpty);
+        expect(call.placeholders.released, isEmpty);
       });
     });
   });
@@ -1172,7 +1175,7 @@ void main() {
         final gate = Completer<void>();
         call.sfu.sessionGate = gate;
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.async.elapse(const Duration(seconds: 2));
@@ -1280,8 +1283,10 @@ void main() {
       }, kind: CallKind.video);
     });
 
-    List<List<StatsReport>> cameraHeldTo(double uploadBps) =>
-        polls(3, [candidatePair('pair', uploadBps: uploadBps)]);
+    List<List<StatsReport>> cameraHeldTo(double uploadBps) => polls(3, [
+      outboundRtp('out-video', kind: 'video'),
+      candidatePair('pair', uploadBps: uploadBps),
+    ]);
 
     test('a starved upload shows everyone the weak connection', () {
       inCall((call) {
@@ -1416,7 +1421,7 @@ void main() {
         expect(call.sfu.establishes, isEmpty);
         expect(call.engine.localFociInfo?.containsKey('dataChannels'), isFalse);
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateConnected,
         );
         call.flush();
@@ -1450,10 +1455,10 @@ void main() {
       inCall((call) {
         joinConnected(call);
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateDisconnected,
         );
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateConnected,
         );
         call.flush();
@@ -1481,7 +1486,7 @@ void main() {
       inCall((call) {
         joinConnected(call);
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.async.elapse(const Duration(seconds: 2));
@@ -1504,7 +1509,7 @@ void main() {
         call.sfu
           ..renegotiateStatus = 500
           ..connectOnPush = true;
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateConnected,
         );
         call.pollStats([[]]);
@@ -1603,7 +1608,7 @@ void main() {
         call.sfu.pullGate = gate;
         call.remoteJoins(sessionId: 'remote-2', advertisesQuality: true);
 
-        call.engine.handleConnectionStateForTest(
+        call.pc.changeState(
           RTCPeerConnectionState.RTCPeerConnectionStateFailed,
         );
         call.async.elapse(const Duration(seconds: 2));
@@ -1744,14 +1749,34 @@ void main() {
       }, kind: CallKind.video);
     });
 
+    test('hanging up never shows anyone as no longer sending media', () {
+      inCall((call) {
+        call.sfu.connectOnPush = true;
+        call.joinEncrypted();
+        call.pollStats([[]]);
+        call.remoteJoins(advertisesQuality: true);
+        call.pc.dataChannels.last.receive('{"quality":"poor"}');
+        call.flush();
+        final from = call.emitted.length;
+
+        call.leave();
+
+        expect([
+          for (final participants in call.emitted.skip(from))
+            for (final p in participants)
+              if (!p.isLocal && !p.sendingMedia) p,
+        ], isEmpty);
+      }, kind: CallKind.video);
+    });
+
     test('leaving a voice call releases the black placeholder', () {
       inCall((call) {
         call.joinEncrypted();
 
         call.leave();
 
-        expect(call.backend.placeholders, hasLength(1));
-        expect(call.backend.releasedPlaceholders, call.backend.placeholders);
+        expect(call.placeholders.created, hasLength(1));
+        expect(call.placeholders.released, call.placeholders.created);
         expect(call.pc.disposed, isTrue);
       });
     });
@@ -1798,9 +1823,7 @@ void main() {
 
   group('failures on a connection that is gone', () {
     void connectionFails(EngineHarness call) {
-      call.engine.handleConnectionStateForTest(
-        RTCPeerConnectionState.RTCPeerConnectionStateFailed,
-      );
+      call.pc.changeState(RTCPeerConnectionState.RTCPeerConnectionStateFailed);
       call.async.elapse(const Duration(seconds: 2));
       call.flush();
     }
@@ -1809,11 +1832,36 @@ void main() {
         'reported', () {
       inCall((call) {
         call.joinEncrypted();
-        call.backend.cryptors.failEnableFor.add(receiverLabel(ann, 'audio'));
+        call.backend.cryptors.failEnableFor.add(
+          receiverLabel(ann, MediaKind.audio),
+        );
 
         call.remoteJoins();
 
         expect(caught(), contains(startsWith('zuno/caught: wrap receiver:')));
+      });
+    });
+
+    test('a stream whose receiver could not be encrypted never shows', () {
+      inCall((call) {
+        call.joinEncrypted();
+        call.backend.cryptors.failEnableFor.add(
+          receiverLabel(ann, MediaKind.video),
+        );
+        call.remoteJoins();
+
+        call.pc.emitTrack(
+          call.pulledMids('video').single,
+          FakeMediaStream('ann-video'),
+        );
+        call.pc.emitTrack(
+          call.pulledMids('audio').single,
+          FakeMediaStream('ann-audio'),
+        );
+        call.flush();
+
+        expect(call.remote()!.videoStream, isNull);
+        expect(call.remote()!.audioStream?.id, 'ann-audio');
       });
     });
 
@@ -1832,7 +1880,7 @@ void main() {
         expect(caught(), isEmpty);
         expect(
           call.backend.cryptors.liveLabels,
-          contains(receiverLabel(ann, 'audio')),
+          contains(receiverLabel(ann, MediaKind.audio)),
         );
       });
     });

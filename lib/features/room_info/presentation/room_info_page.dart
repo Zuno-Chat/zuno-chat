@@ -5,8 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/end_call.dart';
-import '../../../core/calls/matrixrtc/call_member_state.dart';
 import '../../../core/calls/models/call_kind.dart';
+import '../../../core/calls/module/calls_offer_provider.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/l10n.dart';
@@ -29,6 +29,7 @@ import '../../../core/ui/notice.dart';
 import '../../../core/ui/quick_action.dart';
 import '../../../core/ui/route_settled.dart';
 import '../../blocking/presentation/block_person.dart';
+import '../../calls/presentation/room_calls.dart';
 import '../../chat/presentation/media_viewer/media_viewer_page.dart';
 import '../../communities/presentation/join_requests_view.dart';
 import 'member_actions.dart';
@@ -239,7 +240,9 @@ class _RoomInfoPageState extends ConsumerState<RoomInfoPage>
         !room.isDirectChat && permissionsAccess != RoomPermissionsAccess.hidden;
     final canEditSettings = canEditRoomSettings(room);
     final onStartCall = widget.onStartCall;
-    final canCall = onStartCall != null && canStartCall(room);
+    final canCall =
+        onStartCall != null &&
+        roomCanCall(room, callsOffered: ref.watch(callsOfferedProvider));
     final muted = isRoomMuted(room);
     final showSecurity =
         room.isDirectChat &&

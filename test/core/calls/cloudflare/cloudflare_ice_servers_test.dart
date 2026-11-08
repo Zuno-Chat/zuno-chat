@@ -5,8 +5,9 @@ import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-import 'package:zuno/core/calls/matrixrtc/ice_servers.dart';
+import 'package:zuno/core/calls/cloudflare/cloudflare_ice_servers.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
@@ -21,7 +22,7 @@ void main() {
   test('returns the module-minted ICE servers verbatim', () async {
     final client = _signedInClient();
 
-    final servers = await resolveIceServers(
+    final servers = await resolveCloudflareIceServers(
       client,
       httpClient: FakeHttpClient((request) async {
         expect(request.url.toString(), 'https://example.org$credentialsPath');
@@ -51,7 +52,7 @@ void main() {
   test('a module error response degrades to no TURN', () async {
     final client = _signedInClient();
 
-    final servers = await resolveIceServers(
+    final servers = await resolveCloudflareIceServers(
       client,
       httpClient: FakeHttpClient((_) async => http.Response('nope', 502)),
     );
@@ -59,12 +60,48 @@ void main() {
     expect(servers, isEmpty);
   });
 
+  test('a gone TURN route or a module 5xx degrades to no TURN without a '
+      'report', () async {
+    final client = _signedInClient();
+    for (final response in [
+      http.Response(jsonEncode({'errcode': 'M_UNRECOGNIZED'}), 404),
+      http.Response('nope', 502),
+    ]) {
+      final reports = await reportsDuring(() async {
+        expect(
+          await resolveCloudflareIceServers(
+            client,
+            httpClient: FakeHttpClient((_) async => response),
+          ),
+          isEmpty,
+        );
+      });
+
+      expect(reports, isEmpty);
+    }
+  });
+
+  test('an answer without ICE servers is reported', () async {
+    final client = _signedInClient();
+
+    final reports = await reportsDuring(
+      () => resolveCloudflareIceServers(
+        client,
+        httpClient: FakeHttpClient(
+          (_) async => http.Response(jsonEncode({}), 200),
+        ),
+      ),
+    );
+
+    expect(reports, ['mint TURN credentials']);
+  });
+
   test('a client without an access token degrades to no TURN', () async {
     final client = buildTestClient()
       ..homeserver = Uri.parse('https://example.org');
     var requests = 0;
 
-    final servers = await resolveIceServers(
+    final servers = await resolveCloudflareIceServers(
       client,
       httpClient: FakeHttpClient((_) async {
         requests++;
@@ -81,7 +118,7 @@ void main() {
       final client = _signedInClient();
       List<Map<String, Object?>>? servers;
 
-      resolveIceServers(
+      resolveCloudflareIceServers(
         client,
         httpClient: FakeHttpClient((_) => Completer<http.Response>().future),
       ).then((s) => servers = s);

@@ -6,6 +6,7 @@ import 'package:matrix/matrix.dart' show Room;
 
 import '../settings/app_preferences_provider.dart';
 import 'active_call_marker.dart';
+import 'call_connections.dart';
 import 'matrixrtc/call_session.dart';
 import 'matrixrtc/incoming_call.dart';
 import 'matrixrtc/resolved_call_ids_provider.dart';
@@ -71,6 +72,7 @@ class ActiveCallNotifier extends Notifier<CallSession?> {
     room: room,
     callId: callId,
     kind: kind,
+    connections: ref.read(callConnectionsProvider),
     lowDataMode: ref.read(lowDataCallsProvider),
     previousCallReleased: previousCallReleased,
   );

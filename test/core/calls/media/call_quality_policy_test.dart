@@ -303,6 +303,42 @@ void main() {
       );
     });
 
+    test('merging peer connections keeps their streams apart, even with '
+        'the same id', () {
+      final merged = StatsCounters.merged([
+        StatsCounters.fromReports([
+          outboundRtp('out', packetsSent: 100),
+          remoteInboundRtp('out', 0.1),
+        ]),
+        StatsCounters.fromReports([
+          outboundRtp('out', packetsSent: 200),
+          remoteInboundRtp('out', 0.3),
+        ]),
+      ]);
+
+      expect(merged.uplinkStreams.values, [
+        (fractionLost: 0.1, sent: 100),
+        (fractionLost: 0.3, sent: 200),
+      ]);
+    });
+
+    test('a merged estimate is the lowest of the peer connections that '
+        'send', () {
+      final merged = StatsCounters.merged([
+        StatsCounters.fromReports([
+          outboundRtp('audio', packetsSent: 10),
+          candidatePair('a', uploadBps: 400000),
+        ]),
+        StatsCounters.fromReports([
+          outboundRtp('video', kind: 'video', packetsSent: 10),
+          candidatePair('b', uploadBps: 250000),
+        ]),
+        StatsCounters.fromReports([candidatePair('c', uploadBps: 90000)]),
+      ]);
+
+      expect(merged.uploadBandwidthBps, 250000);
+    });
+
     test('with the camera off the estimate is not judged', () {
       final counters = StatsCounters.fromReports([
         transport('wifi'),

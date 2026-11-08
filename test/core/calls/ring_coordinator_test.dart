@@ -32,6 +32,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
 import '../../helpers/call_membership.dart';
+import '../../helpers/fake_call_connection.dart';
 import '../../helpers/fake_call_style_channel.dart';
 import '../../helpers/fake_calls_channel.dart';
 import '../../helpers/fake_http.dart';
@@ -261,6 +262,7 @@ void main() {
         'which offers End & Accept', () async {
       final container = await startCoordinator();
       final session = CallSession.forIncoming(
+        connections: FakeCallConnections(),
         room: room,
         callId: 'active',
         kind: CallKind.voice,
@@ -311,6 +313,7 @@ void main() {
         'call before it is still ending', () async {
       final container = await startCoordinator();
       final ending = CallSession.forIncoming(
+        connections: FakeCallConnections(),
         room: room,
         callId: 'ending',
         kind: CallKind.voice,

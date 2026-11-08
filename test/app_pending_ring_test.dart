@@ -13,6 +13,7 @@ import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
+import 'helpers/fake_call_provider_discovery.dart';
 import 'helpers/fake_call_style_channel.dart';
 import 'helpers/fake_http.dart';
 import 'helpers/fake_local_notifications.dart';
@@ -73,6 +74,7 @@ void main() {
         overrides: [
           isLoggedInProvider.overrideWithValue(const AsyncValue.data(false)),
           sharedPreferencesProvider.overrideWithValue(prefs),
+          fakeCallDiscoveryOverride(),
           matrixClientProvider.overrideWithValue(client),
           homeserverProvider.overrideWith(
             () => FixedHomeserver(

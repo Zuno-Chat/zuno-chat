@@ -1,4 +1,4 @@
-import 'dart:math' show max;
+import 'dart:math' show max, min;
 
 import 'package:flutter_webrtc/flutter_webrtc.dart' show StatsReport;
 
@@ -22,11 +22,13 @@ class StatsCounters {
   final Map<String, UplinkCounters> uplinkStreams;
   final double? rttMs;
   final double? uploadBandwidthBps;
+  final bool sends;
 
   const StatsCounters({
     this.uplinkStreams = const {},
     this.rttMs,
     this.uploadBandwidthBps,
+    this.sends = false,
   });
 
   factory StatsCounters.fromReports(Iterable<StatsReport> reports) {
@@ -34,9 +36,11 @@ class StatsCounters {
     final packetsSent = <String, int>{};
     final serverLoss = <String, double>{};
     String? selectedPairId;
+    var sends = false;
     for (final report in reports) {
       switch (report.type) {
         case 'outbound-rtp':
+          sends = true;
           if (report.values['packetsSent'] case final num sent) {
             packetsSent[report.id] = sent.toInt();
           }
@@ -74,6 +78,26 @@ class StatsCounters {
       },
       rttMs: rttSeconds is num ? rttSeconds * 1000.0 : null,
       uploadBandwidthBps: estimate is num ? estimate.toDouble() : null,
+      sends: sends,
+    );
+  }
+
+  factory StatsCounters.merged(List<StatsCounters> perPeerConnection) {
+    final rtts = [for (final pc in perPeerConnection) ?pc.rttMs];
+    final estimates = [
+      for (final pc in perPeerConnection)
+        if (pc.sends) ?pc.uploadBandwidthBps,
+    ];
+    return StatsCounters(
+      uplinkStreams: {
+        for (final (index, pc) in perPeerConnection.indexed)
+          for (final MapEntry(key: id, value: counters)
+              in pc.uplinkStreams.entries)
+            '$index/$id': counters,
+      },
+      rttMs: rtts.isEmpty ? null : rtts.reduce(max),
+      uploadBandwidthBps: estimates.isEmpty ? null : estimates.reduce(min),
+      sends: perPeerConnection.any((pc) => pc.sends),
     );
   }
 

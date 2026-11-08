@@ -10,7 +10,9 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:zuno/core/calls/call_connections.dart';
 import 'package:zuno/core/calls/call_engine.dart';
+import 'package:zuno/core/calls/livekit/livekit_signal_client.dart';
 import 'package:zuno/core/calls/matrixrtc/call_encryption_key_event.dart';
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/calls/matrixrtc/call_moderation.dart';
@@ -20,18 +22,22 @@ import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_failure.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/models/voip_participant_id.dart';
+import 'package:zuno/core/calls/module/call_provider_discovery.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/app_lifecycle.dart';
 import '../../../helpers/call_membership.dart';
 import '../../../helpers/caught_reports.dart';
+import '../../../helpers/fake_call_connection.dart';
 import '../../../helpers/fake_call_engine.dart';
+import '../../../helpers/fake_call_provider_discovery.dart';
 import '../../../helpers/fake_call_session.dart' show localParticipant;
 import '../../../helpers/fake_device_keys.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_permissions.dart';
+import '../../../helpers/hybrid_fake_async.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/send_recording_room.dart';
@@ -187,6 +193,9 @@ void main() {
     'error': "You don't have permission to post that to the room.",
   });
 
+  MatrixException badJson() =>
+      MatrixException.fromJson({'errcode': 'M_BAD_JSON', 'error': 'bad event'});
+
   CallSession incoming({
     Room? inRoom,
     String callId = 'call1',
@@ -199,6 +208,7 @@ void main() {
   }) {
     final built = engine ?? FakeCallEngine();
     final session = CallSession.forIncoming(
+      connections: FakeCallConnections(),
       room: inRoom ?? room,
       callId: callId,
       kind: kind,
@@ -221,6 +231,7 @@ void main() {
   }) {
     final built = engine ?? FakeCallEngine();
     final session = CallSession.startOutgoing(
+      connections: FakeCallConnections(),
       r,
       kind,
       engineBuilder: () => built,
@@ -244,6 +255,7 @@ void main() {
     String callId = 'call1',
     Map<String, Object?> fociActive = const {},
     String? eventId,
+    int createdAtMs = 0,
   }) => r.setState(
     callMemberEvent(
       r,
@@ -251,6 +263,7 @@ void main() {
       deviceId: deviceId,
       callId: callId,
       fociActive: fociActive,
+      createdAtMs: createdAtMs,
       expiresIn: const Duration(minutes: 5),
       eventId: eventId,
     ),
@@ -431,15 +444,7 @@ void main() {
 
     test('a room-permission failure surfaces a specific message', () async {
       final session = incoming(
-        engine: FakeCallEngine(
-          failJoin: true,
-          joinError: MatrixException.fromJson({
-            'errcode': 'M_FORBIDDEN',
-            'error':
-                "You don't have permission to post that to the room. "
-                'user_level (0) < send_level (50)',
-          }),
-        ),
+        engine: FakeCallEngine(failJoin: true, joinError: forbidden()),
       );
 
       await expectLater(session.accept(), throwsA(isA<MatrixException>()));
@@ -471,6 +476,35 @@ void main() {
         await expectLater(session.accept(), throwsA(isA<MatrixException>()));
 
         expect(reported(logs), isEmpty);
+      });
+
+      test('a refusal of a defect in our own event is reported', () async {
+        final logs = recordDebugPrints();
+        final session = incoming(
+          engine: FakeCallEngine(failJoin: true, joinError: badJson()),
+        );
+
+        await expectLater(session.accept(), throwsA(isA<MatrixException>()));
+
+        expect(session.failure, const CallDidNotConnect());
+        expect(reported(logs), [startsWith('zuno/caught: accept a call:')]);
+      });
+
+      test('a failure the calls module expects is not reported', () async {
+        for (final error in <Object>[
+          const CallsRouteGone('POST /sessions/new'),
+          http.ClientException('offline'),
+          const LiveKitSignalUnreachable('upgrade 503'),
+        ]) {
+          final logs = recordDebugPrints();
+          final session = incoming(
+            engine: FakeCallEngine(failJoin: true, joinError: error),
+          );
+
+          await expectLater(session.accept(), throwsA(same(error)));
+
+          expect(reported(logs), isEmpty);
+        }
       });
 
       test('a microphone refused at the prompt is not reported', () async {
@@ -685,16 +719,8 @@ void main() {
       fakeAsync((async) {
         final engine = FakeCallEngine();
         final session = incoming(engine: engine);
-        Object? failure;
-        unawaited(
-          session.accept().catchError((Object e) {
-            failure = e;
-          }),
-        );
 
-        async.flushMicrotasks();
-
-        expect(failure, isException);
+        expect(() => async.waitFor(session.accept()), throwsA(isException));
         expect(session.phase, CallSessionPhase.ended);
         expect(session.failure, const CallMicrophoneUnavailable());
         expect(permissions.calls, ['checkPermissionStatus']);
@@ -1155,36 +1181,70 @@ void main() {
 
       expect(call.client.tries, ['BOBDEVICE']);
 
-      joinTheCall(
-        call.room,
-        _caller,
-        deviceId: 'CALLERDEV',
-        fociActive: {'sessionId': 'caller-session-2'},
-      );
+      joinTheCall(call.room, _caller, deviceId: 'CALLERDEV', createdAtMs: 2);
       await sync(call.client);
 
       expect(call.client.tries, ['BOBDEVICE', 'CALLERDEV']);
     });
 
     test(
-      'a known device that re-joins with a new sessionId is sent the key again',
+      'a known device whose created_ts changes is sent the key again',
       () async {
         final call = keyRelayCall(key: testKey());
         await call.session.accept();
         await pumpEventQueue();
         expect(call.client.tries, ['BOBDEVICE']);
 
-        joinTheCall(
-          call.room,
-          _bob,
-          deviceId: 'BOBDEVICE',
-          fociActive: {'sessionId': 'bob-session-2'},
-        );
+        joinTheCall(call.room, _bob, deviceId: 'BOBDEVICE', createdAtMs: 2);
         await sync(call.client);
 
         expect(call.client.tries, ['BOBDEVICE', 'BOBDEVICE']);
       },
     );
+
+    test('a known device whose only fociActive sessionId changes is not sent '
+        'the key again', () async {
+      final call = keyRelayCall(key: testKey());
+      await call.session.accept();
+      await pumpEventQueue();
+      expect(call.client.tries, ['BOBDEVICE']);
+
+      joinTheCall(
+        call.room,
+        _bob,
+        deviceId: 'BOBDEVICE',
+        fociActive: {'sessionId': 'bob-session-2'},
+      );
+      await sync(call.client);
+
+      expect(call.client.tries, ['BOBDEVICE']);
+    });
+
+    test('a new device that sent us the key is never sent it back while its '
+        'created_ts holds', () async {
+      final joinGate = Completer<void>();
+      final call = keyRelayCall(
+        inCall: const {_caller: 'CALLERDEV'},
+        engine: FakeCallEngine(joinGate: joinGate),
+      );
+      final accepting = call.session.accept();
+      await pumpEventQueue();
+      call.client.onToDeviceEvent.add(keyEvent());
+      await pumpEventQueue();
+      joinGate.complete();
+      await accepting;
+      await pumpEventQueue();
+
+      joinTheCall(
+        call.room,
+        _caller,
+        deviceId: 'CALLERDEV',
+        fociActive: {'audioMuted': true},
+      );
+      await sync(call.client);
+
+      expect(call.client.tries, isEmpty);
+    });
 
     _KeyRelayCall relayingOverToDevice(
       FakeAsync async, {
@@ -1316,14 +1376,15 @@ void main() {
       );
     });
 
-    test('a known device republishing the same sessionId is not sent the key '
+    test('a known device republishing the same created_ts is not sent the key '
         'again', () async {
       final call = keyRelayCall(key: testKey());
       void bobPublishes({required bool audioMuted}) => joinTheCall(
         call.room,
         _bob,
         deviceId: 'BOBDEVICE',
-        fociActive: {'sessionId': 'bob-session-1', 'audioMuted': audioMuted},
+        createdAtMs: 1,
+        fociActive: {'audioMuted': audioMuted},
       );
       bobPublishes(audioMuted: false);
       await call.session.accept();
@@ -1472,12 +1533,7 @@ void main() {
           expect(call.client.tries, ['BOBDEVICE']);
 
           call.client.unreachable.add('BOBDEVICE');
-          joinTheCall(
-            call.room,
-            _bob,
-            deviceId: 'BOBDEVICE',
-            fociActive: {'sessionId': 'bob-session-2'},
-          );
+          joinTheCall(call.room, _bob, deviceId: 'BOBDEVICE', createdAtMs: 2);
           call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
           async.flushMicrotasks();
           expect(call.client.tries, ['BOBDEVICE', 'BOBDEVICE']);
@@ -1589,6 +1645,95 @@ void main() {
       expect(engine.startLocalMediaCalls, 0);
     });
 
+    test('no invite is sent when the server offers no calls', () async {
+      final logs = recordDebugPrints();
+      final r = sendRoom();
+      final engine = FakeCallEngine()..readyError = const CallsNotOffered();
+      final session = outgoing(r, engine: engine);
+
+      await untilPhase(session, CallSessionPhase.ended);
+      await pumpEventQueue();
+
+      expect(r.requests, isEmpty);
+      expect(session.failure, const CallsNotAvailable());
+      expect(session.endReason, CallEndReason.failed);
+      expect(engine.leaveCalls, 1);
+      expect(reported(logs), isEmpty);
+    });
+
+    test('no invite is sent when discovery fails offline', () async {
+      final logs = recordDebugPrints();
+      final r = sendRoom();
+      final engine = FakeCallEngine()
+        ..readyError = http.ClientException('offline');
+      final session = outgoing(r, engine: engine);
+
+      await untilPhase(session, CallSessionPhase.ended);
+      await pumpEventQueue();
+
+      expect(r.requests, isEmpty);
+      expect(session.failure, const CallDidNotConnect());
+      expect(session.endReason, CallEndReason.failed);
+      expect(reported(logs), isEmpty);
+    });
+
+    test('microphone refusal wins over a discovery failure', () async {
+      permissions.onRequest = permissionDenied;
+      final r = sendRoom();
+      final engine = FakeCallEngine()..readyError = const CallsNotOffered();
+      final session = outgoing(r, engine: engine);
+
+      await untilPhase(session, CallSessionPhase.ended);
+      await pumpEventQueue();
+
+      expect(r.requests, isEmpty);
+      expect(session.failure, const CallMicrophoneUnavailable());
+    });
+
+    test('local media opens while readiness is still pending', () async {
+      final r = sendRoom();
+      final engine = FakeCallEngine()..readyGate = Completer<void>();
+      outgoing(r, engine: engine);
+
+      await pumpEventQueue();
+
+      expect(engine.startLocalMediaCalls, 1);
+      expect(r.requests, isEmpty);
+    });
+
+    test('a server failure from config is not reported', () async {
+      final logs = recordDebugPrints();
+      final engine = FakeCallEngine()
+        ..readyError = CallsModuleException(
+          'HTTP 503 from GET /config',
+          statusCode: 503,
+        );
+      final session = outgoing(sendRoom(), engine: engine);
+
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(session.failure, const CallDidNotConnect());
+      expect(reported(logs), isEmpty);
+    });
+
+    test('hang up while ready() is pending sends nothing', () async {
+      final r = sendRoom();
+      final engine = FakeCallEngine()..readyGate = Completer<void>();
+      final session = outgoing(r, engine: engine);
+      await pumpEventQueue();
+
+      await session.hangUp();
+      engine.readyGate!.complete();
+      await pumpEventQueue();
+
+      expect(engine.readyCalls, 1);
+      expect(r.requests, isEmpty);
+      expect(engine.startLocalMediaCalls, 1);
+      expect(engine.leaveCalls, 1);
+      expect(engine.disposeCalls, 1);
+      expect(session.phase, CallSessionPhase.ended);
+    });
+
     test('an invite the server never confirms is reported as such', () async {
       final logs = recordDebugPrints();
       final session = outgoing(sendRoom()..undelivered = true);
@@ -1622,6 +1767,22 @@ void main() {
       await untilPhase(session, CallSessionPhase.ended);
 
       expect(session.failure, const CallNoPermissionToStart());
+      expect(reported(logs), isEmpty);
+    });
+
+    test('a failure the calls module expects once it rings is not '
+        'reported', () async {
+      final logs = recordDebugPrints();
+      final session = outgoing(
+        sendRoom(),
+        engine: FakeCallEngine(
+          failJoin: true,
+          joinError: const CallsRouteGone('POST /livekit/token'),
+        ),
+      );
+
+      await untilPhase(session, CallSessionPhase.ended);
+
       expect(reported(logs), isEmpty);
     });
 
@@ -2008,10 +2169,7 @@ void main() {
       fakeAsync((async) {
         final r = startCountingSessionIn(async);
 
-        r.client.refusal = MatrixException.fromJson({
-          'errcode': 'M_FORBIDDEN',
-          'error': 'not a member',
-        });
+        r.client.refusal = forbidden();
         async.elapse(const Duration(minutes: 1));
 
         expect(r.publishes, hasLength(2));
@@ -2060,6 +2218,27 @@ void main() {
       expect(
         reported(logs).where((line) => line.contains('refresh membership')),
         isEmpty,
+      );
+    });
+
+    test('a membership write refused for a defect in our own event is '
+        'reported', () async {
+      final logs = recordDebugPrints();
+      final c = _PublishCountingClient()..refusal = badJson();
+      final joinGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate);
+      final session = outgoing(sendRoom(c), engine: engine);
+      await pumpEventQueue();
+
+      engine.openSession();
+      await pumpEventQueue();
+      joinGate.complete();
+      await untilPhase(session, CallSessionPhase.ended);
+
+      expect(session.failure, const CallDidNotConnect());
+      expect(
+        reported(logs).where((line) => line.contains('M_BAD_JSON')),
+        isNotEmpty,
       );
     });
 
@@ -2688,6 +2867,41 @@ void main() {
       expect(reported(logs), isEmpty);
     });
 
+    test('a CallFullException from the media engine still ends as full with '
+        'the module\'s limit', () async {
+      recordMethodChannel(
+        'FlutterWebRTC.Method',
+        reply: (call) => switch (call.method) {
+          'getUserMedia' => {
+            'streamId': 'fake-stream',
+            'audioTracks': [],
+            'videoTracks': [],
+          },
+          'createLocalMediaStream' => {'streamId': 'local-stream'},
+          _ => null,
+        },
+      );
+      final connections = FakeCallConnections()
+        ..openError = const CallFullException(8);
+      final session = CallSession.forIncoming(
+        connections: connections,
+        room: room,
+        callId: 'call1',
+        kind: CallKind.voice,
+      );
+      addTearDown(session.dispose);
+
+      await expectLater(session.accept(), throwsA(isA<CallFullException>()));
+      await pumpEventQueue();
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.endReason, CallEndReason.failed);
+      expect(
+        session.failure,
+        isA<CallFull>().having((f) => f.maxParticipants, 'limit', 8),
+      );
+    });
+
     test('sends no decline, so its other phones are not stopped', () async {
       final r = sendRoom();
       final session = incoming(
@@ -3120,6 +3334,11 @@ void main() {
     });
     client.homeserver = Uri.parse('https://example.org');
     final session = CallSession.forIncoming(
+      connections: CallConnections(
+        client: client,
+        discovery: FakeCallProviderDiscovery(),
+        httpClient: module,
+      ),
       room: room,
       callId: 'call1',
       kind: CallKind.voice,
@@ -3334,6 +3553,7 @@ void main() {
       final requests = <http.Request>[];
       final engine = FakeCallEngine();
       final session = CallSession.forIncoming(
+        connections: FakeCallConnections(),
         room: buildTestRoom(recordingRequests(requests)),
         callId: 'call1',
         kind: CallKind.voice,

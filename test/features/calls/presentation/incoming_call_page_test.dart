@@ -23,6 +23,7 @@ import 'package:zuno/core/settings/app_preferences_provider.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/features/calls/presentation/incoming_call_page.dart';
 
+import '../../../helpers/fake_call_connection.dart';
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_call_style_channel.dart';
 import '../../../helpers/fake_calls_channel.dart';
@@ -449,6 +450,7 @@ void main() {
         await tester.pumpAndSettle();
 
         final existing = CallSession.forIncoming(
+          connections: FakeCallConnections(),
           room: room,
           callId: 'call1',
           kind: CallKind.voice,

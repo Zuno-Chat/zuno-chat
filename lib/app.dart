@@ -10,6 +10,7 @@ import 'core/calls/active_call_controller.dart';
 import 'core/calls/active_call_provider.dart';
 import 'core/calls/matrixrtc/incoming_call.dart';
 import 'core/calls/models/call_kind.dart';
+import 'core/calls/module/calls_offer_provider.dart';
 import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/server_ring.dart';
@@ -184,6 +185,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     AppLocale.instance.addListener(_onAppLocale);
     unawaited(drainNativeErrors());
     ref.listenManual(appServicesProvider, (_, _) {});
+    ref.listenManual(callsOfferProvider, (_, _) {});
     ref.listenManual(
       liveLocationSharingProvider,
       (_, sharing) => _bindLiveLocation(sharing),
@@ -309,6 +311,7 @@ class _AuthGateState extends ConsumerState<_AuthGate>
       unawaited(
         recheckDelivery(client, ref.read(notificationDeliveryModeProvider)),
       );
+      unawaited(ref.read(callProviderDiscoveryProvider).refreshIfStale());
     }
   }
 

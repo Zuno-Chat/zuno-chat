@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
-import 'package:zuno/core/calls/cloudflare/webrtc_backend.dart';
+import 'package:zuno/core/calls/media/webrtc_backend.dart';
 
 class FakeTrack extends MediaStreamTrack {
   FakeTrack(this.kind, this.id, {this.journal});
@@ -156,6 +156,7 @@ class FakeDataChannel extends RTCDataChannel {
   final int _id;
   final bool negotiated;
   final sent = <String>[];
+  final sentBinary = <Uint8List>[];
   RTCDataChannelState _state = RTCDataChannelState.RTCDataChannelOpen;
   bool closed = false;
 
@@ -172,10 +173,22 @@ class FakeDataChannel extends RTCDataChannel {
   int? get bufferedAmount => 0;
 
   @override
-  Future<void> send(RTCDataChannelMessage message) async =>
-      sent.add(message.text);
+  Future<void> send(RTCDataChannelMessage message) async => message.isBinary
+      ? sentBinary.add(message.binary)
+      : sent.add(message.text);
 
   void receive(String text) => onMessage?.call(RTCDataChannelMessage(text));
+
+  void receiveBinary(List<int> bytes) => onMessage?.call(
+    RTCDataChannelMessage.fromBinary(Uint8List.fromList(bytes)),
+  );
+
+  void opens() {
+    _state = RTCDataChannelState.RTCDataChannelOpen;
+    onDataChannelState?.call(_state);
+  }
+
+  void connecting() => _state = RTCDataChannelState.RTCDataChannelConnecting;
 
   @override
   Future<void> close() async {
@@ -200,7 +213,13 @@ class FakePeerConnection extends RTCPeerConnection {
   final remoteDescriptions = <RTCSessionDescription>[];
   final pendingRemoteMids = <String, String>{};
   final dataChannels = <FakeDataChannel>[];
+  final remoteCandidates = <RTCIceCandidate>[];
+  final configurations = <Map<String, dynamic>>[];
+  final operations = <String>[];
+  Completer<void>? configurationGate;
+  var iceRestarts = 0;
   List<StatsReport> stats = [];
+  Completer<void>? statsGate;
   Object? setRemoteDescriptionError;
   Object? createAnswerError;
   RTCSessionDescription? _local;
@@ -257,6 +276,7 @@ class FakePeerConnection extends RTCPeerConnection {
   Future<void> setRemoteDescription(RTCSessionDescription description) async {
     if (setRemoteDescriptionError case final error?) throw error;
     remoteDescriptions.add(description);
+    operations.add('remote ${description.type}');
     if (description.type != 'offer') return;
     for (final MapEntry(key: mid, value: kind) in pendingRemoteMids.entries) {
       if (rtpTransceivers.any((t) => t.mid == mid)) continue;
@@ -309,7 +329,10 @@ class FakePeerConnection extends RTCPeerConnection {
   }
 
   @override
-  Future<List<StatsReport>> getStats([MediaStreamTrack? track]) async => stats;
+  Future<List<StatsReport>> getStats([MediaStreamTrack? track]) async {
+    await statsGate?.future;
+    return stats;
+  }
 
   @override
   Future<RTCDataChannel> createDataChannel(
@@ -329,6 +352,29 @@ class FakePeerConnection extends RTCPeerConnection {
       dataChannels.where((c) => c.label == label && !c.closed).lastOrNull;
 
   @override
+  Future<void> addCandidate(RTCIceCandidate candidate) async {
+    if (remoteDescriptions.isEmpty) {
+      throw StateError('no remote description for a candidate');
+    }
+    remoteCandidates.add(candidate);
+  }
+
+  @override
+  Future<void> setConfiguration(Map<String, dynamic> configuration) async {
+    await configurationGate?.future;
+    configurations.add(configuration);
+    operations.add('configuration');
+  }
+
+  @override
+  Future<void> restartIce() async => iceRestarts++;
+
+  void emitDataChannel(FakeDataChannel channel) => onDataChannel?.call(channel);
+
+  void changeState(RTCPeerConnectionState state) =>
+      onConnectionState?.call(state);
+
+  @override
   Future<void> close() async => closed = true;
   @override
   Future<void> dispose() async {
@@ -341,9 +387,10 @@ class FakePeerConnection extends RTCPeerConnection {
 }
 
 class FakeKeyProvider extends KeyProvider {
-  FakeKeyProvider({this.journal});
+  FakeKeyProvider({this.journal, this.refuseKey = false});
 
   final List<String>? journal;
+  bool refuseKey;
   final sharedKeys = <Uint8List>[];
   bool disposed = false;
 
@@ -351,8 +398,10 @@ class FakeKeyProvider extends KeyProvider {
   String get id => 'fake-key-provider';
 
   @override
-  Future<void> setSharedKey({required Uint8List key, int index = 0}) async =>
-      sharedKeys.add(key);
+  Future<void> setSharedKey({required Uint8List key, int index = 0}) async {
+    if (refuseKey) throw StateError('key provider refused the key');
+    sharedKeys.add(key);
+  }
 
   @override
   Future<void> dispose() async {
@@ -404,6 +453,8 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
 
   final List<String>? journal;
   final keyProviders = <FakeKeyProvider>[];
+  final providerOptions = <KeyProviderOptions>[];
+  bool refuseKey = false;
   final cryptors = <FakeFrameCryptor>[];
   final failEnableFor = <String>{};
   Completer<void>? senderGate;
@@ -417,7 +468,8 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
   Future<KeyProvider> createDefaultKeyProvider(
     KeyProviderOptions options,
   ) async {
-    final provider = FakeKeyProvider(journal: journal);
+    final provider = FakeKeyProvider(journal: journal, refuseKey: refuseKey);
+    providerOptions.add(options);
     keyProviders.add(provider);
     return provider;
   }
@@ -535,28 +587,6 @@ class FakeWebRtcBackend implements WebRtcBackend {
     final stream = FakeMediaStream(label);
     streams.add(stream);
     return stream;
-  }
-
-  bool placeholderAvailable = true;
-  Object? placeholderError;
-  final placeholders = <PlaceholderVideo>[];
-  final releasedPlaceholders = <PlaceholderVideo>[];
-
-  @override
-  Future<PlaceholderVideo?> createPlaceholderVideo() async {
-    if (placeholderError case final error?) throw error;
-    if (!placeholderAvailable) return null;
-    final placeholder = (
-      stream: FakeMediaStream('placeholder-${placeholders.length + 1}'),
-      track: FakeTrack('video', 'black-${++_tracks}'),
-    );
-    placeholders.add(placeholder);
-    return placeholder;
-  }
-
-  @override
-  Future<void> releasePlaceholderVideo(PlaceholderVideo placeholder) async {
-    releasedPlaceholders.add(placeholder);
   }
 
   @override

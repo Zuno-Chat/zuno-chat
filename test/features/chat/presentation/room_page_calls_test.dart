@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
-
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/call_connections.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
+import 'package:zuno/core/calls/module/call_provider_discovery.dart';
+import 'package:zuno/core/calls/module/calls_offer_provider.dart';
+import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/matrix/sync/connection_monitor.dart';
 import 'package:zuno/core/matrix/sync/connectivity_provider.dart';
 import 'package:zuno/features/calls/presentation/call_page.dart';
@@ -16,8 +20,10 @@ import 'package:zuno/features/chat/presentation/room_page.dart';
 
 import '../../../helpers/call_channel_mocks.dart';
 import '../../../helpers/call_membership.dart';
+import '../../../helpers/fake_call_provider_discovery.dart';
 import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_permissions.dart';
 import 'room_page_harness.dart';
 
 void main() {
@@ -175,6 +181,73 @@ void main() {
         find.text('No connection. Try again once back online.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('offline at first launch', () {
+    testWidgets('offline at first launch: buttons shown, tapping fails before '
+        'ringing', (tester) async {
+      installFakePermissions();
+      CallChannelMocks();
+      final discovery = FakeCallProviderDiscovery(null)
+        ..error = http.ClientException('offline');
+      await openRoom(
+        tester,
+        overrides: [
+          callsOfferProvider.overrideWith((ref) => Stream.value(null)),
+          callConnectionsProvider.overrideWith(
+            (ref) => CallConnections(
+              client: ref.watch(matrixClientProvider),
+              discovery: discovery,
+            ),
+          ),
+        ],
+      );
+      expect(find.byTooltip('Voice call'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Voice call'));
+      await harness.settle(tester);
+      await tester.tap(find.widgetWithText(TextButton, 'Call'));
+      await harness.settle(tester);
+
+      expect(find.text('Call did not connect'), findsOneWidget);
+      expect(harness.sentTo(harness.room.id), isEmpty);
+      expect(discovery.currentCalls, greaterThan(0));
+    });
+  });
+
+  group('a server without calls', () {
+    testWidgets('no call buttons and no join banner when the server offers no '
+        'calls', (tester) async {
+      await openRoom(
+        tester,
+        callInProgress: 'c-bob',
+        overrides: [
+          callsOfferProvider.overrideWith(
+            (ref) => Stream.value(CallsOffer.none),
+          ),
+        ],
+      );
+
+      expect(find.byTooltip('Voice call'), findsNothing);
+      expect(find.byTooltip('Video call'), findsNothing);
+      expect(find.text('Voice call in progress'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Join'), findsNothing);
+    });
+
+    testWidgets('call buttons shown while there is no answer yet', (
+      tester,
+    ) async {
+      await openRoom(
+        tester,
+        callInProgress: 'c-bob',
+        overrides: [
+          callsOfferProvider.overrideWith((ref) => Stream.value(null)),
+        ],
+      );
+
+      expect(find.byTooltip('Voice call'), findsOneWidget);
+      expect(find.text('Voice call in progress'), findsOneWidget);
     });
   });
 

@@ -6,6 +6,7 @@ import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/call_fixtures.dart';
 import '../../../helpers/platform_capabilities.dart';
 import 'cloudflare_engine_harness.dart';
 
@@ -21,9 +22,7 @@ void main() {
   );
 
   void connectionFails(EngineHarness call) {
-    call.engine.handleConnectionStateForTest(
-      RTCPeerConnectionState.RTCPeerConnectionStateFailed,
-    );
+    call.pc.changeState(RTCPeerConnectionState.RTCPeerConnectionStateFailed);
     call.async.elapse(const Duration(seconds: 2));
     call.flush();
   }

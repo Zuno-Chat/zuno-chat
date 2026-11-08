@@ -23,3 +23,38 @@ extension HybridFakeAsync on FakeAsync {
     await settle();
   }
 }
+
+const _drainRounds = 20;
+
+extension FakeAsyncDrain on FakeAsync {
+  T waitFor<T>(Future<T> future, {Duration elapsing = Duration.zero}) {
+    late T value;
+    Object? error;
+    var done = false;
+    future.then(
+      (v) {
+        value = v;
+        done = true;
+      },
+      onError: (Object e) {
+        error = e;
+        done = true;
+      },
+    );
+    if (elapsing > Duration.zero) elapse(elapsing);
+    for (var i = 0; i < _drainRounds && !done; i++) {
+      flushMicrotasks();
+      elapse(Duration.zero);
+    }
+    if (error case final e?) throw e;
+    expect(done, isTrue, reason: 'the future never completed');
+    return value;
+  }
+
+  void flushAll() {
+    for (var i = 0; i < _drainRounds; i++) {
+      flushMicrotasks();
+      elapse(Duration.zero);
+    }
+  }
+}

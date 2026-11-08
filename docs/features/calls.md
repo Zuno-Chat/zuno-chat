@@ -1,8 +1,8 @@
 # Calls
 
-Voice and video calls, one-to-one and group, always routed through
-Cloudflare's SFU behind the `zuno_calls` Synapse module, which also caps how
-many people a call holds.
+Voice and video calls, one-to-one and group, always routed through an SFU:
+Cloudflare's or a LiveKit server, whichever the homeserver's `zuno_calls`
+Synapse module names. The module also caps how many people a call holds.
 There is no peer-to-peer mode, by design. Signaling is a custom layer
 loosely modeled on MatrixRTC (MSC3401), not a conformant implementation.
 Media is encrypted per frame with a random key for each call. Both
@@ -18,18 +18,27 @@ flowchart LR
   A --> S[CallSession]
   S -->|"m.call.member state, im.zuno.call_* messages"| HS[(Homeserver)]
   S -->|"call key, Olm to-device"| HS
-  S --> E[CloudflareCallEngine]
-  E -->|"SDP and track JSON, Matrix bearer"| M["zuno_calls module (in Synapse)"]
+  S --> E["CallMediaEngine (shared core)"]
+  E -->|"opens at call start"| O[CallConnections]
+  O -->|"GET config"| M["zuno_calls module (in Synapse)"]
+  O -->|"one of"| CF[CloudflareConnection]
+  O -->|"one of"| LK[LiveKitConnection]
+  CF -->|"SDP and track JSON, Matrix bearer"| M
   M -->|"app id and credentials"| SFU[Cloudflare SFU]
-  E <-->|"media, encrypted per frame"| SFU
+  CF <-->|"media, encrypted per frame"| SFU
+  LK -->|"token request, Matrix bearer"| M
+  LK <-->|"signal WebSocket; media, encrypted per frame"| LKS[LiveKit server]
 ```
 
 | Part | Where | Role |
 |---|---|---|
-| `CallSession` | `lib/core/calls/matrixrtc/` | Matrix-side signaling and the call lifecycle: invite, decline, ring timeout, `m.call.member` publish and reconcile, the call key, hang-up and the summary |
-| `CallEngine` → `CloudflareCallEngine` | `lib/core/calls/cloudflare/` | Media: one peer connection and one Cloudflare session per call, with every participant's tracks muxed onto it |
-| `LocalMedia` | same | Our microphone and camera: opened at call start, muted, switched and closed; the engine publishes what it holds |
-| Calls module client | `lib/core/calls/module/` | Every request to the `zuno_calls` module goes through one function: the Matrix bearer, the deadline, retries and the module's refusals. The Cloudflare client speaks Cloudflare's own API through it, and the module adds the app id and credentials server-side. Only signaling goes through it; media flows straight between the device and the SFU |
+| `CallSession` | `lib/core/calls/matrixrtc/` | Matrix-side signaling and the call lifecycle: invite, decline, ring timeout, `m.call.member` publish and reconcile, the call key, hang-up and the summary. It never learns which provider runs |
+| `CallEngine` → `CallMediaEngine` | `lib/core/calls/media/` | The media core, written once for both providers: our microphone and camera (`LocalMedia`, opened at call start) and the camera's state, call audio, frame encryption (`CallEncryption`), own-link rating and the layer set, the shared `fociInfo` flags, and the participant and status streams |
+| `CallConnection` | `lib/core/calls/media/` | The seam to a provider: one connection per call gets the core's senders onto the SFU and remote media back, and hands every sender and receiver it creates to the core to encrypt |
+| `CallConnections` | `lib/core/calls/` | The opener: builds the connection the server's provider names, the only provider check outside discovery |
+| `CloudflareConnection` | `lib/core/calls/cloudflare/` | One peer connection and one Cloudflare session per call, with every participant's tracks muxed onto it |
+| `LiveKitConnection` | `lib/core/calls/livekit/` | Zuno's own LiveKit client on flutter_webrtc: a protobuf signal WebSocket and a publisher and a subscriber peer connection |
+| Calls module client | `lib/core/calls/module/` | Every request to the `zuno_calls` module goes through one function: the Matrix bearer, the deadline, retries and the module's refusals. Provider discovery, LiveKit tokens and Cloudflare's own API go through it, and the module adds Cloudflare's app id and credentials server-side. LiveKit's signaling and all media flow straight between the device and the SFU |
 | `ActiveCallController` | `lib/core/calls/` | The device side of the active call for its whole life: renderers, audio route, call tones, foreground service, wake lock, lock-screen display, ear sensor, picture-in-picture and teardown. It starts when `activeCallProvider` gets a session, with no frame |
 | `CallPage` → `CallView`, `CallLayer` | `lib/features/calls/presentation/` | `CallPage` is the call screen and only draws. `CallLayer` sits above the Navigator and shows a minimized call and Android picture-in-picture. `CallView` only lays out plain values |
 | Ring routing | `IncomingCallGate`, `RingCoordinator`, `lib/core/calls/notifications/` | Deciding whether an invite rings, ringing a running app from sync on both platforms, then presenting, cancelling, answering and declining rings |
@@ -47,6 +56,81 @@ plays for a call goes through one of six interfaces, each built by a
 | `SystemCall` | No-op | The CallKit call |
 | `CallAudioOutput` | Native `CallAudio` owns focus, mode and route | Native routes in CallKit's session |
 | `PushRingBridge` | No-op | Binds pushed rings to their calls |
+
+### Providers
+
+**One provider per server, named by its `zuno_calls` module; users never
+choose.** Each admin sets the module up with Cloudflare or LiveKit, and
+without federation everyone in a call is on one server, so a call has
+exactly one provider. Signaling, ringing, the call screens and the device
+side never learn which one runs.
+
+| Owner | Owns |
+|---|---|
+| Core (`CallMediaEngine`) | Local media and call audio; the camera intent and its state machine; frame encryption and its gates; which remote media to take; own-link rating, the two-layer set and the sent-video rewrite; the shared `fociInfo` flags; the participant and status streams; the reconnect policy |
+| Each connection | Its SFU's signaling; getting the core's senders onto the SFU and remote media back; its handle in `fociInfo` and matching memberships through it; whether a remote is sending media; carrying ratings; how its video sender shows the camera; its own recovery under the shared policy |
+| `CallConnections` | Opening the connection the discovered provider names |
+| `CallSession` | Mapping a refusal to `CallFailure`, over shared exception types only |
+
+**The membership handle.** The core writes the shared flags into
+`fociInfo`, and the connection writes its handle beside them. Each
+connection reads only its own handle, so a membership without it is never
+matched, and there is no provider tag. LiveKit's participant list is never
+a roster: remote media maps to a Matrix device only through this handle.
+
+| Provider | Handle in `fociInfo` |
+|---|---|
+| Cloudflare | `sessionId`, the advertised `tracks`, and `dataChannels` naming the quality channel |
+| LiveKit | `identity`: the opaque LiveKit identity the module put in our token, as the join response reports it |
+
+**Readiness before the invite.**
+- The engine is built at call start, before the provider is known, and at
+  once opens its connection from the discovery answer; local media opens
+  without waiting on it, and a mute, camera or key change before the join
+  is held by the core and applied once the connection is up.
+- **A caller awaits that answer, alongside the microphone check, before
+  sending the invite**, so a server without calls, or a failed discovery
+  with no saved answer, fails before anyone rings: no invite, no ring, no
+  summary. The session sees only the engine's readiness, never a provider.
+- A callee or joiner reads the same answer at join and fails as a caller
+  would.
+
+**Discovery** (`call_provider_discovery.dart`) asks the module's `config`
+route:
+
+| `config` answers | App reads it as |
+|---|---|
+| `{"provider": "cloudflare"}` or `{"provider": "livekit"}` | That provider |
+| Any other value, a missing key, or a 404 (no module, or one older than the route) | Calls not available |
+| A network failure or 5xx | Nothing stored; the previous answer stays |
+
+- **One answer per account, saved in the client database** under the same
+  rule as the account capabilities (tied to the signed-in user, with its
+  save time), so a cold start, the call buttons and every call read it
+  without a request, and sign-out drops it.
+- **It refreshes in the background** at sign-in, at startup and on each
+  return to the app once a day old, and concurrent needs share one request.
+  **A saved "no calls" is asked again on every return to the app and by
+  every call**, so a server that adds calls shows its buttons on the next
+  return, without a restart.
+- **A stale answer heals once, at join.** A module route answering 404
+  `M_UNRECOGNIZED` means the server switched or dropped providers, so the
+  core closes that connection, asks again and joins with the new provider,
+  or fails with "Calls are not available on this server." and the buttons
+  hide. During a reconnect a gone route ends the call at once, since only a
+  join asks again.
+- **One call can still ring in vain**: a caller whose server dropped calls
+  since its last answer sends the invite before its join finds out; the
+  next call corrects it.
+- **A provider switch mid-call is not followed**: calls already running
+  stay on the old provider, and devices that join after the switch cannot
+  reach them.
+
+**Call buttons.** One rule (`roomCanCall`) gates every way to start or join
+a call, the room's call buttons and the call-in-progress banner included:
+the server offers calls and the room allows one (`rooms-membership.md`). A
+server without calls hides them all. No answer yet keeps them, so a network
+blip never makes calls vanish, and the call itself still asks.
 
 ### Call lifecycle
 
@@ -66,7 +150,8 @@ stateDiagram-v2
   the call screen renders before any of it finishes.
 - **Local media opens before the join.** A caller checks the microphone
   permission before it rings anyone, then opens the microphone and camera
-  while the invite is sent; answering opens them at once. Joining only
+  while it waits for the server's provider (Providers) and sends the
+  invite; answering opens them at once. Joining only
   publishes them, and the session follows the app's lifecycle from the
   moment local media opens.
 - **Permissions**: a refused microphone fails the call with the microphone
@@ -113,9 +198,9 @@ stateDiagram-v2
 
 - **`m.call.member` state is the only roster**, never a client-local list:
   each account's state event holds one entry, for its device in the call.
-  Each entry's `fociInfo` carries the Cloudflare session, the published
-  tracks, media flags such as `videoEnabled` and `encrypted`, and
-  `dataChannels`, which names the quality channel. The room's "call in progress"
+  Each entry's `fociInfo` carries the shared media flags (`audioMuted`,
+  `videoEnabled`, `encrypted`) and the provider's handle (Providers). The
+  room's "call in progress"
   banner reads the same state, so a missed ring or a closed app still
   finds the call.
 - **An account is in a call from one device at a time.** Each device
@@ -125,9 +210,10 @@ stateDiagram-v2
 - **A malformed entry is skipped, and a malformed `fociInfo` field reads
   as absent, never cast**, because one client's bad state would otherwise
   break the call for everyone in the room.
-- **Membership is first published as soon as the SFU session exists,
-  before its tracks, and only once the session listens for to-device call
-  keys**, so a key sent in reply is never lost. The module rings on a
+- **Membership is first published as soon as the connection has its
+  handle (a Cloudflare session, or LiveKit's join response), before its
+  tracks, and only once the session listens for to-device call keys**, so
+  a key sent in reply is never lost. The module rings on a
   caller's, so the ring never waits on the caller's camera; an answerer's
   is the answer, so the caller stops ringing and sends the key while the
   answerer is still connecting. After that it is republished periodically
@@ -156,7 +242,7 @@ stateDiagram-v2
   | Anyone with others still in the room's live memberships | Nothing: the last one out posts the summary |
   | A caller whose invite was never delivered | Nothing, so hanging up during the microphone prompt is silent |
   | A callee that never joined | A decline |
-  | A callee whose connect failed before its SFU session opened | Nothing, so its other phones can still answer |
+  | A callee whose connect failed before it reached the SFU | Nothing, so its other phones can still answer |
   | A callee removed before it joined | Nothing, since it is out of the call either way |
   | A callee the summary reached before anyone joined | Nothing: the call is already summarized |
   | A caller giving up its call for a crossed one (see Ringing) | Nothing, so no false missed call is posted |
@@ -173,9 +259,11 @@ stateDiagram-v2
 - Any device holding the call key relays it to a newcomer, not only the
   caller.
 - The participant cap belongs to the module, never the app: every
-  `sessions/new` names its room and call, and the module refuses a full call
-  with a 403 `IM.ZUNO.CALL_FULL` carrying its `max_participants`, which the
-  app shows as is.
+  Cloudflare `sessions/new` and LiveKit token request names its room and
+  call, and the module refuses a full call with a 403 `IM.ZUNO.CALL_FULL`
+  carrying its `max_participants`, which the app shows as is. A member
+  already in the call never counts against it, so a rejoin is never refused
+  as full.
 
 **Moderation.** In a group room, never a direct chat, anyone with the room's
 "Remove people" permission can hold someone ranked below them in the call to
@@ -191,19 +279,34 @@ mute them or remove them from it.
   names the join it applies to, so a late one never mutes a later join.
 - **Every mute goes through the call** (the button, the system call and a
   moderator), and the call names who muted you only while you stay muted.
-- **Only the module decides a removal.** It cuts the person off and refuses
-  them for the rest of the call with a 403 `IM.ZUNO.CALL_REMOVED`, and
-  answers only once their tracks are closed, so the call key never has to
-  change, which older versions could not follow. The removal is done once it
-  answers; telling the call is best effort.
+- **Only the module decides a removal.** It refuses the person for the rest
+  of the call with a 403 `IM.ZUNO.CALL_REMOVED` and cuts them off: on
+  Cloudflare it answers only once their tracks are closed; on LiveKit it
+  removes their participants from the room, and a periodic sweep removes
+  anyone removed or holding a token without a call membership. The removal
+  is done once it answers; telling the call is best effort.
 - **A removed person's call ends as removed**, from the room event (naming
   who removed them) or from the module refusing any call request, including
-  one made while joining, which is never retried.
+  one made while joining, which is never retried. On LiveKit, being removed
+  from the room starts a full reconnect, and its token request's refusal is
+  what ends the call as removed, because LiveKit gives a removal and the
+  module's sweep the same leave reason.
 - **Nobody else tracks a removal.** The removed person's app leaving the
-  call is what drops them for everyone, late joiners included, and the
-  module's per-track refusal of their tracks is expected, never reported.
+  call is what drops them for everyone, late joiners included, and on
+  Cloudflare the module's per-track refusal of their tracks is expected,
+  never reported.
 
 ### Media
+
+Both providers follow the core's rules, and each connection adds its own
+SFU's.
+
+| Shared rule | Why |
+|---|---|
+| Every phone sends VP8, listed first in the video section we send on in the SFU's answer | iOS's hardware H264 sends far below its target bitrate, so its video went out blocky, while VP8 meets its target on both platforms and every receiver decodes it |
+| One reconnect policy for both: a short disconnect grace, a few attempts with backoff, and failures that end a reconnect at once (a permanent refusal, a full call, a removal, a gone route); each connection runs its own recovery under it | A call recovers the same way on either provider, and retrying a refusal or a route that is gone cannot succeed |
+
+#### Cloudflare
 
 A publish and a pull run in opposite directions:
 
@@ -225,16 +328,17 @@ sequenceDiagram
 | ICE is gathered whole before an offer goes out | Cloudflare's REST signaling takes candidates only inside the offer, so there is no trickle ICE |
 | A lost connection, or a publish or pull whose exchange fails, rejoins with a new session and peer connection, a few times, before the call ends as "Connection lost" | Cloudflare sessions cannot ICE-restart, and a session left with an unanswered SFU offer refuses every later change (406 `invalid_session_description`), which no rollback or forced close repairs |
 | Only `sessions/new` is re-sent after a dropped connection, however the HTTP client reports it; track changes are retried only on 429 | The SFU may already have applied a lost request, and a repeat lands on a session that no longer expects it; native HTTP clients report every dropped connection as a client error |
-| TURN credentials are minted through the module when the engine is built at call start, and a failed mint means no TURN, not a failed call | Only some networks need TURN |
+| TURN credentials are minted through the module when the connection opens at call start, and a failed mint means no TURN, not a failed call | Only some networks need TURN |
 | A black placeholder stands in whenever the camera is not sending, and a track is advertised only once it has sent bytes | Cloudflare drops a published track that receives no packets for 30 s, and advertising earlier lets someone pull a track the SFU does not have yet |
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
 | A pull the SFU cannot find is retried on every sync and reported only once the remote has published a newer membership and the pull still fails | During a reconnect the remote's last-advertised session may already be gone, so an early not-found is a race, not a defect |
 | Every track swap is `replaceTrack`, never a mid-call re-offer | A re-offer recreates the receive streams, and Android's flutter_webrtc then renders nothing (flutter-webrtc#2124) |
-| Every phone sends VP8 | iOS's hardware H264 sends far below its target bitrate, so its video went out blocky, while VP8 meets its target on both platforms and every receiver decodes it |
 
 **The placeholder** is a tiny native black video, Cloudflare's own pattern
-(partytracks sends black video for a device that is off). The video slot
-is published at join, and the placeholder fills it in three cases:
+(partytracks sends black video for a device that is off), and Cloudflare's
+alone: its native code on both platforms serves only this connection. The
+video slot is published at join, and the placeholder fills it in three
+cases:
 
 - **A voice call**, until it switches to video, which is one way.
 - **Camera off**: the camera stops, its light included.
@@ -243,53 +347,127 @@ is published at join, and the placeholder fills it in three cases:
   background leaves it off until the app returns. iOS stops it itself
   (`cameraStopsInBackground`), so the engine keeps the track.
 
+#### LiveKit
+
+**Zuno's own client on flutter_webrtc, speaking protocol 16 over the
+classic two-peer-connection `/rtc` path** (why: Decisions). The module only
+authorizes: it mints a token for an opaque LiveKit room derived from the
+room and call, and signaling and media go straight to the LiveKit server.
+
+```mermaid
+sequenceDiagram
+  participant D as Device
+  participant M as zuno_calls
+  participant L as LiveKit server
+  D->>M: POST livekit/token (room, call)
+  M-->>D: url and token
+  D->>L: WebSocket /rtc, token in the Authorization header
+  L-->>D: JoinResponse: our identity, ICE servers, participants
+  D->>L: AddTrackRequest per track
+  L-->>D: TrackPublishedResponse
+  D->>L: publisher offer
+  L-->>D: answer
+  D->>L: UpdateSubscription for the tracks the core wants
+  L-->>D: subscriber offer
+  D->>L: answer
+```
+
+| Rule | Why |
+|---|---|
+| The token goes in the WebSocket's `Authorization` header, never the URL | So it never reaches a log |
+| The client subscribes itself (`auto_subscribe=0`, `adaptive_stream=0`), and only to tracks the server lists as GCM-encrypted | The core decides which remote media to take, and a track that would arrive unencrypted is never taken |
+| A track joins the publisher only after its `AddTrackRequest` is answered with `TrackPublishedResponse`, and declares GCM encryption, no RED, and the video layers `q` (LOW) and `h` (HIGH) | The server takes each track's encryption and layers from that request |
+| Video declares `simulcast_codecs` naming VP8 | Otherwise LiveKit records the track as the first codec of its own answer (H264), finds no keyframes in our VP8 and forwards no video |
+| Audio declares `TF_NO_DTX` | LiveKit turns Opus DTX on in its answer unless told not to |
+| Camera off is a `MuteTrackRequest` with no camera on the sender, and a voice call publishes its video track at the upgrade | LiveKit keeps a muted track that sends nothing, and a re-offer on the publisher touches no receive streams, so LiveKit needs neither the placeholder nor the `replaceTrack`-only rule |
+| ICE trickles both ways, and a remote candidate waits for its peer connection's remote description; ICE servers and relay-only come from the join and reconnect responses | Candidates can arrive before the description they belong to |
+| The publisher and the subscriber negotiate separately, each one round at a time | The server forces a full reconnect when a subscriber offer goes unanswered for 15 s, so a publish must never hold up that answer |
+| Remote tracks map to participants through the stream id `PA_sid\|TR_sid`, a track that arrives before its participant is queued, and a reused receiver is known by its `receiverId` | flutter_webrtc makes a new receiver object for every track, and iOS never fires `onRemoveTrack` |
+| The module's identity is opaque, unique per device and stable within a call, and the token carries no name or metadata | No Matrix ID reaches LiveKit, which may be LiveKit Cloud, and LiveKit kicks an earlier participant with the same identity, so a rejoining device replaces its own stale participant |
+| Errors carry only the HTTP status or the protocol's reason enum, never the URL, the token or a participant sid | Their text reaches crash reports |
+
+**Recovery** runs under the shared policy:
+
+```mermaid
+stateDiagram-v2
+  joined --> resume: socket closed, ping timeout, peer connection lost
+  resume --> joined: resumed
+  resume --> full: resume refused, or its negotiation failed
+  joined --> full: server leave RECONNECT or PARTICIPANT_REMOVED
+  full --> joined: rejoined
+  resume --> failed: budget spent
+  full --> failed: budget spent, or a final failure
+```
+
+- **A resume keeps the session.** It reopens the socket with `reconnect=1`
+  and our participant sid and sends `SyncState` first (the wanted
+  subscriptions and our published tracks), since frames written into the
+  dead socket are lost, then takes the new ICE servers, restarts ICE on the
+  publisher and answers the subscriber's restart offer. An unreachable
+  server retries the resume.
+- **A full reconnect starts over**: a fresh token from the module, a fresh
+  join, new peer connections and every track added again, and the core
+  wraps every sender and receiver afresh.
+- **A refused join** (a 4xx at the WebSocket upgrade, or a `LeaveRequest`
+  where the `JoinResponse` belongs) fails the call as did-not-connect. The
+  cap is the module's, at token mint, since LiveKit names no room-full
+  reason.
+- **A server leave** asking for `RESUME` resumes, one asking for
+  `RECONNECT` or giving `PARTICIPANT_REMOVED` goes to a full reconnect
+  (Moderation), and any other fails the call.
+- **Leaving** sends `LeaveRequest` (`CLIENT_INITIATED`), disposes the peer
+  connections and closes the socket without waiting on it.
+
 ### Quality and data use
 
-**Each phone rates only its own link and tells the others.** The engine
-samples `getStats()` every few seconds and rates the link good, degraded
-or poor, with hysteresis so one bad sample never flaps a tier. It reads
-the loss Cloudflare reports on what we send, the RTT of the selected
-candidate pair and, while the camera sends, WebRTC's estimate of the
-upload bandwidth.
+**Each phone rates only its own link and tells the others**, one policy on
+both providers. The core samples `getStats()` every few seconds and rates
+the link good, degraded or poor, with hysteresis so one bad sample never
+flaps a tier. It reads the loss the SFU reports on what we send, the RTT
+of the selected candidate pair and, while the camera sends, WebRTC's
+estimate of the upload bandwidth.
 
-- **Incoming loss is never read**, because Cloudflare passes a sender's
-  lost packets on to every viewer as gaps, so one person's weak upload
-  once showed a weak badge on everyone. A download that loses packets
-  with no added delay therefore leaves its own badge off; Cloudflare
-  lowers the video it sends that phone instead.
+- **Each peer connection is parsed on its own**, because LiveKit runs two:
+  loss counts every outbound stream, the upload estimate comes only from a
+  peer connection that sends, and RTT is the worst selected pair.
+- **Incoming loss is never read**, because an SFU passes a sender's lost
+  packets on to every viewer as gaps, so one person's weak upload once
+  showed a weak badge on everyone. A download that loses packets with no
+  added delay therefore leaves its own badge off; the SFU lowers the video
+  it sends that phone instead.
 - **A starved upload shows in the bandwidth estimate, not in loss or
   RTT**, because congestion control slows the sender before packets are
   lost.
-- **Upload loss is the server's per-report loss share, weighted by packets
+- **Upload loss is the SFU's per-report loss share, weighted by packets
   sent**, because its running loss total moves only when a report arrives
   and would swing between samples.
-- **Ratings travel on a Cloudflare data channel named `quality`**, as
-  `{"quality":"<tier>"}` on every sample, never in `m.call.member`, whose
-  every write is slow, stored for good and federated. Each phone
-  advertises its channel in `fociInfo.dataChannels` and subscribes to
-  every peer that does; a peer's badge is the rating it last sent. The
-  channel carries only a tier, so it is not end-to-end encrypted.
-- **The channel opens once the connection first reports connected**,
-  because Cloudflare allocates data channels only on a connected
-  transport, and a failed setup gives up for the rest of the call, since
-  ratings must never end one.
+- **Ratings go out as `{"quality":"<tier>"}` on every sample, never in
+  `m.call.member`**, whose every write is slow, stored for good and
+  federated; a peer's badge is the rating it last sent. They carry only a
+  tier, so they are not end-to-end encrypted. Each connection carries them:
+
+  | Provider | Ratings travel |
+  |---|---|
+  | Cloudflare | On a data channel named `quality`, advertised in `fociInfo.dataChannels` and subscribed to on every peer that advertises one. It opens once the connection first reports connected, because Cloudflare allocates data channels only on a connected transport, and a failed setup gives up for the rest of the call, since ratings must never end one |
+  | LiveKit | As reliable data packets with topic `quality`, to and from every peer |
 - **Versions up to 1.4.0 still get a weak badge.** While any peer cannot
-  get our ratings, `weakConnection: true` goes in `fociInfo` whenever our
-  rating is not good, and their flags are read only from peers we get no
-  ratings from. `lowBandwidth` is never sent, because 1.4.0 lowers its
-  video for everyone when it sees it.
-- **Video goes out in two simulcast layers**, `q` (half size, 15 fps) and
-  `h` (full size), and pulls name no layer, so Cloudflare picks one per
-  viewer and a weak viewer gets `q` while everyone else keeps `h`. WebRTC
-  drops `h` on its own when our upload cannot carry it. The names are
-  LiveKit's, whose server maps layers by position in `q,h,f`, and they
-  sort best-first for Cloudflare's `asciibetical` fallback.
+  get our ratings (a Cloudflare peer on 1.4.0), `weakConnection: true`
+  goes in `fociInfo` whenever our rating is not good, and their flags are
+  read only from peers we get no ratings from. `lowBandwidth` is never
+  sent, because 1.4.0 lowers its video for everyone when it sees it.
+- **Video goes out in two simulcast layers on both providers**, `q` (half
+  size, 15 fps) and `h` (full size), and the SFU picks one per viewer, so
+  a weak viewer gets `q` while everyone else keeps `h`: Cloudflare pulls
+  and LiveKit subscriptions name no layer. WebRTC drops `h` on its own
+  when our upload cannot carry it. The names are LiveKit's, whose server
+  maps layers by position in `q,h,f`, and they sort best-first for
+  Cloudflare's `asciibetical` fallback.
 - **Layers keep their frame rate and lose resolution first**
   (`MAINTAIN_FRAMERATE`). Audio is never scaled.
 - **WebRTC's bandwidth estimate starts above the weak line**
-  (`x-google-start-bitrate` on our sending video in Cloudflare's answer),
-  because WebRTC's default start reads as a weak upload until it has
-  measured the link.
+  (`x-google-start-bitrate` on the video section we send on, in the SFU's
+  answer), because WebRTC's default start reads as a weak upload until it
+  has measured the link.
 - **Low-data calls are on by default, by design** (Settings → Data &
   storage): 360p capture and a 500 kbps cap on the full layer, so soft
   video is expected, not a bug. The setting is read once per call, since
@@ -316,17 +494,28 @@ upload bandwidth.
   its first sender could not reach everyone.
 - **A device that starts a new Olm session is sent the key again**, since a
   new session means it could not decrypt over the old one.
+- **So is a device whose membership is new (a changed `created_ts`)**,
+  because a device that restarts gets a new call session and no key, while
+  a rejoin inside one session keeps its key.
 - **Device keys are fetched only when that user's device list is unknown or
   stale**, so relay retries cost no key queries.
 - **The key is never rotated**, since rotating on every departure would
   interrupt everyone's media.
-- **Media is gated on keys.** Each local sender owns its frame cryptor,
-  tied to the live connection and that sender, and a track is enabled only
-  while its current sender has its own cryptor. A remote is pulled only
-  once both sides report `encrypted`. There is no unencrypted fallback.
-  Until the key lands, the call shows "encrypting".
-- **A rejoin wraps the new connection's senders afresh**, and a key that
-  lands mid-reconnect is applied to the new connection.
+- **The key provider never ratchets**, because a key that never rotates
+  makes every ratchet attempt fail, and LiveKit's SFU injects blank frames
+  that fail decryption, each of which would otherwise trigger a round of
+  key derivations.
+- **Media is gated on keys, in the core, on both providers.** Each local
+  sender owns its frame cryptor, tied to the live connection and that
+  sender, and a track is enabled only while its current sender has its own
+  cryptor. A remote is taken (pulled on Cloudflare, subscribed on LiveKit)
+  only once both sides report `encrypted`, and its stream shows only once
+  its receiver has its own cryptor, so a receiver that failed to wrap never
+  shows media. There is no unencrypted fallback. Until the key lands, the
+  call shows "encrypting".
+- **A rejoin or full reconnect wraps the new connection's senders and
+  receivers afresh**, and a key that lands mid-reconnect is applied to the
+  new connection.
 
 ### Call screens
 
@@ -723,14 +912,23 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | Decision | Why |
 |---|---|
 | SFU only, permanently | Groups need it anyway, and on mobile CGNAT networks peer-to-peer often falls back to a TURN relay regardless |
-| Custom signaling, not the SDK's VoIP module | The SDK's `GroupCallSession` hard-codes mesh and LiveKit backends. A LiveKit backend is designed, not built: it would go behind `CallEngine` |
+| Custom signaling, not the SDK's VoIP module | The SDK's `GroupCallSession` hard-codes its own mesh and LiveKit backends, while Zuno's providers sit behind its own `CallEngine` |
+| One media core and one connection per provider, with every rule written once | A call behaves the same on either provider, and only discovery and the opener know which one runs |
+| The provider is the server's, discovered from the module and saved per account | The admin owns the choice, and the saved answer drives the call buttons and every call, so neither waits on a request |
+| A server without calls shows no call buttons, and a caller that finds calls unavailable fails before its invite | Nobody's phone rings for a call that can never connect |
+| On LiveKit the module only authorizes (the token and the cap), and signaling and media go straight to the LiveKit server | As on Cloudflare, media never flows through Synapse |
 | The module takes the user's Matrix token | Synapse checks it on every request, so nothing is stored and a sign-out revokes at once |
-| A placeholder, not separate publish and receive connections (as in partytracks) | Separate connections make every camera toggle a re-publish and a re-pull by every viewer |
+| Our own LiveKit client on flutter_webrtc, not the `livekit_client` SDK | The SDK would need a workaround for each of four flaws: it takes over the iOS audio session when its plugin registers, which also breaks CallKit for Cloudflare calls; it can send media unencrypted in edge cases; it owns and disposes the tracks it publishes, so the providers could not share local media; and it pins flutter_webrtc to one exact version |
+| LiveKit protocol 16 over the classic two-peer-connection `/rtc` path | The server gates every behavior on the client's protocol version, all the way back to 0, so a pinned version keeps working as admins upgrade; 16 is what LiveKit's own Flutter SDK speaks |
+| Remote media maps to a Matrix device only through the provider's handle in `m.call.member` | `m.call.member` stays the only roster on both providers, and Matrix IDs never reach LiveKit, which may be LiveKit Cloud |
+| LiveKit calls are Zuno-only, with no MatrixRTC (MSC4143) or Element Call interop | Calls never cross servers; MatrixRTC would replace Zuno's signaling above the engine, never a connection, so it stays possible |
+| Both providers publish the same two layers, let the SFU pick each viewer's, and rate only their own link | One quality policy for both; a rating built from incoming loss blamed viewers for a sender's upload, and a viewer's weak link no longer lowers everyone's video |
+| On Cloudflare, a placeholder, not separate publish and receive connections (as in partytracks) | Separate connections make every camera toggle a re-publish and a re-pull by every viewer |
 | No automatic voice downgrade, and voice to video is one way | A downgrade needs distributed coordination and risks flicker, and an off camera costs little |
 | Screen share is not built | Android capture needs its own MediaProjection consent and foreground-service type |
 | New mid-call facts ride `fociInfo`; new signaling that must push or show is an `im.zuno.*` msgtype, and signaling that must stay invisible is its own `im.zuno.*` event type | Both sides already reconcile `fociInfo`, a msgtype gets timeline plumbing for free, and an unknown event type is hidden by older versions and other clients, where an unknown msgtype shows as text |
 | A call-lifetime controller outside the call screen, drawn by an app-level layer | A lock-screen answer may never build the screen, and the screen, the bar, the window and picture-in-picture share one set of renderers |
-| Microphone and camera open at call start, not at join | The controls act on them before the call connects |
+| The engine is built and the microphone and camera open at call start, before the provider is known, not at join | The controls act on them before the call connects, on either provider |
 | Android calls are not registered with Telecom, so a phone call is watched for instead | Telecom would let Android offer a choice between the two calls, but Signal, the one peer that built it, still holds it back to Android 17+ |
 | Android call audio is native, not flutter_webrtc's AudioSwitch | AudioSwitch entered call mode only on microphone capture and stuck to the last chosen device, so ringback and the route waited on the microphone |
 | Call tones are generated sound files (`tool/generate_tones.py`) that Dart names and native plays, never `ToneGenerator` | One sound on both platforms, and Android plays a voice-call `ToneGenerator` as a dial tone on its own output, which a stereo-speaker phone sent to the earpiece during speaker calls |
@@ -767,26 +965,29 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   own tile shows no avatar and offers to moderate you.
 - `hangUp()` is memoized rather than phase-guarded, because several
   callers race it and the phase changes only at the end of teardown.
-- Negotiation rounds run one at a time through a serial lock, but teardown
-  never waits on it, so negotiation re-checks that its connection is still
-  live after every await.
+- Negotiation rounds run one at a time through a serial lock (one per peer
+  connection on LiveKit), but teardown never waits on it, so negotiation
+  re-checks that its connection is still live after every await.
 - `createOffer` takes explicit empty constraints, because called bare it
   adds receive-only slots that the next pull lands on.
 - Never `stop()` a pulled transceiver locally, because Cloudflare hands
   the freed mid to the next pull; pulled tracks therefore close with a
   forced close and no SDP, since a negotiated close needs a fresh offer
   from stopped transceivers.
-- A rejoin is done only once its re-pulls finish, and the retry budget
-  resets only after a rejoin that ends connected, because a failure that
-  repeats on every new session would otherwise rejoin forever.
+- A Cloudflare rejoin is done only once its re-pulls finish, and on both
+  providers the reconnect budget refills only once a recovered connection
+  reports connected, because a failure that repeats on every attempt would
+  otherwise reconnect forever.
 - Layer limits are written only onto the encodings the video sender
   already has, matched by rid, because adding or dropping one makes WebRTC
   refuse the whole change.
 - RTT comes only from the transport's selected candidate pair, because
   unused TURN relay pairs keep stale RTTs that read as a weak link.
-- Send settings (Opus FEC and DTX, the video start bitrate, the sent
-  codec) are written into every SDP Cloudflare sends us, because WebRTC
-  takes a sender's codec settings from the remote description.
+- Send settings (the sent codec and the video start bitrate on both
+  providers, Opus FEC and DTX on Cloudflare) are written into the SDP the
+  SFU sends us (every one from Cloudflare, LiveKit's publisher answer),
+  because WebRTC takes a sender's codec settings from the remote
+  description.
 - Only the video section we send on carries the start bitrate, because
   every audio section clears WebRTC's shared start value on each
   description, so a start on a newly pulled video section would restart
@@ -799,15 +1000,21 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 - The calls module resolves against `client.homeserver`, the
   well-known-resolved base, not the address typed at login, and per
   request, so building an engine never fails.
-- Calls-module errors (sessions, tracks, TURN, removal) name the request by
-  a fixed route template and carry only the module's error code, never a
-  session ID or the response body, because their text reaches crash reports
-  (`crash-reporting.md`).
+- Calls-module errors (config, sessions, tracks, TURN, LiveKit tokens,
+  removal) name the request by a fixed route template and carry only the
+  module's error code, never a session ID or the response body, because
+  their text reaches crash reports (`crash-reporting.md`).
+- A homeserver whose `zuno_calls` predates the `config` route reads as
+  having no calls and hides every call button until its admin upgrades the
+  module.
+- Never hand-edit `lib/core/calls/livekit/proto/`: it is generated from
+  `livekit/protocol` at the tag pinned in `tool/livekit/generate_protocol.sh`,
+  which regenerates and formats it.
 - After a flutter_webrtc bump, check the Android placeholder on a device,
   because it reaches plugin internals by reflection and fails quietly.
-- The sent codec is chosen by listing it first in Cloudflare's answer,
-  never through codec preferences, because flutter_webrtc's iOS side finds
-  the transceiver by its still-empty mid and hits the audio one.
+- The sent codec is chosen by listing it first in the SFU's answer, never
+  through codec preferences, because flutter_webrtc's iOS side finds the
+  transceiver by its still-empty mid and hits the audio one.
 - Re-verify the `CallStyle` intents on a flutter_local_notifications
   major, because they copy its undocumented intent shape and a mis-wire
   fails only on a real tap.
@@ -817,9 +1024,10 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   permission is granted, else falls back to microphone only, because
   Android 14+ throws a `SecurityException` otherwise; Dart re-sends the
   start when the camera turns on, which widens it.
-- Hang-up and rejoin switch tracks off and dispose the peer connection
-  before the frame cryptors and the key provider, because on iOS a
-  disposed cryptor passes frames through unencrypted.
+- Hang-up and every reconnect that replaces the peer connections switch
+  tracks off and dispose those connections before the frame cryptors and
+  the key provider, because on iOS a disposed cryptor passes frames through
+  unencrypted.
 - A null result from sending the invite fails the call, because the SDK
   returns null rather than throwing when a send fails.
 - `LocalMedia` releases a capture it fails to adopt and never captures
@@ -855,10 +1063,21 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 Server-side limits (rate limits, concurrent-call caps, abuse controls)
 belong in the `zuno_calls` module, never the client.
 
+A new provider is one more `CallConnection` in its own folder, a value the
+discovery answer can name and a case in `CallConnections`; nothing above
+the engine changes.
+
 ## Testing
 
-The call screen, the bar, the window and picture-in-picture run on a
-`FakeCallSession` through `call_page_harness.dart`, which mounts
-`CallLayer` as the app does, and the engine runs on a scripted SFU
-(`cloudflare_engine_harness.dart`). CallKit tests run on Linux as iOS
-through `fake_calls_channel.dart`.
+- The call screen, the bar, the window and picture-in-picture run on a
+  `FakeCallSession` through `call_page_harness.dart`, which mounts
+  `CallLayer` as the app does.
+- Core rules run once, against a fake connection
+  (`fake_call_connection.dart`); the core with the Cloudflare connection
+  runs on a scripted SFU (`cloudflare_engine_harness.dart`), and the
+  LiveKit connection on a scripted LiveKit server over a fake WebSocket
+  (`livekit_server_harness.dart`).
+- A test that shows call buttons or starts a call fakes discovery
+  (`fake_call_provider_discovery.dart`), since the real one asks the
+  server.
+- CallKit tests run on Linux as iOS through `fake_calls_channel.dart`.

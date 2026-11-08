@@ -1,18 +1,13 @@
-const knownRemoteTrackNames = {'audio', 'video'};
+import '../media/call_connection.dart';
+
+MediaKind? mediaKindOf(String trackName) =>
+    MediaKind.values.asNameMap()[trackName];
 
 List<String> planRemoteTracks({
   required Iterable<String> advertised,
   required Set<String> pulled,
-  required bool remoteVideoEnabled,
-  required bool remoteEncrypted,
-  required bool localEncrypted,
-}) {
-  if (!localEncrypted || !remoteEncrypted) return const [];
-  return [
-    for (final name in advertised)
-      if (knownRemoteTrackNames.contains(name) &&
-          !pulled.contains(name) &&
-          (name != 'video' || remoteVideoEnabled))
-        name,
-  ];
-}
+  required Set<MediaKind> wanted,
+}) => [
+  for (final name in advertised)
+    if (!pulled.contains(name) && wanted.contains(mediaKindOf(name))) name,
+];

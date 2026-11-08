@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "Anropet ble ikke koblet til",
   "callsFailureMicrophone": "Gi Zuno tilgang til mikrofonen, og ring så tilbake.",
   "callsFailureNoPermission": "Du har ikke tillatelse til å starte anrop i dette rommet",
+  "callsFailureNotAvailable": "Anrop er ikke tilgjengelige på denne serveren.",
   "callsFailureOnAnotherDevice": "Du er med i anropet på en annen enhet. Legg på der for å bli med her.",
   "callsGenericRingName": "Zuno-anrop",
   "callsHangUp": "Legg på",

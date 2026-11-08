@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "Samtalet kopplades inte upp",
   "callsFailureMicrophone": "Tillåt Zuno att använda mikrofonen och ring sedan tillbaka.",
   "callsFailureNoPermission": "Du har inte behörighet att starta samtal i det här rummet",
+  "callsFailureNotAvailable": "Samtal är inte tillgängliga på den här servern.",
   "callsFailureOnAnotherDevice": "Du är med i samtalet på en annan enhet. Lägg på där för att ansluta här.",
   "callsGenericRingName": "Zuno-samtal",
   "callsHangUp": "Lägg på",

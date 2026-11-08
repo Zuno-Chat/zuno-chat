@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "Oproep kwam niet tot stand",
   "callsFailureMicrophone": "Sta Zuno toe de microfoon te gebruiken en bel dan terug.",
   "callsFailureNoPermission": "Je hebt geen recht om in deze kamer oproepen te starten",
+  "callsFailureNotAvailable": "Oproepen zijn niet beschikbaar op deze server.",
   "callsFailureOnAnotherDevice": "Je zit al in deze oproep op een ander apparaat. Hang daar op om hier deel te nemen.",
   "callsGenericRingName": "Zuno-oproep",
   "callsHangUp": "Ophangen",

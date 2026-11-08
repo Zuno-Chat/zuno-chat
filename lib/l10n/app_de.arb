@@ -93,6 +93,7 @@
   "callsFailureDidNotConnect": "Anruf wurde nicht verbunden",
   "callsFailureMicrophone": "Erlaube Zuno, das Mikrofon zu verwenden, und rufe dann zurück.",
   "callsFailureNoPermission": "Du darfst in diesem Raum keine Anrufe starten",
+  "callsFailureNotAvailable": "Anrufe sind auf diesem Server nicht verfügbar.",
   "callsFailureOnAnotherDevice": "Du bist auf einem anderen Gerät in diesem Anruf. Lege dort auf, um hier beizutreten.",
   "callsGenericRingName": "Zuno-Anruf",
   "callsHangUp": "Auflegen",

@@ -69,6 +69,20 @@ void main() {
     expect(appUserAgent, isNull);
   });
 
+  group('encrypted port', () {
+    test('a port of 0, as a wss address arrives from WebSocket, is 443', () {
+      expect(encryptedPort(Uri(scheme: 'https', host: 'h', port: 0)), 443);
+    });
+
+    test('an https address without a port is 443', () {
+      expect(encryptedPort(Uri.parse('https://zuno.example/')), 443);
+    });
+
+    test('an explicit port is kept', () {
+      expect(encryptedPort(Uri.parse('https://zuno.example:8448/')), 8448);
+    });
+  });
+
   group('cleartext', () {
     late ServerSocket listener;
     late int accepted;
