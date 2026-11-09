@@ -16,6 +16,8 @@ private final class FakeCatchUpPlatform: CatchUpPlatform {
   private(set) var posted: [UNNotificationRequest] = []
   private(set) var removed: [[String]] = []
   private(set) var released: [String] = []
+  private(set) var settled: [String] = []
+  private(set) var marks: [NseMark] = []
   private(set) var deliveredReads = 0
   private(set) var log: [String] = []
 
@@ -51,18 +53,24 @@ private final class FakeCatchUpPlatform: CatchUpPlatform {
     return true
   }
 
-  func claim(_ eventToken: String) -> Bool {
+  func claim(_ token: String) -> Bool {
     log.append("claim")
-    return shown.insert(eventToken).inserted
+    return shown.insert(token).inserted
   }
 
-  func release(_ eventToken: String) {
-    shown.remove(eventToken)
-    released.append(eventToken)
+  func release(_ token: String) {
+    shown.remove(token)
+    released.append(token)
   }
 
-  func settle(_ eventToken: String) {
+  func settle(_ token: String) {
     log.append("settle")
+    settled.append(token)
+  }
+
+  func mark(_ mark: NseMark) {
+    log.append("mark")
+    marks.append(mark)
   }
 
   func now() -> Date { clock }
@@ -94,6 +102,13 @@ final class CatchUpTests: XCTestCase {
     await CatchUp.run(
       body: body, level: level, pushedEventId: "$pushed",
       deadline: start.addingTimeInterval(budget), platform: platform)
+  }
+
+  private func runInvitation(_ platform: FakeCatchUpPlatform) async -> CatchUpOutcome {
+    platform.renders["$i1"] = .shown(
+      title: "Alice", body: "Invited you to chat", kind: "inv",
+      invite: NseInviteClaim(roomId: "!a:hs", hashing: NseFakeHashing(), ts: 7))
+    return await run(platform, body([("!a:hs", "$i1", 100, false)]))
   }
 
   func testEachMissedEventIsPostedQuietlyOldestFirstWithTheBusiestRoomLast() async {
@@ -220,12 +235,37 @@ final class CatchUpTests: XCTestCase {
     XCTAssertEqual(outcome.overflow, 2)
   }
 
-  func testAnInvitationsClaimRidesOnItsLine() async {
+  func testAnInvitationClaimsItsRoomCarriesTheClaimAndIsMarkedOnlyOncePosted() async {
     let platform = FakeCatchUpPlatform(now: start)
-    platform.renders["$i1"] = .shown(
-      title: "Alice", body: "Invited you to chat", kind: "inv", claim: "einvite:!a:hs")
-    _ = await run(platform, body([("!a:hs", "$i1", 100, false)]))
+    let outcome = await runInvitation(platform)
     XCTAssertEqual(platform.posted.first?.content.userInfo["c"] as? String, "einvite:!a:hs")
+    XCTAssertEqual(platform.log, ["claim", "claim", "post", "settle", "settle", "mark"])
+    XCTAssertEqual(platform.shown, ["e$i1", "einvite:!a:hs"])
+    XCTAssertEqual(platform.settled, ["e$i1", "einvite:!a:hs"])
+    XCTAssertEqual(platform.marks, [NseMark(kind: "invite", room: "!a:hs", ts: 7)])
+    XCTAssertEqual(outcome.posted, 1)
+  }
+
+  func testAnInvitationAlreadyAnnouncedIsHiddenAndGivesBackItsEvent() async {
+    let platform = FakeCatchUpPlatform(now: start)
+    platform.shown = ["einvite:!a:hs"]
+    let outcome = await runInvitation(platform)
+    XCTAssertTrue(platform.posted.isEmpty)
+    XCTAssertEqual(platform.released, ["e$i1"])
+    XCTAssertEqual(platform.shown, ["einvite:!a:hs"])
+    XCTAssertTrue(platform.marks.isEmpty)
+    XCTAssertEqual(outcome.hidden, 1)
+  }
+
+  func testARefusedInvitationGivesBackBothClaimsAndLeavesNoMark() async {
+    let platform = FakeCatchUpPlatform(now: start)
+    platform.refusesPosts = true
+    let outcome = await runInvitation(platform)
+    XCTAssertEqual(platform.released, ["e$i1", "einvite:!a:hs"])
+    XCTAssertTrue(platform.shown.isEmpty)
+    XCTAssertTrue(platform.settled.isEmpty)
+    XCTAssertTrue(platform.marks.isEmpty)
+    XCTAssertEqual(outcome.posted, 0)
   }
 
   func testAnEventAnotherRunShowedMeanwhileIsNotPostedAgain() async {

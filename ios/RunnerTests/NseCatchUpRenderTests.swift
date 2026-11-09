@@ -70,7 +70,7 @@ final class NseCatchUpRenderTests: XCTestCase {
     XCTAssertEqual(try render(ring), .hidden)
   }
 
-  func testAnInvitationShowsOnceAndAVerificationRequestAsksToVerify() throws {
+  func testAnInvitationCarriesItsClaimUntakenAndAVerificationRequestAsksToVerify() throws {
     let harness = makeHarness(level: "full")
     let invite = NseTestData.event(
       type: "m.room.member", content: ["membership": "invite"], stateKey: NseTestData.me)
@@ -78,8 +78,11 @@ final class NseCatchUpRenderTests: XCTestCase {
       try render(invite, in: harness),
       .shown(
         title: "Alice", body: "Invited you to chat", kind: "inv",
-        claim: "einvite:\(NseTestData.roomId)"))
-    XCTAssertEqual(try render(invite, in: harness), .hidden)
+        invite: NseInviteClaim(
+          roomId: NseTestData.roomId, hashing: NseFakeHashing(), ts: NseTestData.now)))
+    let store = NseStateStore(files: harness.files)
+    XCTAssertFalse(store.isShown("einvite:\(NseTestData.roomId)"))
+    XCTAssertTrue(store.marks().isEmpty)
     let verification = NseTestData.event(content: [
       "msgtype": "m.key.verification.request", "to": NseTestData.me,
     ])
@@ -103,6 +106,8 @@ private final class CatchUpCalls: @unchecked Sendable {
   var delivered: [DeliveredNote] = []
   var removed: [[String]] = []
   var posted: [UNNotificationRequest] = []
+  var refusesPosts = false
+  var duringPost: () -> Void = {}
 }
 
 private final class RecordingCatchUpPlatform: CatchUpPlatform {
@@ -128,13 +133,16 @@ private final class RecordingCatchUpPlatform: CatchUpPlatform {
   func remove(_ identifiers: [String]) { calls.removed.append(identifiers) }
 
   func post(_ request: UNNotificationRequest) async -> Bool {
+    calls.duringPost()
+    guard !calls.refusesPosts else { return false }
     calls.posted.append(request)
     return true
   }
 
-  func claim(_ eventToken: String) -> Bool { sources.claim(eventToken) }
-  func release(_ eventToken: String) { sources.release(eventToken) }
-  func settle(_ eventToken: String) { sources.settle(eventToken) }
+  func claim(_ token: String) -> Bool { sources.claim(token) }
+  func release(_ token: String) { sources.release(token) }
+  func settle(_ token: String) { sources.settle(token) }
+  func mark(_ mark: NseMark) { sources.mark(mark) }
   func now() -> Date { Date() }
 }
 
@@ -148,14 +156,23 @@ final class NsePipelineCatchUpTests: XCTestCase {
     return harness
   }
 
-  private func missed(_ eventId: String, in roomId: String) -> [String: Any] {
+  private func missed(
+    _ eventId: String, in roomId: String, type: String = "m.room.message",
+    content: [String: Any] = ["msgtype": "m.text", "body": "Later"], stateKey: String? = nil
+  ) -> [String: Any] {
     var event = NseTestData.event(
-      content: ["msgtype": "m.text", "body": "Later"], eventId: eventId)
+      type: type, content: content, eventId: eventId, stateKey: stateKey)
     event["room_id"] = roomId
     return [
       "room_id": roomId, "event_id": eventId, "event": event, "is_dm": false,
       "highlight": false, "sound": true,
     ]
+  }
+
+  private var missedInvitation: [String: Any] {
+    missed(
+      "$i1:zuno.im", in: otherRoom, type: "m.room.member", content: ["membership": "invite"],
+      stateKey: NseTestData.me)
   }
 
   private func reply(_ status: String = "ok", extras: [String: Any]) -> NseHttpResult {
@@ -202,6 +219,37 @@ final class NsePipelineCatchUpTests: XCTestCase {
 
     XCTAssertEqual(calls.posted.map(\.identifier), ["zuno.catchup.e$m1:zuno.im"])
     XCTAssertTrue(NseStateStore(files: harness.files).state().pending.isEmpty)
+  }
+
+  func testAMissedInvitationKeepsItsClaimAndIsMarkedOnceItIsPosted() async {
+    let harness = harness()
+    harness.transport.reply(
+      "nse/fetch", reply(extras: ["missed": [missedInvitation]]))
+    let store = NseStateStore(files: harness.files)
+    let calls = CatchUpCalls()
+    var pendingAtPost: [String] = []
+    calls.duringPost = { pendingAtPost = store.state().pending.keys.sorted() }
+    _ = await run(harness, calls)
+    XCTAssertEqual(pendingAtPost, ["e$i1:zuno.im", "einvite:\(otherRoom)"])
+    XCTAssertEqual(
+      calls.posted.map { $0.content.userInfo["c"] as? String }, ["einvite:\(otherRoom)"])
+    XCTAssertTrue(store.isShown("einvite:\(otherRoom)"))
+    XCTAssertTrue(store.state().pending.isEmpty)
+    XCTAssertEqual(store.marks().filter { $0.kind == "invite" }.map(\.room), [otherRoom])
+  }
+
+  func testARefusedMissedInvitationGivesBackBothClaimsAndLeavesNoMark() async {
+    let harness = harness()
+    harness.transport.reply(
+      "nse/fetch", reply(extras: ["missed": [missedInvitation]]))
+    let calls = CatchUpCalls()
+    calls.refusesPosts = true
+    _ = await run(harness, calls)
+    let store = NseStateStore(files: harness.files)
+    XCTAssertFalse(store.isShown("e$i1:zuno.im"))
+    XCTAssertFalse(store.isShown("einvite:\(otherRoom)"))
+    XCTAssertTrue(store.state().pending.isEmpty)
+    XCTAssertTrue(store.marks().filter { $0.kind == "invite" }.isEmpty)
   }
 
   func testTheBadgeDropsRoomsReadElsewhereAndKeepsThePushedRoom() async {

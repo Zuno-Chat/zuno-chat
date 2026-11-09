@@ -17,6 +17,7 @@ extension NsePipeline {
         claim: { context.store.claimPending($0, process: self.env.processStart) },
         release: { context.store.release($0) },
         settle: { context.store.settle($0) },
+        mark: { context.store.appendMark($0) },
         render: { item, decrypt in
           self.renderCatchUp(item, decrypt: decrypt && !safeMode, context: context)
         }))
@@ -94,13 +95,12 @@ extension NsePipeline {
     case .hidden, .ring:
       return .hidden
     case .invitation(let roomName):
-      guard let claim = claimInvitation(item.roomId, context: context, nowMs: now) else {
-        return .hidden
-      }
       let line = NseComposer.invitation(
         inviter: NseComposer.inviter(event: event, fetched: fetched), roomName: roomName,
         tone: false, tokens: tokens)
-      return .shown(title: line.title, body: line.body, kind: "inv", claim: claim)
+      return .shown(
+        title: line.title, body: line.body, kind: "inv",
+        invite: NseInviteClaim(roomId: item.roomId, hashing: context.hashing, ts: now))
     case .verification:
       let line = NseComposer.verification(
         sender: names.sender.isEmpty ? names.title : names.sender, tone: false, tokens: tokens)

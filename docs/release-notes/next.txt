@@ -12,4 +12,4 @@ New
 • Calls on LiveKit servers.
 • Works behind a proxy.
 
-Fixed 46 bugs.
+Fixed 47 bugs.

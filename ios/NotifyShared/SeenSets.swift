@@ -66,6 +66,16 @@ struct NseMark: Equatable, Sendable {
   }
 }
 
+struct NseInviteClaim: Equatable, Sendable {
+  let token: String
+  let mark: NseMark
+
+  init(roomId: String, hashing: NseHashing, ts: Int64) {
+    token = hashing.e(NseClaim.invite(roomId).key)
+    mark = NseMark(kind: "invite", room: roomId, ts: ts)
+  }
+}
+
 struct NseStateFile: Equatable, Sendable {
   var replay: [String] = []
   var missed: [String] = []
@@ -196,9 +206,9 @@ final class NseStateStore: Sendable {
   }
 
   private func take(_ token: String) -> Bool {
-    guard !isShown(token) else { return false }
-    let list = SeenSets.appending(
-      token, to: shown(NotifyFile.shownNse), limit: SeenSets.shownLimit)
+    let nse = shown(NotifyFile.shownNse)
+    guard !nse.contains(token), !shown(NotifyFile.shownApp).contains(token) else { return false }
+    let list = SeenSets.appending(token, to: nse, limit: SeenSets.shownLimit)
     _ = files.write(NotifyFile.shownNse, SeenSets.encodeTokens(list))
     return true
   }

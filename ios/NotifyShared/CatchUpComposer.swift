@@ -2,7 +2,8 @@ import UserNotifications
 
 enum CatchUpRender: Equatable, Sendable {
   case hidden
-  case shown(title: String, body: String, kind: String, floor: Bool = false, claim: String? = nil)
+  case shown(
+    title: String, body: String, kind: String, floor: Bool = false, invite: NseInviteClaim? = nil)
 }
 
 enum CatchUpComposer {

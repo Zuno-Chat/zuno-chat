@@ -51,23 +51,16 @@ extension NsePipeline {
   func invitation(
     event: NseEvent, fetched: NseFetched, roomName: String?, context: NseContext
   ) async -> NseResult {
-    guard let claim = claimInvitation(context.roomId, context: context, nowMs: env.clock.nowMs())
-    else {
-      return await duplicate(context)
-    }
+    let invite = NseInviteClaim(
+      roomId: context.roomId, hashing: context.hashing, ts: env.clock.nowMs())
+    guard context.store.claim(invite.token) else { return await duplicate(context) }
+    context.store.appendMark(invite.mark)
     return NseResult(
       delivery: NseComposer.invitation(
         inviter: NseComposer.inviter(event: event, fetched: fetched), roomName: roomName,
         tone: context.meta.tone, tokens: context.tokens(o: event.originServerTs / 1000),
-        claim: claim),
+        claim: invite.token),
       outcome: .shown)
-  }
-
-  func claimInvitation(_ roomId: String, context: NseContext, nowMs: Int64) -> String? {
-    let claim = context.hashing.e(NseClaim.invite(roomId).key)
-    guard context.store.claim(claim) else { return nil }
-    context.store.appendMark(NseMark(kind: "invite", room: roomId, ts: nowMs))
-    return claim
   }
 
   func read(_ receiptTs: Int64, _ context: NseContext) async -> NseResult {

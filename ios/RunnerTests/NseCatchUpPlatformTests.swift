@@ -7,6 +7,7 @@ final class NseCatchUpPlatformTests: XCTestCase {
     var claimed: [String] = []
     var released: [String] = []
     var settled: [String] = []
+    var marked: [NseMark] = []
     var renders: [(String, Bool)] = []
   }
 
@@ -21,6 +22,7 @@ final class NseCatchUpPlatformTests: XCTestCase {
         },
         release: { calls.released.append($0) },
         settle: { calls.settled.append($0) },
+        mark: { calls.marked.append($0) },
         render: { event, decrypt in
           calls.renders.append((event.eventId, decrypt))
           return .hidden
@@ -48,10 +50,12 @@ final class NseCatchUpPlatformTests: XCTestCase {
     XCTAssertFalse(subject.claim("e$seen"))
     subject.release("e$e")
     subject.settle("e$f")
+    subject.mark(NseMark(kind: "invite", room: "!r:hs", ts: 1))
     XCTAssertEqual(calls.renders.map { $0.0 }, ["$e"])
     XCTAssertEqual(calls.renders.map { $0.1 }, [false])
     XCTAssertEqual(calls.claimed, ["e$e", "e$seen"])
     XCTAssertEqual(calls.released, ["e$e"])
     XCTAssertEqual(calls.settled, ["e$f"])
+    XCTAssertEqual(calls.marked, [NseMark(kind: "invite", room: "!r:hs", ts: 1)])
   }
 }

@@ -10,6 +10,7 @@ final class NseCatchUpPlatform: CatchUpPlatform {
     let claim: (String) -> Bool
     let release: (String) -> Void
     let settle: (String) -> Void
+    let mark: (NseMark) -> Void
     let render: (MissedEvent, Bool) -> CatchUpRender
   }
 
@@ -53,8 +54,9 @@ final class NseCatchUpPlatform: CatchUpPlatform {
     }
   }
 
-  func claim(_ eventToken: String) -> Bool { sources.claim(eventToken) }
-  func release(_ eventToken: String) { sources.release(eventToken) }
-  func settle(_ eventToken: String) { sources.settle(eventToken) }
+  func claim(_ token: String) -> Bool { sources.claim(token) }
+  func release(_ token: String) { sources.release(token) }
+  func settle(_ token: String) { sources.settle(token) }
+  func mark(_ mark: NseMark) { sources.mark(mark) }
   func now() -> Date { Date() }
 }
