@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:fake_async/fake_async.dart';
@@ -9,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/module/call_provider_discovery.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';
@@ -172,16 +172,18 @@ void main() {
   test('a saved none an unreachable server cannot replace stays', () {
     fakeAsync((async) {
       saveOffer(const Duration(hours: 1), offer: 'none');
-      answer = () async => throw const SocketException('down');
+      answer = () async =>
+          throw NativeHttpException(HttpFailureKind.connectionLost, 'down');
       final d = build();
       final seen = watch(d);
       async.flushAll();
 
       expect(
         () => async.waitFor(d.current(), elapsing: retriesRunOut),
-        throwsA(isA<SocketException>()),
+        throwsA(isA<NativeHttpException>()),
       );
 
+      expect(requests, hasLength(3));
       expect(seen, [CallsOffer.none]);
       expect(
         database.cache['zuno.calls_offer']!.content['saved_at'],
@@ -243,11 +245,12 @@ void main() {
     fakeAsync((async) {
       saveOffer(const Duration(hours: 1));
       final d = build();
-      answer = () async => throw const SocketException('down');
+      answer = () async =>
+          throw NativeHttpException(HttpFailureKind.connectionLost, 'down');
 
       expect(
         () => async.waitFor(d.refetch(), elapsing: retriesRunOut),
-        throwsA(isA<SocketException>()),
+        throwsA(isA<NativeHttpException>()),
       );
       final asked = requests.length;
 

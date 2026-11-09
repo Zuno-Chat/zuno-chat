@@ -17,9 +17,27 @@ The layer every screen sits on: one Matrix client per process, startup, navigati
 
 **Late decryptions are announced app-wide** (`LateDecryptions`, one per client). The SDK re-decrypts a timeline event whose key arrives late but announces it only on a deprecated stream, so this watcher re-announces it for every reader outside a `Timeline`: the ring, call signals, the unread correction and the media feed read its stream (every timeline event, late ones included) instead of `onTimelineEvent`, and the in-app notifier reads its late ones. A reader can also hand it a locked event no sync carried, as reply quotes do, or have it try one once, as the chat list preview does (`security-verification.md`). It watches a locked timeline event for a bounded time and a handed-over one until its key arrives (within a cap on how many it holds), drops one deleted before its key arrived, and an event it opens replaces its room's last message while that is still the locked copy.
 
-**The HTTP stack** has four deliberate quirks.
-- **Dart refuses cleartext HTTP.** The process-wide `HttpOverrides` (`app_http_overrides.dart`) set the User-Agent and refuse any connection that is not https, because Android's network security config and iOS ATS govern only the platform's own network stacks, never `dart:io`. A refused connection throws its own exception, so callers can tell it from an unreachable server.
-- The `HttpClient` has a connect-only timeout, so a dead route fails fast while a slow upload or download is never cut off.
+**The HTTP stack is Zuno's own native client** (`packages/zuno_http`). `appHttpClient` makes every HTTP client and `appWebSocket` every WebSocket, and the `direct_network_client` lint flags any other client in `lib/`.
+
+| | Android | iOS |
+|---|---|---|
+| HTTP | Cronet, always the copy bundled in the app | URLSession |
+| WebSocket (the LiveKit signal) | OkHttp | URLSession |
+
+- **Native, because `dart:io` reads proxies only from environment variables phones never set, never starts iOS VPN On Demand, and speaks only HTTP/1.1.** Both native stacks follow the phone's proxy, PAC file and VPN, and add HTTP/2 and HTTP/3.
+- **Android never uses another Cronet**: not the platform's HttpEngine (years behind), not Play Services' (never ready in a fresh push process), not the Java fallback (no HTTP/2 or HTTP/3). The engine is a hard dependency, like SQLCipher: one that fails to start is a startup error, with no fallback.
+- **Nothing reaches the disk or Google**: neither platform keeps an HTTP cache, cookies or credentials, and a manifest opt-out stops Cronet reading remote flags or sending telemetry.
+- **Every exchange starts in Dart, and every native request reaches an end.** Native never messages Dart first: Dart pulls each head, response chunk and upload buffer, and a request ends succeeded, failed or cancelled, which frees it natively. A request that never ends is the leak in `cronet_http` (dart-lang/http#1919) that made us build our own. A deadline, an abort, a cancelled or unread body, `close()` and an Android engine detach all cancel natively, and an upload's source stream is always released.
+- **Dart owns every deadline, and the native stacks set none**: a connect limit, a limit on waiting for the answer and one on silence between chunks, set per client kind (a Matrix client keeps only the SDK's own) or per request. Only Android reports a connect phase, so iOS has no separate connect limit, and iOS's own request timer is pushed past any deadline because it kept running while Dart paused a body.
+- **Redirects are followed in Dart, the way `dart:io` did**, because neither stack may follow them itself: sensitive headers survive only a same-origin hop, and a redirect to http is refused.
+- **Dart refuses cleartext HTTP.** The client refuses anything but https and wss before it goes native, and the process-wide `HttpOverrides` (`app_http_overrides.dart`) refuse it for any `dart:io` a plugin still uses and set the User-Agent the native client also sends. Android's network security config and iOS ATS are only backstops, since ATS exempts IP-address hosts. A refused connection throws its own exception, so callers can tell it from an unreachable server.
+- **One native engine per process**, shared by every Flutter engine, because an engine per client exhausted Android's broadcast receivers (dart-lang/http#1308).
+- **Known limits, set by the platforms:**
+  - iOS ATS demands TLS 1.2, forward secrecy and Certificate Transparency, so a homeserver with weak TLS works on Android and fails on iOS.
+  - Cronet allows an HTTP/1.1-only server six connections, so there a long poll and five downloads make a send wait.
+  - No HTTP/3 through a proxy, and no proxy that asks for a login.
+  - Android makes no HTTPS-record DNS lookups, so its first request to a server is never HTTP/3.
+  - iOS HTTP/3 can stall for seconds behind some home routers on a request sent a minute or two after the last (Apple FB16097749).
 - The SDK refreshes an expiring token only inside its sync loop, so `FreshTokenHttpClient` holds any request carrying the current token until one shared refresh has run, and drops it if that refresh ended the session. Without it, requests racing the first sync at cold start would go out with an expired token.
 - **The SDK's request timeout covers only the response body, never the wait for an answer**, so a connection that dies after its last byte waits forever. `UploadHttpClient` therefore aborts every upload, and every other request made inside a send (a `SendScope` zone value set by the room's sender), after 30 s without progress, which still falls inside the SDK's one-minute send window, so the SDK retries once on a fresh connection. Other requests keep their own layers' rules, since a scoped request reaches them as a plain `http.Request`.
 
@@ -398,6 +416,8 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **`oneShotSync` joins the request in flight instead of starting one**, so a push catch-up or an SDK flow never adds a request. Nothing but the coordinator drives the app client's sync, and a test enforces it.
 - **`softLoggedOut` is a token refresh in flight, not a sign-out**: only `loggedOut` reads as signed out.
 - **dart:io hands a custom `connectionFactory` the raw URI a WebSocket builds, whose port is 0 for a `wss://` URL without one**, so the app's https-only factory maps port 0 to 443.
+- **Cronet's `ByteBuffer` must be flipped and cleared through `java.nio.Buffer`**, because called on `ByteBuffer` they bind to overloads that don't exist before Android 14 and throw `NoSuchMethodError`.
+- **A Cronet upload with a known length never marks its last chunk final**: Cronet throws without answering the read, and the request then hangs forever.
 - **Riverpod 3 retries a failed provider on its own**, so a `FutureProvider` whose error must reach the UI passes `retry: (_, _) => null`.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become `build()`-driven**, because `_AuthGate` sits under every route and Flutter defers rebuilding an element under a covered route.
 - **A SnackBar or provider change made from `FlutterError.onError` or `dispose()` defers with `scheduleMicrotask`**, since both can run while the build pipeline finalizes, and `addPostFrameCallback` fires only if another frame comes.
@@ -436,6 +456,7 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **Spans use `startStopwatch()`**, a monotonic stopwatch in the app and the test clock's under fake time, because `clock.stopwatch()` reads the wall clock and a device time correction would move it.
 - **The test config swaps in an instant file system and an inline isolate runner**: the real disk through synchronous calls, and work run in place after the same can-it-reach-an-isolate check `Isolate.run` makes.
 - **Test HTTP goes through `FakeHttpClient`**, because `MockClient` serves bodies whose cancel returns a root-zone future, so SDK responses never finished in fake time.
+- **An error from a request body's source never arrives in fake time**, because after an error the stream iterator behind the upload reader answers with a root-zone future, so such tests run on the real event loop.
 - **Anything left unanswered completes outside fake time**: a test answers every platform channel its path calls, and app code awaits a subscription cancel only when the next step needs it, since a broadcast cancel returns the same root-zone future.
 - **Work that is real by nature is waited on by condition**: engine image decoding, flutter_map's tile cache and plugin stream cancels. `test/helpers/pump_until.dart` is the one test file allowed real time, including the device clock for values a library compares with its own (just_audio's playback position).
 - **Singleton state resets per test in the test config**, never by moving a test clock past it.

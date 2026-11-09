@@ -4,6 +4,7 @@ import 'package:analysis_server_plugin/registry.dart';
 import 'src/direct_background_work.dart';
 import 'src/direct_clock_read.dart';
 import 'src/direct_disk_access.dart';
+import 'src/direct_network_client.dart';
 import 'src/hardcoded_user_text.dart';
 import 'src/real_time_wait.dart';
 
@@ -20,6 +21,7 @@ class ZunoLintsPlugin extends Plugin {
       ..registerWarningRule(DirectClockRead())
       ..registerWarningRule(DirectDiskAccess())
       ..registerWarningRule(DirectBackgroundWork())
+      ..registerWarningRule(DirectNetworkClient())
       ..registerWarningRule(RealTimeWait());
   }
 }

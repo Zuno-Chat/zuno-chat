@@ -33,6 +33,8 @@ jobs:
         working-directory: tool/zuno_lints
       - run: flutter test
         working-directory: packages/zuno_emoji
+      - run: flutter test
+        working-directory: packages/zuno_http
       - run: dart analyze --fatal-infos
       - run: |
           flutter test --file-reporter json:build/test-report.json ${{ inputs.coverage && '--coverage' || '' }} || {
@@ -65,7 +67,7 @@ jobs:
       - run: flutter pub get
       - run: flutter build apk --debug
       - working-directory: android
-        run: ./gradlew :app:testDebugUnitTest
+        run: ./gradlew :app:testDebugUnitTest :zuno_http:testDebugUnitTest
       - run: dart tool/ci/forbidden_apis.dart build/app/outputs/flutter-apk/app-debug.apk
 
   swift-test:

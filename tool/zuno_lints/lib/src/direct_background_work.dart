@@ -49,7 +49,7 @@ class _Visitor extends SimpleAstVisitor<void> {
   void visitSimpleIdentifier(SimpleIdentifier node) {
     if (isInCombinator(node)) return;
     if (!_startsIsolate(node.element)) return;
-    if (!context.isInLibDir || isUnitAt(context, _owner)) return;
+    if (!isInLibOutside(context, _owner)) return;
     rule.reportAtNode(node);
   }
 }

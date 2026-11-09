@@ -10,6 +10,7 @@ import 'package:unifiedpush_platform_interface/data/failed_reason.dart';
 import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
 import 'package:unifiedpush_platform_interface/data/push_endpoint.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
+import 'package:zuno/core/network/app_http_client.dart';
 import 'package:zuno/core/push/delivery/pusher_failure.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_pusher.dart';
@@ -27,9 +28,9 @@ void main() {
     fake = FakeUnifiedPush();
     UnifiedPushPlatform.instance = fake;
     provider = UnifiedPushDeliveryProvider()
-      ..distributorIgnoresBatteryOptimizations = ((_) async => true)
-      ..gatewayHttpClient = (() =>
-          FakeHttpClient((_) async => http.Response('not found', 404)));
+      ..distributorIgnoresBatteryOptimizations = ((_) async => true);
+    appHttpClientFactory = (_) =>
+        FakeHttpClient((_) async => http.Response('not found', 404));
   });
 
   test(
@@ -678,6 +679,21 @@ void main() {
 
       final body = jsonDecode(env.pusherPosts.single) as Map;
       expect(body['pushkey'], 'https://ntfy.sh/abc');
+    });
+
+    test('closes the client it looked the gateway up with', () async {
+      final lookup = FakeHttpClient(
+        (_) async => http.Response('not found', 404),
+      );
+      appHttpClientFactory = (_) => lookup;
+      final env = postingClient();
+      fake.installed = ['io.heckel.ntfy'];
+      await provider.start(env.client);
+
+      fake.onNewEndpoint!(PushEndpoint('https://ntfy.sh/abc', null), 'default');
+      await pumpEventQueue();
+
+      expect(lookup.closed, isTrue);
     });
 
     test('is off by default, so keys are ignored', () async {

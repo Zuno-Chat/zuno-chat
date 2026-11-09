@@ -88,7 +88,7 @@ class _Visitor extends SimpleAstVisitor<void> {
   }
 
   void _report(AstNode node) {
-    if (!context.isInLibDir || isUnitAt(context, _owner)) return;
+    if (!isInLibOutside(context, _owner)) return;
     rule.reportAtNode(node);
   }
 }

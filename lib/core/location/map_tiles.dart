@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+import 'package:zuno_http/zuno_http.dart' show DeadlineRequest;
 
 import '../errors/caught_errors.dart';
 import '../errors/connection_error.dart';
@@ -52,11 +53,19 @@ Uri mapTileProbeUri(TileSource source) => Uri.parse(
       .replaceAll('{y}', '0'),
 );
 
+const _probeDeadline = Duration(seconds: 10);
+
 Future<bool> probeMapTiles(http.Client client, TileSource source) async {
   try {
-    final response = await client
-        .get(mapTileProbeUri(source))
-        .timeout(const Duration(seconds: 10));
+    final response = await http.Response.fromStream(
+      await client.send(
+        DeadlineRequest(
+          'GET',
+          mapTileProbeUri(source),
+          thinkTime: _probeDeadline,
+        ),
+      ),
+    );
     if (response.statusCode != 200) return false;
     return response.headers['content-type']?.startsWith('image/') ?? false;
   } catch (error, stack) {

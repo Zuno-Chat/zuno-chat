@@ -1,12 +1,13 @@
 import 'dart:convert';
-import 'dart:io' show SocketException;
 
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import '../../errors/retry_backoff.dart';
 import '../../matrix/http/bearer_authorization.dart';
 import '../../matrix/http/typed_server_answers.dart';
+import '../../network/app_http_client.dart';
 import '../models/sfu_failures.dart';
 
 const _modulePath = ['_synapse', 'client', 'zuno', 'calls'];
@@ -104,6 +105,7 @@ bool isExpectedCallsFailure(Object error) => switch (error) {
 };
 
 const _requestDeadline = Duration(seconds: 15);
+const _sendableMethods = {'GET', 'POST', 'PUT'};
 const _retryBaseDelay = Duration(milliseconds: 150);
 const _retryMaxDelay = Duration(milliseconds: 1500);
 
@@ -116,7 +118,7 @@ Future<Map<String, dynamic>> sendToCallsModule({
   bool resendable = false,
   http.Client? httpClient,
 }) async {
-  final client = httpClient ?? http.Client();
+  final client = httpClient ?? appHttpClient(HttpClientKind.service);
   final encoded = body == null ? null : jsonEncode(body);
 
   Future<Map<String, dynamic>> sendOnce() async {
@@ -124,12 +126,15 @@ Future<Map<String, dynamic>> sendToCallsModule({
       'Authorization': await authorization(),
       if (encoded != null) 'Content-Type': 'application/json',
     };
-    final response = await switch (method) {
-      'GET' => client.get(uri, headers: headers),
-      'POST' => client.post(uri, headers: headers, body: encoded),
-      'PUT' => client.put(uri, headers: headers, body: encoded),
-      _ => throw ArgumentError('Unsupported method $method'),
-    }.timeout(_requestDeadline);
+    if (!_sendableMethods.contains(method)) {
+      throw ArgumentError('Unsupported method $method');
+    }
+    final outgoing = DeadlineRequest(method, uri, thinkTime: _requestDeadline)
+      ..headers.addAll(headers);
+    if (encoded != null) outgoing.body = encoded;
+    final response = await http.Response.fromStream(
+      await client.send(outgoing),
+    );
     if (moduleRefusalOf(response) case final refusal?) throw refusal;
     if (isRouteGone(response)) throw CallsRouteGone(request);
     if (response.statusCode < 200 || response.statusCode >= 300) {
@@ -152,8 +157,7 @@ Future<Map<String, dynamic>> sendToCallsModule({
       baseDelay: _retryBaseDelay,
       maxDelay: _retryMaxDelay,
       retryIf: (error) =>
-          (resendable &&
-              (error is SocketException || error is http.ClientException)) ||
+          (resendable && _droppedInTransit(error)) ||
           (error is CallsModuleException && error.statusCode == 429),
       retryAfter: (error) =>
           error is CallsModuleException ? error.retryAfter : null,
@@ -162,6 +166,10 @@ Future<Map<String, dynamic>> sendToCallsModule({
     if (httpClient == null) client.close();
   }
 }
+
+bool _droppedInTransit(Object error) =>
+    error is http.ClientException &&
+    !(error is NativeHttpException && error.ranOutOfTime);
 
 Future<void> requestCallRemoval(
   Client client, {

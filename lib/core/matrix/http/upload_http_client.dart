@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
+import 'package:zuno_http/zuno_http.dart' show RewindableBody;
 
 import 'abortable_request.dart';
 
@@ -105,7 +106,8 @@ http.ClientException _noProgress(http.BaseRequest request) =>
       request.url,
     );
 
-class _WatchedUpload extends http.BaseRequest implements http.Abortable {
+class _WatchedUpload extends http.BaseRequest
+    implements http.Abortable, RewindableBody {
   _WatchedUpload(this._inner, this._scope) : super(_inner.method, _inner.url) {
     headers.addAll(_inner.headers);
     followRedirects = _inner.followRedirects;
@@ -146,12 +148,15 @@ class _WatchedUpload extends http.BaseRequest implements http.Abortable {
     return http.ByteStream(_chunked(_inner.bodyBytes));
   }
 
+  @override
+  Stream<List<int>> rewoundBody() => _chunked(_inner.bodyBytes);
+
   Stream<List<int>> _chunked(Uint8List bytes) async* {
     final total = bytes.length;
     var offset = 0;
     while (offset < total) {
       final end = offset + _chunkSize < total ? offset + _chunkSize : total;
-      yield bytes.sublist(offset, end);
+      yield Uint8List.sublistView(bytes, offset, end);
       offset = end;
       _watch();
       _scope?._onProgress?.call(offset / total);

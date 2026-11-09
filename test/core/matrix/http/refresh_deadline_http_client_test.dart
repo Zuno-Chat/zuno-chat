@@ -5,22 +5,12 @@ import 'package:zuno/core/matrix/http/refresh_deadline_http_client.dart';
 
 import '../../../helpers/fake_http.dart';
 
-class _Recording extends http.BaseClient {
-  final received = <http.BaseRequest>[];
-
-  @override
-  Future<http.StreamedResponse> send(http.BaseRequest request) async {
-    received.add(request);
-    return http.StreamedResponse(fakeTimeBody(const []), 200);
-  }
-}
-
 void main() {
-  late _Recording server;
+  late RecordingHttpClient server;
   late RefreshDeadlineHttpClient client;
 
   setUp(() {
-    server = _Recording();
+    server = RecordingHttpClient();
     client = RefreshDeadlineHttpClient(server);
   });
 

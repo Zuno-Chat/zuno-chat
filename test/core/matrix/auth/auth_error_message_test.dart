@@ -9,7 +9,7 @@ import 'package:zuno/core/matrix/auth/auth_error_message.dart';
 import 'package:zuno/core/matrix/auth/registration_support.dart';
 import 'package:zuno/core/matrix/auth/server_choice.dart';
 import 'package:zuno/core/matrix/http/typed_server_answers.dart';
-import 'package:zuno/core/network/app_http_overrides.dart';
+import 'package:zuno_http/zuno_http.dart' show CleartextRefusedException;
 
 import '../../../helpers/uia_challenge.dart';
 

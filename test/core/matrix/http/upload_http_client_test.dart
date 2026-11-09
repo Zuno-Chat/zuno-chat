@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 
 import 'package:zuno/core/matrix/http/upload_http_client.dart';
+import 'package:zuno_http/zuno_http.dart' show RewindableBody;
 
 import '../../../helpers/fake_http.dart';
 
@@ -95,6 +96,26 @@ void main() {
     for (var i = 1; i < progress.length; i++) {
       expect(progress[i], greaterThanOrEqualTo(progress[i - 1]));
     }
+  });
+
+  test('an upload replays its whole body when it is sent again', () async {
+    final server = _Server();
+    final client = UploadHttpClient(server);
+    addTearDown(client.close);
+    final upload = _upload(200 * 1024);
+
+    final sent = client.send(upload);
+    await pumpEventQueue();
+    final request = server.requests.single;
+
+    expect(request, isA<RewindableBody>());
+    final replayed = await (request as RewindableBody)
+        .rewoundBody()
+        .expand((chunk) => chunk)
+        .toList();
+    expect(replayed, upload.bodyBytes);
+    server.answer();
+    await sent;
   });
 
   test('progress reaches only the scope the upload runs in', () async {

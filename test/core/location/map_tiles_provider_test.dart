@@ -12,6 +12,7 @@ import 'package:zuno/core/location/map_tile_cache.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/network/app_http_client.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 
@@ -21,18 +22,6 @@ import '../../helpers/fake_matrix.dart';
 const _template = 'https://tiles.example.org/{z}/{x}/{y}.png';
 const _credit = '© OpenStreetMap contributors';
 
-class _TileServerClient extends FakeHttpClient {
-  _TileServerClient(super.fn);
-
-  bool closed = false;
-
-  @override
-  void close() {
-    closed = true;
-    super.close();
-  }
-}
-
 http.Response _image() =>
     http.Response('png', 200, headers: {'content-type': 'image/png'});
 
@@ -40,7 +29,7 @@ http.Response _unavailable() => http.Response('', 503);
 
 void main() {
   late List<Uri> tileRequests;
-  late List<_TileServerClient> tileClients;
+  late List<FakeHttpClient> tileClients;
   late http.Response Function() tileServer;
   late int wellKnownFetches;
   late Map<String, Object?> advertised;
@@ -73,7 +62,7 @@ void main() {
   });
 
   http.Client newTileClient() {
-    final tileClient = _TileServerClient((request) async {
+    final tileClient = FakeHttpClient((request) async {
       tileRequests.add(request.url);
       return tileServer();
     });
@@ -82,16 +71,14 @@ void main() {
   }
 
   ProviderContainer listening() {
+    appHttpClientFactory = (_) => newTileClient();
     final container = ProviderContainer(
       overrides: [
         matrixClientProvider.overrideWithValue(client),
         isLoggedInProvider.overrideWith((ref) => logins.stream),
       ],
     );
-    http.runWithClient(
-      () => container.listen(mapTilesProvider, (_, _) {}),
-      newTileClient,
-    );
+    container.listen(mapTilesProvider, (_, _) {});
     return container;
   }
 

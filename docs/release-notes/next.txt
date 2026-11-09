@@ -10,5 +10,6 @@ New
 • Preview a community room before you join.
 • Full usernames and addresses with Matrix experience.
 • Calls on LiveKit servers.
+• Works behind a proxy.
 
 Fixed 45 bugs.

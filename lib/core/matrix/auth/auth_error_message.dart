@@ -1,8 +1,8 @@
 import 'package:matrix/matrix.dart';
+import 'package:zuno_http/zuno_http.dart' show CleartextRefusedException;
 
 import '../../errors/connection_error.dart';
 import '../../l10n/l10n.dart';
-import '../../network/app_http_overrides.dart';
 import '../http/typed_server_answers.dart';
 import 'auth_browser.dart';
 import 'registration_support.dart';

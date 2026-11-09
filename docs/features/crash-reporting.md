@@ -129,7 +129,13 @@ native journal, drained ─────────┘     │ network failure? 
 - **Native entries stay on the device** until the funnel sends or drops
   them, so they get the same gate, scrubber and network filter as Dart's.
 - **Off entirely**: screenshots, view hierarchy, session replay,
-  user-interaction breadcrumbs and all tracing.
+  user-interaction breadcrumbs, HTTP breadcrumbs and all tracing. On iOS,
+  HTTP breadcrumbs would add `sentry-trace` and `baggage` headers to every
+  request and record Matrix IDs that skip the scrubber and are saved to
+  disk.
+- **iOS network errors carry Apple's error code, never its message**,
+  because Apple translates the message into the phone's language and can
+  quote the server's name in quotes the scrubber doesn't know.
 
 ## Decisions
 

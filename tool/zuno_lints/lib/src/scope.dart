@@ -24,3 +24,6 @@ bool isSdkClass(Element? element, String library, Set<String> names) =>
     names.contains(element.name);
 
 bool isInCombinator(AstNode node) => node.parent is Combinator;
+
+bool isInLibOutside(RuleContext context, String owner) =>
+    context.isInLibDir && !isUnitAt(context, owner);

@@ -44,6 +44,7 @@ void configureCrashReportingOptions(
   options.enableUserInteractionBreadcrumbs = false;
   options.enableUserInteractionTracing = false;
   options.enableAutoPerformanceTracing = false;
+  options.recordHttpBreadcrumbs = false;
 
   options.beforeSend = (event, hint) {
     final scrubbed = scrubEvent(event);

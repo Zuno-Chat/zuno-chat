@@ -3,9 +3,11 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+import 'package:zuno_http/zuno_http.dart' show DeadlineRequest;
 
 import '../../errors/caught_errors.dart';
 import '../../matrix/http/bearer_authorization.dart';
+import '../../network/app_http_client.dart';
 import 'zuno_push_replies.dart';
 
 export 'zuno_push_replies.dart';
@@ -132,7 +134,7 @@ class ZunoPushApi {
     required this.bearer,
     http.Client? httpClient,
     this.timeout = const Duration(seconds: 15),
-  }) : _http = httpClient ?? http.Client(),
+  }) : _http = httpClient ?? appHttpClient(HttpClientKind.service),
        _ownsHttpClient = httpClient == null;
 
   factory ZunoPushApi.forClient(Client client, {http.Client? httpClient}) {
@@ -223,18 +225,18 @@ class ZunoPushApi {
       reportCaught('zuno push bearer', e, s);
       return ZunoPushFailure(ZunoPushFailureKind.network, error: '$e');
     }
-    final request = http.Request(method, zunoPushUri(homeserver, path))
-      ..headers['Authorization'] = authorization;
+    final request = DeadlineRequest(
+      method,
+      zunoPushUri(homeserver, path),
+      thinkTime: timeout,
+    )..headers['Authorization'] = authorization;
     if (body != null) {
       request.headers['Content-Type'] = 'application/json';
       request.body = jsonEncode(body);
     }
     final http.Response response;
     try {
-      response = await _http
-          .send(request)
-          .then(http.Response.fromStream)
-          .timeout(timeout);
+      response = await http.Response.fromStream(await _http.send(request));
     } catch (e, s) {
       reportCaught('zuno push request', e, s);
       return ZunoPushFailure(ZunoPushFailureKind.network, error: '$e');

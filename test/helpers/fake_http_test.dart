@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:zuno_http/zuno_http.dart';
 
 import 'fake_http.dart';
 import 'fake_matrix.dart';
@@ -28,6 +30,41 @@ void main() {
       expect(versions, ['v1.11']);
     });
   });
+
+  test(
+    'a request with its own think time fails then, as the app client does',
+    () {
+      fakeAsync((async) {
+        final client = FakeHttpClient((_) => Completer<http.Response>().future);
+        Object? outcome;
+        client
+            .send(
+              DeadlineRequest(
+                'GET',
+                Uri.parse('https://example.org/a'),
+                thinkTime: const Duration(seconds: 15),
+              ),
+            )
+            .then<void>(
+              (_) => outcome = 'answered',
+              onError: (Object e) => outcome = e,
+            );
+
+        async.elapse(const Duration(seconds: 14));
+        expect(outcome, isNull);
+        async.elapse(const Duration(seconds: 1));
+
+        expect(
+          outcome,
+          isA<NativeHttpException>().having(
+            (e) => e.kind,
+            'kind',
+            HttpFailureKind.timedOut,
+          ),
+        );
+      });
+    },
+  );
 
   test('the fake hands the handler the request it was sent', () async {
     http.Request? seen;

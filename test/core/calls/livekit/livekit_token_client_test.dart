@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io' show SocketException;
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/livekit/livekit_token_client.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -152,7 +152,9 @@ void main() {
         _client(),
         _spec,
         httpClient: FakeHttpClient((_) async {
-          if (++calls == 1) throw const SocketException('reset');
+          if (++calls == 1) {
+            throw NativeHttpException(HttpFailureKind.connectionLost, 'reset');
+          }
           return _grant();
         }),
       ).then((value) => grant = value);

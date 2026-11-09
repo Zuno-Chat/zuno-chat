@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show SocketException;
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:zuno/core/calls/cloudflare/cloudflare_api_client.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import '../../helpers/caught_reports.dart';
 import '../../helpers/fake_http.dart';
@@ -417,12 +417,14 @@ void main() {
     },
   );
 
-  test('a session request retries once on a SocketException and succeeds', () {
+  test('a session request retries once on a lost connection and succeeds', () {
     fakeAsync((async) {
       var calls = 0;
       final mock = FakeHttpClient((request) async {
         calls++;
-        if (calls == 1) throw const SocketException('connection refused');
+        if (calls == 1) {
+          throw NativeHttpException(HttpFailureKind.connect, 'refused');
+        }
         return http.Response(jsonEncode({'sessionId': 'sess1'}), 200);
       });
       String? sessionId;
@@ -437,7 +439,7 @@ void main() {
     });
   });
 
-  test('a track change is never sent twice after a SocketException, since the '
+  test('a track change is never sent twice after a lost connection, since the '
       'SFU may already have applied it', () {
     fakeAsync((async) {
       final paths = <String>[];
@@ -446,7 +448,10 @@ void main() {
           paths.add(request.url.path.split(_base).last);
           throw paths.length.isEven
               ? http.ClientException('Connection closed while receiving data')
-              : const SocketException('connection reset by peer');
+              : NativeHttpException(
+                  HttpFailureKind.connectionLost,
+                  'reset by peer',
+                );
         }),
       );
       const description = CfSessionDescription(sdp: 'sdp', type: 'offer');
@@ -596,7 +601,14 @@ void main() {
       async.elapse(const Duration(seconds: 14));
       expect(error, isNull);
       async.elapse(const Duration(seconds: 1));
-      expect(error, isA<TimeoutException>());
+      expect(
+        error,
+        isA<NativeHttpException>().having(
+          (e) => e.kind,
+          'kind',
+          HttpFailureKind.timedOut,
+        ),
+      );
       expect(calls, 1);
     });
   });

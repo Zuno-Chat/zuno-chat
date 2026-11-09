@@ -1,9 +1,10 @@
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:zuno_http/zuno_http.dart'
+    show CleartextRefusedException, DeadlineRequest;
 
 import '../../errors/caught_errors.dart';
-import '../../network/app_http_overrides.dart';
 import '../pushers/push_gateway.dart';
 
 final fallbackMatrixGatewayUrl = Uri.parse(
@@ -22,7 +23,11 @@ Future<Uri> resolveMatrixGatewayUrl(
     path: matrixPushGatewayPath,
   );
   try {
-    final response = await httpClient.get(discoveryUrl).timeout(timeout);
+    final response = await http.Response.fromStream(
+      await httpClient.send(
+        DeadlineRequest('GET', discoveryUrl, thinkTime: timeout),
+      ),
+    );
     if (response.statusCode != 200) return fallbackMatrixGatewayUrl;
     final body = jsonDecode(response.body);
     final gateway = body is Map ? body['unifiedpush'] : null;

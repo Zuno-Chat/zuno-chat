@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io' show SocketException, WebSocketException;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
@@ -9,6 +8,7 @@ import 'package:zuno/core/calls/media/call_connection.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_webrtc.dart';
@@ -20,6 +20,7 @@ const _attemptCeilings = [
   Duration(seconds: 4),
 ];
 
+final _down = NativeHttpException(HttpFailureKind.connectionLost, 'down');
 void main() {
   group('resume', () {
     test('signal lost resumes with reconnect and sid, and restarts ICE', () {
@@ -72,7 +73,7 @@ void main() {
         call.join();
         call.connectPeers();
         final peerConnections = [call.publisher, call.subscriber];
-        call.server.connectErrors.add(const SocketException('down'));
+        call.server.connectErrors.add(_down);
 
         call.server.socket.serverCloses();
         call.flush();
@@ -772,7 +773,7 @@ void main() {
       runLiveKitCall((call) {
         call.join();
         call.connectPeers();
-        call.server.connectError = const SocketException('down');
+        call.server.connectError = _down;
 
         call.server.socket.serverCloses();
         call.flush();
@@ -793,8 +794,8 @@ void main() {
         call.join();
         call.connectPeers();
         call.server.connectErrors.addAll([
-          const SocketException('down'),
-          const WebSocketException('not upgraded', 401),
+          _down,
+          const WebSocketUpgradeRefused(401),
         ]);
 
         call.server.leaves(LeaveRequest_Action.RECONNECT);
@@ -813,9 +814,7 @@ void main() {
       runLiveKitCall((call) {
         call.join();
         call.connectPeers();
-        call.server.connectErrors.add(
-          const WebSocketException('not upgraded', 503),
-        );
+        call.server.connectErrors.add(const WebSocketUpgradeRefused(503));
 
         call.server.leaves(LeaveRequest_Action.RECONNECT);
         call.elapse(_attemptCeilings[0]);
@@ -832,9 +831,7 @@ void main() {
       runLiveKitCall((call) {
         call.join();
         call.connectPeers();
-        call.module.answers.addAll([
-          for (var i = 0; i < 3; i++) const SocketException('down'),
-        ]);
+        call.module.answers.addAll([for (var i = 0; i < 3; i++) _down]);
 
         call.server.leaves(LeaveRequest_Action.RECONNECT);
         call.elapse(_attemptCeilings[0]);

@@ -67,6 +67,11 @@ void main() {
       expect(options.tracesSampleRate, isNull);
     });
 
+    test('records no network breadcrumbs, which would carry Matrix IDs and '
+        'stamp trace headers on every native request', () {
+      expect(_configuredOptions().recordHttpBreadcrumbs, isFalse);
+    });
+
     test('tracks sessions in the foreground app but not headless', () {
       expect(_configuredOptions().enableAutoSessionTracking, isTrue);
       expect(

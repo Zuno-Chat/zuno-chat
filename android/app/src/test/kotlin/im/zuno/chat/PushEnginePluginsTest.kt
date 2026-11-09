@@ -30,6 +30,7 @@ class PushEnginePluginsTest {
             "sqflite_sqlcipher",
             "package_info_plus",
             "zuno_notifications",
+            "zuno_http",
         )) {
             assertTrue(needed, names.contains(needed))
         }

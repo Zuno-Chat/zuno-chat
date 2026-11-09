@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:zuno_http/zuno_http.dart' show cleartextRefusal;
 
 import '../errors/caught_errors.dart';
 import '../platform/app_platform.dart';
@@ -12,16 +13,6 @@ String zunoUserAgent(String? version, {AppPlatform? platform}) {
     AppPlatform.ios => 'iOS',
   };
   return '$product ($system; im.zuno.chat)';
-}
-
-class CleartextRefusedException implements Exception {
-  const CleartextRefusedException(this.uri);
-
-  final Uri uri;
-
-  @override
-  String toString() =>
-      'CleartextRefusedException: refused ${uri.scheme}://${uri.host}';
 }
 
 class _AppHttpOverrides extends HttpOverrides {
@@ -43,8 +34,8 @@ Future<ConnectionTask<Socket>> _connectEncrypted(
   int? proxyPort,
   SecurityContext? context,
 ) {
-  if (!uri.isScheme('https')) {
-    return Future.error(CleartextRefusedException(uri));
+  if (cleartextRefusal(uri, secureScheme: 'https') case final refusal?) {
+    return Future.error(refusal);
   }
   if (proxyHost != null) return Socket.startConnect(proxyHost, proxyPort!);
   return SecureSocket.startConnect(
@@ -61,6 +52,8 @@ String? get appUserAgent => switch (HttpOverrides.current) {
   _AppHttpOverrides(:final userAgent) => userAgent,
   _ => null,
 };
+
+String get networkUserAgent => appUserAgent ?? zunoUserAgent(null);
 
 Future<void> installAppHttpOverrides({
   Future<String> Function()? version,

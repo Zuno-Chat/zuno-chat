@@ -20,6 +20,7 @@ object PushEnginePlugins {
         "sentry_flutter" to { io.sentry.flutter.SentryFlutterPlugin() },
         "jni" to { com.github.dart_lang.jni.JniPlugin() },
         "zuno_notifications" to { im.zuno.chat.zuno_notifications.ZunoNotificationsPlugin() },
+        "zuno_http" to { im.zuno.chat.zuno_http.ZunoHttpPlugin() },
     )
 
     val names: List<String> get() = factories.map { it.first }

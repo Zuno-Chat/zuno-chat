@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
 import '../matrix/client/matrix_client_provider.dart';
+import '../network/app_http_client.dart';
 import '../network/app_http_overrides.dart';
 import 'map_tile_cache.dart';
 import 'map_tiles.dart';
@@ -46,7 +47,7 @@ const _reprobeAfter = Duration(minutes: 5);
 final mapTilesProvider = FutureProvider<MapTiles?>((ref) async {
   final client = ref.watch(matrixClientProvider);
   ref.watch(isLoggedInProvider);
-  final httpClient = http.Client();
+  final httpClient = appHttpClient(HttpClientKind.service);
   ref.onDispose(httpClient.close);
   final source = await fetchTileSource(client);
   if (source != null && await probeMapTiles(httpClient, source)) {

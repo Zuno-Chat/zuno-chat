@@ -3,8 +3,8 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
-import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/push/unified_push/matrix_unified_push_gateway.dart';
+import 'package:zuno_http/zuno_http.dart' show CleartextRefusedException;
 
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';

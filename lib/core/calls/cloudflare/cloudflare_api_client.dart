@@ -1,5 +1,6 @@
 import 'package:http/http.dart' as http;
 
+import '../../network/app_http_client.dart';
 import '../module/calls_module.dart';
 
 class CfSessionDescription {
@@ -181,7 +182,7 @@ class CloudflareApiClient {
     required this.authorization,
     http.Client? httpClient,
     this.onRemoved,
-  }) : httpClient = httpClient ?? http.Client(),
+  }) : httpClient = httpClient ?? appHttpClient(HttpClientKind.service),
        _ownsHttpClient = httpClient == null;
 
   Uri _uri(_Endpoint endpoint, String? sessionId, Map<String, String>? query) {

@@ -1,8 +1,8 @@
 import 'dart:async';
-import 'dart:io' show SocketException;
 
 import 'package:zuno/core/calls/livekit/livekit_signal_client.dart';
 import 'package:zuno/core/calls/livekit/proto/livekit_rtc.pb.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 class FakeLiveKitSocket implements LiveKitSocket {
   final _frames = StreamController<List<int>>();
@@ -33,7 +33,9 @@ class FakeLiveKitSocket implements LiveKitSocket {
 
   Future<void> serverCloses() => _frames.close();
 
-  void serverFails() => _frames.addError(const SocketException('reset'));
+  void serverFails() => _frames.addError(
+    NativeHttpException(HttpFailureKind.connectionLost, 'reset'),
+  );
 
   Iterable<SignalRequest> sentOf(SignalRequest_Message kind) =>
       sent.where((request) => request.whichMessage() == kind);

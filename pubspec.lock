@@ -1713,6 +1713,13 @@ packages:
       relative: true
     source: path
     version: "0.0.1"
+  zuno_http:
+    dependency: "direct main"
+    description:
+      path: "packages/zuno_http"
+      relative: true
+    source: path
+    version: "0.0.1"
   zuno_notifications:
     dependency: "direct main"
     description:

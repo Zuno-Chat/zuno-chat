@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart'
     show ValueNotifier, debugPrint, visibleForTesting;
-import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:unifiedpush_platform_interface/data/failed_reason.dart';
@@ -14,6 +13,7 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
 import '../../matrix/account/session_display_name.dart';
+import '../../network/app_http_client.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../../platform/background_restrictions.dart';
 import '../delivery/notification_delivery_provider.dart';
@@ -123,7 +123,14 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     }
   }
 
-  http.Client Function() gatewayHttpClient = http.Client.new;
+  Future<Uri> _discoverGateway(Uri endpointUrl) async {
+    final client = appHttpClient(HttpClientKind.service);
+    try {
+      return await resolveMatrixGatewayUrl(endpointUrl, httpClient: client);
+    } finally {
+      client.close();
+    }
+  }
 
   HeadlessPushRunner get runner => _runner;
 
@@ -250,12 +257,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         deviceDisplayName: thisSessionDisplayName(),
       );
     }
-    final gatewayUrl =
-        knownGatewayUrl ??
-        await resolveMatrixGatewayUrl(
-          endpointUrl,
-          httpClient: gatewayHttpClient(),
-        );
+    final gatewayUrl = knownGatewayUrl ?? await _discoverGateway(endpointUrl);
     return buildUnifiedPushPusher(
       endpointUrl: endpointUrl,
       gatewayUrl: gatewayUrl,

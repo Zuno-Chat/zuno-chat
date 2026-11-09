@@ -1,10 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:clock/clock.dart';
 import 'package:fixnum/fixnum.dart';
 import 'package:protobuf/protobuf.dart' show InvalidProtocolBufferException;
+import 'package:zuno_http/zuno_http.dart';
 
+import '../../network/app_http_client.dart';
 import '../models/sfu_failures.dart';
 import 'proto/livekit_models.pbenum.dart';
 import 'proto/livekit_rtc.pb.dart';
@@ -48,26 +49,25 @@ class LiveKitSignalClosed implements Exception {
   String toString() => 'LiveKitSignalClosed';
 }
 
-class _IoSocket implements LiveKitSocket {
-  _IoSocket(this._socket);
+class _ZunoSocket implements LiveKitSocket {
+  _ZunoSocket(this._socket);
 
-  final WebSocket _socket;
-
-  @override
-  Stream<List<int>> get frames =>
-      _socket.where((frame) => frame is List<int>).cast();
+  final ZunoWebSocket _socket;
 
   @override
-  void send(List<int> bytes) => _socket.add(bytes);
+  Stream<List<int>> get frames => _socket.frames;
+
+  @override
+  void send(List<int> bytes) => _socket.send(bytes);
 
   @override
   Future<void> close() => _socket.close();
 }
 
-Future<LiveKitSocket> connectIoSocket(
+Future<LiveKitSocket> connectZunoSocket(
   Uri url,
   Map<String, String> headers,
-) async => _IoSocket(await WebSocket.connect(url.toString(), headers: headers));
+) async => _ZunoSocket(await appWebSocket(url, headers));
 
 const _protocolVersion = '16';
 const _handshakeDeadline = Duration(seconds: 15);
@@ -76,7 +76,7 @@ const _defaultPingTimeout = 15;
 
 class LiveKitSignalClient {
   LiveKitSignalClient({LiveKitSocketConnect? connect})
-    : _connect = connect ?? connectIoSocket;
+    : _connect = connect ?? connectZunoSocket;
 
   final LiveKitSocketConnect _connect;
   final _responses = StreamController<SignalResponse>();
@@ -160,15 +160,16 @@ class LiveKitSignalClient {
     final LiveKitSocket socket;
     try {
       socket = await _connect(uri, {'Authorization': 'Bearer $_token'});
-    } on WebSocketException catch (e) {
-      throw switch (e.httpStatusCode) {
-        null => const LiveKitSignalUnreachable('WebSocketException'),
+    } on WebSocketUpgradeRefused catch (e) {
+      throw switch (e.status) {
         final status when status >= 500 || status == 429 =>
           LiveKitSignalUnreachable('upgrade $status'),
         final status => LiveKitJoinRefused('upgrade $status'),
       };
-    } on IOException catch (e) {
-      throw LiveKitSignalUnreachable(e.runtimeType.toString());
+    } on CleartextRefusedException {
+      throw const LiveKitJoinRefused('cleartext');
+    } on NativeHttpException catch (e) {
+      throw LiveKitSignalUnreachable(e.kind.name);
     }
     if (generation != _generation) {
       socket.close().ignore();

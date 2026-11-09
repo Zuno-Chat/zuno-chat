@@ -1,10 +1,8 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart'
     show debugPrint, kDebugMode, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:http/io_client.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
@@ -18,6 +16,7 @@ import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
 import '../../files/file_system.dart';
 import '../../location/live_location_protocol.dart' show liveLocationStateType;
+import '../../network/app_http_client.dart';
 import '../../platform/platform_capabilities.dart';
 import '../../push/nse/session_exporter.dart';
 import '../../settings/app_preferences_provider.dart';
@@ -85,7 +84,6 @@ final incomingKeyVerificationProvider = StreamProvider<KeyVerification>((ref) {
   return client.onKeyVerificationRequest.stream;
 });
 
-const _connectTimeout = Duration(seconds: 10);
 const _databaseFileName = 'zuno.db';
 
 Future<Client> createMatrixClient({
@@ -151,9 +149,7 @@ Future<Client> _startClient(
 
   ZunoClient? client;
   final syncRequests = SyncRequestCanceller(
-    RefreshDeadlineHttpClient(
-      IOClient(HttpClient()..connectionTimeout = _connectTimeout),
-    ),
+    RefreshDeadlineHttpClient(appHttpClient(HttpClientKind.matrix)),
   );
   final httpClient = UploadHttpClient(
     FreshTokenHttpClient(

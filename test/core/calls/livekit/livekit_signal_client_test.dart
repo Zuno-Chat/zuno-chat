@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io' show HandshakeException, SocketException, WebSocketException;
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/calls/livekit/livekit_signal_client.dart';
 import 'package:zuno/core/calls/livekit/proto/livekit_models.pbenum.dart';
 import 'package:zuno/core/calls/livekit/proto/livekit_rtc.pb.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import 'fake_livekit_socket.dart';
 
@@ -81,13 +81,27 @@ void main() {
     });
   });
 
+  test('a cleartext refusal is refused for good', () async {
+    final (:client, :server) = _setup();
+    server.connectError = CleartextRefusedException(
+      Uri.parse('ws://lk.example.org'),
+    );
+
+    await expectLater(
+      client.join(_url, _token),
+      throwsA(
+        isA<LiveKitJoinRefused>().having(
+          (e) => e.reason,
+          'reason',
+          'cleartext',
+        ),
+      ),
+    );
+  });
+
   test('upgrade 401 throws LiveKitJoinRefused', () async {
     final (:client, :server) = _setup();
-    server.connectError = const WebSocketException(
-      "Connection to 'wss://lk.example.org/rtc?protocol=16' was not upgraded "
-      'to websocket',
-      401,
-    );
+    server.connectError = const WebSocketUpgradeRefused(401);
 
     await expectLater(
       client.join(_url, _token),
@@ -102,7 +116,7 @@ void main() {
   for (final status in [429, 500, 503]) {
     test('upgrade $status is unreachable, so it is tried again', () async {
       final (:client, :server) = _setup();
-      server.connectError = WebSocketException('not upgraded', status);
+      server.connectError = WebSocketUpgradeRefused(status);
 
       await expectLater(
         client.join(_url, _token),
@@ -118,13 +132,18 @@ void main() {
   }
 
   for (final (name, error) in <(String, Object)>[
-    ('SocketException', const SocketException('lk.example.org')),
-    ('HandshakeException', const HandshakeException('lk.example.org')),
     (
-      'WebSocketException',
-      const WebSocketException(
-        "Connection to 'wss://lk.example.org/rtc' failed",
+      'connectionLost',
+      NativeHttpException(
+        HttpFailureKind.connectionLost,
+        'reset by lk.example.org',
       ),
+    ),
+    ('tls', NativeHttpException(HttpFailureKind.tls, 'lk.example.org cert')),
+    ('dns', NativeHttpException(HttpFailureKind.dns, 'lk.example.org')),
+    (
+      'timedOut',
+      NativeHttpException(HttpFailureKind.timedOut, 'lk.example.org'),
     ),
   ]) {
     test('a $name is unreachable, and its text names no host', () async {

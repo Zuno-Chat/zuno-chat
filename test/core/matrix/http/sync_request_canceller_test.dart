@@ -2,7 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 
 import 'package:zuno/core/matrix/http/sync_request_canceller.dart';
+import 'package:zuno_http/zuno_http.dart' show DeadlineRequest;
 
+import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_sync_server.dart';
 
 final _sync = Uri.parse(
@@ -84,5 +86,49 @@ void main() {
     expect(server.waiting, hasLength(1));
     server.last.answer('s2');
     await next;
+  });
+
+  group('think time', () {
+    late RecordingHttpClient recording;
+
+    setUp(() => recording = RecordingHttpClient());
+
+    test('a long poll gets its timeout plus 10 s to answer', () async {
+      await SyncRequestCanceller(recording).send(syncRequest());
+
+      expect(
+        recording.last,
+        isA<DeadlineRequest>().having(
+          (r) => r.thinkTime,
+          'thinkTime',
+          const Duration(seconds: 40),
+        ),
+      );
+    });
+
+    test('the first sync, with no timeout, gets no limit', () async {
+      await SyncRequestCanceller(recording).send(
+        http.Request(
+          'GET',
+          Uri.parse('https://example.org/_matrix/client/v3/sync'),
+        ),
+      );
+
+      expect(
+        recording.last,
+        isA<DeadlineRequest>().having((r) => r.thinkTime, 'thinkTime', isNull),
+      );
+    });
+
+    test('other requests are passed on untouched', () async {
+      final request = http.Request(
+        'POST',
+        Uri.parse('https://example.org/_matrix/client/v3/user/u/filter'),
+      );
+
+      await SyncRequestCanceller(recording).send(request);
+
+      expect(recording.last, same(request));
+    });
   });
 }

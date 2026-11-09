@@ -37,7 +37,13 @@ class SyncRequestCanceller extends http.BaseClient {
     final abort = Completer<void>();
     _waiting.add(abort);
     try {
-      return await _inner.send(abortableCopy(request, abort.future));
+      return await _inner.send(
+        abortableCopy(
+          request,
+          abort.future,
+          thinkTime: _longPollAllowance(request),
+        ),
+      );
     } finally {
       _waiting.remove(abort);
     }
@@ -45,6 +51,14 @@ class SyncRequestCanceller extends http.BaseClient {
 
   @override
   void close() => _inner.close();
+}
+
+const _answerMargin = Duration(seconds: 10);
+
+Duration? _longPollAllowance(http.Request request) {
+  final timeout = int.tryParse(request.url.queryParameters['timeout'] ?? '');
+  if (timeout == null) return null;
+  return Duration(milliseconds: timeout) + _answerMargin;
 }
 
 bool _isSync(http.Request request) =>

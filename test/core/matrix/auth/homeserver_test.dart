@@ -11,6 +11,7 @@ import 'package:zuno/core/matrix/auth/homeserver.dart';
 import 'package:zuno/core/matrix/auth/server_choice.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
+import 'package:zuno_http/zuno_http.dart' show CleartextRefusedException;
 
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';

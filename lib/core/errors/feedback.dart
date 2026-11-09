@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
+import '../network/app_http_client.dart';
 import 'crash_reporting.dart';
 import 'crash_scrubber.dart';
 
@@ -20,7 +21,9 @@ Future<void> sendFeedback(
   if (dsn.isEmpty) throw const FeedbackNotSent();
 
   final info = await PackageInfo.fromPlatform();
-  final connection = _FailureRecordingClient(httpClient ?? http.Client());
+  final connection = _FailureRecordingClient(
+    httpClient ?? appHttpClient(HttpClientKind.service),
+  );
   final options = SentryOptions(dsn: dsn)
     ..environment = 'production'
     ..release = '${info.packageName}@${info.version}+${info.buildNumber}'

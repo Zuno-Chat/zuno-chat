@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io' show SocketException;
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
@@ -8,6 +9,7 @@ import 'package:zuno/core/calls/cloudflare/cloudflare_routes.dart';
 import 'package:zuno/core/calls/livekit/livekit_signal_client.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 import 'package:zuno/core/matrix/http/typed_server_answers.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
@@ -319,6 +321,64 @@ void main() {
       expect(request.headers['Authorization'], 'Bearer syt_token');
       expect(jsonDecode(request.body), {'user_id': '@bob:example.org'});
     });
+
+    test('a lost connection is sent again', () {
+      fakeAsync((async) {
+        var asked = 0;
+        Object? outcome;
+        remove(
+          FakeHttpClient((request) async {
+            if (++asked == 1) {
+              throw NativeHttpException(
+                HttpFailureKind.connectionLost,
+                'reset',
+              );
+            }
+            return http.Response('{}', 200);
+          }),
+        ).then<void>(
+          (_) => outcome = 'removed',
+          onError: (Object e) => outcome = e,
+        );
+
+        async.elapse(const Duration(seconds: 5));
+
+        expect(asked, 2);
+        expect(outcome, 'removed');
+      });
+    });
+
+    for (final kind in [
+      HttpFailureKind.connectTimedOut,
+      HttpFailureKind.timedOut,
+    ]) {
+      test(
+        'a request that ran out of time (${kind.name}) is not sent again',
+        () {
+          fakeAsync((async) {
+            var asked = 0;
+            Object? outcome;
+            remove(
+              FakeHttpClient((request) async {
+                asked++;
+                throw NativeHttpException(kind, 'no answer');
+              }),
+            ).then<void>(
+              (_) => outcome = 'removed',
+              onError: (Object e) => outcome = e,
+            );
+
+            async.elapse(const Duration(seconds: 30));
+
+            expect(asked, 1);
+            expect(
+              outcome,
+              isA<NativeHttpException>().having((e) => e.kind, 'kind', kind),
+            );
+          });
+        },
+      );
+    }
 
     test('a success with an empty body still counts as removed', () async {
       await expectLater(

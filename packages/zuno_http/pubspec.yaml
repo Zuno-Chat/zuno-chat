@@ -1,0 +1,34 @@
+name: zuno_http
+description: >
+  Zuno's HTTP and WebSocket clients on each platform's own network stack:
+  Cronet for HTTP and OkHttp for WebSockets on Android, URLSession for both on
+  iOS. A real plugin rather than a hand-attached channel so it is
+  auto-registered on every FlutterEngine, including the headless ones a push
+  runs on. Not published; internal to the Zuno app.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.13.4
+  flutter: '>=3.3.0'
+
+dependencies:
+  async: ^2.13.0
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+
+dev_dependencies:
+  fake_async: ^1.3.1
+  flutter_lints: ^6.0.0
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: im.zuno.chat.zuno_http
+        pluginClass: ZunoHttpPlugin
+      ios:
+        pluginClass: ZunoHttpPlugin

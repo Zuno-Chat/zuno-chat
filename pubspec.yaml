@@ -21,6 +21,8 @@ dependencies:
     path: packages/zuno_notifications
   zuno_emoji:
     path: packages/zuno_emoji
+  zuno_http:
+    path: packages/zuno_http
 
   flutter_riverpod: ^3.4.2
   matrix: ^16.0.1

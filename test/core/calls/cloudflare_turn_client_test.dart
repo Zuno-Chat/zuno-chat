@@ -1,11 +1,11 @@
 import 'dart:convert';
-import 'dart:io' show SocketException;
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:zuno/core/calls/cloudflare/cloudflare_turn_client.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
+import 'package:zuno_http/zuno_http.dart';
 
 import '../../helpers/fake_http.dart';
 
@@ -111,7 +111,7 @@ void main() {
   );
 
   for (final dropped in <Exception>[
-    const SocketException('connection refused'),
+    NativeHttpException(HttpFailureKind.connect, 'connection refused'),
     http.ClientException('connection closed before full header was received'),
   ]) {
     test('retries a ${dropped.runtimeType} and returns the servers once it '

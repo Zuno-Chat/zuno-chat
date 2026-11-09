@@ -1,0 +1,16 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <application>
+        <service
+            android:name="android.net.http.MetaDataHolder"
+            android:enabled="false"
+            android:exported="false">
+            <meta-data
+                android:name="android.net.http.ReadHttpFlags"
+                android:value="false" />
+            <meta-data
+                android:name="android.net.http.EnableTelemetry"
+                android:value="false" />
+        </service>
+    </application>
+</manifest>

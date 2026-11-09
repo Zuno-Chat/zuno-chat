@@ -8,6 +8,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/platform/app_platform.dart';
+import 'package:zuno_http/zuno_http.dart' show CleartextRefusedException;
 
 const _agent = 'Zuno/1.2.0 (Android; im.zuno.chat)';
 

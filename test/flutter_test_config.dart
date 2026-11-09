@@ -4,6 +4,7 @@ import 'package:file/file.dart' show Directory;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
 
 import 'package:zuno/core/async/background_work.dart';
 import 'package:zuno/core/async/serial_lock.dart';
@@ -14,12 +15,15 @@ import 'package:zuno/core/calls/show_over_lockscreen.dart';
 import 'package:zuno/core/emoji/emoji_catalog_provider.dart';
 import 'package:zuno/core/files/file_system.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
+import 'package:zuno/core/network/app_http_client.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/ring/ring_channel.dart';
+import 'package:zuno_http/zuno_http.dart';
 
+import 'helpers/fake_http.dart';
 import 'helpers/inline_background_work.dart';
 import 'helpers/instant_file_system.dart';
 
@@ -45,6 +49,13 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     backgroundRunner = runInline;
     drawableProbe = (emoji) async => [for (final _ in emoji) true];
     fileSystem = const InstantFileSystem();
+    appHttpClientFactory = (_) =>
+        FakeHttpClient((_) async => http.Response('', 400));
+    appWebSocketFactory = (url, _) async => throw NativeHttpException(
+      HttpFailureKind.offline,
+      'Tests have no network',
+      url,
+    );
     Directory? threads;
     NotificationThreadStore.instance = NotificationThreadStore(
       directory: () async => threads ??= await fileSystem.systemTempDirectory

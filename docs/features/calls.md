@@ -374,6 +374,7 @@ sequenceDiagram
 
 | Rule | Why |
 |---|---|
+| The signal socket is the app's native WebSocket (`app-foundation.md`): binary frames only, up to 16 MiB, and the upgrade's wait is Dart's alone | It follows the phone's proxy like every request; iOS's 1 MiB default kills the socket without a close frame; livekit-server holds the upgrade answer while it tries its own connections, so a native read timeout would cut joins |
 | The token goes in the WebSocket's `Authorization` header, never the URL | So it never reaches a log |
 | The client subscribes itself (`auto_subscribe=0`, `adaptive_stream=0`), and only to tracks the server lists as GCM-encrypted | The core decides which remote media to take, and a track that would arrive unencrypted is never taken |
 | A track joins the publisher only after its `AddTrackRequest` is answered with `TrackPublishedResponse`, and declares GCM encryption, no RED, and the video layers `q` (LOW) and `h` (HIGH) | The server takes each track's encryption and layers from that request |
