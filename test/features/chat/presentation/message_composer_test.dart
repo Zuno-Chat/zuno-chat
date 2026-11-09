@@ -21,6 +21,8 @@ class _ShownRecorder extends VoiceRecorder {
         audio: fakeMediaAudioSession(FakeAudioSessionPort()),
         onRecorded: (_) async {},
         onProblem: (_) {},
+        keep: (_) {},
+        kept: () => null,
       );
 
   final bool recording;
@@ -58,36 +60,36 @@ void main() {
     addTearDown(duration.dispose);
   });
 
-  Widget harness({bool recording = false, bool attaching = false}) =>
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        theme: zunoLightTheme,
-        home: Scaffold(
-          body: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              Builder(
-                builder: (context) {
-                  probeBuilds++;
-                  return const SizedBox.shrink();
-                },
-              ),
-              MessageComposer(
-                controller: controller,
-                emojiPanel: emojiPanel,
-                onSend: () => sends++,
-                onAttach: () => attaches++,
-                attaching: attaching,
-                recorder: _ShownRecorder(
-                  recording: recording,
-                  elapsed: duration,
-                ),
-              ),
-            ],
-          ),
+  Widget harness({bool recording = false, bool attaching = false}) {
+    final recorder = _ShownRecorder(recording: recording, elapsed: duration);
+    addTearDown(recorder.dispose);
+    return MaterialApp(
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
+      theme: zunoLightTheme,
+      home: Scaffold(
+        body: Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Builder(
+              builder: (context) {
+                probeBuilds++;
+                return const SizedBox.shrink();
+              },
+            ),
+            MessageComposer(
+              controller: controller,
+              emojiPanel: emojiPanel,
+              onSend: () => sends++,
+              onAttach: () => attaches++,
+              attaching: attaching,
+              recorder: recorder,
+            ),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   testWidgets('the box grows to five lines, then scrolls', (tester) async {
     await tester.pumpWidget(harness());

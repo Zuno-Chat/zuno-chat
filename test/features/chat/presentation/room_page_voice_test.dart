@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,14 +7,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
+import 'package:record/record.dart' show RecordState;
 import 'package:zuno/core/matrix/media/media_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/features/chat/data/unsent.dart';
+import 'package:zuno/features/chat/presentation/room_page.dart';
+import 'package:zuno/features/chat/presentation/send_icon.dart';
 import 'package:zuno_emoji/zuno_emoji.dart';
 
+import '../../../helpers/app_lifecycle.dart';
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_audio_session.dart';
 import '../../../helpers/fake_emoji.dart';
 import '../../../helpers/fake_matrix.dart';
+import '../../../helpers/fake_screen_awake.dart';
 import '../../../helpers/opus_caf.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/pump_until.dart';
@@ -21,6 +28,7 @@ import 'room_page_harness.dart';
 
 void main() {
   late RoomPageHarness harness;
+  late FakeAudioPlatform audio;
   late Directory temp;
   late List<String> recorderCalls;
   late bool permitted;
@@ -30,13 +38,14 @@ void main() {
   late bool sendFails;
   late bool recordingUnreadable;
   late List<http.Request> uploads;
+  Completer<void>? startGate;
   Map<Object?, Object?>? startArgs;
   Object? managesAudioSession;
   String? recordingPath;
   MockStreamHandlerEventSink? recorderState;
 
   setUp(() async {
-    installFakeAudioPlatform();
+    audio = installFakeAudioPlatform();
     managesAudioSession = null;
     temp = Directory.systemTemp.createTempSync('zuno_voice_');
     recorderCalls = [];
@@ -47,6 +56,7 @@ void main() {
     sendFails = false;
     recordingUnreadable = false;
     uploads = [];
+    startGate = null;
     startArgs = null;
     recordingPath = null;
     const pathProvider = MethodChannel('plugins.flutter.io/path_provider');
@@ -81,6 +91,7 @@ void main() {
   Future<void> openRoom(
     WidgetTester tester, {
     PlatformCapabilities? platform,
+    bool overLauncher = false,
   }) async {
     ambientCapabilities = platform ?? iosCapabilities;
     harness = RoomPageHarness(
@@ -135,6 +146,7 @@ void main() {
             }
             return permitted;
           case 'start':
+            await startGate?.future;
             final error = startError;
             if (error != null) throw error;
             recordingPath = args!['path'] as String;
@@ -160,7 +172,11 @@ void main() {
       },
     );
     harness.db.events = [harness.message(r'$m1')];
-    await harness.pumpRoomPage(tester);
+    if (overLauncher) {
+      await harness.pumpRoomPageOverLauncher(tester);
+    } else {
+      await harness.pumpRoomPage(tester);
+    }
   }
 
   Finder mic() => find.byKey(const ValueKey('mic'));
@@ -272,6 +288,7 @@ void main() {
   testWidgets('a tap starts hands-free recording, and another sends it', (
     tester,
   ) async {
+    final toggles = installFakeScreenAwake().toggles;
     await openRoom(tester);
 
     await tapMic(tester);
@@ -287,6 +304,7 @@ void main() {
 
     expect(voiceMessages(), hasLength(1));
     expect(find.byTooltip('Cancel recording'), findsNothing);
+    expect(toggles, [true, false]);
   });
 
   testWidgets('a hold let go too soon keeps recording hands-free', (
@@ -415,20 +433,245 @@ void main() {
     });
   });
 
-  testWidgets('an interrupted hold throws the recording away', (tester) async {
-    await openRoom(tester);
+  group('a recording something else stops', () {
+    Finder deleteKept() => find.byTooltip('Delete');
 
-    final gesture = await holdMic(tester);
-    await gesture.cancel();
-    await pumpUntil(
+    bool kept() => deleteKept().evaluate().isNotEmpty;
+
+    Future<void> untilKept(WidgetTester tester) => pumpUntil(
       tester,
-      () => recordingDone() && !shows('Slide up to cancel'),
-      reason: 'the recording to be thrown away',
+      () => kept() && recordingDone(),
+      reason: 'the recording to stop and be kept',
     );
 
-    expect(find.text('Slide up to cancel'), findsNothing);
-    expect(voiceMessages(), isEmpty);
-    expect(leftoverRecordings(), isEmpty);
+    Future<void> leaveAndComeBack(WidgetTester tester) async {
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+      await pumpUntil(
+        tester,
+        recordingDone,
+        reason: 'the recording to stop while Zuno is away',
+      );
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    Future<void> recordHandsFree(WidgetTester tester) async {
+      await tapMic(tester);
+      await tester.pump(const Duration(seconds: 2));
+    }
+
+    testWidgets('leaving Zuno stops it and keeps it unsent, with its '
+        'length', (tester) async {
+      await openRoom(tester);
+      await recordHandsFree(tester);
+
+      await leaveAndComeBack(tester);
+      expect(kept(), isTrue);
+
+      expect(voiceMessages(), isEmpty);
+      expect(uploads, isEmpty);
+      expect(find.byTooltip('Cancel recording'), findsNothing);
+      expect(find.text('0:02'), findsOneWidget);
+      expect(find.byIcon(Icons.play_arrow), findsOneWidget);
+      expect(mic(), findsNothing);
+    });
+
+    testWidgets('a kept recording is sent with the send button', (
+      tester,
+    ) async {
+      await openRoom(tester);
+      await recordHandsFree(tester);
+      await leaveAndComeBack(tester);
+
+      await tester.tap(find.byType(SendIcon));
+      await pumpUntil(
+        tester,
+        () => voiceMessages().isNotEmpty && !kept(),
+        reason: 'the kept recording to be sent',
+      );
+
+      final voice = voiceMessages().single;
+      final sound = voice['org.matrix.msc1767.audio']! as Map<String, Object?>;
+      expect(sound['duration'], greaterThanOrEqualTo(2000));
+      expect(String.fromCharCodes(uploads.single.bodyBytes.take(4)), 'OggS');
+      expect(mic(), findsOneWidget);
+      expect(
+        harness.container.read(unsentProvider).voiceOf(harness.room),
+        isNull,
+      );
+    });
+
+    testWidgets('a kept recording can be deleted unsent', (tester) async {
+      await openRoom(tester);
+      await recordHandsFree(tester);
+      await leaveAndComeBack(tester);
+
+      await tester.tap(deleteKept());
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(kept(), isFalse);
+      expect(mic(), findsOneWidget);
+      expect(voiceMessages(), isEmpty);
+      expect(
+        harness.container.read(unsentProvider).voiceOf(harness.room),
+        isNull,
+      );
+    });
+
+    testWidgets('a kept recording plays from an Ogg copy that is gone once '
+        'it is sent', (tester) async {
+      await openRoom(tester, platform: androidCapabilities);
+      await recordHandsFree(tester);
+      await leaveAndComeBack(tester);
+
+      await tester.tap(find.byIcon(Icons.play_arrow));
+      await pumpUntil(
+        tester,
+        () => audio.named('play').isNotEmpty,
+        reason: 'the kept recording to play',
+      );
+      final played = Uri.parse(audio.named('load').single! as String);
+      final copy = File(played.toFilePath());
+      expect(copy.path, endsWith('.ogg'));
+      expect(copy.readAsBytesSync(), [79, 103, 103, 83]);
+
+      await tester.tap(find.byType(SendIcon));
+      await pumpUntil(
+        tester,
+        () => voiceMessages().isNotEmpty && !copy.existsSync(),
+        reason: 'the recording to be sent and its copy removed',
+      );
+      await pumpAudioPlayerDisposal(tester);
+    });
+
+    testWidgets('one reaching five minutes stops there and is kept, '
+        'unsent', (tester) async {
+      await openRoom(tester);
+      await tapMic(tester);
+
+      await tester.pump(const Duration(minutes: 4, seconds: 59));
+      expect(find.byTooltip('Cancel recording'), findsOneWidget);
+      expect(recorderCalls, isNot(contains('stop')));
+
+      await tester.pump(const Duration(seconds: 1));
+      await untilKept(tester);
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.text('5:00'), findsOneWidget);
+      expect(find.byTooltip('Cancel recording'), findsNothing);
+      expect(voiceMessages(), isEmpty);
+    });
+
+    testWidgets('a held recording the system takes the touch from is kept', (
+      tester,
+    ) async {
+      await openRoom(tester);
+
+      final gesture = await holdMic(tester);
+      await tester.pump(const Duration(seconds: 1));
+      await gesture.cancel();
+      await untilKept(tester);
+
+      expect(find.text('Slide up to cancel'), findsNothing);
+      expect(voiceMessages(), isEmpty);
+    });
+
+    testWidgets('the recorder pausing itself, as for a phone call, stops the '
+        'recording and keeps it', (tester) async {
+      await openRoom(tester);
+      await recordHandsFree(tester);
+
+      recorderState!.success(RecordState.pause.index);
+      await untilKept(tester);
+
+      expect(voiceMessages(), isEmpty);
+      expect(find.byTooltip('Cancel recording'), findsNothing);
+    });
+
+    testWidgets('one stopped in its first tenth of a second keeps nothing', (
+      tester,
+    ) async {
+      await openRoom(tester);
+
+      await tapMic(tester, settle: false);
+      await leaveAndComeBack(tester);
+
+      expect(kept(), isFalse);
+      expect(mic(), findsOneWidget);
+      expect(voiceMessages(), isEmpty);
+    });
+
+    testWidgets('one stopped while the recorder is still starting stops as '
+        'soon as it starts, and keeps nothing', (tester) async {
+      final toggles = installFakeScreenAwake().toggles;
+      await openRoom(tester);
+      final starting = startGate = Completer<void>();
+
+      await tapMic(tester);
+      expect(recorderCalls, contains('start'));
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+      starting.complete();
+      await pumpUntil(
+        tester,
+        recordingDone,
+        reason: 'the recording to stop once started',
+      );
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(kept(), isFalse);
+      expect(find.byTooltip('Cancel recording'), findsNothing);
+      expect(mic(), findsOneWidget);
+      expect(toggles, [true, false]);
+    });
+
+    testWidgets('a press after Zuno has left records nothing', (tester) async {
+      await openRoom(tester);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
+
+      await tapMic(tester);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
+      await tester.pump();
+
+      expect(recorderCalls, isNot(contains('start')));
+      expect(find.byTooltip('Cancel recording'), findsNothing);
+      expect(mic(), findsOneWidget);
+      expect(kept(), isFalse);
+    });
+
+    testWidgets('leaving the chat keeps it, and it waits there', (
+      tester,
+    ) async {
+      await openRoom(tester, overLauncher: true);
+      await recordHandsFree(tester);
+
+      Navigator.of(tester.element(mic())).pop();
+      await pumpUntil(
+        tester,
+        () => recordingDone() && find.byType(RoomPage).evaluate().isEmpty,
+        reason: 'the chat to close and its recording to stop',
+      );
+      await tester.tap(find.text('open chat'));
+      await harness.settle(tester);
+
+      expect(kept(), isTrue);
+      expect(find.text('0:02'), findsOneWidget);
+      expect(voiceMessages(), isEmpty);
+    });
+
+    testWidgets('the screen stays on while recording and sleeps once it '
+        'stops', (tester) async {
+      final toggles = installFakeScreenAwake().toggles;
+      await openRoom(tester);
+
+      await recordHandsFree(tester);
+      expect(toggles, [true]);
+
+      await leaveAndComeBack(tester);
+      expect(toggles, [true, false]);
+    });
   });
 
   testWidgets('a recording under a tenth of a second is not sent', (
@@ -469,6 +712,8 @@ void main() {
 
     expect(recorderCalls, contains('start'));
     expect(find.byTooltip('Cancel recording'), findsOneWidget);
+    await tester.tap(find.byTooltip('Cancel recording'));
+    await pumpUntil(tester, recordingDone, reason: 'the recording to end');
   });
 
   testWidgets('a hold that has to ask for the microphone records nothing, '

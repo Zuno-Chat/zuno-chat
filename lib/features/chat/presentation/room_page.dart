@@ -50,7 +50,7 @@ import '../data/discarded_sends.dart';
 import '../data/message_kinds.dart';
 import '../data/room_sender.dart';
 import '../data/typing_announcer.dart';
-import '../data/unsent_text.dart';
+import '../data/unsent.dart';
 import 'attachment_menu.dart';
 import 'chat_wallpaper.dart';
 import 'emoji_panel.dart';
@@ -127,7 +127,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   RoomSender get _sender => ref.read(roomSenderProvider(widget.room));
 
-  late final _unsent = ref.read(unsentTextProvider);
+  late final _unsent = ref.read(unsentProvider);
 
   @override
   void initState() {
@@ -141,6 +141,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
       input: _input,
       enabled: () => ref.read(sendTypingIndicatorProvider),
     );
+    final room = widget.room;
     _recorder = VoiceRecorder(
       setup: voiceRecordingSetup(ref.read(platformCapabilitiesProvider)),
       audio: ref.read(mediaAudioSessionProvider),
@@ -150,6 +151,8 @@ class _RoomPageState extends ConsumerState<RoomPage>
         waveform: clip.waveform,
       ),
       onProblem: _onRecordingProblem,
+      keep: (clip) => _unsent.keepVoice(room, clip),
+      kept: () => _unsent.voiceOf(room),
     );
     final share = widget.pendingShare;
     if (share != null) {
@@ -186,7 +189,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
     _markLatestRead();
   }
 
-  void _keepUnsent() => _unsent.keep(
+  void _keepUnsent() => _unsent.keepText(
     widget.room,
     _editingEvent == null ? _input.text : _draftBeforeEdit,
   );

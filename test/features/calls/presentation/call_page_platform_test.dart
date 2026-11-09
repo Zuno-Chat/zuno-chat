@@ -523,7 +523,7 @@ void main() {
       expect(harness.count('startCallForegroundService'), 0);
       expect(harness.count('startCallAudio'), 0);
       expect(harness.callAudioRunning, isFalse);
-      expect(harness.wakelockToggles, [false]);
+      expect(harness.wakelockToggles, isEmpty);
       expect(harness.showOverLockscreen, isFalse);
     });
 
@@ -560,18 +560,15 @@ void main() {
       await startTalking(harness, session);
       await tester.tap(find.byTooltip('Switch to video call'));
       await tester.pump();
-      final closing = harness.wakelockGate = Completer<void>();
       session.end();
       await tester.pump();
 
       session.engine.switched.complete();
-      await tester.pump();
-      closing.complete();
       await harness.settle();
 
       expect(find.byType(CallPage), findsNothing);
       expect(harness.count('setAudioRoute'), 0);
-      expect(harness.wakelockToggles, [false]);
+      expect(harness.wakelockToggles, isEmpty);
       expect(session.kind, CallKind.voice);
       await harness.close();
     });
@@ -581,13 +578,10 @@ void main() {
       final harness = CallPageHarness(tester, capabilities: iosCapabilities);
       _NativeAudio(harness, route: 'earpiece');
       final session = await talking(harness, CallKind.voice);
-      final closing = harness.wakelockGate = Completer<void>();
 
       session.end();
       await tester.idle();
       await tester.tap(find.byTooltip('Turn speaker on'));
-      await tester.pump();
-      closing.complete();
       await harness.settle();
 
       expect(find.byType(CallPage), findsNothing);
@@ -602,15 +596,12 @@ void main() {
       final harness = CallPageHarness(tester, capabilities: iosCapabilities);
       harness.container.read(systemCallSyncProvider);
       final ended = await talking(harness, CallKind.voice);
-      final closing = harness.wakelockGate = Completer<void>();
       ended.end();
       await tester.pump();
       expect(harness.container.read(activeCallProvider), isNull);
 
       final accepted = callInAnotherRoom();
       harness.pushCall(accepted);
-      await harness.settle();
-      closing.complete();
       await harness.settle();
 
       expect(harness.container.read(activeCallProvider), same(accepted));
@@ -661,7 +652,7 @@ void main() {
       await harness.settle();
 
       expect(harness.container.read(activeCallProvider), same(accepted));
-      expect(harness.wakelockToggles, [false, true]);
+      expect(harness.wakelockToggles, [true]);
       await harness.close();
     });
   });

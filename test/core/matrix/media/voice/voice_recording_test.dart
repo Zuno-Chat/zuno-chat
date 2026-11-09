@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:record/record.dart';
 
+import 'package:zuno/core/async/background_work.dart';
 import 'package:zuno/core/matrix/media/voice/voice_recording.dart';
 
 import '../../../../helpers/platform_capabilities.dart';
@@ -19,10 +20,10 @@ void main() {
       expect(setup.config.bitRate, 32000);
     });
 
-    test('it sends the recording untouched', () {
+    test('it sends the recording untouched', () async {
       final recorded = Uint8List.fromList([1, 2, 3]);
 
-      expect(setup.toOggOpus(recorded), same(recorded));
+      expect(await setup.toOggOpus(recorded), same(recorded));
     });
   });
 
@@ -37,8 +38,20 @@ void main() {
       expect(setup.config.bitRate, 32000);
     });
 
-    test('a recording it cannot repackage is not sent', () {
-      expect(setup.toOggOpus(Uint8List.fromList([1, 2, 3])), isNull);
+    test('a recording it cannot repackage is not sent', () async {
+      expect(await setup.toOggOpus(Uint8List.fromList([1, 2, 3])), isNull);
+    });
+
+    test('it repackages off the UI thread', () async {
+      final ran = <String?>[];
+      backgroundRunner = <R>(work, {debugName}) async {
+        ran.add(debugName);
+        return work();
+      };
+
+      await setup.toOggOpus(Uint8List.fromList([1, 2, 3]));
+
+      expect(ran, ['repackage voice as Ogg']);
     });
   });
 

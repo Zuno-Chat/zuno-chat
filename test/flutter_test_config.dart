@@ -21,9 +21,11 @@ import 'package:zuno/core/notifications/messages/notification_thread_store.dart'
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/ring/ring_channel.dart';
+import 'package:zuno/core/ui/screen_awake.dart';
 import 'package:zuno_http/zuno_http.dart';
 
 import 'helpers/fake_http.dart';
+import 'helpers/fake_screen_awake.dart';
 import 'helpers/inline_background_work.dart';
 import 'helpers/instant_file_system.dart';
 
@@ -85,11 +87,13 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
       (_) async => null,
     );
     messenger?.setMockMethodCallHandler(ringChannel, (_) async => null);
+    if (messenger != null) installFakeScreenAwake();
   });
 
   tearDown(_resetAmbientCapabilities);
   tearDown(SystemRing.instance.reset);
   tearDown(ShowOverLockscreen.instance.reset);
+  tearDown(ScreenAwake.instance.reset);
   tearDown(KeyedSerialLock.forgetAllForTest);
   tearDown(NativeCallTonePlayer.forgetForTest);
   tearDown(AppLocale.instance.forgetForTest);

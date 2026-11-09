@@ -18,7 +18,8 @@ in `features/chat/presentation/`.
 |---|---|
 | `room_page.dart` | The live `Timeline`, read markers, pagination and the reply or edit state |
 | `features/chat/data/room_sender.dart` | Every send in one room: progress, failed media, retries and temporary copies |
-| `voice_recorder.dart` | The mic gestures and the recording |
+| `voice_recorder.dart` | The mic gestures, the recording and everything that stops it |
+| `voice_player.dart` | One player for voice messages and kept recordings |
 | `message_actions.dart`, `attachment_menu.dart`, `room_menu.dart` | The message actions, the attach menu and the room menu |
 | `features/calls/presentation/room_calls.dart` | Starting or joining a call from a chat |
 | `message_list_view.dart` | The reversed list, its row memo and the upload and failed-send tiles |
@@ -227,10 +228,10 @@ one rule for what counts.
   session, and only when someone types a mention.
 - **Editing** sets the draft aside and puts it back when the edit is sent
   or cancelled.
-- **Unsent text waits in its chat**, kept on every change for the account
-  that typed it, in memory until Zuno closes, so leaving a chat or being
-  sent back to another one never loses it; mid-edit, the draft is kept,
-  not the edit.
+- **Unsent text and a kept recording wait in their chat**, kept on every
+  change for the account that made them, in memory until Zuno closes, so
+  leaving a chat or being sent back to another one never loses them;
+  mid-edit, the draft is kept, not the edit.
 - **Recovery code check.** Sending what looks like the recovery code asks
   for confirmation first (`security-verification.md`). It warns rather
   than blocks, since blocking would also stop someone saving it to their
@@ -238,6 +239,12 @@ one rule for what counts.
 - **Voice recording.** Holding the mic records and releasing sends; a
   short press locks recording on, and sliding up cancels. The message is
   an audio file marked as voice (MSC3245) with a duration and waveform.
+  The screen stays on while recording, and a recording stops at five
+  minutes.
+- **Whatever else stops a recording keeps it and never sends it**:
+  leaving Zuno, a call or Siri taking the microphone, the system taking
+  the touch, closing the chat or the five-minute limit. The composer then
+  offers it to play, send or delete in the message box's place.
 - **A press that has to ask for the microphone only asks**, and the next
   press records, because the system prompt takes the touch away
   mid-gesture.
@@ -733,6 +740,15 @@ flowchart TD
 - **The keyboard-closing tap sits inside the list's viewport**, because
   the list blocks taps on its contents only while it moves; outside it,
   the tap that stops a fling would close the keyboard too.
+- **A recording stops when Zuno leaves the screen**, because the
+  background audio mode calls need would let an iPhone record on, locked,
+  until the battery dies.
+- **The recorder pauses itself for a call or Siri and says so only on its
+  state stream**, so any state but recording ends the recording, or its
+  timer runs on over silence.
+- **A stop that lands while the recorder is still starting is applied once
+  it starts**, or a recording begun as the phone locks runs on in the
+  background.
 - **Never load members from `onRoomState`**: loading members fires it
   once per member, and the re-entrant chain starves the main isolate.
 - **The member fetch is one `database.transaction` that never throws**,

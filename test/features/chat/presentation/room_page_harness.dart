@@ -56,6 +56,7 @@ class RoomPageHarness {
   final bool sendsGiveUpAtOnce;
   final Map<String, Object> preferences;
   late final Client client;
+  late ProviderContainer container;
   late final Room room;
 
   RoomPageHarness({
@@ -172,7 +173,7 @@ class RoomPageHarness {
   }
 
   Future<Widget> app({required Widget home}) async {
-    final container = await containerWithPreferences(
+    final container = this.container = await containerWithPreferences(
       preferences,
       overrides: [
         matrixClientProvider.overrideWithValue(client),

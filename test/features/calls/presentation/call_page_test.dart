@@ -600,7 +600,7 @@ void main() {
       expect(harness.showOverLockscreen, isFalse);
       expect(harness.proximityScreenOff, isFalse);
       expect(harness.pictureInPictureEligible, isFalse);
-      expect(harness.wakelockToggles, [false]);
+      expect(harness.wakelockToggles, isEmpty);
       expect(harness.container.read(activeCallProvider), isNull);
       expect(find.byType(SnackBar), findsNothing);
     });

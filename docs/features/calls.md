@@ -1058,6 +1058,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   harmless: iOS sent an unmute for a call Zuno had already ended.
 - Voices clipping when both talk on loudspeaker are the phone's echo
   canceller, not an app bug, and the earpiece or headphones avoid it.
+- The wake lock is claimed like the lock-screen display, by a video call
+  and by a voice recording, and lets the screen sleep only at the last
+  release, so neither turns it off under the other.
 
 ## Extending
 

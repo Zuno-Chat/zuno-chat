@@ -1,14 +1,20 @@
 import 'dart:typed_data';
 
+import 'package:path/path.dart' as p;
 import 'package:record/record.dart';
 
+import '../../../async/background_work.dart';
+import '../../../files/file_system.dart';
+import '../../../files/unique_name.dart';
 import '../../../platform/platform_capabilities.dart';
 import 'ogg_opus_from_caf.dart';
+
+typedef VoiceClip = ({Uint8List bytes, Duration duration, List<int> waveform});
 
 typedef VoiceRecordingSetup = ({
   RecordConfig config,
   String extension,
-  Uint8List? Function(Uint8List recorded) toOggOpus,
+  Future<Uint8List?> Function(Uint8List recorded) toOggOpus,
 });
 
 const _voiceConfig = RecordConfig(
@@ -23,9 +29,19 @@ VoiceRecordingSetup voiceRecordingSetup(PlatformCapabilities capabilities) =>
     ? (
         config: _voiceConfig,
         extension: 'ogg',
-        toOggOpus: (recorded) => recorded,
+        toOggOpus: (recorded) async => recorded,
       )
-    : (config: _voiceConfig, extension: 'caf', toOggOpus: oggOpusFromCaf);
+    : (config: _voiceConfig, extension: 'caf', toOggOpus: _oggOpusFromCaf);
+
+Future<Uint8List?> _oggOpusFromCaf(Uint8List recorded) => runInBackground(
+  () => oggOpusFromCaf(recorded),
+  debugName: 'repackage voice as Ogg',
+);
+
+Future<String> newVoiceFilePath(String extension) async => p.join(
+  (await temporaryDirectory()).path,
+  'voice-${uniqueName()}.$extension',
+);
 
 String? sniffAudioMimeType(Uint8List bytes) {
   bool startsWith(List<int> prefix, [int at = 0]) {

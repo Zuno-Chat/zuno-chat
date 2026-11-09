@@ -2,15 +2,12 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/services.dart';
-import 'package:flutter_test/flutter_test.dart';
 
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 
 import 'fake_calls_channel.dart';
+import 'fake_screen_awake.dart';
 import 'native_method_calls.dart';
-
-const _wakelockChannel =
-    'dev.flutter.pigeon.wakelock_plus_platform_interface.WakelockPlusApi.toggle';
 
 class CallChannelMocks {
   CallChannelMocks() {
@@ -28,28 +25,17 @@ class CallChannelMocks {
       },
     ).calls;
     silenceMethodChannels(const ['FlutterWebRTC.Event']);
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMessageHandler(_wakelockChannel, (message) async {
-      final args = const _PigeonReader().decodeMessage(message) as List;
-      wakelockToggles.add((args.single as List).single as bool);
-      await wakelockGate?.future;
-      return const StandardMessageCodec().encodeMessage(
-        wakelockFails
-            ? <Object?>['wakelock-refused', null, null]
-            : <Object?>[null],
-      );
-    });
-    addTearDown(() => messenger.setMockMessageHandler(_wakelockChannel, null));
   }
 
   late final RecordedMethodCalls _native;
   late final List<MethodCall> webrtc;
-  final wakelockToggles = <bool>[];
+  final _screen = installFakeScreenAwake();
   final nativeEvents = <Map<String, Object?>>[];
   FutureOr<Object?> Function(MethodCall call)? callsReply;
-  Completer<void>? wakelockGate;
-  bool wakelockFails = false;
+
+  List<bool> get wakelockToggles => _screen.toggles;
+
+  set wakelockFails(bool refuses) => _screen.refuses = refuses;
   int rendererCreatesToRefuse = 0;
   List<String> headsets = [];
   String? _callAudioRoute;
@@ -154,12 +140,4 @@ class CallChannelMocks {
     });
     await CallNotificationService.instance.takeQueuedNativeCalls();
   }
-}
-
-class _PigeonReader extends StandardMessageCodec {
-  const _PigeonReader();
-
-  @override
-  Object? readValueOfType(int type, ReadBuffer buffer) =>
-      type == 129 ? readValue(buffer) : super.readValueOfType(type, buffer);
 }

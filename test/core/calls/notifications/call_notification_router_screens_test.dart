@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -49,8 +48,6 @@ class _PushedRoutes extends NavigatorObserver {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  final messenger =
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
 
   late Client client;
   late Room room;
@@ -76,13 +73,6 @@ void main() {
       'FlutterWebRTC.Method',
       'FlutterWebRTC.Event',
     ]);
-    const wakelock =
-        'dev.flutter.pigeon.wakelock_plus_platform_interface.WakelockPlusApi.toggle';
-    messenger.setMockMessageHandler(
-      wakelock,
-      (_) async => const StandardMessageCodec().encodeMessage(<Object?>[null]),
-    );
-    addTearDown(() => messenger.setMockMessageHandler(wakelock, null));
 
     SharedPreferences.setMockInitialValues({});
     prefs = await SharedPreferences.getInstance();

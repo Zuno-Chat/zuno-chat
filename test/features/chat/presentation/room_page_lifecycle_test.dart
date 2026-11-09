@@ -4,7 +4,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -22,6 +21,7 @@ import 'package:zuno/features/chat/presentation/message_tile.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
+import '../../../helpers/app_lifecycle.dart';
 import '../../../helpers/fake_local_notifications.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_video_player.dart';
@@ -72,47 +72,24 @@ void main() {
     await harness.pumpRoomPage(tester);
   }
 
-  void goToBackground(WidgetTester tester) {
-    for (final state in [
-      AppLifecycleState.inactive,
-      AppLifecycleState.hidden,
-      AppLifecycleState.paused,
-    ]) {
-      tester.binding.handleAppLifecycleStateChanged(state);
-    }
-  }
-
-  void comeBack(WidgetTester tester) {
-    for (final state in [
-      AppLifecycleState.hidden,
-      AppLifecycleState.inactive,
-      AppLifecycleState.resumed,
-    ]) {
-      tester.binding.handleAppLifecycleStateChanged(state);
-    }
-  }
-
-  ProviderContainer container(WidgetTester tester) =>
-      ProviderScope.containerOf(tester.element(find.byType(RoomPage)));
-
   group('while the app is in the background', () {
     testWidgets('the room is no longer the open one, and comes back on '
         'return', (tester) async {
       await openRoom(tester);
       expect(
-        container(tester).read(currentlyOpenRoomIdProvider),
+        harness.container.read(currentlyOpenRoomIdProvider),
         harness.room.id,
       );
       notifications.methods.clear();
 
-      goToBackground(tester);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
       await harness.settle(tester);
-      expect(container(tester).read(currentlyOpenRoomIdProvider), isNull);
+      expect(harness.container.read(currentlyOpenRoomIdProvider), isNull);
 
-      comeBack(tester);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       await harness.settle(tester);
       expect(
-        container(tester).read(currentlyOpenRoomIdProvider),
+        harness.container.read(currentlyOpenRoomIdProvider),
         harness.room.id,
       );
       expect(notifications.methods, contains('cancel'));
@@ -129,9 +106,9 @@ void main() {
       expect(failed, isPositive);
 
       readMarkersFail = false;
-      goToBackground(tester);
+      moveLifecycleTo(tester.binding, AppLifecycleState.paused);
       await harness.settle(tester);
-      comeBack(tester);
+      moveLifecycleTo(tester.binding, AppLifecycleState.resumed);
       await harness.settle(tester);
 
       expect(markers(), failed + 1);

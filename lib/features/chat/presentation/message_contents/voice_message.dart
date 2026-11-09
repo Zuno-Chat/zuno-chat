@@ -1,27 +1,19 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 
-import '../../../../core/errors/best_effort.dart';
-import '../../../../core/errors/caught_errors.dart';
-import '../../../../core/format/human_units.dart';
-import '../../../../core/l10n/l10n.dart';
 import '../../../../core/matrix/media/attachments/attachment_actions.dart';
 import '../../../../core/matrix/media/attachments/attachment_cache.dart';
-import '../../../../core/matrix/media/media_audio_session.dart';
 import '../../../../core/matrix/media/playable_media_file.dart';
 import '../../../../core/matrix/media/voice/voice_message.dart';
 import '../../../../core/matrix/media/voice/voice_recording.dart';
 import '../../../../core/platform/platform_capabilities.dart';
-import '../../../../core/ui/notice.dart';
 import '../message_bubble.dart';
+import '../voice_player.dart';
 
-class VoiceMessage extends ConsumerStatefulWidget {
+class VoiceMessage extends StatelessWidget {
   final Event event;
   final bool own;
   final Widget meta;
@@ -33,195 +25,24 @@ class VoiceMessage extends ConsumerStatefulWidget {
     required this.meta,
   });
 
-  @override
-  ConsumerState<VoiceMessage> createState() => _VoiceMessageState();
-}
-
-const _waveformBars = 50;
-
-List<int>? _drawnBars(Event event) {
-  final samples = voiceMessageWaveform(event);
-  if (samples == null || samples.length <= _waveformBars) return samples;
-  return resampleWaveform([for (final sample in samples) sample / 1024]);
-}
-
-class _VoiceMessageState extends ConsumerState<VoiceMessage>
-    implements MediaPlayback {
-  @override
-  MediaSound get sound => MediaSound.voice;
-
-  AudioPlayer? _player;
-  final _subscriptions = <StreamSubscription<Object?>>[];
-  late final MediaAudioSession _audio;
-  bool _playing = false;
-  bool _inProgress = false;
-  bool _loaded = false;
-  bool _loading = false;
-  bool _starting = false;
-  Future<bool>? _loadingFile;
-  final _position = ValueNotifier(Duration.zero);
-  Duration? _duration;
-  List<int>? _waveform;
-
-  String get _cacheKey => attachmentCacheKey(widget.event, thumbnail: false);
-
-  @override
-  void initState() {
-    super.initState();
-    _audio = ref.read(mediaAudioSessionProvider);
-    _duration = voiceMessageDuration(widget.event);
-    _waveform = _drawnBars(widget.event);
-  }
-
-  AudioPlayer get _activePlayer => _player ??= _newPlayer();
-
-  AudioPlayer _newPlayer() {
-    final player = AudioPlayer(
-      handleInterruptions: false,
-      handleAudioSessionActivation: false,
+  Future<File> _load(ValueSetter<bool> loading) async {
+    final downloads = !await isAttachmentCached(
+      attachmentCacheKey(event, thumbnail: false),
     );
-    _subscriptions.addAll([
-      player.playerStateStream.listen(_onPlayerState),
-      player
-          .createPositionStream(
-            minPeriod: const Duration(milliseconds: 100),
-            maxPeriod: const Duration(milliseconds: 200),
-          )
-          .listen((position) {
-            if (mounted && _playing) _position.value = position;
-          }),
-      player.durationStream.listen((duration) {
-        if (mounted && duration != null) setState(() => _duration = duration);
-      }),
-      player.errorStream.listen(_playerFailed),
-    ]);
-    return player;
-  }
-
-  void _onPlayerState(PlayerState state) {
-    final finished = state.processingState == ProcessingState.completed;
-    if (finished || state.processingState == ProcessingState.idle) {
-      unawaited(_audio.endPlayback(this));
-    }
-    if (finished) {
-      _inProgress = false;
-      if (state.playing) unawaited(_rewind());
-    }
-    final playing = state.playing && !finished;
-    if (!mounted) return;
-    if (finished) _position.value = Duration.zero;
-    if (playing != _playing) setState(() => _playing = playing);
-  }
-
-  Future<void> _rewind() async {
-    final player = _activePlayer;
-    await player.pause();
-    await player.seek(Duration.zero);
-  }
-
-  void _playerFailed(PlayerException error) {
-    _loaded = false;
-    _inProgress = false;
-    if (!_starting) {
-      reportCaught('voice message player', error, StackTrace.current);
-    }
-  }
-
-  @override
-  void didUpdateWidget(VoiceMessage oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(oldWidget.event, widget.event)) {
-      _waveform = _drawnBars(widget.event);
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final subscription in _subscriptions) {
-      unawaited(subscription.cancel());
-    }
-    _position.dispose();
-    unawaited(_release());
-    super.dispose();
-  }
-
-  Future<void> _release() async {
-    final player = _player;
-    if (player != null) {
-      await runBestEffort(
-        player.dispose,
-        label: 'release voice message player',
-      );
-    }
-    await _audio.endPlayback(this);
-  }
-
-  Future<void> _toggle() async {
-    if (_playing) {
-      await pause();
-    } else {
-      await _start();
-    }
-  }
-
-  @override
-  Future<void> pause() async {
-    final player = _player;
-    if (player != null) {
-      await player.pause();
-      if (player.playing) return;
-    }
-    await _audio.endPlayback(this);
-  }
-
-  Future<void> _start({Duration? at}) async {
-    if (!_loaded && !await _load()) return;
-    if (at != null) await _seek(at);
-    if (!mounted) return;
-    await _audio.beginPlayback(this);
-    _inProgress = true;
-    unawaited(_activePlayer.play());
-  }
-
-  Future<bool> _load() =>
-      _loadingFile ??= _loadFile().whenComplete(() => _loadingFile = null);
-
-  Future<bool> _loadFile() async {
-    final downloads = !await isAttachmentCached(_cacheKey);
-    if (downloads && mounted) setState(() => _loading = true);
+    if (downloads) loading(true);
     final File cached;
     try {
-      cached = await cachedAttachmentFile(widget.event);
-    } catch (e, s) {
-      reportCaught('load voice message', e, s);
-      _didNotLoad(e);
-      return false;
+      cached = await cachedAttachmentFile(event);
     } finally {
-      if (downloads && mounted) setState(() => _loading = false);
+      if (downloads) loading(false);
     }
-    if (!mounted) return false;
-    _starting = true;
-    try {
-      final file = await playableMediaFile(
-        cached,
-        mimetype:
-            attachmentMimeType(widget.event) ?? await _sniffedType(cached),
-        fileName: attachmentFileName(widget.event),
-        fallbackExtension: '.ogg',
-        capabilities: ambientCapabilities,
-      );
-      if (!mounted) return false;
-      await _activePlayer.setFilePath(file.path);
-      _loaded = true;
-      return mounted;
-    } catch (e, s) {
-      if (!mounted) return false;
-      reportCaught('play voice message', e, s);
-      _didNotLoad(e);
-      return false;
-    } finally {
-      _starting = false;
-    }
+    return playableMediaFile(
+      cached,
+      mimetype: attachmentMimeType(event) ?? await _sniffedType(cached),
+      fileName: attachmentFileName(event),
+      fallbackExtension: '.ogg',
+      capabilities: ambientCapabilities,
+    );
   }
 
   Future<String?> _sniffedType(File file) async => sniffAudioMimeType(
@@ -230,199 +51,22 @@ class _VoiceMessageState extends ConsumerState<VoiceMessage>
     ),
   );
 
-  void _didNotLoad(Object error) {
-    if (!mounted) return;
-    final l10n = context.l10n;
-    ScaffoldMessenger.of(context)
-        .sayFailed(l10n, error, failed: l10n.chatVoiceMessageDidNotLoad);
-  }
-
-  Future<void> _seek(Duration position) async {
-    await _activePlayer.seek(position);
-    if (mounted) _position.value = position;
-  }
-
-  Future<void> _seekTo(double ratio) async {
-    final total = _duration ?? Duration.zero;
-    if (total == Duration.zero) return;
-    final target = Duration(
-      milliseconds: (ratio * total.inMilliseconds).round(),
-    );
-    if (_inProgress) {
-      await _seek(target);
-    } else {
-      await _start(at: target);
-    }
-  }
-
-  double _progressAt(Duration position) {
-    final total = _duration ?? Duration.zero;
-    return total.inMilliseconds == 0
-        ? 0.0
-        : (position.inMilliseconds / total.inMilliseconds).clamp(0.0, 1.0);
-  }
-
   @override
-  Widget build(BuildContext context) {
-    final total = _duration ?? Duration.zero;
-    final waveform = _waveform;
-
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-    final muted = bubbleMuted(theme, own: widget.own);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        SizedBox(
-          width: 40,
-          height: 40,
-          child: Material(
-            color: colors.primaryContainer,
-            shape: const CircleBorder(),
-            clipBehavior: Clip.antiAlias,
-            child: _loading
-                ? Padding(
-                    padding: const EdgeInsets.all(11),
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: colors.onPrimaryContainer,
-                    ),
-                  )
-                : InkWell(
-                    onTap: _toggle,
-                    child: Icon(
-                      _playing ? Icons.pause : Icons.play_arrow,
-                      color: colors.onPrimaryContainer,
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ValueListenableBuilder<Duration>(
-                valueListenable: _position,
-                builder: (context, position, _) => waveform == null
-                    ? Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: LinearProgressIndicator(
-                            value: _progressAt(position),
-                            minHeight: 4,
-                          ),
-                        ),
-                      )
-                    : _WaveformBars(
-                        samples: waveform,
-                        progress: _progressAt(position),
-                        onSeek: _seekTo,
-                      ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  ValueListenableBuilder<Duration>(
-                    valueListenable: _position,
-                    builder: (context, position, _) => Text(
-                      formatDuration(
-                        _playing || position > Duration.zero ? position : total,
-                      ),
-                      style: theme.textTheme.labelSmall!.copyWith(color: muted),
-                    ),
-                  ),
-                  widget.meta,
-                ],
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => VoicePlayer(
+    load: _load,
+    duration: voiceMessageDuration(event),
+    waveform: _drawnBars(event),
+    muted: bubbleMuted(Theme.of(context), own: own),
+    meta: meta,
+  );
 }
 
-class _WaveformBars extends StatelessWidget {
-  final List<int> samples;
-  final double progress;
-  final ValueChanged<double> onSeek;
+const _waveformBars = 50;
 
-  const _WaveformBars({
-    required this.samples,
-    required this.progress,
-    required this.onSeek,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return LayoutBuilder(
-      builder: (context, constraints) => GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (details) => onSeek(
-          (details.localPosition.dx / constraints.maxWidth).clamp(0.0, 1.0),
-        ),
-        child: CustomPaint(
-          size: const Size(double.infinity, 24),
-          painter: _WaveformPainter(
-            samples: samples,
-            progress: progress,
-            played: colors.primary,
-            unplayed: colors.outline,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _WaveformPainter extends CustomPainter {
-  final List<int> samples;
-  final double progress;
-  final Color played;
-  final Color unplayed;
-
-  const _WaveformPainter({
-    required this.samples,
-    required this.progress,
-    required this.played,
-    required this.unplayed,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (samples.isEmpty) return;
-    final slot = size.width / samples.length;
-    final barWidth = (slot - 1).clamp(1.0, 3.0);
-    final paint = Paint();
-    for (var i = 0; i < samples.length; i++) {
-      final height = (samples[i] / 1024 * 22).clamp(2.0, 22.0);
-      paint.color = i / samples.length <= progress ? played : unplayed;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset(slot * i + slot / 2, size.height / 2),
-            width: barWidth,
-            height: height,
-          ),
-          const Radius.circular(1.5),
-        ),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_WaveformPainter old) =>
-      old.progress != progress ||
-      old.played != played ||
-      old.unplayed != unplayed ||
-      !identical(old.samples, samples);
+List<int>? _drawnBars(Event event) {
+  final samples = voiceMessageWaveform(event);
+  if (samples == null || samples.length <= _waveformBars) return samples;
+  return resampleWaveform([for (final sample in samples) sample / 1024]);
 }
 
 double normalizedAmplitude(double db) {

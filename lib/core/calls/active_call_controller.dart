@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
-import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../async/serial_lock.dart';
 import '../errors/best_effort.dart';
@@ -16,6 +15,7 @@ import '../l10n/l10n.dart';
 import '../matrix/rooms/room_title.dart';
 import '../platform/platform_capabilities.dart';
 import '../ui/notice.dart';
+import '../ui/screen_awake.dart';
 import 'active_call_provider.dart';
 import 'call_audio_route.dart';
 import 'call_picture_in_picture.dart';
@@ -309,7 +309,7 @@ class ActiveCallController extends ChangeNotifier {
       if (_finished) return;
       unawaited(_startOngoingCall());
       _started = true;
-      if (session.kind == CallKind.video) await _keepScreenOn();
+      if (session.kind == CallKind.video) ScreenAwake.instance.claim(this);
     });
     if (_finished) return;
     _syncShowOverLockscreen();
@@ -622,14 +622,11 @@ class ActiveCallController extends ChangeNotifier {
     );
   }
 
-  Future<void> _keepScreenOn() =>
-      runBestEffort(WakelockPlus.enable, label: 'keep the screen on');
-
   Future<void> _toggleCameraOrThrow() async {
     if (session.kind == CallKind.voice) {
       await session.engine.switchToVideo();
       if (_finished) return;
-      unawaited(_keepScreenOn());
+      ScreenAwake.instance.claim(this);
       session.kind = CallKind.video;
       _letOngoingCallUseCamera();
       if (_audioRoute == CallAudioRoute.earpiece) {
@@ -663,6 +660,7 @@ class ActiveCallController extends ChangeNotifier {
       _tone(tone, on: false);
     }
     ShowOverLockscreen.instance.release(this);
+    ScreenAwake.instance.release(this);
     _audioOutput.unwatch();
     await _deviceEffects.run(_releaseDevice);
     _releaseMedia();
@@ -689,7 +687,6 @@ class ActiveCallController extends ChangeNotifier {
     _sendProximityScreenOff(false);
     await runBestEffort(_audioOutput.end, label: 'stop call audio');
     await ShowOverLockscreen.instance.releaseUnclaimed();
-    await runBestEffort(WakelockPlus.disable, label: 'let the screen sleep');
   }
 
   Future<void> _stopOngoingCallOnceSent() async {

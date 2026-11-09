@@ -9,6 +9,7 @@ import '../../../core/ui/message_text.dart';
 import '../../../core/ui/zuno_motion.dart';
 import '../../../core/ui/zuno_theme.dart';
 import 'emoji_panel.dart';
+import 'kept_recording.dart';
 import 'send_icon.dart';
 import 'voice_recorder.dart';
 
@@ -38,6 +39,8 @@ class MessageComposer extends StatelessWidget {
 
   Widget _build(BuildContext context, Widget? _) {
     final isRecording = recorder.isRecording;
+    final kept = recorder.kept;
+    final voiceShown = isRecording || kept != null;
     final willCancel = recorder.willCancel;
     final handsFree = recorder.handsFree;
     final theme = Theme.of(context);
@@ -62,7 +65,7 @@ class MessageComposer extends StatelessWidget {
               child: Stack(
                 children: [
                   Visibility(
-                    visible: !isRecording,
+                    visible: !voiceShown,
                     maintainState: true,
                     maintainFocusability: true,
                     child: Row(
@@ -83,7 +86,7 @@ class MessageComposer extends StatelessWidget {
                             onTap: emojiPanel.fieldTapped,
                             readOnly: emojiPanel.typingPaused,
                             showCursor: true,
-                            inputFormatters: isRecording
+                            inputFormatters: voiceShown
                                 ? [
                                     TextInputFormatter.withFunction(
                                       (oldValue, _) => oldValue,
@@ -177,6 +180,12 @@ class MessageComposer extends StatelessWidget {
                           ],
                         ),
                       ),
+                    )
+                  else if (kept != null)
+                    KeptRecording(
+                      key: ObjectKey(kept),
+                      clip: kept,
+                      onDelete: recorder.deleteKept,
                     ),
                 ],
               ),
@@ -204,13 +213,14 @@ class MessageComposer extends StatelessWidget {
                     child: child,
                   ),
                 ),
-                child: !isRecording && value.text.trim().isNotEmpty
+                child:
+                    kept != null || !isRecording && value.text.trim().isNotEmpty
                     ? _RoundIconButton(
                         key: const ValueKey('send'),
                         icon: const SendIcon(),
                         background: colors.primaryContainer,
                         iconColor: colors.onPrimaryContainer,
-                        onPressed: onSend,
+                        onPressed: kept != null ? recorder.sendKept : onSend,
                       )
                     : Listener(
                         key: const ValueKey('mic'),
