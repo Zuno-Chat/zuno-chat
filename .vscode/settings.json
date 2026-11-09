@@ -1,0 +1,5 @@
+{
+  "swift.excludePathsFromActivation": {
+    "**/packages/*/ios/**": true
+  }
+}
