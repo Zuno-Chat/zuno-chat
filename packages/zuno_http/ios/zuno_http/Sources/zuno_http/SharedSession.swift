@@ -41,6 +41,13 @@ final class SharedSession: NSObject, URLSessionDataDelegate, URLSessionWebSocket
 
   override init() {
     super.init()
+    let queue = OperationQueue()
+    queue.name = "zuno.http.session"
+    queue.maxConcurrentOperationCount = 1
+    session = URLSession(configuration: Self.configuration(), delegate: self, delegateQueue: queue)
+  }
+
+  static func configuration() -> URLSessionConfiguration {
     let configuration = URLSessionConfiguration.ephemeral
     configuration.urlCache = nil
     configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -50,10 +57,11 @@ final class SharedSession: NSObject, URLSessionDataDelegate, URLSessionWebSocket
     configuration.urlCredentialStorage = nil
     configuration.httpMaximumConnectionsPerHost = 16
     configuration.timeoutIntervalForRequest = unboundedRequestTimeout
-    let queue = OperationQueue()
-    queue.name = "zuno.http.session"
-    queue.maxConcurrentOperationCount = 1
-    session = URLSession(configuration: configuration, delegate: self, delegateQueue: queue)
+    if #available(iOS 26.6, *) {
+      configuration.usesClassicLoadingMode = false
+      configuration.enablesEarlyData = false
+    }
+    return configuration
   }
 
   func register(_ task: URLSessionTask, handler: SessionTaskHandler) {

@@ -8,6 +8,7 @@ import org.chromium.net.ConnectionMigrationOptions
 import org.chromium.net.CronetEngine
 import org.chromium.net.CronetProvider
 import org.chromium.net.DnsOptions
+import org.chromium.net.QuicOptions
 
 object CronetHolder {
     private val started = AtomicBoolean(false)
@@ -31,6 +32,7 @@ object CronetHolder {
                 .enableQuic(true)
                 .enableBrotli(true)
                 .enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISABLED, 0)
+                .setQuicOptions(quicSettings())
                 .setDnsOptions(DnsOptions.builder().useBuiltInDnsResolver(false).build())
                 .setConnectionMigrationOptions(
                     ConnectionMigrationOptions.builder()
@@ -48,5 +50,7 @@ object CronetHolder {
         }
     }
 }
+
+internal fun quicSettings(): QuicOptions = QuicOptions.builder().enableTlsZeroRtt(false).build()
 
 internal const val TAG = "zuno/http"
