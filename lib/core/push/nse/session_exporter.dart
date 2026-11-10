@@ -12,6 +12,7 @@ import 'package:vodozemac/vodozemac.dart' as vod;
 import '../../errors/caught_errors.dart';
 import '../../matrix/database/database_compaction.dart';
 import '../../matrix/database/ephemeral_to_device.dart';
+import '../../matrix/database/send_outbox.dart';
 import 'mention_spec.dart';
 
 abstract interface class InboundSessionEvents {
@@ -89,7 +90,8 @@ class SessionExportingDatabase extends MatrixSdkDatabase
     with
         InboundSessionHooks,
         EphemeralToDeviceStorage,
-        CompactsAfterCacheClear {
+        CompactsAfterCacheClear,
+        SendOutbox {
   SessionExportingDatabase(
     super.name, {
     super.database,

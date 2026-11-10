@@ -248,6 +248,28 @@ void main() {
 
       expect(requests, isEmpty);
     });
+
+    test('a voice message whose upload never finished and whose recording '
+        'is gone stays as not sent, instead of the SDK deleting it', () async {
+      final voice = buildTestEvent(
+        room,
+        eventId: 'txn-voice',
+        senderId: '@me:x',
+        status: EventStatus.error,
+        originServerTs: noon,
+        content: {
+          'msgtype': MessageTypes.Audio,
+          'body': 'Voice message.ogg',
+          'filename': 'Voice message.ogg',
+        },
+      );
+      voice.unsigned = {'transaction_id': 'txn-voice'};
+
+      expect(await resendUnsent(voice), isNull);
+
+      expect(requests, isEmpty);
+      expect(db.removed, isEmpty);
+    });
   });
 
   test('a photo whose upload finished resends its content as is, without '

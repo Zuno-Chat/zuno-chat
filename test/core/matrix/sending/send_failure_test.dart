@@ -10,20 +10,15 @@ import 'package:zuno/core/matrix/sending/send_failure.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
-class _PlaceholderDatabase extends FakeDatabaseApi {
+class _PlaceholderDatabase extends FakeDatabaseApi with RecordsRemovedEvents {
   Event? stored;
   Object? lookupError;
-  final removed = <String>[];
 
   @override
   Future<Event?> getEventById(String eventId, Room room) async {
     if (lookupError case final error?) throw error;
     return stored?.eventId == eventId ? stored : null;
   }
-
-  @override
-  Future<void> removeEvent(String eventId, String roomId) async =>
-      removed.add(eventId);
 }
 
 void main() {

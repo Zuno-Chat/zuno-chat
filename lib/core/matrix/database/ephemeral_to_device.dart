@@ -6,6 +6,7 @@ import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 import '../../calls/matrixrtc/call_sender_key_event.dart';
 import '../../location/live_location_protocol.dart';
 import 'database_compaction.dart';
+import 'send_outbox.dart';
 
 const _ephemeralTxnPrefix = 'zuno-ephemeral-';
 
@@ -76,7 +77,7 @@ mixin EphemeralToDeviceStorage on MatrixSdkDatabase {
 }
 
 class ZunoDatabase extends MatrixSdkDatabase
-    with EphemeralToDeviceStorage, CompactsAfterCacheClear {
+    with EphemeralToDeviceStorage, CompactsAfterCacheClear, SendOutbox {
   ZunoDatabase(super.name, {super.database}) : super.buildWithoutOpen();
 }
 

@@ -237,6 +237,7 @@ The `zuno/*` channels, each behind its flag:
 **One SQLCipher database, `zuno.db`**, in Application Support, holds everything the SDK tracks: the access token, the Olm account, Megolm sessions and cached room and event state. There is no app-level database beside it. Push engines and notification actions open the same file from their own engines, one client at a time.
 - It always opens with its key, and a plaintext `zuno.db` fails to open rather than being read unencrypted.
 - On iOS the app's database also exports inbound Megolm sessions to the notification read model (`notifications.md`).
+- Files still being sent sit beside it in Application Support, kept by both app database classes as the SDK's file store until they are sent (`chats-messaging.md`).
 
 **Only the app mints a database key.** A `zuno.db` whose key is gone can never open, so `obtainDatabaseCipher` deletes it before generating a key, and the device starts signed out instead of failing at launch. That happens when the key store loses the key while the file survives, such as a Keychain item stranded by a Team ID change (Gotchas); backups cannot cause it, since they carry neither. An unreadable key (a locked Keychain) throws instead, so a background client can never replace the app's store.
 

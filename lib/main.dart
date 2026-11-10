@@ -20,6 +20,7 @@ import 'core/l10n/app_locale.dart';
 import 'core/matrix/client/client_startup.dart';
 import 'core/matrix/client/matrix_client_provider.dart';
 import 'core/matrix/database/left_rooms_repair.dart';
+import 'core/matrix/database/send_outbox.dart';
 import 'core/matrix/media/attachments/attachment_cache.dart';
 import 'core/matrix/media/attachments/legacy_plaintext_copies.dart';
 import 'core/network/app_http_overrides.dart';
@@ -101,6 +102,12 @@ Future<void> _runApp(List<String> args) async {
   await notificationsFuture;
   final client = await clientFuture;
   await repairLeftRoomsOnce(client, preferences);
+  unawaited(
+    runBestEffort(
+      () => dropSendOutboxOrphans(client),
+      label: 'drop files kept for messages that are gone',
+    ),
+  );
   unawaited(
     runBestEffort(
       () async => removeLegacyPlaintextCopies(await temporaryDirectory()),

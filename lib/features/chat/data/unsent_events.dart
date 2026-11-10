@@ -1,6 +1,8 @@
 import 'package:matrix/matrix.dart';
 
 import '../../../core/calls/matrixrtc/call_summary_message.dart';
+import '../../../core/matrix/database/send_outbox.dart';
+import '../../../core/matrix/events/attachment_message_type.dart';
 
 bool isNotSent(Event event) =>
     event.status.isError &&
@@ -35,6 +37,10 @@ bool _isReplacedEdit(Event event, Timeline timeline) {
 
 Future<String?> resendUnsent(Event event) async {
   if (event.type == EventTypes.Message && !event.hasAttachment) {
+    if (isAttachmentMessageType(event.messageType) &&
+        !await hasUnsentFile(event)) {
+      return null;
+    }
     return event.sendAgain();
   }
   if (!event.status.isError) return null;

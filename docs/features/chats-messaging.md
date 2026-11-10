@@ -34,6 +34,7 @@ in `features/chat/presentation/`.
 | `core/matrix/media/images/image_send_preparation.dart`, `media/video/video_send_preparation.dart` | App-side media preparation before `sendFileEvent` |
 | `core/matrix/media/attachments/attachment_cache.dart` | The only attachment cache, and the owner of every decrypted copy on disk |
 | `core/matrix/media/attachments/attachment_actions.dart` | Share and save, over `core/share/outbound_share.dart` and `core/files/file_export.dart` |
+| `core/matrix/database/send_outbox.dart` | The SDK's copy of each file still being sent, kept on disk until it is sent |
 | `core/matrix/media/media_audio_session.dart` | The one owner of the audio session |
 | `core/matrix/media/avatars/mxc_avatar.dart` | Avatars |
 | `core/matrix/media/media_gallery_group.dart` | Gallery grouping |
@@ -336,9 +337,18 @@ client can resolve.
   resends.
 - **Reactions resend as reactions**, because the SDK's own resend sends
   everything as a message.
+- **An unsent file is kept on disk until it is sent** (`send_outbox.dart`),
+  so it still plays, shares and retries after a restart. Both app database
+  classes back the SDK's file store with it for files still being sent
+  only, in Application Support. A copy goes once it is sent, deleted or
+  discarded, at sign-out and on a cache clear, and a launch sweep drops
+  any whose message is gone.
 - **Anything whose upload already finished resends its content as is**,
-  because the SDK's own resend uploads attachments again from its file
-  store, which is off, and drops the row when it finds nothing there.
+  because the SDK lets go of its copy once the upload finishes, and its own
+  resend would upload again and drop the row when it finds nothing.
+- **An attachment with no kept copy stays not sent** instead of resending
+  (Gotchas): only a message from a build before the kept copies, or one
+  whose copy could not be written, has none.
 
 | Delete on | Does |
 |---|---|
@@ -426,8 +436,9 @@ named the Android way.
 
 ### Attachment cache
 
-The SDK's own file store is off, so `attachment_cache.dart` is the only
-cache, with one key per event. It owns every decrypted copy Zuno writes to
+The SDK's own file store keeps no downloaded media, only files still being
+sent (Unsent messages), so `attachment_cache.dart` is the only cache, with
+one key per event. It owns every decrypted copy Zuno writes to
 disk, share and save copies included, so expiry, the size budget and
 sign-out reach them all.
 
@@ -743,6 +754,10 @@ flowchart TD
 - **A recording stops when Zuno leaves the screen**, because the
   background audio mode calls need would let an iPhone record on, locked,
   until the battery dies.
+- **Never hand an unsent attachment with no kept copy to the SDK**: its
+  download and resend cancel the send, deleting the message, when the file
+  is missing, so unsent files are read from the kept copy and resent only
+  when there is one.
 - **The recorder pauses itself for a call or Siri and says so only on its
   state stream**, so any state but recording ends the recording, or its
   timer runs on over silence.

@@ -1,9 +1,9 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/matrix/database/send_outbox.dart';
 import 'package:zuno/core/matrix/http/typed_server_answers.dart';
 import 'package:zuno/core/matrix/rooms/optimistic_room_state.dart';
 
@@ -113,18 +113,21 @@ mixin MediaCapableDatabase on FakeDatabaseApi {
   int get maxFileSize => 0;
 }
 
+mixin RecordsRemovedEvents on FakeDatabaseApi {
+  final removed = <String>[];
+
+  @override
+  Future<void> removeEvent(String eventId, String roomId) async =>
+      removed.add(eventId);
+}
+
 class SendingFakeDatabaseApi extends StoredEventsFakeDatabaseApi
-    with SendCapableDatabase, MediaCapableDatabase {
+    with
+        SendCapableDatabase,
+        MediaCapableDatabase,
+        RecordsRemovedEvents,
+        SendOutbox {
   final deletedTimelines = <String>[];
-
-  @override
-  Future<void> removeEvent(String eventId, String roomId) async {}
-
-  @override
-  Future<void> storeFile(Uri mxcUri, Uint8List bytes, int time) async {}
-
-  @override
-  Future<bool> deleteFile(Uri mxcUri) async => true;
 
   @override
   Future<void> deleteTimelineForRoom(String roomId) async =>

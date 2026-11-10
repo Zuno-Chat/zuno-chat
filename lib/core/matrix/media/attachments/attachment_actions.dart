@@ -15,6 +15,7 @@ import '../../../files/file_system.dart';
 import '../../../l10n/l10n.dart';
 import '../../../platform/platform_capabilities.dart';
 import '../../../share/outbound_share.dart';
+import '../../database/send_outbox.dart';
 import 'attachment_cache.dart';
 
 const _maxFileNameLength = 64;
@@ -61,8 +62,14 @@ String _handedOverName(Event event) {
   return extension == null ? name : safeAttachmentFileName('$name.$extension');
 }
 
-Future<Uint8List> _download(Event event, {bool thumbnail = false}) async =>
-    (await event.downloadAndDecryptAttachment(getThumbnail: thumbnail)).bytes;
+Future<Uint8List> _download(Event event, {bool thumbnail = false}) async {
+  if (!thumbnail && !event.status.isSent) {
+    return await unsentFileBytes(event) ??
+        (throw FileNoLongerInCacheException());
+  }
+  return (await event.downloadAndDecryptAttachment(getThumbnail: thumbnail))
+      .bytes;
+}
 
 Future<File> cachedAttachmentFile(Event event) => fetchCachedAttachmentFile(
   attachmentCacheKey(event, thumbnail: false),

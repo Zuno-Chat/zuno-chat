@@ -453,4 +453,49 @@ void main() {
       });
     });
   });
+
+  group('an unsent message', () {
+    late SendingFakeDatabaseApi database;
+    late AttachmentServer server;
+    final recording = Uint8List.fromList([1, 2, 3]);
+
+    setUp(() {
+      database = SendingFakeDatabaseApi();
+      server = installAttachmentServer(database: database);
+    });
+
+    Event unsent({EventStatus status = EventStatus.sending}) =>
+        server.attachment(
+            eventId: 'txn1',
+            msgtype: MessageTypes.Audio,
+            body: 'Voice message.ogg',
+            filename: 'Voice message.ogg',
+            mimetype: 'audio/ogg',
+          )
+          ..status = status
+          ..unsigned = {'transaction_id': 'txn1'};
+
+    test('opens from the copy kept for sending it', () async {
+      await database.storeFile(
+        Uri(scheme: 'cache', host: 'file', path: 'txn1'),
+        recording,
+        0,
+      );
+
+      final file = await cachedAttachmentFile(unsent());
+
+      expect(await file.readAsBytes(), recording);
+      expect(server.downloads, isEmpty);
+    });
+
+    test('whose copy is gone fails without the SDK deleting it', () async {
+      await expectLater(
+        cachedAttachmentFile(unsent(status: EventStatus.error)),
+        throwsA(isA<FileNoLongerInCacheException>()),
+      );
+
+      expect(database.removed, isEmpty);
+      expect(server.downloads, isEmpty);
+    });
+  });
 }

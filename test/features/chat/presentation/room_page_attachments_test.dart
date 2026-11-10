@@ -45,11 +45,6 @@ import 'room_page_harness.dart';
 XFile _video(String name) =>
     XFile('/picked/$name', name: name, mimeType: 'video/mp4');
 
-class _CachedFilesDatabase extends SendingFakeDatabaseApi {
-  @override
-  Future<Uint8List?> getFile(Uri mxcUri) async => Uint8List.fromList([1, 2, 3]);
-}
-
 class _StoringDatabase extends SendingFakeDatabaseApi {
   @override
   Future<void> storeEventUpdate(
@@ -871,7 +866,6 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await openRoom(
         tester,
-        db: _CachedFilesDatabase(),
         preferences: preferences,
         overrides: [
           connectionStatusProvider.overrideWith((ref) => status.stream),
@@ -1023,9 +1017,13 @@ void main() {
                 ...galleryGroupContent(id: 'g', index: index, count: 2),
               },
             );
+        await SendingFakeDatabaseApi().storeFile(
+          Uri(scheme: 'cache', host: 'file', path: 'txn-2'),
+          Uint8List.fromList([1, 2, 3]),
+          0,
+        );
         await openRoom(
           tester,
-          db: _CachedFilesDatabase(),
           overrides: [
             connectionStatusProvider.overrideWith((ref) => status.stream),
           ],

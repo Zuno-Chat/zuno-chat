@@ -15,6 +15,7 @@ import 'package:zuno/core/calls/show_over_lockscreen.dart';
 import 'package:zuno/core/emoji/emoji_catalog_provider.dart';
 import 'package:zuno/core/files/file_system.dart';
 import 'package:zuno/core/l10n/app_locale.dart';
+import 'package:zuno/core/matrix/database/send_outbox.dart';
 import 'package:zuno/core/network/app_http_client.dart';
 import 'package:zuno/core/notifications/messages/notification_sound_player.dart';
 import 'package:zuno/core/notifications/messages/notification_thread_store.dart';
@@ -64,6 +65,10 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
           .createTemp('threads'),
     );
     addTearDown(() async => threads?.delete(recursive: true));
+    Directory? outbox;
+    sendOutboxParent = () async =>
+        outbox ??= await fileSystem.systemTempDirectory.createTemp('outbox');
+    addTearDown(() async => outbox?.delete(recursive: true));
     final messenger = _testMessenger();
     messenger?.setMockStreamHandler(
       _networkChannel,
