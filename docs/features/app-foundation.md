@@ -420,6 +420,17 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - **dart:io hands a custom `connectionFactory` the raw URI a WebSocket builds, whose port is 0 for a `wss://` URL without one**, so the app's https-only factory maps port 0 to 443.
 - **Cronet's `ByteBuffer` must be flipped and cleared through `java.nio.Buffer`**, because called on `ByteBuffer` they bind to overloads that don't exist before Android 14 and throw `NoSuchMethodError`.
 - **A Cronet upload with a known length never marks its last chunk final**: Cronet throws without answering the read, and the request then hangs forever.
+- **Uploads always carry `Content-Length`, never chunked**, because Synapse answers 400 without it, and a body with no `Content-Type` gets `application/octet-stream`, since Cronet throws without one and URLSession would add form-urlencoded.
+- **iOS sends bodies with `dataTask` and `httpBodyStream`, never `uploadTask`**, which adds draft `Upload-*` headers.
+- **Either stack may ask for a body again on its own retry**: an in-memory body restarts from byte 0 (its progress may restart), a streamed one fails as "connection lost".
+- **An unread or paused body holds the HTTP/2 or HTTP/3 flow-control window and stalls every request on that connection, `/sync` included**, and on iOS suspending one task stalls its whole QUIC connection, so suspend is only a last-resort valve.
+- **A network-bound Cronet engine or request goes direct, ignoring the proxy**, so nothing binds to a network.
+- **OkHttp keeps the `ProxySelector` it was built with while Android swaps the default on a PAC change**, so the WebSocket's selector asks `getDefault()` on every connect.
+- **The Cronet engine is built on a background thread when the plugin attaches**, overlapping Dart's startup in a push wake; never on main, never shut down.
+- **QUIC migration is on as in Chrome**, so a session whose writes fail on a broken Wi-Fi may use mobile data for up to 128 s while Wi-Fi is still the default; behind Cloudflare (`disable_active_migration`) there is none, so a network switch fails in-flight HTTP/3 as "connection lost" and it is retried.
+- **`.ephemeral` alone isn't enough on iOS**: it still caches in memory and stores and resends cookies, so cache, cookies and credentials are nil, while `.default` and `URLSession.shared` write `Cache.db` and an Alt-Svc store naming the homeserver.
+- **`contentLength` is null whenever `Content-Encoding` is present**, since both stacks decompress but keep the compressed length.
+- **A bundled-Cronet security fix reaches users only through a Zuno release**, arriving as Dependabot's weekly Gradle PR on `packages/*/android`.
 - **Riverpod 3 retries a failed provider on its own**, so a `FutureProvider` whose error must reach the UI passes `retry: (_, _) => null`.
 - **`_AuthGate`'s `ref.listenManual` subscriptions must not become `build()`-driven**, because `_AuthGate` sits under every route and Flutter defers rebuilding an element under a covered route.
 - **A SnackBar or provider change made from `FlutterError.onError` or `dispose()` defers with `scheduleMicrotask`**, since both can run while the build pipeline finalizes, and `addPostFrameCallback` fires only if another frame comes.
