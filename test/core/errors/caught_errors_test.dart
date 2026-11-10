@@ -45,10 +45,7 @@ void main() {
       'pull video',
     ]);
     expect(transport.events.last.fingerprint, ['pull video', 'String']);
-    expect(
-      transport.events.last.throwable.toString(),
-      'not_found_track_error',
-    );
+    expect(transport.events.last.throwable.toString(), 'not_found_track_error');
   });
 
   test('never sends a network failure', () async {

@@ -100,8 +100,7 @@ class SecurityAlertsNotifier extends Notifier<List<RecordedSecurityAlert>> {
   List<RecordedSecurityAlert> build() {
     ref.watch(isLoggedInProvider);
     final client = ref.watch(matrixClientProvider);
-    final sub = finishedSyncs(client)
-        .listen((_) => unawaited(_check(client)));
+    final sub = finishedSyncs(client).listen((_) => unawaited(_check(client)));
     ref.onDispose(sub.cancel);
     unawaited(_check(client));
     final userId = client.userID;
