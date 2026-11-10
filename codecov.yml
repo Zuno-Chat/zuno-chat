@@ -3,3 +3,8 @@ coverage:
     patch:
       default:
         target: 80%
+
+ignore:
+  - "**/*.pb.dart"
+  - "**/*.pbenum.dart"
+  - "**/*.g.dart"
