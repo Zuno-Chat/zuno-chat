@@ -115,6 +115,12 @@ class CallNotificationRouter extends Notifier<void> {
     await releaseLockscreenIfIdle();
   }
 
+  Future<void> showPendingRing(RingingCallInfo ring) async {
+    if (ref.read(activeCallProvider) != null) return;
+    if (await recheckLaunchAction(instant: true)) return;
+    await _showRingingScreen(ring, true);
+  }
+
   Future<bool> recheckLaunchAction({bool instant = false}) async {
     final response = await CallNotificationService.instance
         .takeLaunchCallActionFromNotification();

@@ -1,23 +1,22 @@
 import '../../l10n/l10n.dart';
+import '../delivery/push_status_action.dart';
 import 'unified_push_delivery_provider.dart' show UnifiedPushStatus;
 import 'unified_push_distributor_names.dart';
 
-enum UnifiedPushStatusAction { none, register, retry }
-
-UnifiedPushStatusAction unifiedPushStatusAction(
+PushStatusAction unifiedPushStatusAction(
   UnifiedPushStatus status, {
   bool removed = false,
 }) => switch (status) {
   UnifiedPushStatus.idle =>
-    removed ? UnifiedPushStatusAction.register : UnifiedPushStatusAction.none,
-  UnifiedPushStatus.distributorSelected => UnifiedPushStatusAction.register,
+    removed ? PushStatusAction.register : PushStatusAction.none,
+  UnifiedPushStatus.distributorSelected => PushStatusAction.register,
   UnifiedPushStatus.registrationFailed ||
-  UnifiedPushStatus.pusherFailed => UnifiedPushStatusAction.retry,
+  UnifiedPushStatus.pusherFailed => PushStatusAction.retry,
   UnifiedPushStatus.findingDistributor ||
   UnifiedPushStatus.noDistributorFound ||
   UnifiedPushStatus.registering ||
   UnifiedPushStatus.postingPusher ||
-  UnifiedPushStatus.ready => UnifiedPushStatusAction.none,
+  UnifiedPushStatus.ready => PushStatusAction.none,
 };
 
 bool unifiedPushStatusIsBusy(UnifiedPushStatus status) => switch (status) {

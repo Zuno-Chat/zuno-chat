@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/push/delivery/push_status_action.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart'
     show UnifiedPushStatus;
 import 'package:zuno/core/push/unified_push/unified_push_status_display.dart';
@@ -9,36 +10,36 @@ void main() {
     test('offers Register once a distributor is picked', () {
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.distributorSelected),
-        UnifiedPushStatusAction.register,
+        PushStatusAction.register,
       );
     });
 
     test('offers Retry after either kind of failure', () {
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.registrationFailed),
-        UnifiedPushStatusAction.retry,
+        PushStatusAction.retry,
       );
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.pusherFailed),
-        UnifiedPushStatusAction.retry,
+        PushStatusAction.retry,
       );
     });
 
     test('offers nothing once registered', () {
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.ready),
-        UnifiedPushStatusAction.none,
+        PushStatusAction.none,
       );
     });
 
     test('offers Register again after this device was removed', () {
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.idle, removed: true),
-        UnifiedPushStatusAction.register,
+        PushStatusAction.register,
       );
       expect(
         unifiedPushStatusAction(UnifiedPushStatus.ready, removed: true),
-        UnifiedPushStatusAction.none,
+        PushStatusAction.none,
       );
     });
 
@@ -52,7 +53,7 @@ void main() {
       ]) {
         expect(
           unifiedPushStatusAction(status),
-          UnifiedPushStatusAction.none,
+          PushStatusAction.none,
           reason: '$status should offer no action',
         );
       }

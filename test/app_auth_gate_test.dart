@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:isolate';
 import 'dart:ui';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.da
 import 'package:zuno/app.dart';
 import 'package:zuno/core/calls/active_call_controller.dart';
 import 'package:zuno/core/calls/active_call_provider.dart';
+import 'package:zuno/core/calls/matrixrtc/resolved_call_ids_store.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/calls/notifications/call_notification_service.dart';
 import 'package:zuno/core/l10n/app_language.dart';
@@ -205,13 +207,22 @@ void main() {
     SignOutWipe Function()? signOutWipe,
     Future<void> Function()? wipeAppData,
     RingingCallInfo? pendingRing,
+    Set<String> resolvedElsewhere = const {},
     HomeserverNotifier Function()? homeserver,
   }) async {
-    SharedPreferences.setMockInitialValues({
+    final initial = <String, Object>{
       if (deliveryMode != null)
         'settings.notification_delivery_mode': deliveryMode.name,
-    });
+    };
+    SharedPreferences.setMockInitialValues(initial);
     final prefs = await SharedPreferences.getInstance();
+    if (resolvedElsewhere.isNotEmpty) {
+      SharedPreferences.setMockInitialValues({
+        ...initial,
+        for (final callId in resolvedElsewhere)
+          '$resolvedCallKeyPrefix$callId': clock.now().millisecondsSinceEpoch,
+      });
+    }
     permission = FixedNotificationsAllowedNotifier(notificationsAllowed);
     final container = ProviderContainer(
       overrides: [
@@ -437,14 +448,41 @@ void main() {
       expect(find.byType(IncomingCallPage), findsOneWidget);
     });
 
-    testWidgets('a ring for a chat the app does not know shows the chat list', (
-      tester,
-    ) async {
-      await pumpApp(tester, pendingRing: ring('!gone:example.org'));
+    testWidgets('a ring that woke the app for a call another process has '
+        'since ended shows the chat list', (tester) async {
+      await pumpApp(
+        tester,
+        pendingRing: ring(room.id),
+        resolvedElsewhere: const {'call1'},
+      );
       await settle(tester);
 
       expect(find.byType(IncomingCallPage), findsNothing);
       expect(find.byType(RoomListPage), findsOneWidget);
+    });
+
+    testWidgets('a ring for a chat the app never learns of shows the chat '
+        'list once its wait runs out', (tester) async {
+      await pumpApp(tester, pendingRing: ring('!gone:example.org'));
+      await tester.pump(const Duration(seconds: 11));
+      await settle(tester);
+
+      expect(find.byType(IncomingCallPage), findsNothing);
+      expect(find.byType(RoomListPage), findsOneWidget);
+    });
+
+    testWidgets('a ring for a chat that arrives with the first sync still '
+        'shows the ring screen', (tester) async {
+      await pumpApp(tester, pendingRing: ring('!late:example.org'));
+      await tester.pump(const Duration(milliseconds: 500));
+
+      client.rooms.add(
+        buildTestRoom(client, id: '!late:example.org')..partial = false,
+      );
+      await tester.pump(const Duration(seconds: 1));
+      await settle(tester);
+
+      expect(find.byType(IncomingCallPage), findsOneWidget);
     });
   });
 

@@ -13,4 +13,4 @@ New
 • Works behind a proxy.
 • Calls shut out whoever leaves.
 
-Fixed 47 bugs.
+Fixed 49 bugs.

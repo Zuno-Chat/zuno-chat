@@ -9,6 +9,7 @@ import '../../../core/platform/background_restrictions.dart';
 import '../../../core/platform/platform_capabilities.dart';
 import '../../../core/push/delivery/notification_delivery.dart';
 import '../../../core/push/delivery/notification_delivery_mode.dart';
+import '../../../core/push/delivery/push_status_action.dart';
 import '../../../core/push/diagnostics/push_diagnostics_report.dart'
     show DiagnosticStatus, fcmStatusLevel, unifiedPushStatusLevel;
 import '../../../core/push/fcm/fcm_availability_provider.dart';
@@ -217,14 +218,13 @@ class _NotificationDeliveryPageState
             label: unifiedPushStatusLabel(l10n, upStatus),
             level: unifiedPushStatusLevel(upStatus),
             busy: busy,
-            action: switch (unifiedPushStatusAction(
-              upStatus,
-              removed: unifiedPushDeliveryProvider.removed.value,
-            )) {
-              UnifiedPushStatusAction.none => null,
-              UnifiedPushStatusAction.register => l10n.notificationsRegister,
-              UnifiedPushStatusAction.retry => l10n.commonRetry,
-            },
+            action: pushStatusActionLabel(
+              l10n,
+              unifiedPushStatusAction(
+                upStatus,
+                removed: unifiedPushDeliveryProvider.removed.value,
+              ),
+            ),
             onAction: _registerUnifiedPush,
           ),
           ..._batteryExemptionRows(l10n, mode, capabilities),
@@ -267,11 +267,10 @@ class _NotificationDeliveryPageState
                     label: fcmStatusLabel(l10n, fcmStatus),
                     level: fcmStatusLevel(fcmStatus),
                     busy: fcmStatusIsBusy(fcmStatus),
-                    action: switch (fcmStatusAction(fcmStatus)) {
-                      PushStatusAction.none || PushStatusAction.fix => null,
-                      PushStatusAction.register => l10n.notificationsRegister,
-                      PushStatusAction.retry => l10n.commonRetry,
-                    },
+                    action: pushStatusActionLabel(
+                      l10n,
+                      fcmStatusAction(fcmStatus),
+                    ),
                     onAction: _registerFcm,
                   ),
                   if (fix != null)

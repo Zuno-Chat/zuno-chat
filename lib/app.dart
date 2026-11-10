@@ -7,14 +7,10 @@ import 'package:matrix/encryption.dart';
 import 'core/app_services.dart';
 import 'core/brand.dart';
 import 'core/calls/active_call_controller.dart';
-import 'core/calls/active_call_provider.dart';
-import 'core/calls/matrixrtc/incoming_call.dart';
-import 'core/calls/models/call_kind.dart';
 import 'core/calls/module/calls_offer_provider.dart';
 import 'core/calls/notifications/call_notification_router.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/server_ring.dart';
-import 'core/calls/ring_coordinator.dart';
 import 'core/errors/caught_errors.dart';
 import 'core/errors/global_error_handler.dart';
 import 'core/errors/native_errors.dart';
@@ -343,24 +339,10 @@ class _AuthGateState extends ConsumerState<_AuthGate>
     final ring = widget.pendingRing;
     if (ring == null) return;
     await WidgetsBinding.instance.endOfFrame;
-    if (!mounted || ref.read(activeCallProvider) != null) return;
-    final router = ref.read(callNotificationRouterProvider.notifier);
-    if (await router.recheckLaunchAction(instant: true)) return;
-    if (!mounted || ref.read(activeCallProvider) != null) return;
-    final room = ref.read(matrixClientProvider).getRoomById(ring.roomId);
-    if (room == null) return;
-    debugPrint('zuno/push: opening ring screen for ${ring.callId}');
-    ref
-        .read(ringScreenProvider.notifier)
-        .present(
-          IncomingCall(
-            room: room,
-            callId: ring.callId,
-            callerId: ring.callerId,
-            kind: ring.isVideo ? CallKind.video : CallKind.voice,
-          ),
-          instant: true,
-        );
+    if (!mounted) return;
+    await ref
+        .read(callNotificationRouterProvider.notifier)
+        .showPendingRing(ring);
   }
 
   void _answerVerification(KeyVerification request) {
