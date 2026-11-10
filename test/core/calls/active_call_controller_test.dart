@@ -575,6 +575,21 @@ void main() {
       );
     });
 
+    test('a group call is talking once anyone else can be heard, while the '
+        'person whose key we lack still shows as encrypting', () async {
+      CallChannelMocks();
+      final container = containerWithControllers();
+      final unreadable = remoteParticipant(
+        userId: '@bob:example.org',
+        encrypted: false,
+      );
+      await liveCall(container, [remoteParticipant(), unreadable]);
+      final controller = container.read(activeCallControllerProvider)!;
+
+      expect(controller.status, CallStatus.talking);
+      expect(controller.encrypting(unreadable), isTrue);
+    });
+
     Future<(FakeCallSession, ActiveCallController)> talking() async {
       CallChannelMocks();
       final container = containerWithControllers();

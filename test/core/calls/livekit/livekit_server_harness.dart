@@ -393,7 +393,7 @@ class LiveKitCall {
     flush();
   }
 
-  void encrypt() => wait(engine.setEncryptionKey(callKey()));
+  void encrypt() => wait(keyEveryone(engine));
 
   void leave() => wait(engine.leave());
 

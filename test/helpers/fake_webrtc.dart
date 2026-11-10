@@ -391,7 +391,7 @@ class FakeKeyProvider extends KeyProvider {
 
   final List<String>? journal;
   bool refuseKey;
-  final sharedKeys = <Uint8List>[];
+  final slots = <int, Uint8List>{};
   bool disposed = false;
 
   @override
@@ -400,7 +400,7 @@ class FakeKeyProvider extends KeyProvider {
   @override
   Future<void> setSharedKey({required Uint8List key, int index = 0}) async {
     if (refuseKey) throw StateError('key provider refused the key');
-    sharedKeys.add(key);
+    slots[index] = key;
   }
 
   @override
@@ -418,6 +418,8 @@ class FakeFrameCryptor extends FrameCryptor {
     this.participantId, {
     this.failEnable = false,
     this.sender,
+    this.keyProvider,
+    this.failKeyIndex = false,
     this.journal,
   });
 
@@ -425,14 +427,26 @@ class FakeFrameCryptor extends FrameCryptor {
   final String participantId;
   final bool failEnable;
   final RTCRtpSender? sender;
+  final KeyProvider? keyProvider;
+  final bool failKeyIndex;
   final List<String>? journal;
   bool isEnabled = false;
   bool disposed = false;
+  int currentKeyIndex = 0;
+  int? keyIndexAtEnable;
+
+  @override
+  Future<bool> setKeyIndex(int index) async {
+    if (failKeyIndex) throw StateError('frame cryptor refused its key slot');
+    currentKeyIndex = index;
+    return true;
+  }
 
   @override
   Future<bool> setEnabled(bool enabled) async {
     if (failEnable) throw StateError('frame cryptor refused to start');
     isEnabled = enabled;
+    if (enabled) keyIndexAtEnable ??= currentKeyIndex;
     return true;
   }
 
@@ -457,6 +471,7 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
   bool refuseKey = false;
   final cryptors = <FakeFrameCryptor>[];
   final failEnableFor = <String>{};
+  final failKeyIndexFor = <String>{};
   Completer<void>? senderGate;
   Completer<void>? receiverGate;
 
@@ -474,11 +489,17 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
     return provider;
   }
 
-  FakeFrameCryptor _cryptor(String label, {RTCRtpSender? sender}) {
+  FakeFrameCryptor _cryptor(
+    String label, {
+    RTCRtpSender? sender,
+    required KeyProvider keyProvider,
+  }) {
     final cryptor = FakeFrameCryptor(
       label,
       failEnable: failEnableFor.contains(label),
+      failKeyIndex: failKeyIndexFor.contains(label),
       sender: sender,
+      keyProvider: keyProvider,
       journal: journal,
     );
     cryptors.add(cryptor);
@@ -496,7 +517,7 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
     if (sender is FakeSender && sender.closed) {
       throw StateError('peerConnection not found');
     }
-    return _cryptor(participantId, sender: sender);
+    return _cryptor(participantId, sender: sender, keyProvider: keyProvider);
   }
 
   @override
@@ -510,7 +531,7 @@ class FakeFrameCryptorFactory implements FrameCryptorFactory {
     if (receiver is FakeReceiver && (receiver.owner?.disposed ?? false)) {
       throw StateError('peerConnection not found');
     }
-    return _cryptor(participantId);
+    return _cryptor(participantId, keyProvider: keyProvider);
   }
 }
 

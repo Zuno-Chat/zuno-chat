@@ -74,10 +74,16 @@ Iterable<CallJoin> callJoins(Room room, String callId) sync* {
   final states = room.states[callMemberEventType] ?? const {};
   for (final MapEntry(key: userId, value: state) in states.entries) {
     final eventId = state is MatrixEvent ? state.eventId : null;
+    final byDevice = <String, RtcMembership>{};
     for (final membership in parseRtcMemberships(state.content)) {
-      if (membership.callId == callId) {
-        yield (userId: userId, eventId: eventId, membership: membership);
+      if (membership.callId != callId) continue;
+      final seen = byDevice[membership.deviceId];
+      if (seen == null || membership.createdAtMs > seen.createdAtMs) {
+        byDevice[membership.deviceId] = membership;
       }
+    }
+    for (final membership in byDevice.values) {
+      yield (userId: userId, eventId: eventId, membership: membership);
     }
   }
 }

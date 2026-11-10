@@ -699,7 +699,6 @@ void main() {
         call.remoteJoins();
         final channel = FakeDataChannel('_reliable', 1, negotiated: false);
         call.subscriber.emitDataChannel(channel);
-        expect(call.connection.carriesRatingsTo(ann), isTrue);
 
         channel.receiveBinary(
           DataPacket(

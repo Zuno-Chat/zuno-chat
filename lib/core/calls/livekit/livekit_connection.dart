@@ -761,9 +761,6 @@ class LiveKitConnection implements CallConnection {
     );
   }
 
-  @override
-  bool carriesRatingsTo(VoipParticipantId id) => _remotes.hasMember(id);
-
   void _report(CallEngineStatus status) {
     if (_closed || _reported == status) return;
     _reported = status;

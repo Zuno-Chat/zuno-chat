@@ -375,7 +375,7 @@ class EngineHarness {
 
   void join() => wait(engine.join());
 
-  void encrypt() => wait(engine.setEncryptionKey(callKey()));
+  void encrypt() => wait(keyEveryone(engine));
 
   void joinEncrypted() {
     join();
@@ -389,8 +389,6 @@ class EngineHarness {
     bool videoEnabled = true,
     bool encrypted = true,
     bool audioMuted = false,
-    bool lowBandwidth = false,
-    bool weakConnection = false,
     bool advertisesQuality = false,
     String membershipEventId = r'$membership',
   }) {
@@ -400,8 +398,6 @@ class EngineHarness {
       'audioMuted': audioMuted,
       'videoEnabled': videoEnabled,
       'encrypted': encrypted,
-      'lowBandwidth': lowBandwidth,
-      'weakConnection': weakConnection,
       if (advertisesQuality) 'dataChannels': {'quality': 'quality'},
     }, membershipEventId: membershipEventId);
     flush();

@@ -2,6 +2,7 @@ import 'package:clock/clock.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
+import 'package:zuno/core/calls/matrixrtc/call_removed_event.dart';
 
 import 'fake_matrix.dart';
 
@@ -78,5 +79,21 @@ void hangUpFromCall(
     stateKey: userId,
     type: callMemberEventType,
     content: leavingCallMembership(callId),
+  ),
+);
+
+void setCallRemoval(
+  Room room,
+  String userId, {
+  required String by,
+  String callId = 'call1',
+}) => room.setState(
+  buildTestEvent(
+    room,
+    eventId: '\$removed-$userId-$callId',
+    senderId: by,
+    type: callRemovedEventType,
+    stateKey: callRemovedStateKey(userId),
+    content: {'call_id': callId},
   ),
 );

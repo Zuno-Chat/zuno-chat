@@ -31,7 +31,6 @@ class FakeCallConnection implements CallConnection {
   final remoteUpdates = <RemoteUpdate>[];
   final removedRemotes = <VoipParticipantId>[];
   final sending = <VoipParticipantId>{};
-  final carriesRatings = <VoipParticipantId>{};
   var joins = 0;
   var senderCount = 0;
   bool closed = false;
@@ -124,9 +123,6 @@ class FakeCallConnection implements CallConnection {
 
   @override
   void sendRating(CallQuality rating) => sentRatings.add(rating);
-
-  @override
-  bool carriesRatingsTo(VoipParticipantId id) => carriesRatings.contains(id);
 
   @override
   Future<void> close() async {

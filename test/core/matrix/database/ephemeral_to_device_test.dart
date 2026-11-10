@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart';
 
-import 'package:zuno/core/calls/matrixrtc/call_encryption_key_event.dart';
+import 'package:zuno/core/calls/matrixrtc/call_sender_key_event.dart';
 import 'package:zuno/core/location/live_location_protocol.dart';
 import 'package:zuno/core/matrix/database/ephemeral_to_device.dart';
 
@@ -88,9 +88,9 @@ void main() {
     expect(database.lastSent, isEmpty);
   });
 
-  test('a call key is never kept for replay', () async {
+  test('a sender key is never kept for replay', () async {
     await database.setLastSentMessageUserDeviceKey(
-      payload(callEncryptionKeyEventType),
+      payload(callSenderKeyEventType),
       '@a:x',
       'D',
     );
@@ -98,13 +98,13 @@ void main() {
     expect(database.lastSent, isEmpty);
   });
 
-  test('a call key goes out as an ephemeral send', () async {
+  test('a sender key goes out as an ephemeral send', () async {
     final client = _SendingClient();
 
     await sendEphemeralToDevice(
       client,
       [testDeviceKeys(client, '@a:x', 'D')],
-      callEncryptionKeyEventType,
+      callSenderKeyEventType,
       const {'k': 'v'},
     );
 

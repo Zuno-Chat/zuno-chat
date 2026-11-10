@@ -5,6 +5,7 @@ import '../../errors/best_effort.dart';
 import '../../matrix/rooms/permissions/room_roles.dart';
 import '../module/calls_module.dart';
 import 'call_member_state.dart';
+import 'call_removed_event.dart';
 import 'call_summary_message.dart';
 
 const callMuteEventType = 'im.zuno.call.mute';
@@ -84,6 +85,14 @@ Future<void> removeFromCall(
   required String userId,
   http.Client? httpClient,
 }) async {
+  if (room.canChangeStateEvent(callRemovedEventType)) {
+    await room.client.setRoomStateWithKey(
+      room.id,
+      callRemovedEventType,
+      callRemovedStateKey(userId),
+      {'call_id': callId},
+    );
+  }
   await requestCallRemoval(
     room.client,
     roomId: room.id,

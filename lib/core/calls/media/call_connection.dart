@@ -67,6 +67,5 @@ abstract interface class CallConnection {
   void removeRemote(VoipParticipantId id);
   void observeStats(Iterable<StatsReport> reports);
   void sendRating(CallQuality rating);
-  bool carriesRatingsTo(VoipParticipantId id);
   Future<void> close();
 }

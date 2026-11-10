@@ -10,21 +10,28 @@ import 'package:zuno/core/calls/models/voip_participant_id.dart';
 
 class FakeCallEngine implements CallEngine {
   FakeCallEngine({
-    this.failSetEncryptionKey = false,
+    this.failKeys = false,
+    this.failPeerKey = false,
     this.failJoin = false,
     this.joinError,
     this.joinGate,
     this.kind = CallKind.voice,
   });
 
-  final bool failSetEncryptionKey;
+  final bool failKeys;
+  final bool failPeerKey;
   final bool failJoin;
   final Completer<void>? joinGate;
 
   final Object? joinError;
 
   bool joined = false;
-  Uint8List? appliedKey;
+  final ownKeys = <int, Uint8List>{};
+  final sendSlots = <int>[];
+  final peerKeys = <VoipParticipantId, Map<int, Uint8List>>{};
+  final forgotten = <VoipParticipantId>[];
+
+  bool get _sends => ownKeys.containsKey(sendSlots.lastOrNull);
 
   @override
   CallEngineStatus status = CallEngineStatus.connected;
@@ -149,7 +156,7 @@ class FakeCallEngine implements CallEngine {
           'sessionId': 'fake-session',
           'tracks': const {'audio': 'audio'},
           'audioMuted': micMuted,
-          'encrypted': appliedKey != null,
+          'encrypted': _sends,
         }
       : null;
 
@@ -170,15 +177,39 @@ class FakeCallEngine implements CallEngine {
   @override
   void removeRemoteParticipant(VoipParticipantId id) => removedRemotes.add(id);
 
-  @override
-  Future<void> setEncryptionKey(Uint8List key) async {
-    if (failSetEncryptionKey) {
+  void _refuseIfAsked() {
+    if (failKeys) {
       throw StateError(
         'frame cryptor rejected the key — unable to encrypt packets',
       );
     }
-    appliedKey = key;
+  }
+
+  @override
+  Future<void> setOwnKey(int slot, Uint8List key) async {
+    _refuseIfAsked();
+    ownKeys[slot] = key;
     localStateController.add(null);
+  }
+
+  @override
+  Future<void> sendWithSlot(int slot) async {
+    _refuseIfAsked();
+    sendSlots.add(slot);
+    localStateController.add(null);
+  }
+
+  @override
+  Future<void> setPeerKey(VoipParticipantId id, int slot, Uint8List key) async {
+    _refuseIfAsked();
+    if (failPeerKey) throw StateError('frame cryptor rejected a peer key');
+    (peerKeys[id] ??= {})[slot] = key;
+  }
+
+  @override
+  Future<void> forgetPeer(VoipParticipantId id) async {
+    forgotten.add(id);
+    peerKeys.remove(id);
   }
 
   @override

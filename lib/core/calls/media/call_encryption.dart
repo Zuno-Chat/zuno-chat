@@ -2,17 +2,28 @@ import 'dart:typed_data';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
+import '../../async/serial_lock.dart';
 import '../../errors/best_effort.dart';
+import '../models/voip_participant_id.dart';
+import 'call_key_slots.dart';
 
-typedef _SenderCryptor = ({RTCRtpSender sender, FrameCryptor cryptor});
+typedef _SenderCryptor = ({
+  RTCRtpSender sender,
+  FrameCryptor cryptor,
+  int slot,
+});
 
-typedef _ReceiverCryptor = ({RTCRtpReceiver receiver, FrameCryptor cryptor});
+typedef _ReceiverCryptor = ({
+  VoipParticipantId id,
+  RTCRtpReceiver receiver,
+  FrameCryptor cryptor,
+});
 
-class CallEncryptionCheckpoint {
-  CallEncryptionCheckpoint._(this._senders, this._hadKey);
+final class _Keys {
+  _Keys(this.provider);
 
-  final Map<String, _SenderCryptor> _senders;
-  final bool _hadKey;
+  final KeyProvider provider;
+  final Set<int> slots = {};
 }
 
 class CallEncryption {
@@ -21,117 +32,190 @@ class CallEncryption {
   final FrameCryptorFactory _factory;
   final void Function() _onSendersChanged;
 
-  KeyProvider? _provider;
+  _Keys? _own;
+  final Map<VoipParticipantId, _Keys> _peers = {};
+  int? _sendSlot;
+  bool _disposed = false;
   final Map<String, _SenderCryptor> _senders = {};
   final Set<RTCRtpSender> _senderWrapsInFlight = Set.identity();
   final Map<String, _ReceiverCryptor> _receivers = {};
   final Set<String> _receiverWrapsInFlight = {};
+  final _lock = SerialLock();
 
-  bool get hasKey => _provider != null;
+  bool get canSend {
+    final slot = _sendSlot;
+    return slot != null && (_own?.slots.contains(slot) ?? false);
+  }
 
-  Future<void> setKey(Uint8List key) async {
-    final existing = _provider;
-    final provider =
-        existing ??
-        await _factory.createDefaultKeyProvider(
-          KeyProviderOptions(
-            sharedKey: true,
-            ratchetSalt: Uint8List.fromList('zuno.calls.e2ee'.codeUnits),
-            ratchetWindowSize: 0,
-          ),
+  bool holdsKeyFor(VoipParticipantId id) =>
+      _peers[id]?.slots.isNotEmpty ?? false;
+
+  Future<void> _change(Future<void> Function() change) => _lock.run(() async {
+    if (!_disposed) await change();
+  });
+
+  Future<void> setOwnKey(int slot, Uint8List key) => _change(() async {
+    final fresh = _own == null;
+    final keys = _own ??= await _create();
+    await _setKey(keys, slot, key, discard: fresh ? () => _own = null : null);
+  });
+
+  Future<void> setPeerKey(VoipParticipantId id, int slot, Uint8List key) =>
+      _change(() async {
+        final fresh = !_peers.containsKey(id);
+        final keys = _peers[id] ??= await _create();
+        await _setKey(
+          keys,
+          slot,
+          key,
+          discard: fresh ? () => _peers.remove(id) : null,
         );
+      });
+
+  Future<void> sendWithSlot(int slot) => _change(() async {
+    if (!(_own?.slots.contains(slot) ?? false)) {
+      throw StateError('Our key provider holds no key in slot $slot');
+    }
+    _sendSlot = slot;
+    await Future.wait([
+      for (final label in _senders.keys.toList()) _point(label),
+    ]);
+  });
+
+  Future<void> forgetPeer(VoipParticipantId id) => _change(() async {
+    final keys = _peers.remove(id);
+    final cryptors = [
+      for (final label in [
+        for (final MapEntry(key: label, value: wrapped) in _receivers.entries)
+          if (wrapped.id == id) label,
+      ])
+        _receivers.remove(label)!.cryptor,
+    ];
+    await _disposeCryptors(cryptors, 'of a forgotten participant');
+    if (keys != null) {
+      await _disposeProvider(keys, 'of a forgotten participant');
+    }
+  });
+
+  Future<_Keys> _create() async => _Keys(
+    await _factory.createDefaultKeyProvider(
+      KeyProviderOptions(
+        sharedKey: true,
+        ratchetSalt: Uint8List.fromList('LKFrameEncryptionKey'.codeUnits),
+        ratchetWindowSize: 0,
+        keyRingSize: keyRingSize,
+        keyDerivationAlgorithm: KeyDerivationAlgorithm.kHKDF,
+      ),
+    ),
+  );
+
+  Future<void> _setKey(
+    _Keys keys,
+    int slot,
+    Uint8List key, {
+    void Function()? discard,
+  }) async {
     try {
-      await provider.setSharedKey(key: key);
+      await keys.provider.setSharedKey(key: key, index: slot);
     } catch (_) {
-      if (existing == null) {
-        await runBestEffort(
-          provider.dispose,
-          label: 'dispose a key provider that refused the key',
-        );
+      if (discard != null) {
+        discard();
+        await _disposeProvider(keys, 'that refused a key');
       }
       rethrow;
     }
-    _provider = provider;
+    keys.slots.add(slot);
   }
 
-  CallEncryptionCheckpoint checkpoint() =>
-      CallEncryptionCheckpoint._(Map.of(_senders), hasKey);
-
-  Future<void> rollBack(CallEncryptionCheckpoint checkpoint) async {
-    final dropped = [
-      for (final label in [
-        for (final MapEntry(key: label, value: wrapped) in _senders.entries)
-          if (!identical(checkpoint._senders[label], wrapped)) label,
-      ])
-        _senders.remove(label)!.cryptor,
-    ];
-    if (dropped.isNotEmpty) _onSendersChanged();
-    await _disposeCryptors(dropped, 'after a key that could not be applied');
-    if (checkpoint._hadKey) return;
-    final receivers = [
-      for (final wrapped in _receivers.values) wrapped.cryptor,
-    ];
-    _receivers.clear();
-    await _disposeCryptors(
-      receivers,
-      'made with a key that could not be applied',
-    );
-    await _disposeProvider('after a key that could not be applied');
+  Future<void> _point(String label) async {
+    final wrapped = _senders[label];
+    final slot = _sendSlot;
+    if (wrapped == null || slot == null || wrapped.slot == slot) return;
+    await wrapped.cryptor.setKeyIndex(slot);
+    if (identical(_senders[label]?.cryptor, wrapped.cryptor)) {
+      _senders[label] = (
+        sender: wrapped.sender,
+        cryptor: wrapped.cryptor,
+        slot: slot,
+      );
+    }
   }
 
   Future<bool> wrapSender(
     String label,
     RTCRtpSender sender, {
     required bool Function() stillWanted,
-  }) => _wrap(
-    usable: sender.track != null,
-    wrapped: identical(_senders[label]?.sender, sender),
-    inFlight: _senderWrapsInFlight,
-    key: sender,
-    stillWanted: stillWanted,
-    create: (provider) => _factory.createFrameCryptorForRtpSender(
-      participantId: label,
-      sender: sender,
-      algorithm: Algorithm.kAesGcm,
-      keyProvider: provider,
-    ),
-    unwanted: 'for a sender no longer in use',
-    side: 'sender',
-    keep: (cryptor) {
-      final replaced = _senders[label];
-      _senders[label] = (sender: sender, cryptor: cryptor);
-      _onSendersChanged();
-      return replaced?.cryptor;
-    },
-  );
+  }) async {
+    final own = _own;
+    if (own == null || !canSend) return false;
+    var slot = _sendSlot!;
+    final wrapped = await _wrap(
+      usable: sender.track != null,
+      wrapped: identical(_senders[label]?.sender, sender),
+      inFlight: _senderWrapsInFlight,
+      key: sender,
+      stillWanted: () => stillWanted() && identical(_own, own),
+      create: () async {
+        final cryptor = await _factory.createFrameCryptorForRtpSender(
+          participantId: label,
+          sender: sender,
+          algorithm: Algorithm.kAesGcm,
+          keyProvider: own.provider,
+        );
+        slot = _sendSlot ?? slot;
+        try {
+          await cryptor.setKeyIndex(slot);
+        } catch (_) {
+          await _disposeCryptors([cryptor], 'that could not take its key slot');
+          rethrow;
+        }
+        return cryptor;
+      },
+      unwanted: 'for a sender no longer in use',
+      side: 'sender',
+      keep: (cryptor) {
+        final replaced = _senders[label];
+        _senders[label] = (sender: sender, cryptor: cryptor, slot: slot);
+        _onSendersChanged();
+        return replaced?.cryptor;
+      },
+    );
+    if (wrapped) await _point(label);
+    return wrapped;
+  }
 
   bool encrypts(String label, RTCRtpSender? current) =>
       current != null && identical(_senders[label]?.sender, current);
 
   Future<bool> wrapReceiver(
+    VoipParticipantId id,
     String label,
     RTCRtpReceiver receiver, {
     required bool Function() stillWanted,
-  }) => _wrap(
-    usable: stillWanted(),
-    wrapped: decrypts(label, receiver),
-    inFlight: _receiverWrapsInFlight,
-    key: receiver.receiverId,
-    stillWanted: stillWanted,
-    create: (provider) => _factory.createFrameCryptorForRtpReceiver(
-      participantId: label,
-      receiver: receiver,
-      algorithm: Algorithm.kAesGcm,
-      keyProvider: provider,
-    ),
-    unwanted: 'for a closed connection',
-    side: 'receiver',
-    keep: (cryptor) {
-      final replaced = _receivers[label];
-      _receivers[label] = (receiver: receiver, cryptor: cryptor);
-      return replaced?.cryptor;
-    },
-  );
+  }) async {
+    final keys = _peers[id];
+    if (keys == null || keys.slots.isEmpty) return false;
+    return _wrap(
+      usable: stillWanted(),
+      wrapped: decrypts(label, receiver),
+      inFlight: _receiverWrapsInFlight,
+      key: receiver.receiverId,
+      stillWanted: () => stillWanted() && identical(_peers[id], keys),
+      create: () => _factory.createFrameCryptorForRtpReceiver(
+        participantId: label,
+        receiver: receiver,
+        algorithm: Algorithm.kAesGcm,
+        keyProvider: keys.provider,
+      ),
+      unwanted: 'for a closed connection',
+      side: 'receiver',
+      keep: (cryptor) {
+        final replaced = _receivers[label];
+        _receivers[label] = (id: id, receiver: receiver, cryptor: cryptor);
+        return replaced?.cryptor;
+      },
+    );
+  }
 
   Future<bool> _wrap<K extends Object>({
     required bool usable,
@@ -139,34 +223,32 @@ class CallEncryption {
     required Set<K> inFlight,
     required K key,
     required bool Function() stillWanted,
-    required Future<FrameCryptor> Function(KeyProvider provider) create,
+    required Future<FrameCryptor> Function() create,
     required String unwanted,
     required String side,
     required FrameCryptor? Function(FrameCryptor cryptor) keep,
   }) async {
-    final provider = _provider;
-    if (provider == null || !usable) return false;
+    if (!usable) return false;
     if (wrapped) return true;
     if (!inFlight.add(key)) return false;
-    bool wanted() => stillWanted() && identical(_provider, provider);
     try {
       final FrameCryptor cryptor;
       try {
-        cryptor = await create(provider);
+        cryptor = await create();
       } catch (_) {
-        if (wanted()) rethrow;
+        if (stillWanted()) rethrow;
         return false;
       }
-      if (wanted()) {
+      if (stillWanted()) {
         try {
           await cryptor.setEnabled(true);
         } catch (_) {
           await _disposeCryptors([cryptor], 'that failed to start');
-          if (wanted()) rethrow;
+          if (stillWanted()) rethrow;
           return false;
         }
       }
-      if (!wanted()) {
+      if (!stillWanted()) {
         await _disposeCryptors([cryptor], unwanted);
         return false;
       }
@@ -199,20 +281,24 @@ class CallEncryption {
     await _disposeCryptors(cryptors, 'on teardown');
   }
 
-  Future<void> dispose() async {
-    await forgetAll();
-    await _disposeProvider('on leave');
+  Future<void> dispose() {
+    _disposed = true;
+    return _lock.run(() async {
+      final providers = [?_own, ..._peers.values];
+      _own = null;
+      _peers.clear();
+      _sendSlot = null;
+      await forgetAll();
+      for (final keys in providers) {
+        await _disposeProvider(keys, 'on leave');
+      }
+    });
   }
 
-  Future<void> _disposeProvider(String reason) async {
-    final provider = _provider;
-    if (provider == null) return;
-    _provider = null;
-    await runBestEffort(
-      provider.dispose,
-      label: 'dispose key provider $reason',
-    );
-  }
+  Future<void> _disposeProvider(_Keys keys, String reason) => runBestEffort(
+    keys.provider.dispose,
+    label: 'dispose key provider $reason',
+  );
 
   Future<void> _disposeCryptors(
     Iterable<FrameCryptor> cryptors,

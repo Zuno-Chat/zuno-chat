@@ -90,7 +90,6 @@ void main() {
         'tracks': ['audio'],
         'audioMuted': 'yes',
         'videoEnabled': 1,
-        'lowBandwidth': 'no',
       });
       await pumpEventQueue();
 

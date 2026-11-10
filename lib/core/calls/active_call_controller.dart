@@ -174,7 +174,7 @@ class ActiveCallController extends ChangeNotifier {
       someoneHere: !connecting && _remotes.isNotEmpty,
       mediaArrived: _talkingSince != null,
       keysPending:
-          local == null || encrypting(local) || _remotes.any(encrypting),
+          local == null || encrypting(local) || _remotes.every(encrypting),
     );
   }
 

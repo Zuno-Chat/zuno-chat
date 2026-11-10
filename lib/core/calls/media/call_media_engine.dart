@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart' show listEquals;
+import 'package:flutter/foundation.dart' show listEquals, setEquals;
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 import '../../errors/best_effort.dart';
@@ -85,7 +85,6 @@ class CallMediaEngine implements CallEngine {
   final List<_UnopenedUpdate> _unopened = [];
   final Map<(VoipParticipantId, MediaKind), RTCRtpReceiver> _receivers = {};
   final Set<MediaKind> _replacedSenders = {};
-  bool _legacyFlags = false;
 
   late final _encryption = CallEncryption(
     _webRtc.frameCryptorFactory,
@@ -134,7 +133,7 @@ class CallMediaEngine implements CallEngine {
       videoStream: _media.cameraStream,
       audioMuted: _media.microphoneMuted,
       videoEnabled: _media.cameraEnabled,
-      encrypted: _encryption.hasKey,
+      encrypted: _encryption.canSend,
       frontCamera: _media.frontCamera,
     ),
     for (final remote in _remotes.values)
@@ -145,11 +144,9 @@ class CallMediaEngine implements CallEngine {
         videoStream: _shownStream(remote, MediaKind.video),
         audioMuted: remote.audioMuted,
         videoEnabled: remote.videoEnabled,
-        encrypted: remote.encrypted,
-        weakConnection: switch (remote.reported) {
-          final CallQuality rating => rating != CallQuality.good,
-          null => remote.legacyWeak,
-        },
+        encrypted: _readable(remote.id, remote.membership.fociInfo),
+        weakConnection:
+            (remote.reported ?? CallQuality.good) != CallQuality.good,
         sendingMedia: _connection?.sendingMedia(remote.id) ?? false,
       ),
   ];
@@ -183,28 +180,13 @@ class CallMediaEngine implements CallEngine {
       ...handle,
       'audioMuted': _media.microphoneMuted,
       'videoEnabled': _sendingCamera,
-      'encrypted': _encryption.hasKey,
-      if (_needsLegacyFlags && quality != CallQuality.good)
-        'weakConnection': true,
+      'encrypted': _encryption.canSend,
     };
   }
 
-  bool get _needsLegacyFlags {
-    final connection = _connection;
-    return _remotes.keys.any(
-      (id) => connection == null || !connection.carriesRatingsTo(id),
-    );
-  }
-
   void _notifyLocalStateChanged() {
-    _legacyFlags = _needsLegacyFlags;
     if (_localStateController.isClosed) return;
     _localStateController.add(null);
-  }
-
-  void _syncLegacyFlags() {
-    if (_left || _needsLegacyFlags == _legacyFlags) return;
-    _notifyLocalStateChanged();
   }
 
   void _setStatus(CallEngineStatus status) {
@@ -233,30 +215,47 @@ class CallMediaEngine implements CallEngine {
   }
 
   @override
-  Future<void> setEncryptionKey(Uint8List key) async {
+  Future<void> setOwnKey(int slot, Uint8List key) =>
+      _changeOwnKeys(() => _encryption.setOwnKey(slot, key));
+
+  @override
+  Future<void> sendWithSlot(int slot) =>
+      _changeOwnKeys(() => _encryption.sendWithSlot(slot));
+
+  @override
+  Future<void> setPeerKey(VoipParticipantId id, int slot, Uint8List key) =>
+      _changePeerKeys(id, () => _encryption.setPeerKey(id, slot, key));
+
+  @override
+  Future<void> forgetPeer(VoipParticipantId id) =>
+      _changePeerKeys(id, () => _encryption.forgetPeer(id));
+
+  Future<void> _changeOwnKeys(Future<void> Function() change) async {
     if (_left) return;
-    final checkpoint = _encryption.checkpoint();
-    await _encryption.setKey(key);
-    if (_left) {
-      await _encryption.rollBack(checkpoint);
-      return;
-    }
+    await change();
+    if (_left) return;
     try {
       await _wrapLocalSenders();
-    } catch (_) {
-      await _encryption.rollBack(checkpoint);
+    } finally {
+      _applyLocalTrackState();
       _notifyParticipants();
-      _reofferRemotes();
-      rethrow;
+      _notifyLocalStateChanged();
     }
+  }
+
+  Future<void> _changePeerKeys(
+    VoipParticipantId peer,
+    Future<void> Function() change,
+  ) async {
+    if (_left) return;
+    await change();
+    if (_left) return;
     await Future.wait([
       for (final MapEntry(key: (id, kind), value: receiver)
           in _receivers.entries.toList())
-        _wrapReceiverAfterKey(id, kind, receiver),
+        if (id == peer) _wrapReceiverAfterKey(id, kind, receiver),
     ]);
-    _applyLocalTrackState();
     _notifyParticipants();
-    _notifyLocalStateChanged();
     _reofferRemotes();
   }
 
@@ -297,6 +296,7 @@ class CallMediaEngine implements CallEngine {
     MediaKind kind,
     RTCRtpReceiver receiver,
   ) => _encryption.wrapReceiver(
+    id,
     receiverLabel(id, kind),
     receiver,
     stillWanted: () => _isAdopted(id, kind, receiver),
@@ -381,7 +381,6 @@ class CallMediaEngine implements CallEngine {
   }
 
   void _peerRating(VoipParticipantId id, CallQuality? rating) {
-    _syncLegacyFlags();
     final remote = _remotes[id];
     if (remote == null || remote.reported == rating) return;
     remote.reported = rating;
@@ -732,8 +731,13 @@ class CallMediaEngine implements CallEngine {
     _notifyParticipants();
   }
 
-  Set<MediaKind> _wantedKinds(Map<String, Object?> fociInfo) =>
-      _encryption.hasKey && fociInfo['encrypted'] == true
+  bool _readable(VoipParticipantId id, Map<String, Object?> fociInfo) =>
+      fociInfo['encrypted'] == true && _encryption.holdsKeyFor(id);
+
+  Set<MediaKind> _wantedKinds(
+    VoipParticipantId id,
+    Map<String, Object?> fociInfo,
+  ) => _readable(id, fociInfo)
       ? {MediaKind.audio, if (fociInfo['videoEnabled'] == true) MediaKind.video}
       : const {};
 
@@ -760,10 +764,11 @@ class CallMediaEngine implements CallEngine {
     CallConnection connection,
     VoipParticipantId id,
     _Membership membership,
+    Set<MediaKind> wanted,
   ) => connection.updateRemote(
     id,
     membership.fociInfo,
-    _wantedKinds(membership.fociInfo),
+    wanted,
     membershipEventId: membership.membershipEventId,
   );
 
@@ -772,9 +777,11 @@ class CallMediaEngine implements CallEngine {
     VoipParticipantId id,
     _Membership membership,
   ) {
-    if (!_updateRemote(connection, id, membership)) return;
-    (_remotes[id] ??= _Remote(id)).membership = membership;
-    _syncLegacyFlags();
+    final wanted = _wantedKinds(id, membership.fociInfo);
+    if (!_updateRemote(connection, id, membership, wanted)) return;
+    (_remotes[id] ??= _Remote(id))
+      ..membership = membership
+      ..offered = wanted;
     _notifyParticipants();
   }
 
@@ -782,7 +789,10 @@ class CallMediaEngine implements CallEngine {
     final connection = _connection;
     if (connection == null) return;
     for (final remote in _remotes.values.toList()) {
-      _updateRemote(connection, remote.id, remote.membership);
+      final wanted = _wantedKinds(remote.id, remote.membership.fociInfo);
+      if (setEquals(wanted, remote.offered)) continue;
+      remote.offered = wanted;
+      _updateRemote(connection, remote.id, remote.membership, wanted);
     }
   }
 
@@ -792,7 +802,6 @@ class CallMediaEngine implements CallEngine {
     _unopened.removeWhere((update) => update.id == id);
     if (_remotes.remove(id) == null) return;
     _connection?.removeRemote(id);
-    _syncLegacyFlags();
     _notifyParticipants();
   }
 
@@ -813,15 +822,13 @@ class _Remote {
 
   final VoipParticipantId id;
   _Membership membership = (fociInfo: const {}, membershipEventId: null);
+  Set<MediaKind> offered = const {};
   CallQuality? reported;
   final Map<MediaKind, MediaStream> streams = {};
 
   Map<String, Object?> get _foci => membership.fociInfo;
   bool get audioMuted => _foci['audioMuted'] == true;
   bool get videoEnabled => _foci['videoEnabled'] == true;
-  bool get encrypted => _foci['encrypted'] == true;
-  bool get legacyWeak =>
-      _foci['lowBandwidth'] == true || _foci['weakConnection'] == true;
 }
 
 final class _CoreHost implements CallConnectionHost {

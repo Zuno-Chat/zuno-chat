@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:matrix/matrix.dart';
 import 'package:sqflite_sqlcipher/sqflite.dart' as sqflite;
 
-import '../../calls/matrixrtc/call_encryption_key_event.dart';
+import '../../calls/matrixrtc/call_sender_key_event.dart';
 import '../../location/live_location_protocol.dart';
 import 'database_compaction.dart';
 
@@ -12,7 +12,7 @@ const _ephemeralTxnPrefix = 'zuno-ephemeral-';
 const ephemeralToDeviceTypes = {
   liveLocationPositionType,
   liveLocationWatchType,
-  callEncryptionKeyEventType,
+  callSenderKeyEventType,
 };
 
 Future<List<DeviceKeys>> sendEphemeralToDevice(

@@ -48,7 +48,7 @@ class _Core {
 
   void join() => wait(engine.join());
 
-  void encrypt() => wait(engine.setEncryptionKey(callKey()));
+  void encrypt() => wait(keyEveryone(engine));
 
   void leave() => wait(engine.leave());
 
@@ -272,6 +272,21 @@ void main() {
       });
     });
 
+    test('our membership is encrypted only once our send slot holds our '
+        'key', () {
+      _run((core) {
+        core.join();
+        core.connection.handle = {'sessionId': 's1'};
+
+        core.wait(core.engine.setOwnKey(1, keyBytes()));
+        expect(core.engine.localFociInfo?['encrypted'], isFalse);
+
+        core.wait(core.engine.sendWithSlot(1));
+        expect(core.engine.localFociInfo?['encrypted'], isTrue);
+        expect(core.local.encrypted, isTrue);
+      });
+    });
+
     test('localFociInfo is null while the connection has no handle', () {
       _run((core) {
         expect(core.engine.localFociInfo, isNull);
@@ -307,6 +322,38 @@ void main() {
       });
     });
 
+    test('a remote\'s media is wanted only once we hold its own key and it '
+        'reports encrypted', () {
+      _run((core) {
+        core.join();
+        core.wait(core.engine.setOwnKey(1, keyBytes()));
+        core.wait(core.engine.sendWithSlot(1));
+
+        core.remoteUpdates({'encrypted': true});
+        core.wait(core.engine.setPeerKey(bob, 1, keyBytes()));
+        core.remoteUpdates({'encrypted': true});
+        core.wait(core.engine.setPeerKey(ann, 1, keyBytes()));
+
+        expect(wanted(core), [
+          <MediaKind>{},
+          <MediaKind>{},
+          {MediaKind.audio},
+        ]);
+      });
+    });
+
+    test('forgetting a remote stops wanting its media', () {
+      _run((core) {
+        core.join();
+        core.wait(core.engine.setPeerKey(ann, 1, keyBytes()));
+        core.remoteUpdates({'encrypted': true});
+
+        core.wait(core.engine.forgetPeer(ann));
+
+        expect(wanted(core).last, <MediaKind>{});
+      });
+    });
+
     test('membershipEventId reaches the connection with each remote '
         'update', () {
       _run((core) {
@@ -338,8 +385,43 @@ void main() {
         expect(core.connection.remoteUpdates.single.fociInfo, {
           'encrypted': true,
         });
-        expect(core.remote?.encrypted, isTrue);
       }, gateOpen: true);
+    });
+
+    test('a remote shows as encrypted only once we hold its key, whatever its '
+        'membership claims', () {
+      _run((core) {
+        core.join();
+        core.remoteUpdates({'encrypted': true, 'videoEnabled': true});
+        expect(core.remote?.encrypted, isFalse);
+        expect(core.connection.remoteUpdates.last.wanted, isEmpty);
+
+        core.wait(core.engine.setPeerKey(ann, 0, keyBytes()));
+
+        expect(core.remote?.encrypted, isTrue);
+        expect(core.connection.remoteUpdates.last.wanted, {
+          MediaKind.audio,
+          MediaKind.video,
+        });
+      });
+    });
+
+    test('a peer\'s key touches only its receivers, never our senders or our '
+        'membership', () {
+      _run((core) {
+        core.encrypt();
+        core.join();
+        core.remoteUpdates({'encrypted': true});
+        var localChanges = 0;
+        core.engine.localStateChangedStream.listen((_) => localChanges++);
+        final cryptors = core.backend.cryptors.cryptors.length;
+
+        core.wait(core.engine.setPeerKey(ann, 1, keyBytes()));
+        core.flush();
+
+        expect(localChanges, 0);
+        expect(core.backend.cryptors.cryptors, hasLength(cryptors));
+      });
     });
 
     test('sendingMedia comes from the connection and remotesChanged '
@@ -401,6 +483,44 @@ void main() {
       );
       core.flush();
     }
+
+    test('a peer key arriving after its receiver was adopted wraps it with '
+        'that peer\'s keys', () {
+      _run((core) {
+        core.join();
+        core.remoteUpdates({'encrypted': true});
+        core.wait(
+          core.connection.host.adoptReceiver(
+            ann,
+            MediaKind.audio,
+            annReceiver(),
+          ),
+        );
+        streamArrives(core);
+        expect(core.remote?.audioStream, isNull);
+
+        core.wait(core.engine.setPeerKey(ann, 2, keyBytes()));
+
+        expect(core.remote?.audioStream?.id, 'ann-audio');
+        final cryptor = core.backend.cryptors.live.single;
+        expect((cryptor.keyProvider! as FakeKeyProvider).slots.keys, [2]);
+      });
+    });
+
+    test('a sender adopted after a slot switch is wrapped on the current '
+        'slot', () {
+      _run((core) {
+        core.wait(core.engine.setOwnKey(1, keyBytes()));
+        core.wait(core.engine.setOwnKey(2, keyBytes()));
+        core.wait(core.engine.sendWithSlot(2));
+
+        core.join();
+
+        final sender = core.backend.cryptors.live.single;
+        expect(sender.participantId, 'local-audio');
+        expect(sender.keyIndexAtEnable, 2);
+      });
+    });
 
     test('a remote stream shows only once its receiver has a cryptor', () {
       _run((core) {
@@ -483,7 +603,7 @@ void main() {
         streamArrives(core);
         final wrapping = Completer<void>();
         core.backend.cryptors.receiverGate = wrapping;
-        final keying = core.engine.setEncryptionKey(callKey());
+        final keying = keyEveryone(core.engine);
         core.flush();
 
         unawaited(
@@ -502,40 +622,19 @@ void main() {
       });
     });
 
-    test('a first key that fails takes back the receiver cryptors it made, '
-        'and the next key wraps them again', () {
+    test('a sender that cannot be encrypted surfaces the error and keeps '
+        'its microphone off', () {
       _run((core) {
         core.join();
-        core.remoteUpdates({'encrypted': true});
-        streamArrives(core);
-        final wrapping = Completer<void>();
-        core.backend.cryptors
-          ..senderGate = wrapping
-          ..failEnableFor.add('local-audio');
-        final keying = core.engine.setEncryptionKey(callKey());
-        core.flush();
-        core.wait(
-          core.connection.host.adoptReceiver(
-            ann,
-            MediaKind.audio,
-            annReceiver(),
-          ),
+        core.backend.cryptors.failEnableFor.add('local-audio');
+
+        expect(() => core.encrypt(), throwsStateError);
+
+        expect(
+          core.backend.cryptors.liveLabels,
+          isNot(contains('local-audio')),
         );
-        expect(core.remote?.audioStream, isNotNull);
-
-        wrapping.complete();
-        expect(() => core.wait(keying), throwsStateError);
-
-        expect(core.remote?.audioStream, isNull);
-        expect(core.backend.cryptors.live, isEmpty);
-
-        core.backend.cryptors
-          ..senderGate = null
-          ..failEnableFor.clear();
-        core.encrypt();
-
-        expect(core.remote?.audioStream?.id, 'ann-audio');
-        expect(core.backend.cryptors.liveLabels, {'local-audio', '$ann-audio'});
+        expect(core.microphone.enabled, isFalse);
       });
     });
 
@@ -794,73 +893,6 @@ void main() {
 
         expect(core.engine.quality, CallQuality.good);
       }, kind: CallKind.video);
-    });
-
-    void slowLink(_Core core) {
-      core.encrypt();
-      core.join();
-      core.connection.handle = {'sessionId': 's1'};
-      core.remoteUpdates({'encrypted': true});
-      peerConnections(
-        core,
-        sending: [
-          outboundRtp('out-audio', packetsSent: 1000),
-          transport('up'),
-          candidatePair('up', rttSeconds: 0.8),
-        ],
-        receiving: const [],
-      );
-      threePolls(core);
-    }
-
-    test('a peer rating that comes once ratings reach that peer drops the '
-        'legacy weak flag and republishes', () {
-      _run((core) {
-        slowLink(core);
-        expect(core.engine.localFociInfo, containsPair('weakConnection', true));
-        var localChanges = 0;
-        core.engine.localStateChangedStream.listen((_) => localChanges++);
-
-        core.connection.carriesRatings.add(ann);
-        core.connection.host.peerRating(ann, CallQuality.good);
-        core.flush();
-
-        expect(core.engine.localFociInfo, isNot(contains('weakConnection')));
-        expect(localChanges, 1);
-      });
-    });
-
-    test('ratings that stop reaching a peer bring the legacy weak flag back '
-        'and republish', () {
-      _run((core) {
-        core.connection.carriesRatings.add(ann);
-        slowLink(core);
-        expect(core.engine.localFociInfo, isNot(contains('weakConnection')));
-        var localChanges = 0;
-        core.engine.localStateChangedStream.listen((_) => localChanges++);
-
-        core.connection.carriesRatings.clear();
-        core.connection.host.peerRating(ann, null);
-        core.flush();
-
-        expect(core.engine.localFociInfo, containsPair('weakConnection', true));
-        expect(localChanges, 1);
-      });
-    });
-
-    test('a peer rating that leaves the legacy flag as it was publishes no '
-        'local change', () {
-      _run((core) {
-        slowLink(core);
-        var localChanges = 0;
-        core.engine.localStateChangedStream.listen((_) => localChanges++);
-
-        core.connection.host.peerRating(ann, CallQuality.poor);
-        core.flush();
-
-        expect(core.engine.localFociInfo, containsPair('weakConnection', true));
-        expect(localChanges, 0);
-      });
     });
 
     test('the round trip is the worst of the selected pairs', () {

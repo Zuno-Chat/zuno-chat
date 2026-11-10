@@ -151,7 +151,7 @@ void main() {
         call.join();
         final gate = Completer<void>();
         call.backend.cryptors.senderGate = gate;
-        final encrypting = call.engine.setEncryptionKey(callKey());
+        final encrypting = keyEveryone(call.engine);
         call.flush();
 
         connectionFails(call);
@@ -168,7 +168,7 @@ void main() {
     });
   });
 
-  group('without a call key', () {
+  group('without our key', () {
     test('the microphone and camera land on their senders switched off', () {
       inCall((call) {
         call.join();

@@ -5,7 +5,8 @@ Cloudflare's or a LiveKit server, whichever the homeserver's `zuno_calls`
 Synapse module names. The module also caps how many people a call holds.
 There is no peer-to-peer mode, by design. Signaling is a custom layer
 loosely modeled on MatrixRTC (MSC3401), not a conformant implementation.
-Media is encrypted per frame with a random key for each call. Both
+Media is encrypted per frame, each device under its own random key that
+changes whenever someone leaves, is removed or joins a call under way. Both
 platforms ring a closed Zuno from a sealed server push and a running one
 from sync. Android rings with a native `CallStyle` notification and keeps
 the call in a foreground service; iOS rings through CallKit.
@@ -17,7 +18,7 @@ flowchart LR
   UI["Call screen, bar, window"] --> A[ActiveCallController]
   A --> S[CallSession]
   S -->|"m.call.member state, im.zuno.call_* messages"| HS[(Homeserver)]
-  S -->|"call key, Olm to-device"| HS
+  S -->|"sender keys, Olm to-device"| HS
   S --> E["CallMediaEngine (shared core)"]
   E -->|"opens at call start"| O[CallConnections]
   O -->|"GET config"| M["zuno_calls module (in Synapse)"]
@@ -32,7 +33,7 @@ flowchart LR
 
 | Part | Where | Role |
 |---|---|---|
-| `CallSession` | `lib/core/calls/matrixrtc/` | Matrix-side signaling and the call lifecycle: invite, decline, ring timeout, `m.call.member` publish and reconcile, the call key, hang-up and the summary. It never learns which provider runs |
+| `CallSession` | `lib/core/calls/matrixrtc/` | Matrix-side signaling and the call lifecycle: invite, decline, ring timeout, `m.call.member` publish and reconcile, our sender keys and the ones we receive, removals, hang-up and the summary. It never learns which provider runs |
 | `CallEngine` → `CallMediaEngine` | `lib/core/calls/media/` | The media core, written once for both providers: our microphone and camera (`LocalMedia`, opened at call start) and the camera's state, call audio, frame encryption (`CallEncryption`), own-link rating and the layer set, the shared `fociInfo` flags, and the participant and status streams |
 | `CallConnection` | `lib/core/calls/media/` | The seam to a provider: one connection per call gets the core's senders onto the SFU and remote media back, and hands every sender and receiver it creates to the core to encrypt |
 | `CallConnections` | `lib/core/calls/` | The opener: builds the connection the server's provider names, the only provider check outside discovery |
@@ -212,10 +213,10 @@ stateDiagram-v2
   break the call for everyone in the room.
 - **Membership is first published as soon as the connection has its
   handle (a Cloudflare session, or LiveKit's join response), before its
-  tracks, and only once the session listens for to-device call keys**, so
-  a key sent in reply is never lost. The module rings on a
+  tracks, and only once the session listens for to-device sender keys**,
+  so a key sent in reply is never lost. The module rings on a
   caller's, so the ring never waits on the caller's camera; an answerer's
-  is the answer, so the caller stops ringing and sends the key while the
+  is the answer, so the caller stops ringing and sends its key while the
   answerer is still connecting. After that it is republished periodically
   and on every change, with user toggles coalesced, because state events
   are permanent room history.
@@ -256,8 +257,8 @@ stateDiagram-v2
 
 - Leaving is not ending: whoever is last out, by the room's live
   memberships, posts the summary.
-- Any device holding the call key relays it to a newcomer, not only the
-  caller.
+- Every device sends its own key to each newcomer, and nobody relays
+  anyone else's.
 - The participant cap belongs to the module, never the app: every
   Cloudflare `sessions/new` and LiveKit token request names its room and
   call, and the module refuses a full call with a 403 `IM.ZUNO.CALL_FULL`
@@ -272,29 +273,42 @@ mute them or remove them from it.
 - **One rule decides who may remove whom** in rooms, communities and calls.
   The target's phone checks an arriving mute or removal against it, chats
   excluded on both sides, so one from someone without the rank is ignored.
-- **Mute and removal are hidden `im.zuno.call.*` event types with an
-  `m.reference` to the target's call membership**, so they never push and
-  older versions and other clients never show them.
+- **Mute and the timeline removal are hidden `im.zuno.call.*` event types
+  with an `m.reference` to the target's call membership**, so they never
+  push and other clients never show them.
 - **A mute is a request the target's app obeys and the person can undo.** It
   names the join it applies to, so a late one never mutes a later join.
 - **Every mute goes through the call** (the button, the system call and a
   moderator), and the call names who muted you only while you stay muted.
-- **Only the module decides a removal.** It refuses the person for the rest
-  of the call with a 403 `IM.ZUNO.CALL_REMOVED` and cuts them off: on
-  Cloudflare it answers only once their tracks are closed; on LiveKit it
-  removes their participants from the room, and a periodic sweep removes
-  anyone removed or holding a token without a call membership. The removal
-  is done once it answers; telling the call is best effort.
+- **A removal is room state first**: `im.zuno.call.removed`, state key `_`
+  plus the user ID (homeservers refuse a key starting with `@` from anyone
+  but that user), naming the call, so every device, late joiners included,
+  knows it whatever the removed person's app does. The moderator's app then
+  has the module refuse the person for the rest of the call with a 403
+  `IM.ZUNO.CALL_REMOVED` and cut them off (on Cloudflare once their tracks
+  are closed; on LiveKit by removing their participants, plus a periodic
+  sweep of anyone removed or holding a token without a call membership),
+  and last sends the timeline removal, best effort. A state write the
+  server refuses fails the removal, and nothing else is sent.
+- **The "Remove people" permission also sets the removal type's level**, so
+  rooms Zuno creates let moderators write it. Older Zuno rooms keep it at
+  admin until that permission is next changed, so a moderator there skips
+  the state, and the timeline removal is the signal, honoured live by every
+  device in the call.
+- **Every device checks a removal's rank when it reads it and remembers each
+  one it saw**, because a removed moderator holding the type's level can
+  overwrite or redact their own; only late joiners can miss such an erased
+  removal, and the module still refuses that person.
 - **A removed person's call ends as removed**, from the room event (naming
   who removed them) or from the module refusing any call request, including
   one made while joining, which is never retried. On LiveKit, being removed
   from the room starts a full reconnect, and its token request's refusal is
   what ends the call as removed, because LiveKit gives a removal and the
   module's sweep the same leave reason.
-- **Nobody else tracks a removal.** The removed person's app leaving the
-  call is what drops them for everyone, late joiners included, and on
-  Cloudflare the module's per-track refusal of their tracks is expected,
-  never reported.
+- **Every remaining device drops a removed person at once**: their media
+  and keys go, they get no key again, and everyone moves to a new key
+  without the leave wait. On Cloudflare the module's per-track refusal of
+  their tracks is expected, never reported.
 
 ### Media
 
@@ -451,11 +465,9 @@ estimate of the upload bandwidth.
   |---|---|
   | Cloudflare | On a data channel named `quality`, advertised in `fociInfo.dataChannels` and subscribed to on every peer that advertises one. It opens once the connection first reports connected, because Cloudflare allocates data channels only on a connected transport, and a failed setup gives up for the rest of the call, since ratings must never end one |
   | LiveKit | As reliable data packets with topic `quality`, to and from every peer |
-- **Versions up to 1.4.0 still get a weak badge.** While any peer cannot
-  get our ratings (a Cloudflare peer on 1.4.0), `weakConnection: true`
-  goes in `fociInfo` whenever our rating is not good, and their flags are
-  read only from peers we get no ratings from. `lowBandwidth` is never
-  sent, because 1.4.0 lowers its video for everyone when it sees it.
+- **A badge comes only from a peer's rating**, so a call whose quality
+  channel fails shows none; the old weak-link flags in `m.call.member` are
+  neither sent nor read.
 - **Video goes out in two simulcast layers on both providers**, `q` (half
   size, 15 fps) and `h` (full size), and the SFU picks one per viewer, so
   a weak viewer gets `q` while everyone else keeps `h`: Cloudflare pulls
@@ -476,44 +488,73 @@ estimate of the upload bandwidth.
 
 ### Encryption
 
-- **One random key per call**, applied per frame with AES-GCM through
-  flutter_webrtc's `FrameCryptor`. It is deliberately not the room's
-  Megolm session, which follows room membership rather than the call and
-  whose ordered ratchet does not suit lossy media.
-- **The key travels Olm-encrypted over to-device as an ephemeral
-  message**, which the SDK never stores or replays (`app-foundation.md`),
-  from any device holding it to each device that joins. The first valid
-  key wins: one from a known, unblocked device of a current participant,
-  looked up only among its sender's own devices.
-- **Each device gets its own relay, retried with backoff for the life of
-  the call until delivered**, and stopped when the call ends or that
-  device leaves. A send that reached no Olm session counts as not
-  delivered, because the SDK silently skips a device it has no session
-  with.
-- **A participant that receives the key late relays it to every device it
-  already knows, never back to its sender**, so the key spreads even when
-  its first sender could not reach everyone.
-- **A device that starts a new Olm session is sent the key again**, since a
-  new session means it could not decrypt over the old one.
-- **So is a device whose membership is new (a changed `created_ts`)**,
-  because a device that restarts gets a new call session and no key, while
-  a rejoin inside one session keeps its key.
+- **Each device sends under its own random 32-byte key**, applied per frame
+  with AES-GCM through flutter_webrtc's `FrameCryptor`, as MatrixRTC does.
+  It is deliberately not the room's Megolm session, which follows room
+  membership rather than the call and whose ordered ratchet does not suit
+  lossy media.
+- **Key settings follow MSC4195** (HKDF, salt `LKFrameEncryptionKey`, a key
+  ring of 256, AES-128), so a later MatrixRTC switch needs no media change.
+  HKDF because every key load derives on the platform thread, the UI thread
+  since Flutter 3.29, where PBKDF2's 100 000 rounds froze the screen at each
+  new key; stretching buys nothing on random keys.
+- **One key provider per participant**: ours holds only keys we made, each
+  remote's only keys it sent us, so a removed person can't push a key onto
+  others. A key's slot is its generation counted from 0, wrapping at 256.
+- **Keys travel Olm-encrypted over to-device as ephemeral
+  `im.zuno.call.sender_key` messages** (call ID, epoch, generation, key),
+  which the SDK never stores or replays (`app-foundation.md`). The epoch is
+  the sender's membership `created_ts`; the generation counts its keys.
+- **Our key goes only to current participants the chat key policy allows**
+  (`DeviceKeys.encryptToDevice`): never to a device its owner hasn't
+  approved, one gone from its owner's up-to-date device list, or a removed
+  user's.
+- **One to-device request carries a key to every device that needs it**,
+  and a device it misses is retried alone with backoff for the life of the
+  call; a send that reached no Olm session counts as not delivered, because
+  the SDK silently skips a device it has no session with.
+- **A device that starts a new Olm session or restarts (a new
+  `created_ts`) is sent our key again**, without forgetting that it held
+  the last one.
 - **Device keys are fetched only when that user's device list is unknown or
-  stale**, so relay retries cost no key queries.
-- **The key is never rotated**, since rotating on every departure would
-  interrupt everyone's media.
-- **The key provider never ratchets**, because a key that never rotates
-  makes every ratchet attempt fail, and LiveKit's SFU injects blank frames
-  that fail decryption, each of which would otherwise trigger a round of
-  key derivations.
+  stale**, so retries cost no key queries.
+- **A received key counts only under its sender's current membership**: its
+  epoch must be that membership's `created_ts`, and within it only a newer
+  generation, so a late key from an earlier session can't overwrite a newer
+  one and a phone whose clock went back is still heard. Keys ahead of their
+  membership wait, for at most 8 devices, the longest waiting making way.
+  A device whose membership restarts has its old keys dropped first.
+- **We make a new key whenever the set of people who could hear us
+  changes**:
+
+  | Trigger | When |
+  |---|---|
+  | A leave (membership gone, room left, or the key policy starts refusing a device that may hold our key) | After a 2 s wait that batches leaves |
+  | A removal | At once |
+  | A join, once our key was first sent 10 s ago or more | At once; the joiner gets only the new key. A key nobody has received goes to the first joiner as is, so a one-to-one call answered after a long ring has no gap |
+  | 90 minutes since the key was made | At once |
+
+  A new key goes out first and is used 2 s later, a later change never
+  cancels that, and old slots stay loaded, so frames in flight still
+  decrypt. A leaver never gets a key a joiner triggered, since leaves are
+  handled first.
+- **The key provider never ratchets**, because keys never change by
+  ratchet and LiveKit's SFU injects blank frames that fail decryption, each
+  of which would otherwise trigger a round of key derivations.
 - **Media is gated on keys, in the core, on both providers.** Each local
   sender owns its frame cryptor, tied to the live connection and that
-  sender, and a track is enabled only while its current sender has its own
-  cryptor. A remote is taken (pulled on Cloudflare, subscribed on LiveKit)
-  only once both sides report `encrypted`, and its stream shows only once
-  its receiver has its own cryptor, so a receiver that failed to wrap never
-  shows media. There is no unencrypted fallback. Until the key lands, the
-  call shows "encrypting".
+  sender, gets the current slot before it is enabled, and a track is
+  enabled only while its current sender has its own cryptor. A remote is
+  taken (pulled on Cloudflare, subscribed on LiveKit), and counts as
+  encrypted, only once we hold its key and it reports `encrypted`, and its
+  stream shows only once its receiver has its own cryptor. There is no
+  unencrypted fallback. Our `encrypted` means our send slot holds our key.
+  The call shows "encrypting" until anyone else can be heard, and each
+  person's tile until that person can.
+- **1.4.0 and older can't share a call with this version** (they never
+  send or read sender keys), so they show with no media both ways, and a
+  1.4.0 phone that started the call wastes CPU on our slot-0 frames until
+  our next key; accepted.
 - **A rejoin or full reconnect wraps the new connection's senders and
   receivers afresh**, and a key that lands mid-reconnect is applied to the
   new connection.
@@ -923,6 +964,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 | LiveKit protocol 16 over the classic two-peer-connection `/rtc` path | The server gates every behavior on the client's protocol version, all the way back to 0, so a pinned version keeps working as admins upgrade; 16 is what LiveKit's own Flutter SDK speaks |
 | Remote media maps to a Matrix device only through the provider's handle in `m.call.member` | `m.call.member` stays the only roster on both providers, and Matrix IDs never reach LiveKit, which may be LiveKit Cloud |
 | LiveKit calls are Zuno-only, with no MatrixRTC (MSC4143) or Element Call interop | Calls never cross servers; MatrixRTC would replace Zuno's signaling above the engine, never a connection, so it stays possible |
+| Per-sender keys, new on every leave, removal, join to a key shared 10 s or more, and every 90 minutes (Element's rules) | A device that leaves can rejoin, but only visibly, so anyone who can hear you is someone you can see in the call; LiveKit can't revoke a refreshed token, so keys are what keep a removed person out |
+| A removal is room state, rank-checked by every device | Every device, late joiners included, learns it from state after sync, whatever the removed person's app does, and no module is needed to read it |
+| No calls with 1.4.0 and older (user decision 2026-11-10) | Their shared call key needed PBKDF2 in the same key provider, which froze the screen at each new key, and every leaver held it |
 | Both providers publish the same two layers, let the SFU pick each viewer's, and rate only their own link | One quality policy for both; a rating built from incoming loss blamed viewers for a sender's upload, and a viewer's weak link no longer lowers everyone's video |
 | On Cloudflare, a placeholder, not separate publish and receive connections (as in partytracks) | Separate connections make every camera toggle a re-publish and a re-pull by every viewer |
 | No automatic voice downgrade, and voice to video is one way | A downgrade needs distributed coordination and risks flicker, and an off camera costs little |
@@ -1027,8 +1071,8 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   start when the camera turns on, which widens it.
 - Hang-up and every reconnect that replaces the peer connections switch
   tracks off and dispose those connections before the frame cryptors and
-  the key provider, because on iOS a disposed cryptor passes frames through
-  unencrypted.
+  the key providers, because on iOS a disposed cryptor passes frames
+  through unencrypted.
 - A null result from sending the invite fails the call, because the SDK
   returns null rather than throwing when a send fails.
 - `LocalMedia` releases a capture it fails to adopt and never captures

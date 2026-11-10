@@ -27,7 +27,10 @@ abstract class CallEngine {
   Future<void> switchCamera();
   Future<void> switchToVideo();
   Future<void> setAppInBackground(bool inBackground);
-  Future<void> setEncryptionKey(Uint8List key);
+  Future<void> setOwnKey(int slot, Uint8List key);
+  Future<void> sendWithSlot(int slot);
+  Future<void> setPeerKey(VoipParticipantId id, int slot, Uint8List key);
+  Future<void> forgetPeer(VoipParticipantId id);
 
   void updateRemoteParticipant(
     VoipParticipantId id,

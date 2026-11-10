@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/calls/matrixrtc/call_moderation.dart';
+import 'package:zuno/core/calls/matrixrtc/call_removed_event.dart';
 import 'package:zuno/core/calls/module/calls_module.dart';
 
 import '../../../helpers/call_membership.dart';
@@ -15,9 +16,10 @@ const _me = '@me:example.org';
 const _mod = '@mod:example.org';
 const _bob = '@bob:example.org';
 
-Client _moduleClient() => buildTestClient(userId: _me, deviceId: 'MEDEV')
-  ..homeserver = Uri.parse('https://example.org')
-  ..accessToken = 'syt_token';
+Client _moduleClient({http.Client? httpClient}) =>
+    buildTestClient(userId: _me, deviceId: 'MEDEV', httpClient: httpClient)
+      ..homeserver = Uri.parse('https://example.org')
+      ..accessToken = 'syt_token';
 
 void main() {
   group('callModerationGate', () {
@@ -175,12 +177,31 @@ void main() {
   group('removeFromCall', () {
     late SendRecordingRoom room;
     late List<http.Request> moduleRequests;
+    late List<http.Request> stateWrites;
+    late List<String> order;
     late http.Response moduleAnswer;
+    late http.Response stateAnswer;
 
     setUp(() {
-      room = SendRecordingRoom(client: _moduleClient());
       moduleRequests = [];
+      stateWrites = [];
+      order = [];
       moduleAnswer = http.Response('{}', 200);
+      stateAnswer = http.Response(r'{"event_id":"$removed"}', 200);
+      room = SendRecordingRoom(
+        client: _moduleClient(
+          httpClient: FakeHttpClient((request) async {
+            stateWrites.add(request);
+            order.add('state');
+            return stateAnswer;
+          }),
+        ),
+      );
+      setPowerLevels(room, {
+        'users': {_me: 50},
+        'state_default': 100,
+        'events': {callRemovedEventType: 50},
+      });
     });
 
     Future<void> remove() => removeFromCall(
@@ -189,16 +210,26 @@ void main() {
       userId: _bob,
       httpClient: FakeHttpClient((request) async {
         moduleRequests.add(request);
+        order.add('module');
         return moduleAnswer;
       }),
     );
 
-    test('has the server cut them off first, then tells the call, off the '
-        'push path, once', () async {
+    test('writes the removal to room state first, has the server cut them '
+        'off, then tells the call in the timeline, off the push path, '
+        'once', () async {
       joinCall(room, userId: _bob, deviceId: 'BOB', callId: 'call1');
 
       await remove();
 
+      expect(order, ['state', 'module']);
+      expect(stateWrites.single.method, 'PUT');
+      expect(
+        Uri.decodeComponent(stateWrites.single.url.path),
+        '/_matrix/client/v3/rooms/${room.id}/state/$callRemovedEventType/'
+        '_$_bob',
+      );
+      expect(jsonDecode(stateWrites.single.body), {'call_id': 'call1'});
       expect(
         moduleRequests.single.url.path,
         '/_synapse/client/zuno/calls/remove',
@@ -217,6 +248,33 @@ void main() {
       expect(room.pendingCopies, [false]);
     });
 
+    test('a refused state write sends nothing else', () async {
+      joinCall(room, userId: _bob, deviceId: 'BOB', callId: 'call1');
+      stateAnswer = http.Response(
+        '{"errcode":"M_FORBIDDEN","error":"no power"}',
+        403,
+      );
+
+      await expectLater(remove(), throwsA(isA<MatrixException>()));
+      expect(moduleRequests, isEmpty);
+      expect(room.attempts, isEmpty);
+    });
+
+    test('a moderator the room does not let write the removal still removes '
+        'through the server and the call', () async {
+      joinCall(room, userId: _bob, deviceId: 'BOB', callId: 'call1');
+      setPowerLevels(room, {
+        'users': {_me: 50},
+        'state_default': 100,
+      });
+
+      await remove();
+
+      expect(stateWrites, isEmpty);
+      expect(order, ['module']);
+      expect(room.requests.single.type, callRemoveEventType);
+    });
+
     test('tells the call nothing when the server refuses', () async {
       joinCall(room, userId: _bob, deviceId: 'BOB', callId: 'call1');
       moduleAnswer = http.Response('{"errcode":"M_FORBIDDEN"}', 403);
@@ -228,6 +286,7 @@ void main() {
     test('still has the server keep out someone who already left', () async {
       await remove();
 
+      expect(order, ['state', 'module']);
       expect(moduleRequests, hasLength(1));
       expect(room.attempts, isEmpty);
     });

@@ -7,15 +7,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
-import 'package:matrix/encryption.dart';
 import 'package:matrix/matrix.dart' hide CallSession;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:zuno/core/calls/call_connections.dart';
 import 'package:zuno/core/calls/call_engine.dart';
 import 'package:zuno/core/calls/livekit/livekit_signal_client.dart';
-import 'package:zuno/core/calls/matrixrtc/call_encryption_key_event.dart';
 import 'package:zuno/core/calls/matrixrtc/call_member_state.dart';
 import 'package:zuno/core/calls/matrixrtc/call_moderation.dart';
+import 'package:zuno/core/calls/matrixrtc/call_sender_key_event.dart';
 import 'package:zuno/core/calls/matrixrtc/call_session.dart';
 import 'package:zuno/core/calls/matrixrtc/call_summary_message.dart';
 import 'package:zuno/core/calls/models/call_engine_status.dart';
@@ -27,6 +26,7 @@ import 'package:zuno/core/calls/module/calls_module.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
 import '../../../helpers/app_lifecycle.dart';
+import '../../../helpers/call_fixtures.dart';
 import '../../../helpers/call_membership.dart';
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_call_connection.dart';
@@ -41,12 +41,15 @@ import '../../../helpers/hybrid_fake_async.dart';
 import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 import '../../../helpers/send_recording_room.dart';
+import '../../../helpers/to_device_recording_client.dart';
 
 const _me = '@me:example.org';
 const _bob = '@bob:example.org';
 const _carol = '@carol:example.org';
 const _caller = '@caller:example.org';
 const _mallory = '@mallory:example.org';
+const _encryptedFoci = {'encrypted': true};
+const _callerDevice = VoipParticipantId(userId: _caller, deviceId: 'CALLERDEV');
 
 int _publishedJoinTime(String body) =>
     parseRtcMemberships(jsonDecode(body) as Map<String, Object?>)
@@ -77,67 +80,9 @@ class _PublishCountingClient extends Client {
   }
 }
 
-class _KeyRelayClient extends Client {
-  _KeyRelayClient() : super('test', database: FakeDatabaseApi()) {
-    setUserId(_me);
-  }
-
-  final unreachable = <String>{};
-  final tries = <String>[];
-  final keysSent = <String, Map<String, dynamic>>{};
-  Completer<void>? hold;
-  bool olm = false;
-  late final Encryption _olm = Encryption(client: this);
-
-  @override
-  String? get deviceID => 'TESTDEVICE';
-
-  @override
-  bool get encryptionEnabled => olm;
-
-  @override
-  Encryption? get encryption => olm ? _olm : null;
-
-  void openOlmSession(String deviceId) => openTestOlmSession(_olm, deviceId);
-
-  bool _hasOlmSession(DeviceKeys device) =>
-      _olm.olmManager.olmSessions[device.curve25519Key]?.isNotEmpty ?? false;
-
-  @override
-  Future<String> setRoomStateWithKey(
-    String roomId,
-    String eventType,
-    String stateKey,
-    Map<String, Object?> body,
-  ) async => '\$evt';
-
-  @override
-  Future<void> sendToDeviceEncrypted(
-    List<DeviceKeys> deviceKeys,
-    String eventType,
-    Map<String, dynamic> message, {
-    String? messageId,
-    bool onlyVerified = false,
-  }) async {
-    final held = hold;
-    hold = null;
-    for (final device in deviceKeys) {
-      final deviceId = device.deviceId!;
-      tries.add(deviceId);
-      if (held != null) {
-        await held.future;
-      } else if (unreachable.contains(deviceId)) {
-        throw http.ClientException('502 Bad Gateway');
-      }
-      if (olm && !_hasOlmSession(device)) continue;
-      keysSent[deviceId] = message;
-    }
-  }
-}
-
-typedef _KeyRelayCall = ({
+typedef _KeyDeliveryCall = ({
   CallSession session,
-  _KeyRelayClient client,
+  ToDeviceRecordingClient client,
   Room room,
 });
 
@@ -201,8 +146,7 @@ void main() {
     String callId = 'call1',
     CallKind kind = CallKind.voice,
     CallEngine? engine,
-    Uint8List? key,
-    Duration? keyRelayDelay,
+    Duration? keyDeliveryDelay,
     ValueListenable<bool>? pictureInPictureCamera,
     Future<void>? previousCallReleased,
   }) {
@@ -213,9 +157,8 @@ void main() {
       callId: callId,
       kind: kind,
       engineBuilder: () => built,
-      initialEncryptionKeyForTesting: key,
-      keyRelayBaseDelay: keyRelayDelay,
-      keyRelayMaxDelay: keyRelayDelay,
+      keyDeliveryBaseDelay: keyDeliveryDelay,
+      keyDeliveryMaxDelay: keyDeliveryDelay,
       pictureInPictureCamera: pictureInPictureCamera,
       previousCallReleased: previousCallReleased,
     );
@@ -256,6 +199,7 @@ void main() {
     Map<String, Object?> fociActive = const {},
     String? eventId,
     int createdAtMs = 0,
+    Duration expiresIn = const Duration(minutes: 5),
   }) => r.setState(
     callMemberEvent(
       r,
@@ -264,7 +208,7 @@ void main() {
       callId: callId,
       fociActive: fociActive,
       createdAtMs: createdAtMs,
-      expiresIn: const Duration(minutes: 5),
+      expiresIn: expiresIn,
       eventId: eventId,
     ),
   );
@@ -332,24 +276,65 @@ void main() {
   ToDeviceEvent keyEvent({
     String sender = _caller,
     String curveKey = 'curve-CALLERDEV',
-    String type = callEncryptionKeyEventType,
     String callId = 'call1',
-    Uint8List? key,
+    SenderKey? key,
   }) => ToDeviceEvent(
     sender: sender,
-    type: type,
-    content: buildCallEncryptionKeyContent(
+    type: callSenderKeyEventType,
+    content: buildSenderKeyContent(
       callId: callId,
-      key: key ?? testKey(),
+      key: key ?? (epoch: 0, gen: 1, key: testKey()),
     ),
     encryptedContent: {'sender_key': curveKey, 'algorithm': 'm.olm.v1'},
   );
+
+  ToDeviceEvent dummyFrom(
+    String sender,
+    String deviceId, {
+    bool encrypted = true,
+  }) => ToDeviceEvent(
+    sender: sender,
+    type: EventTypes.Dummy,
+    content: const {},
+    encryptedContent: encrypted
+        ? {'sender_key': 'curve-$deviceId', 'algorithm': 'm.olm.v1'}
+        : null,
+  );
+
+  _KeyDeliveryCall keyDeliveryCall({
+    ToDeviceRecordingClient? over,
+    Map<String, String> inCall = const {_bob: 'BOBDEVICE'},
+    Map<String, Map<String, Object?>> fociActive = const {},
+    CallEngine? engine,
+    Duration? keyDeliveryDelay,
+  }) {
+    final c = over ?? ToDeviceRecordingClient();
+    final r = buildTestRoom(c);
+    for (final MapEntry(key: userId, value: deviceId) in inCall.entries) {
+      setSelfSignedTestDevices(c, userId, [deviceId]);
+      joinTheCall(
+        r,
+        userId,
+        deviceId: deviceId,
+        fociActive: fociActive[userId] ?? _encryptedFoci,
+      );
+    }
+    return (
+      session: incoming(
+        inRoom: r,
+        engine: engine,
+        keyDeliveryDelay: keyDeliveryDelay,
+      ),
+      client: c,
+      room: r,
+    );
+  }
 
   test(
     'a call whose engine accepts the key and joins reaches active',
     () async {
       final engine = FakeCallEngine();
-      final session = incoming(engine: engine, key: testKey());
+      final session = incoming(engine: engine);
       final phases = <CallSessionPhase>[];
       session.phaseStream.listen(phases.add);
 
@@ -360,7 +345,8 @@ void main() {
       expect(session.endReason, isNull);
       expect(session.failure, isNull);
       expect(engine.joined, isTrue);
-      expect(engine.appliedKey, testKey());
+      expect(engine.ownKeys.keys, [0]);
+      expect(engine.sendSlots, [0]);
       expect(phases, [CallSessionPhase.connecting, CallSessionPhase.active]);
     },
   );
@@ -368,8 +354,8 @@ void main() {
   group('sad paths', () {
     test('a call whose encryption mechanism cannot encrypt the packets fails '
         'with an error', () async {
-      final engine = FakeCallEngine(failSetEncryptionKey: true);
-      final session = incoming(engine: engine, key: testKey());
+      final engine = FakeCallEngine(failKeys: true);
+      final session = incoming(engine: engine);
       final phases = <CallSessionPhase>[];
       session.phaseStream.listen(phases.add);
 
@@ -387,9 +373,7 @@ void main() {
       () async {
         setSelfSignedTestDevices(client, _caller, ['CALLERDEV']);
         joinTheCall(room, _caller, deviceId: 'CALLERDEV');
-        final session = incoming(
-          engine: FakeCallEngine(failSetEncryptionKey: true),
-        );
+        final session = incoming(engine: FakeCallEngine(failPeerKey: true));
         await session.accept();
         expect(session.phase, CallSessionPhase.active);
 
@@ -790,7 +774,6 @@ void main() {
     }) => incoming(
       kind: CallKind.video,
       engine: engine,
-      key: testKey(),
       pictureInPictureCamera: pictureInPictureCamera,
     );
 
@@ -892,8 +875,8 @@ void main() {
     });
   });
 
-  test('an outgoing call makes a 32-byte key, and two calls never make the '
-      'same one', () async {
+  test('an outgoing call makes its own 32-byte key, and two calls never make '
+      'the same one', () async {
     final engineA = FakeCallEngine();
     final sessionA = outgoing(sendRoom(), engine: engineA);
     await untilPhase(sessionA, CallSessionPhase.active);
@@ -902,134 +885,21 @@ void main() {
     final sessionB = outgoing(sendRoom(), engine: engineB);
     await untilPhase(sessionB, CallSessionPhase.active);
 
-    expect(engineA.appliedKey, hasLength(32));
-    expect(engineB.appliedKey, hasLength(32));
-    expect(engineA.appliedKey, isNot(engineB.appliedKey));
+    expect(engineA.ownKeys[0], hasLength(32));
+    expect(engineB.ownKeys[0], hasLength(32));
+    expect(engineA.ownKeys[0], isNot(engineB.ownKeys[0]));
   });
 
-  group('callee applying a key that arrives over real to-device', () {
-    void callerInCall() {
-      setSelfSignedTestDevices(client, _caller, ['CALLERDEV']);
-      joinTheCall(room, _caller, deviceId: 'CALLERDEV');
-    }
-
-    test('a key that arrives once the call is active is applied, and the '
-        'membership is republished as encrypted', () async {
-      final published = <String>[];
-      final logging = loggingMemberPuts(published);
-      final r = buildTestRoom(logging);
-      setSelfSignedTestDevices(logging, _caller, ['CALLERDEV']);
-      joinTheCall(r, _caller, deviceId: 'CALLERDEV');
-      final engine = FakeCallEngine();
-      final session = incoming(inRoom: r, engine: engine);
-      await session.accept();
-      final before = published.length;
-      expect(engine.appliedKey, isNull);
-      expect(published.last, contains('"encrypted":false'));
-
-      logging.onToDeviceEvent.add(keyEvent());
-      await pumpEventQueue();
-
-      expect(engine.appliedKey, testKey());
-      expect(session.isEncrypted, isTrue);
-      expect(published, hasLength(before + 1));
-      expect(published.last, contains('"encrypted":true'));
-    });
-
-    test('a key from a device that is not in the call is rejected', () async {
-      setSelfSignedTestDevices(client, _mallory, ['MALDEV']);
-      final engine = FakeCallEngine();
-      await incoming(engine: engine).accept();
-
-      client.onToDeviceEvent.add(
-        keyEvent(sender: _mallory, curveKey: 'curve-MALDEV'),
-      );
-      await pumpEventQueue();
-
-      expect(engine.appliedKey, isNull);
-    });
-
-    test(
-      'a key whose sender_key belongs to a different user is rejected',
-      () async {
-        callerInCall();
-        setSelfSignedTestDevices(client, _mallory, ['MALDEV']);
-        final engine = FakeCallEngine();
-        final session = incoming(engine: engine);
-        await session.accept();
-
-        client.onToDeviceEvent.add(keyEvent(curveKey: 'curve-MALDEV'));
-        await pumpEventQueue();
-
-        expect(engine.appliedKey, isNull);
-        expect(session.isEncrypted, isFalse);
-      },
-    );
-
-    test(
-      'a key arriving before the sender\'s membership is applied once it lands',
-      () async {
-        setSelfSignedTestDevices(client, _caller, ['CALLERDEV']);
-        final engine = FakeCallEngine();
-        final session = incoming(engine: engine);
-        await session.accept();
-
-        client.onToDeviceEvent.add(keyEvent());
-        await pumpEventQueue();
-        expect(engine.appliedKey, isNull);
-
-        joinTheCall(room, _caller, deviceId: 'CALLERDEV');
-        await sync();
-
-        expect(engine.appliedKey, testKey());
-        expect(session.isEncrypted, isTrue);
-      },
-    );
-
-    test('a to-device event that is not this call\'s key is ignored', () async {
-      callerInCall();
-      final engine = FakeCallEngine();
-      final session = incoming(engine: engine);
-      await session.accept();
-
-      client.onToDeviceEvent
-        ..add(keyEvent(type: 'm.some.other.event'))
-        ..add(keyEvent(callId: 'some-other-call'));
-      await pumpEventQueue();
-
-      expect(engine.appliedKey, isNull);
-      expect(session.phase, CallSessionPhase.active);
-    });
-
-    test('a second key for the call is ignored — exactly one key per '
-        'call', () async {
-      callerInCall();
-      final engine = FakeCallEngine();
-      await incoming(engine: engine).accept();
-
-      client.onToDeviceEvent
-        ..add(keyEvent())
-        ..add(
-          keyEvent(
-            key: Uint8List.fromList(List<int>.generate(32, (i) => 255 - i)),
-          ),
-        );
-      await pumpEventQueue();
-
-      expect(engine.appliedKey, testKey());
-    });
-  });
-
-  group('caller relaying the key to newly-discovered devices', () {
+  group('delivering our key to the devices in the call', () {
     late List<String> keyQueries;
     late bool failNextQuery;
-    late Client relayClient;
-    late Room relayRoom;
+    late Client deliveryClient;
+    late Room deliveryRoom;
 
     setUp(() {
       keyQueries = [];
       failNextQuery = false;
-      relayClient = buildCallTestClient((request) async {
+      deliveryClient = buildCallTestClient((request) async {
         if (request.url.path.endsWith('/keys/query')) {
           keyQueries.add(request.body);
           if (failNextQuery) {
@@ -1040,37 +910,24 @@ void main() {
         }
         return http.Response('{"event_id":"\$evt"}', 200);
       });
-      relayRoom = buildTestRoom(relayClient);
+      deliveryRoom = buildTestRoom(deliveryClient);
     });
 
-    CallSession relaying({bool holdsKey = true}) => incoming(
-      inRoom: relayRoom,
-      key: holdsKey ? testKey() : null,
-      keyRelayDelay: Duration.zero,
-    );
+    CallSession delivering() =>
+        incoming(inRoom: deliveryRoom, keyDeliveryDelay: Duration.zero);
 
-    void bobInCall([Map<String, Object?> fociActive = const {}]) => joinTheCall(
-      relayRoom,
-      _bob,
-      deviceId: 'BOBDEVICE',
-      fociActive: fociActive,
-    );
+    void bobInCall([Map<String, Object?> fociActive = _encryptedFoci]) =>
+        joinTheCall(
+          deliveryRoom,
+          _bob,
+          deviceId: 'BOBDEVICE',
+          fociActive: fociActive,
+        );
 
-    test('a session with no key yet asks for no device keys at all', () async {
+    test('a device is asked for its device keys the moment it is '
+        'discovered', () async {
       bobInCall();
-      final session = relaying(holdsKey: false);
-
-      await session.accept();
-      await pumpEventQueue();
-
-      expect(session.phase, CallSessionPhase.active);
-      expect(keyQueries, isEmpty);
-    });
-
-    test('a session that already holds a key asks for the device keys of a '
-        'device the moment it is discovered', () async {
-      bobInCall();
-      final session = relaying();
+      final session = delivering();
 
       await session.accept();
       await pumpEventQueue();
@@ -1083,7 +940,7 @@ void main() {
       failNextQuery = true;
       bobInCall();
 
-      await relaying().accept();
+      await delivering().accept();
       await pumpEventQueue();
 
       expect(keyQueries.length, greaterThanOrEqualTo(2));
@@ -1091,120 +948,65 @@ void main() {
 
     test('a device whose keys are already known is sent the key without '
         'asking the server for them again', () async {
-      setTestDevices(relayClient, _bob, {'BOBDEVICE': null});
+      setTestDevices(deliveryClient, _bob, {'BOBDEVICE': null});
       bobInCall();
-      joinTheCall(relayRoom, _caller, deviceId: 'CALLERDEV');
+      joinTheCall(
+        deliveryRoom,
+        _caller,
+        deviceId: 'CALLERDEV',
+        fociActive: _encryptedFoci,
+      );
 
-      await relaying().accept();
+      await delivering().accept();
       await pumpEventQueue();
 
       expect(keyQueries.where((query) => query.contains(_caller)), isNotEmpty);
       expect(keyQueries.where((query) => query.contains(_bob)), isEmpty);
     });
 
-    test('a device missing from an up-to-date device list is waited for '
-        'without asking the server again', () async {
+    test('a device missing from an up-to-date device list counts as signed '
+        'out: no query, no key and no retries', () async {
       final logs = recordDebugPrints();
-      setTestDevices(relayClient, _bob, {'BOBOLDDEVICE': null});
+      setTestDevices(deliveryClient, _bob, {'BOBOLDDEVICE': null});
       bobInCall();
 
-      await relaying().accept();
+      await delivering().accept();
       await pumpEventQueue();
 
-      expect(
-        logs.where((l) => l.startsWith('zuno/retry: call key relay')).length,
-        greaterThan(1),
-      );
+      expect(logs.where((l) => l.startsWith('zuno/retry:')), isEmpty);
       expect(keyQueries, isEmpty);
     });
 
     test('a device missing from an up-to-date device list is asked for once '
         'the server says that user\'s devices changed', () async {
-      setTestDevices(relayClient, _bob, {'BOBOLDDEVICE': null});
+      setTestDevices(deliveryClient, _bob, {'BOBOLDDEVICE': null});
       bobInCall();
-      await relaying().accept();
+      await delivering().accept();
       await pumpEventQueue();
       expect(keyQueries, isEmpty);
 
-      relayClient.userDeviceKeys[_bob]!.outdated = true;
-      await pumpEventQueue();
+      deliveryClient.userDeviceKeys[_bob]!.outdated = true;
+      await sync(deliveryClient);
 
       expect(keyQueries.where((query) => query.contains(_bob)), isNotEmpty);
     });
 
     test('a device missing from a device list still out of date is asked for '
         'again', () async {
-      setTestDevices(relayClient, _bob, {'BOBOLDDEVICE': null}, outdated: true);
+      setTestDevices(deliveryClient, _bob, {
+        'BOBOLDDEVICE': null,
+      }, outdated: true);
       bobInCall();
 
-      await relaying().accept();
+      await delivering().accept();
       await pumpEventQueue();
 
       expect(keyQueries.where((query) => query.contains(_bob)), isNotEmpty);
     });
 
-    _KeyRelayCall keyRelayCall({
-      _KeyRelayClient? over,
-      Uint8List? key,
-      Map<String, String> inCall = const {_bob: 'BOBDEVICE'},
-      CallEngine? engine,
-    }) {
-      final c = over ?? _KeyRelayClient();
-      final r = buildTestRoom(c);
-      for (final MapEntry(key: userId, value: deviceId) in inCall.entries) {
-        setSelfSignedTestDevices(c, userId, [deviceId]);
-        joinTheCall(r, userId, deviceId: deviceId);
-      }
-      return (
-        session: incoming(inRoom: r, key: key, engine: engine),
-        client: c,
-        room: r,
-      );
-    }
-
-    test('a key that arrives while we join is passed on to the others in the '
-        'call but never back to the device it came from, until that device '
-        'rejoins', () async {
-      final joinGate = Completer<void>();
-      final call = keyRelayCall(
-        inCall: const {_caller: 'CALLERDEV', _bob: 'BOBDEVICE'},
-        engine: FakeCallEngine(joinGate: joinGate),
-      );
-      final accepting = call.session.accept();
-      await pumpEventQueue();
-
-      call.client.onToDeviceEvent.add(keyEvent());
-      await pumpEventQueue();
-      joinGate.complete();
-      await accepting;
-      await pumpEventQueue();
-
-      expect(call.client.tries, ['BOBDEVICE']);
-
-      joinTheCall(call.room, _caller, deviceId: 'CALLERDEV', createdAtMs: 2);
-      await sync(call.client);
-
-      expect(call.client.tries, ['BOBDEVICE', 'CALLERDEV']);
-    });
-
-    test(
-      'a known device whose created_ts changes is sent the key again',
-      () async {
-        final call = keyRelayCall(key: testKey());
-        await call.session.accept();
-        await pumpEventQueue();
-        expect(call.client.tries, ['BOBDEVICE']);
-
-        joinTheCall(call.room, _bob, deviceId: 'BOBDEVICE', createdAtMs: 2);
-        await sync(call.client);
-
-        expect(call.client.tries, ['BOBDEVICE', 'BOBDEVICE']);
-      },
-    );
-
     test('a known device whose only fociActive sessionId changes is not sent '
         'the key again', () async {
-      final call = keyRelayCall(key: testKey());
+      final call = keyDeliveryCall();
       await call.session.accept();
       await pumpEventQueue();
       expect(call.client.tries, ['BOBDEVICE']);
@@ -1213,59 +1015,32 @@ void main() {
         call.room,
         _bob,
         deviceId: 'BOBDEVICE',
-        fociActive: {'sessionId': 'bob-session-2'},
+        fociActive: {..._encryptedFoci, 'sessionId': 'bob-session-2'},
       );
       await sync(call.client);
 
       expect(call.client.tries, ['BOBDEVICE']);
     });
 
-    test('a new device that sent us the key is never sent it back while its '
-        'created_ts holds', () async {
-      final joinGate = Completer<void>();
-      final call = keyRelayCall(
-        inCall: const {_caller: 'CALLERDEV'},
-        engine: FakeCallEngine(joinGate: joinGate),
-      );
-      final accepting = call.session.accept();
-      await pumpEventQueue();
-      call.client.onToDeviceEvent.add(keyEvent());
-      await pumpEventQueue();
-      joinGate.complete();
-      await accepting;
-      await pumpEventQueue();
-
-      joinTheCall(
-        call.room,
-        _caller,
-        deviceId: 'CALLERDEV',
-        fociActive: {'audioMuted': true},
-      );
-      await sync(call.client);
-
-      expect(call.client.tries, isEmpty);
-    });
-
-    _KeyRelayCall relayingOverToDevice(
+    _KeyDeliveryCall deliveringOverToDevice(
       FakeAsync async, {
-      _KeyRelayClient? over,
+      ToDeviceRecordingClient? over,
     }) {
-      final call = keyRelayCall(
-        over: over ?? (_KeyRelayClient()..unreachable.add('BOBDEVICE')),
-        key: testKey(),
+      final call = keyDeliveryCall(
+        over: over ?? (ToDeviceRecordingClient()..unreachable.add('BOBDEVICE')),
       );
       unawaited(call.session.accept());
       async.flushMicrotasks();
       return call;
     }
 
-    int triesFor(_KeyRelayCall call, String deviceId) =>
+    int triesFor(_KeyDeliveryCall call, String deviceId) =>
         call.client.tries.where((d) => d == deviceId).length;
 
-    test('a relay whose sends fail for seconds still delivers the key once '
+    test('a delivery whose sends fail for seconds still delivers the key once '
         'the server answers, and then stops', () {
       fakeAsync((async) {
-        final call = relayingOverToDevice(async);
+        final call = deliveringOverToDevice(async);
         async.elapse(const Duration(seconds: 8));
         expect(call.client.keysSent, isEmpty);
 
@@ -1275,8 +1050,11 @@ void main() {
         final sent = call.client.keysSent['BOBDEVICE'];
         expect(sent, isNotNull);
         expect(
-          parseCallEncryptionKeyContent(content: sent!, callId: 'call1'),
-          testKey(),
+          parseSenderKeyContent(
+            sent!.cast<String, Object?>(),
+            callId: 'call1',
+          )?.gen,
+          1,
         );
         final tries = call.client.tries.length;
         async.elapse(const Duration(minutes: 1));
@@ -1288,10 +1066,10 @@ void main() {
       ('a hang-up', (CallSession s) => unawaited(s.hangUp())),
       ('letting the call go', (CallSession s) => s.dispose()),
     ]) {
-      test('a relay keeps trying while its device is in the call, and '
+      test('a delivery keeps trying while its device is in the call, and '
           '$ending stops it at once', () {
         fakeAsync((async) {
-          final call = relayingOverToDevice(async);
+          final call = deliveringOverToDevice(async);
           async.elapse(const Duration(seconds: 30));
           expect(triesFor(call, 'BOBDEVICE'), greaterThan(3));
 
@@ -1306,11 +1084,16 @@ void main() {
       });
     }
 
-    test('a relay stops once its device leaves a call that goes on', () {
+    test('a delivery stops once its device leaves a call that goes on', () {
       fakeAsync((async) {
-        final call = relayingOverToDevice(async);
-        setTestDevices(call.client, _caller, {'CALLERDEV': null});
-        joinTheCall(call.room, _caller, deviceId: 'CALLERDEV');
+        final call = deliveringOverToDevice(async);
+        setSelfSignedTestDevices(call.client, _caller, ['CALLERDEV']);
+        joinTheCall(
+          call.room,
+          _caller,
+          deviceId: 'CALLERDEV',
+          fociActive: _encryptedFoci,
+        );
         call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
         async.elapse(const Duration(seconds: 30));
         expect(call.client.keysSent.keys, ['CALLERDEV']);
@@ -1327,24 +1110,31 @@ void main() {
       });
     });
 
-    test('a relay that keeps failing is reported once, without the device it '
-        'was for', () {
-      final logs = recordDebugPrints();
-      fakeAsync((async) {
-        relayingOverToDevice(async);
-        async.elapse(const Duration(minutes: 1));
-      });
+    test(
+      'a delivery that keeps failing is reported once, without the device it '
+      'was for',
+      () {
+        final logs = recordDebugPrints();
+        fakeAsync((async) {
+          deliveringOverToDevice(async);
+          async.elapse(const Duration(minutes: 1));
+        });
 
-      expect(reported(logs).where((l) => l.contains('relay the call key')), [
-        startsWith('zuno/caught: relay the call key:'),
-      ]);
-      final retries = logs.where((l) => l.startsWith('zuno/retry:'));
-      expect(retries.length, greaterThan(3));
-      expect(retries, everyElement(startsWith('zuno/retry: call key relay ')));
-      expect(logs.join('\n'), isNot(contains('BOBDEVICE')));
-    });
+        expect(
+          reported(logs).where((l) => l.contains('deliver our sender key')),
+          [startsWith('zuno/caught: deliver our sender key:')],
+        );
+        final retries = logs.where((l) => l.startsWith('zuno/retry:'));
+        expect(retries.length, greaterThan(3));
+        expect(
+          retries,
+          everyElement(startsWith('zuno/retry: sender key delivery ')),
+        );
+        expect(logs.join('\n'), isNot(contains('BOBDEVICE')));
+      },
+    );
 
-    test('a relay cut short by the call ending is not reported', () async {
+    test('a delivery cut short by the call ending is not reported', () async {
       final logs = recordDebugPrints();
       final queried = Completer<void>();
       final answer = Completer<void>();
@@ -1357,11 +1147,15 @@ void main() {
         return http.Response('{"event_id":"\$evt"}', 200);
       });
       final endingRoom = buildTestRoom(endingClient);
-      joinTheCall(endingRoom, _bob, deviceId: 'BOBDEVICE');
+      joinTheCall(
+        endingRoom,
+        _bob,
+        deviceId: 'BOBDEVICE',
+        fociActive: _encryptedFoci,
+      );
       final session = incoming(
         inRoom: endingRoom,
-        key: testKey(),
-        keyRelayDelay: Duration.zero,
+        keyDeliveryDelay: Duration.zero,
       );
 
       await session.accept();
@@ -1371,20 +1165,20 @@ void main() {
       await pumpEventQueue();
 
       expect(
-        reported(logs).where((l) => l.contains('relay the call key')),
+        reported(logs).where((l) => l.contains('deliver our sender key')),
         isEmpty,
       );
     });
 
-    test('a known device republishing the same created_ts is not sent the key '
+    test('a known device republishing the same created_ts is not sent our key '
         'again', () async {
-      final call = keyRelayCall(key: testKey());
+      final call = keyDeliveryCall();
       void bobPublishes({required bool audioMuted}) => joinTheCall(
         call.room,
         _bob,
         deviceId: 'BOBDEVICE',
         createdAtMs: 1,
-        fociActive: {'audioMuted': audioMuted},
+        fociActive: {..._encryptedFoci, 'audioMuted': audioMuted},
       );
       bobPublishes(audioMuted: false);
       await call.session.accept();
@@ -1400,9 +1194,9 @@ void main() {
     test('a send that reaches no device for want of an Olm session is retried '
         'until one is set up, and then stops', () {
       fakeAsync((async) {
-        final call = relayingOverToDevice(
+        final call = deliveringOverToDevice(
           async,
-          over: _KeyRelayClient()..olm = true,
+          over: ToDeviceRecordingClient()..olm = true,
         );
         async.elapse(const Duration(seconds: 8));
         expect(call.client.keysSent, isEmpty);
@@ -1418,74 +1212,23 @@ void main() {
       });
     });
 
-    test('a blocked device with no Olm session is not chased', () {
+    test('a blocked device is never sent our key, nor chased', () {
       fakeAsync((async) {
-        final call = keyRelayCall(
-          over: _KeyRelayClient()..olm = true,
-          key: testKey(),
+        final call = keyDeliveryCall(
+          over: ToDeviceRecordingClient()..olm = true,
         );
         call.client.userDeviceKeys[_bob]!.deviceKeys['BOBDEVICE']!.blocked =
             true;
         unawaited(call.session.accept());
         async.elapse(const Duration(minutes: 1));
 
-        expect(call.client.tries, ['BOBDEVICE']);
+        expect(call.client.tries, isEmpty);
       });
     });
 
-    test('a key that arrives late is passed on to every device already in '
-        'the call, except the one it came from', () async {
-      final call = keyRelayCall(
-        inCall: const {_caller: 'CALLERDEV', _bob: 'BOBDEVICE'},
-      );
-      await call.session.accept();
-      await pumpEventQueue();
-      expect(call.client.tries, isEmpty);
-
-      call.client.onToDeviceEvent.add(keyEvent());
-      await pumpEventQueue();
-
-      expect(call.client.tries, ['BOBDEVICE']);
-      expect(
-        parseCallEncryptionKeyContent(
-          content: call.client.keysSent['BOBDEVICE']!,
-          callId: 'call1',
-        ),
-        testKey(),
-      );
-    });
-
-    test('a key held back until its sender joins is passed on to the devices '
-        'already in the call', () async {
-      final call = keyRelayCall();
-      setSelfSignedTestDevices(call.client, _caller, ['CALLERDEV']);
-      await call.session.accept();
-      call.client.onToDeviceEvent.add(keyEvent());
-      await pumpEventQueue();
-      expect(call.client.tries, isEmpty);
-
-      joinTheCall(call.room, _caller, deviceId: 'CALLERDEV');
-      await sync(call.client);
-
-      expect(call.client.keysSent.keys, contains('BOBDEVICE'));
-    });
-
-    ToDeviceEvent dummyFrom(
-      String sender,
-      String deviceId, {
-      bool encrypted = true,
-    }) => ToDeviceEvent(
-      sender: sender,
-      type: EventTypes.Dummy,
-      content: const {},
-      encryptedContent: encrypted
-          ? {'sender_key': 'curve-$deviceId', 'algorithm': 'm.olm.v1'}
-          : null,
-    );
-
-    test('a device in the call that starts a new Olm session is sent the key '
+    test('a device in the call that starts a new Olm session is sent our key '
         'again over it', () async {
-      final call = keyRelayCall(key: testKey());
+      final call = keyDeliveryCall();
       await call.session.accept();
       await pumpEventQueue();
       expect(call.client.tries, ['BOBDEVICE']);
@@ -1498,7 +1241,7 @@ void main() {
 
     test('a new Olm session from a device outside the call, or a dummy that '
         'was never encrypted, sends nothing', () async {
-      final call = keyRelayCall(key: testKey());
+      final call = keyDeliveryCall();
       setSelfSignedTestDevices(call.client, _mallory, ['MALDEV']);
       await call.session.accept();
       await pumpEventQueue();
@@ -1520,20 +1263,26 @@ void main() {
       ('succeeds', (Completer<void> send) => send.complete()),
     ]) {
       test('a send still out when its device re-joins neither re-arms nor '
-          'ends the newer relay when it $outcome', () {
+          'ends the newer delivery when it $outcome', () {
         final logs = recordDebugPrints();
         int retriesLogged() =>
             logs.where((l) => l.startsWith('zuno/retry:')).length;
         fakeAsync((async) {
           final firstSend = Completer<void>();
-          final call = relayingOverToDevice(
+          final call = deliveringOverToDevice(
             async,
-            over: _KeyRelayClient()..hold = firstSend,
+            over: ToDeviceRecordingClient()..hold = firstSend,
           );
           expect(call.client.tries, ['BOBDEVICE']);
 
           call.client.unreachable.add('BOBDEVICE');
-          joinTheCall(call.room, _bob, deviceId: 'BOBDEVICE', createdAtMs: 2);
+          joinTheCall(
+            call.room,
+            _bob,
+            deviceId: 'BOBDEVICE',
+            createdAtMs: 2,
+            fociActive: _encryptedFoci,
+          );
           call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
           async.flushMicrotasks();
           expect(call.client.tries, ['BOBDEVICE', 'BOBDEVICE']);
@@ -1543,7 +1292,7 @@ void main() {
           async.flushMicrotasks();
           expect(retriesLogged(), retries);
 
-          call.client.keysSent.clear();
+          call.client.sent.clear();
           call.client.unreachable.clear();
           async.elapse(const Duration(seconds: 5));
           expect(call.client.keysSent.keys, ['BOBDEVICE']);
@@ -2067,22 +1816,13 @@ void main() {
   });
 
   group('_connect key-before-join ordering', () {
-    test('a key held before joining is applied before join() is ever '
+    test('our first own key is set and used before join() is ever '
         'called', () async {
-      final engine = _JournalEngine();
-
-      await incoming(engine: engine, key: testKey()).accept();
-
-      expect(engine.journal, ['local media', 'key', 'join']);
-    });
-
-    test('a callee with no key yet joins without ever calling '
-        'setEncryptionKey first', () async {
       final engine = _JournalEngine();
 
       await incoming(engine: engine).accept();
 
-      expect(engine.journal, ['local media', 'join']);
+      expect(engine.journal, ['local media', 'key 0', 'send 0', 'join']);
     });
   });
 
@@ -2331,9 +2071,9 @@ void main() {
     });
   });
 
-  group('our membership goes public only once the call hears its key', () {
-    test('a key the caller sends in reply to our first membership is '
-        'applied while the join is still going', () async {
+  group('our membership while we join', () {
+    test('a key the caller sends in reply to our first membership is loaded '
+        'while we still join', () async {
       late final Client logging;
       final published = <String>[];
       logging = loggingMemberPuts(
@@ -2356,8 +2096,8 @@ void main() {
       await pumpEventQueue();
 
       expect(published, hasLength(1));
-      expect(engine.appliedKey, testKey());
       expect(session.phase, CallSessionPhase.connecting);
+      expect(engine.peerKeys[_callerDevice], {0: testKey()});
 
       joinGate.complete();
       await accepting;
@@ -2614,7 +2354,7 @@ void main() {
       (
         'the engine is still joining',
         (Completer<void> gate) => _JournalEngine(joinGate: gate),
-        ['local media', 'join'],
+        ['local media', 'key 0', 'send 0', 'join'],
       ),
     ]) {
       test('a hang-up while $stage tears the engine down and goes no further: '
@@ -2878,6 +2618,7 @@ void main() {
             'videoTracks': [],
           },
           'createLocalMediaStream' => {'streamId': 'local-stream'},
+          'frameCryptorFactoryCreateKeyProvider' => {'keyProviderId': 'kp'},
           _ => null,
         },
       );
@@ -3319,6 +3060,8 @@ void main() {
             };
           case 'createLocalMediaStream':
             return {'streamId': 'local-stream'};
+          case 'frameCryptorFactoryCreateKeyProvider':
+            return {'keyProviderId': 'kp'};
           default:
             return null;
         }
@@ -3367,11 +3110,7 @@ void main() {
   group('the call follows its room and the sign-in', () {
     Future<(CallSession, FakeCallEngine)> activeIn(Room callRoom) async {
       final engine = FakeCallEngine();
-      final session = incoming(
-        inRoom: callRoom,
-        engine: engine,
-        key: testKey(),
-      );
+      final session = incoming(inRoom: callRoom, engine: engine);
       await session.accept();
       await pumpEventQueue();
       expect(session.phase, CallSessionPhase.active);
@@ -3522,7 +3261,7 @@ void main() {
     });
 
     test(
-      'a hang-up while the call key is being set leaves nothing listening to '
+      'a hang-up while our first key is being set leaves nothing listening to '
       'the app',
       () async {
         final engine = _SlowKeyEngine();
@@ -3530,7 +3269,6 @@ void main() {
         final session = incoming(
           inRoom: sendRoom(),
           engine: engine,
-          key: testKey(),
           pictureInPictureCamera: camera,
         );
 
@@ -3570,6 +3308,478 @@ void main() {
       expect(engine.leaveCalls, 1);
       expect(engine.disposeCalls, 1);
       expect(requests, isEmpty);
+    });
+  });
+
+  group('sender keys', () {
+    const mod = '@mod:example.org';
+    const carolId = VoipParticipantId(userId: _carol, deviceId: 'CAROL');
+    const sends = _encryptedFoci;
+
+    ({
+      CallSession session,
+      ToDeviceRecordingClient client,
+      Room room,
+      FakeCallEngine engine,
+    })
+    inCall({Map<String, Map<String, Object?>> others = const {_bob: sends}}) {
+      const devices = {_bob: 'BOB', _carol: 'CAROL'};
+      final engine = FakeCallEngine();
+      final call = keyDeliveryCall(
+        inCall: {for (final userId in others.keys) userId: devices[userId]!},
+        fociActive: others,
+        engine: engine,
+        keyDeliveryDelay: Duration.zero,
+      );
+      setPowerLevels(call.room, {
+        'users': {mod: 50},
+      });
+      return (
+        session: call.session,
+        client: call.client,
+        room: call.room,
+        engine: engine,
+      );
+    }
+
+    List<int?> senderKeyGensTo(ToDeviceRecordingClient c, String deviceId) => [
+      for (final send in c.sent)
+        if (send.deviceId == deviceId && send.type == callSenderKeyEventType)
+          parseSenderKeyContent(
+            send.body.cast<String, Object?>(),
+            callId: 'call1',
+          )?.gen,
+    ];
+
+    ToDeviceEvent senderKeyFrom(
+      String userId,
+      String deviceId,
+      SenderKey key,
+    ) => keyEvent(sender: userId, curveKey: 'curve-$deviceId', key: key);
+
+    SenderKey keyOf(int gen, {int epoch = 0, int fill = 1}) => (
+      epoch: epoch,
+      gen: gen,
+      key: Uint8List.fromList(List.filled(32, fill)),
+    );
+
+    test('our key goes to every device in the call', () async {
+      final call = inCall(others: {_bob: sends, _carol: sends});
+
+      await call.session.accept();
+      await pumpEventQueue();
+
+      expect(senderKeyGensTo(call.client, 'BOB'), [1]);
+      expect(senderKeyGensTo(call.client, 'CAROL'), [1]);
+    });
+
+    test('a device the key policy refuses gets no sender key', () async {
+      final call = inCall();
+      testMasterKey(call.client, _bob);
+      setTestDevices(call.client, _bob, {'BOB': null});
+
+      await call.session.accept();
+      await pumpEventQueue();
+
+      expect(senderKeyGensTo(call.client, 'BOB'), isEmpty);
+    });
+
+    test('a key from a participant is loaded into its slot', () async {
+      final call = inCall();
+      await call.session.accept();
+
+      call.client.onToDeviceEvent.add(senderKeyFrom(_bob, 'BOB', keyOf(3)));
+      await pumpEventQueue();
+
+      expect(call.engine.peerKeys[bob], {2: keyOf(3).key});
+    });
+
+    test('a key from a device not yet in the call is held and loaded once it '
+        'joins', () async {
+      final call = inCall(others: const {});
+      setSelfSignedTestDevices(call.client, _bob, ['BOB']);
+      await call.session.accept();
+
+      call.client.onToDeviceEvent.add(senderKeyFrom(_bob, 'BOB', keyOf(2)));
+      await pumpEventQueue();
+      expect(call.engine.peerKeys, isEmpty);
+
+      joinTheCall(call.room, _bob, deviceId: 'BOB', fociActive: sends);
+      await sync(call.client);
+
+      expect(call.engine.peerKeys[bob], {1: keyOf(2).key});
+    });
+
+    test('an older key arriving after a newer one is ignored', () async {
+      final call = inCall();
+      await call.session.accept();
+
+      call.client.onToDeviceEvent
+        ..add(senderKeyFrom(_bob, 'BOB', keyOf(3, fill: 3)))
+        ..add(senderKeyFrom(_bob, 'BOB', keyOf(2, fill: 2)));
+      await pumpEventQueue();
+
+      expect(call.engine.peerKeys[bob], {2: keyOf(3, fill: 3).key});
+    });
+
+    test('a device that rejoins under a new membership gets our key '
+        'again', () async {
+      final call = inCall();
+      await call.session.accept();
+      await pumpEventQueue();
+
+      joinTheCall(
+        call.room,
+        _bob,
+        deviceId: 'BOB',
+        fociActive: sends,
+        createdAtMs: 99,
+      );
+      await sync(call.client);
+
+      expect(senderKeyGensTo(call.client, 'BOB'), [1, 1]);
+    });
+
+    test('a leave moves us to a new key after the leave and use delays, sent '
+        'to whoever stays', () {
+      fakeAsync((async) {
+        final call = inCall(others: {_bob: sends, _carol: sends});
+        unawaited(call.session.accept());
+        async.flushMicrotasks();
+
+        leaveTheCall(call.room, _carol);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 2));
+
+        expect(call.engine.ownKeys.keys, [0, 1]);
+        expect(senderKeyGensTo(call.client, 'BOB'), [1, 2]);
+        expect(senderKeyGensTo(call.client, 'CAROL'), [1]);
+        expect(call.engine.sendSlots, [0]);
+
+        async.elapse(const Duration(seconds: 2));
+        expect(call.engine.sendSlots, [0, 1]);
+      });
+    });
+
+    test('a removal in room state moves us to a new key at once, forgets the '
+        'removed device and never takes or sends it a key again', () {
+      fakeAsync((async) {
+        final call = inCall(others: {_bob: sends, _carol: sends});
+        unawaited(call.session.accept());
+        async.flushMicrotasks();
+        call.client.onToDeviceEvent.add(
+          senderKeyFrom(_carol, 'CAROL', keyOf(1)),
+        );
+        async.flushMicrotasks();
+        expect(call.engine.peerKeys[carolId], isNotNull);
+
+        setCallRemoval(call.room, _carol, by: mod);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.flushMicrotasks();
+
+        expect(call.engine.ownKeys.keys, [0, 1]);
+        expect(call.engine.forgotten, [carolId]);
+        expect(call.engine.removedRemotes, [carolId]);
+
+        call.client.onToDeviceEvent.add(
+          senderKeyFrom(_carol, 'CAROL', keyOf(5)),
+        );
+        async.elapse(const Duration(seconds: 5));
+
+        expect(senderKeyGensTo(call.client, 'CAROL'), [1]);
+        expect(call.engine.peerKeys[carolId], isNull);
+        expect(call.engine.sendSlots, [0, 1]);
+      });
+    });
+
+    test('a device the key policy starts refusing mid-call moves us to a new '
+        'key it never gets', () {
+      fakeAsync((async) {
+        final call = inCall(others: {_bob: sends, _carol: sends});
+        unawaited(call.session.accept());
+        async.flushMicrotasks();
+
+        testMasterKey(call.client, _bob);
+        setTestDevices(call.client, _bob, {'BOB': null});
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 4));
+
+        expect(call.engine.ownKeys.keys, [0, 1]);
+        expect(senderKeyGensTo(call.client, 'BOB'), [1]);
+        expect(senderKeyGensTo(call.client, 'CAROL'), [1, 2]);
+        expect(call.engine.sendSlots, [0, 1]);
+      });
+    });
+
+    test('a key sent from another user\'s device is ignored', () async {
+      final call = inCall();
+      setSelfSignedTestDevices(call.client, _mallory, ['MALDEV']);
+      await call.session.accept();
+
+      call.client.onToDeviceEvent.add(
+        keyEvent(sender: _bob, curveKey: 'curve-MALDEV', key: keyOf(1)),
+      );
+      await pumpEventQueue();
+
+      expect(call.engine.peerKeys, isEmpty);
+    });
+
+    test('a key for another call is ignored', () async {
+      final call = inCall();
+      await call.session.accept();
+
+      call.client.onToDeviceEvent.add(
+        keyEvent(
+          sender: _bob,
+          curveKey: 'curve-BOB',
+          callId: 'call0',
+          key: keyOf(1),
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(call.engine.peerKeys, isEmpty);
+    });
+
+    test('a device that rejoins with its clock set back is heard under its new '
+        'membership, and a late key from its old one is not', () async {
+      final call = inCall();
+      joinTheCall(
+        call.room,
+        _bob,
+        deviceId: 'BOB',
+        fociActive: sends,
+        createdAtMs: 500,
+      );
+      await call.session.accept();
+      call.client.onToDeviceEvent.add(
+        senderKeyFrom(_bob, 'BOB', keyOf(1, epoch: 500)),
+      );
+      await pumpEventQueue();
+
+      joinTheCall(
+        call.room,
+        _bob,
+        deviceId: 'BOB',
+        fociActive: sends,
+        createdAtMs: 100,
+      );
+      await sync(call.client);
+      call.client.onToDeviceEvent
+        ..add(senderKeyFrom(_bob, 'BOB', keyOf(1, epoch: 100, fill: 2)))
+        ..add(senderKeyFrom(_bob, 'BOB', keyOf(2, epoch: 500, fill: 3)));
+      await pumpEventQueue();
+
+      expect(call.engine.peerKeys[bob], {0: keyOf(1, epoch: 100, fill: 2).key});
+    });
+
+    test('a device the key policy refuses before its new Olm session lands '
+        'still moves us to a new key', () {
+      fakeAsync((async) {
+        final call = inCall(others: {_bob: sends, _carol: sends});
+        unawaited(call.session.accept());
+        async.flushMicrotasks();
+
+        testMasterKey(call.client, _bob);
+        call.client.onToDeviceEvent.add(dummyFrom(_bob, 'BOB'));
+        async.flushMicrotasks();
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 4));
+
+        expect(call.engine.ownKeys.keys, [0, 1]);
+        expect(senderKeyGensTo(call.client, 'BOB'), [1]);
+        expect(senderKeyGensTo(call.client, 'CAROL'), [1, 2]);
+      });
+    });
+
+    test('a device removed before we join never gets our key or reaches the '
+        'engine', () async {
+      final call = inCall(others: {_bob: sends, _carol: sends});
+      setCallRemoval(call.room, _carol, by: mod);
+
+      await call.session.accept();
+      await pumpEventQueue();
+
+      expect(senderKeyGensTo(call.client, 'CAROL'), isEmpty);
+      expect(senderKeyGensTo(call.client, 'BOB'), [1]);
+      expect(call.engine.updatedRemotes, isNot(contains(carolId)));
+    });
+
+    test('someone who leaves the room is gone from the call at once, though '
+        'their membership still lists it', () {
+      fakeAsync((async) {
+        final call = inCall(others: {_bob: sends, _carol: sends});
+        unawaited(call.session.accept());
+        async.flushMicrotasks();
+
+        call.room.setState(
+          StrippedStateEvent(
+            type: EventTypes.RoomMember,
+            senderId: _carol,
+            stateKey: _carol,
+            content: const {'membership': 'leave'},
+          ),
+        );
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 4));
+
+        expect(call.engine.removedRemotes, [carolId]);
+        expect(senderKeyGensTo(call.client, 'CAROL'), [1]);
+        expect(senderKeyGensTo(call.client, 'BOB'), [1, 2]);
+      });
+    });
+
+    test('a device that restarts has its old keys dropped, so its media waits '
+        'for its new key', () async {
+      final call = inCall();
+      await call.session.accept();
+      call.client.onToDeviceEvent.add(senderKeyFrom(_bob, 'BOB', keyOf(1)));
+      await pumpEventQueue();
+      expect(call.engine.peerKeys[bob], {0: keyOf(1).key});
+
+      joinTheCall(
+        call.room,
+        _bob,
+        deviceId: 'BOB',
+        fociActive: sends,
+        createdAtMs: 99,
+      );
+      await sync(call.client);
+
+      expect(call.engine.forgotten, [bob]);
+      expect(call.engine.peerKeys[bob], isNull);
+
+      final fresh = keyOf(1, epoch: 99, fill: 2);
+      call.client.onToDeviceEvent.add(senderKeyFrom(_bob, 'BOB', fresh));
+      await pumpEventQueue();
+      expect(call.engine.peerKeys[bob], {0: fresh.key});
+    });
+
+    test('a removal drops the keys of a device that had already left', () {
+      fakeAsync((async) {
+        final call = inCall(others: {_bob: sends, _carol: sends});
+        unawaited(call.session.accept());
+        async.flushMicrotasks();
+        call.client.onToDeviceEvent.add(
+          senderKeyFrom(_carol, 'CAROL', keyOf(1)),
+        );
+        async.flushMicrotasks();
+        leaveTheCall(call.room, _carol);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'left'));
+        async.elapse(const Duration(seconds: 5));
+        expect(call.engine.forgotten, isEmpty);
+
+        setCallRemoval(call.room, _carol, by: mod);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'removed'));
+        async.flushMicrotasks();
+
+        expect(call.engine.forgotten, [carolId]);
+      });
+    });
+
+    void joinsLater(
+      ({
+        CallSession session,
+        ToDeviceRecordingClient client,
+        Room room,
+        FakeCallEngine engine,
+      })
+      call,
+    ) {
+      setSelfSignedTestDevices(call.client, _caller, ['CALLERDEV']);
+      joinTheCall(call.room, _caller, deviceId: 'CALLERDEV', fociActive: sends);
+    }
+
+    test('a device that joins while our key is under 10 s old gets that '
+        'key', () {
+      fakeAsync((async) {
+        final call = inCall();
+        unawaited(call.session.accept());
+        async.elapse(const Duration(seconds: 9));
+
+        joinsLater(call);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 5));
+
+        expect(senderKeyGensTo(call.client, 'CALLERDEV'), [1]);
+        expect(call.engine.ownKeys.keys, [0]);
+      });
+    });
+
+    test('in a call we sat in alone for a while, the first device to join '
+        'gets the key nobody has received yet, with no new key', () {
+      fakeAsync((async) {
+        final call = inCall(others: const {});
+        unawaited(call.session.accept());
+        async.elapse(const Duration(seconds: 12));
+
+        joinsLater(call);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 5));
+
+        expect(senderKeyGensTo(call.client, 'CALLERDEV'), [1]);
+        expect(call.engine.ownKeys.keys, [0]);
+      });
+    });
+
+    test('a device that joins once our key is 10 s old gets only a new key, '
+        'which everyone gets and we use after the use delay', () {
+      fakeAsync((async) {
+        final call = inCall();
+        unawaited(call.session.accept());
+        async.elapse(const Duration(seconds: 10));
+
+        joinsLater(call);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.flushMicrotasks();
+
+        expect(senderKeyGensTo(call.client, 'CALLERDEV'), [2]);
+        expect(senderKeyGensTo(call.client, 'BOB'), [1, 2]);
+        expect(call.engine.sendSlots, [0]);
+
+        async.elapse(const Duration(seconds: 2));
+        expect(call.engine.sendSlots, [0, 1]);
+      });
+    });
+
+    test('a leave and a join in one sync never hand the leaver the new '
+        'key', () {
+      fakeAsync((async) {
+        final call = inCall(others: {_bob: sends, _carol: sends});
+        unawaited(call.session.accept());
+        async.elapse(const Duration(seconds: 10));
+
+        leaveTheCall(call.room, _carol);
+        joinsLater(call);
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        async.elapse(const Duration(seconds: 5));
+
+        expect(senderKeyGensTo(call.client, 'CAROL'), [1]);
+        expect(senderKeyGensTo(call.client, 'CALLERDEV'), [2]);
+        expect(senderKeyGensTo(call.client, 'BOB'), [1, 2]);
+      });
+    });
+
+    test('our key is replaced every 90 minutes', () {
+      fakeAsync((async) {
+        final call = inCall();
+        joinTheCall(
+          call.room,
+          _bob,
+          deviceId: 'BOB',
+          fociActive: sends,
+          expiresIn: const Duration(hours: 4),
+        );
+        unawaited(call.session.accept());
+        async.flushMicrotasks();
+
+        async.elapse(const Duration(minutes: 90));
+        expect(senderKeyGensTo(call.client, 'BOB'), [1, 2]);
+
+        async.elapse(const Duration(minutes: 90));
+        expect(senderKeyGensTo(call.client, 'BOB'), [1, 2, 3]);
+        expect(call.session.phase, CallSessionPhase.active);
+      });
     });
   });
 
@@ -3619,7 +3829,7 @@ void main() {
         'users': {mod: 50},
       });
       final engine = FakeCallEngine();
-      final session = incoming(inRoom: r, engine: engine, key: testKey());
+      final session = incoming(inRoom: r, engine: engine);
       return (session: session, engine: engine, room: r, puts: puts);
     }
 
@@ -3673,29 +3883,99 @@ void main() {
       expect(call.room.attempts, isEmpty);
     });
 
-    test('someone else\'s removal leaves our call alone: their own app '
-        'leaving is what drops them', () async {
+    test('someone else\'s removal seen in the timeline drops them from our '
+        'call at once and moves us to a new key', () async {
       final call = joined();
       joinTheCall(call.room, _bob, deviceId: 'BOB');
       await call.session.accept();
-      const bobId = VoipParticipantId(userId: _bob, deviceId: 'BOB');
 
       deliver(removal(call.room, userId: _bob));
       await pumpEventQueue();
-      expect(call.engine.removedRemotes, isEmpty);
-      expect(call.session.phase, CallSessionPhase.active);
 
-      leaveTheCall(call.room, _bob);
+      expect(call.engine.removedRemotes, [bob]);
+      expect(call.engine.ownKeys.keys, [0, 1]);
+      expect(call.session.phase, CallSessionPhase.active);
+    });
+
+    test(
+      'a removal heard before we join changes nothing until we do',
+      () async {
+        final call = joined();
+        joinTheCall(call.room, _bob, deviceId: 'BOB');
+        call.session.engine;
+
+        deliver(removal(call.room, userId: _carol));
+        await pumpEventQueue();
+
+        expect(call.session.everHadRemote, isFalse);
+        expect(call.engine.updatedRemotes, isEmpty);
+      },
+    );
+
+    test('a removal heard before we join keeps them out once we do', () async {
+      final call = joined();
+      joinTheCall(call.room, _bob, deviceId: 'BOB');
+      call.session.engine;
+      deliver(removal(call.room, userId: _bob));
+      await pumpEventQueue();
+
+      await call.session.accept();
+      await pumpEventQueue();
+
+      expect(call.engine.updatedRemotes, isNot(contains(bob)));
+      expect(call.session.everHadRemote, isFalse);
+    });
+
+    test(
+      'a removal from someone who does not outrank them is ignored',
+      () async {
+        final call = joined();
+        joinTheCall(call.room, _bob, deviceId: 'BOB');
+        await call.session.accept();
+
+        deliver(removal(call.room, sender: _carol, userId: _bob));
+        await pumpEventQueue();
+
+        expect(call.engine.removedRemotes, isEmpty);
+        expect(call.engine.forgotten, isEmpty);
+      },
+    );
+
+    test('a removal of us in room state ends the call naming the '
+        'moderator', () async {
+      final call = joined();
+      joinTheCall(call.room, _bob, deviceId: 'BOB');
+      await call.session.accept();
+
+      setCallRemoval(call.room, _me, by: mod);
       await sync(call.room.client);
 
-      expect(call.engine.removedRemotes, [bobId]);
+      expect(call.session.phase, CallSessionPhase.ended);
+      expect(call.session.endReason, CallEndReason.removed);
+      expect(call.session.removedBy, mod);
+    });
+
+    test('joining a call that already names us as removed never shows it '
+        'active', () async {
+      final call = joined();
+      joinTheCall(call.room, _bob, deviceId: 'BOB');
+      setCallRemoval(call.room, _me, by: mod);
+      final phases = <CallSessionPhase>[];
+      call.session.phaseStream.listen(phases.add);
+
+      await call.session.accept();
+      await pumpEventQueue();
+
+      expect(phases, isNot(contains(CallSessionPhase.active)));
+      expect(call.session.endReason, CallEndReason.removed);
+      expect(call.session.removedBy, mod);
     });
 
     test('a removal the engine heard while joining ends the call as '
         'removed', () async {
       final r = sendRoom();
       final engine = _RemovedWhileJoiningEngine();
-      final session = incoming(inRoom: r, engine: engine, key: testKey());
+      final session = incoming(inRoom: r, engine: engine);
 
       await session.accept();
       await untilPhase(session, CallSessionPhase.ended);
@@ -3844,9 +4124,15 @@ class _JournalEngine extends FakeCallEngine {
   }
 
   @override
-  Future<void> setEncryptionKey(Uint8List key) async {
-    journal.add('key');
-    await super.setEncryptionKey(key);
+  Future<void> setOwnKey(int slot, Uint8List key) async {
+    journal.add('key $slot');
+    await super.setOwnKey(slot, key);
+  }
+
+  @override
+  Future<void> sendWithSlot(int slot) async {
+    journal.add('send $slot');
+    await super.sendWithSlot(slot);
   }
 
   @override
@@ -3860,7 +4146,7 @@ class _SlowKeyEngine extends FakeCallEngine {
   final keySet = Completer<void>();
 
   @override
-  Future<void> setEncryptionKey(Uint8List key) => keySet.future;
+  Future<void> setOwnKey(int slot, Uint8List key) => keySet.future;
 }
 
 class _ListenedFlag extends ValueNotifier<bool> {

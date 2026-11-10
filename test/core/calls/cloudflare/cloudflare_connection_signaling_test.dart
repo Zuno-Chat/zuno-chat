@@ -109,7 +109,7 @@ void main() {
     });
 
     test('nothing leaves the phone unencrypted: the microphone stays off '
-        'until the call key arrives', () {
+        'until our key is in place', () {
       inCall((call) {
         call.join();
         expect(call.microphone.enabled, isFalse);
@@ -117,9 +117,7 @@ void main() {
 
         call.encrypt();
 
-        expect(call.backend.cryptors.keyProviders.single.sharedKeys, [
-          callKey(),
-        ]);
+        expect(call.backend.cryptors.keyProviders.first.slots, {1: keyBytes()});
         expect(call.backend.cryptors.liveLabels, {
           'local-audio',
           'local-video',
@@ -132,18 +130,18 @@ void main() {
       });
     });
 
-    test('a call key that cannot be applied leaves nothing half-encrypted', () {
+    test('a sender that cannot be encrypted surfaces the error, its track '
+        'stays off and everything sent is encrypted', () {
       inCall((call) {
         call.join();
         call.backend.cryptors.failEnableFor.add('local-video');
 
         expect(call.encrypt, throwsA(isA<StateError>()));
 
-        expect(call.backend.cryptors.live, isEmpty);
-        expect(call.backend.cryptors.keyProviders.single.disposed, isTrue);
-        expect(call.microphone.enabled, isFalse);
+        expect(call.backend.cryptors.liveLabels, {'local-audio'});
+        expect(call.backend.cryptors.live.every((c) => c.isEnabled), isTrue);
+        expect(call.microphone.enabled, isTrue);
         expect(call.camera.enabled, isFalse);
-        expect(call.local.encrypted, isFalse);
       }, kind: CallKind.video);
     });
 
@@ -1220,16 +1218,10 @@ void main() {
 
         expect(call.engine.quality, CallQuality.good);
         expect(call.localStateChanges, changesBefore);
-        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
-        expect(
-          call.engine.localFociInfo?.containsKey('weakConnection'),
-          isFalse,
-        );
       }, kind: CallKind.video);
     });
 
-    test('a round trip over 700 ms on our own link rates it poor and tells '
-        'everyone', () {
+    test('a round trip over 700 ms on our own link rates it poor', () {
       inCall((call) {
         call.joinEncrypted();
         call.remoteJoins();
@@ -1238,10 +1230,29 @@ void main() {
         call.pollStats(polls(3, [roundTrip(0.9)]));
 
         expect(call.engine.quality, CallQuality.poor);
-        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
-        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
         expect(call.localStateChanges, greaterThan(changesBefore));
+        expect(
+          call.engine.localFociInfo?.containsKey('weakConnection'),
+          isFalse,
+        );
       }, kind: CallKind.video);
+    });
+
+    test('a peer\'s old weak-link flags in its membership are not read', () {
+      inCall((call) {
+        call.joinEncrypted();
+
+        call.engine.updateRemoteParticipant(ann, {
+          'sessionId': 'remote-1',
+          'tracks': {'audio': 'audio'},
+          'encrypted': true,
+          'weakConnection': true,
+          'lowBandwidth': true,
+        }, membershipEventId: r'$membership');
+        call.flush();
+
+        expect(call.remote()?.weakConnection, isFalse);
+      });
     });
 
     test('loss Cloudflare reports on our upload still rates it', () {
@@ -1256,8 +1267,6 @@ void main() {
         ]);
 
         expect(call.engine.quality, CallQuality.poor);
-        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
-        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
       }, kind: CallKind.video);
     });
 
@@ -1288,7 +1297,7 @@ void main() {
       candidatePair('pair', uploadBps: uploadBps),
     ]);
 
-    test('a starved upload shows everyone the weak connection', () {
+    test('a starved upload rates our link degraded', () {
       inCall((call) {
         call.joinEncrypted();
         call.remoteJoins();
@@ -1296,8 +1305,6 @@ void main() {
         call.pollStats(cameraHeldTo(180000));
 
         expect(call.engine.quality, CallQuality.degraded);
-        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
-        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
       }, kind: CallKind.video);
     });
 
@@ -1310,20 +1317,20 @@ void main() {
         call.pollStats(cameraHeldTo(50000));
 
         expect(call.engine.quality, CallQuality.good);
-        expect(
-          call.engine.localFociInfo?.containsKey('weakConnection'),
-          isFalse,
-        );
       });
     });
 
-    test('a peer on a weak link shows as weak and no longer lowers our '
+    test('a peer that rates its link poor shows as weak and never lowers our '
         'video', () {
       inCall((call) {
+        call.sfu.connectOnPush = true;
         call.joinEncrypted();
+        call.pollStats([[]]);
+        call.remoteJoins(advertisesQuality: true);
         final applied = call.videoSlot.sender.appliedParameters.length;
 
-        call.remoteJoins(lowBandwidth: true);
+        call.pc.dataChannels.last.receive('{"quality":"poor"}');
+        call.flush();
 
         expect(call.remote()?.weakConnection, isTrue);
         expect(call.videoSlot.sender.appliedParameters, hasLength(applied));
@@ -1528,12 +1535,11 @@ void main() {
       }, kind: CallKind.video);
     });
 
-    test('a peer\'s reported rating drives its badge, and its legacy flags '
-        'only until its first report', () {
+    test('a peer\'s reported rating drives its badge', () {
       inCall((call) {
         joinConnected(call);
 
-        call.remoteJoins(advertisesQuality: true, weakConnection: true);
+        call.remoteJoins(advertisesQuality: true);
 
         expect(subscriptions(call).single.dataChannels, [
           {
@@ -1545,7 +1551,7 @@ void main() {
         final subscription = call.pc.dataChannels.last;
         expect(subscription.negotiated, isTrue);
         expect(subscription.id, 2);
-        expect(call.remote()?.weakConnection, isTrue);
+        expect(call.remote()?.weakConnection, isFalse);
 
         subscription.receive('{"quality":"good"}');
         call.flush();
@@ -1557,15 +1563,14 @@ void main() {
       }, kind: CallKind.video);
     });
 
-    test('never subscribes to a peer that does not advertise the channel, '
-        'and reads its legacy flags', () {
+    test('never subscribes to a peer that does not advertise the channel', () {
       inCall((call) {
         joinConnected(call);
 
-        call.remoteJoins(weakConnection: true);
+        call.remoteJoins();
 
         expect(subscriptions(call), isEmpty);
-        expect(call.remote()?.weakConnection, isTrue);
+        expect(call.remote()?.weakConnection, isFalse);
       }, kind: CallKind.video);
     });
 
@@ -1677,48 +1682,19 @@ void main() {
       }, kind: CallKind.video);
     });
 
-    test('a legacy flag goes out only while someone without the channel is in '
-        'the call, and only to say we are weak', () {
-      inCall((call) {
-        joinConnected(call);
-        call.remoteJoins(advertisesQuality: true);
-        call.remoteJoins(id: bob, sessionId: 'remote-2');
-        expect(
-          call.engine.localFociInfo?.containsKey('weakConnection'),
-          isFalse,
-        );
-
-        call.pollStats(polls(3, [roundTrip(0.9)]));
-
-        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
-        expect(call.engine.localFociInfo?.containsKey('lowBandwidth'), isFalse);
-
-        final changes = call.localStateChanges;
-        call.engine.removeRemoteParticipant(bob);
-        call.flush();
-
-        expect(
-          call.engine.localFociInfo?.containsKey('weakConnection'),
-          isFalse,
-        );
-        expect(call.localStateChanges, greaterThan(changes));
-      }, kind: CallKind.video);
-    });
-
-    test('a module without data-channel routes leaves the call working, '
-        'reports once, and legacy flags carry the badges', () {
+    test('a module without data-channel routes leaves the call working and '
+        'reports once', () {
       inCall((call) {
         call.sfu.refuseDataChannels = true;
         joinConnected(call);
-        call.remoteJoins(advertisesQuality: true, weakConnection: true);
+        call.remoteJoins(advertisesQuality: true);
 
         call.pollStats(polls(3, [roundTrip(0.9)]));
 
         expect(call.engine.status, CallEngineStatus.connected);
         expect(call.backend.peerConnections, hasLength(1));
         expect(call.engine.localFociInfo?.containsKey('dataChannels'), isFalse);
-        expect(call.engine.localFociInfo?['weakConnection'], isTrue);
-        expect(call.remote()?.weakConnection, isTrue);
+        expect(call.remote()?.weakConnection, isFalse);
         expect(
           caught().where((line) => line.contains('quality channel')),
           hasLength(1),
@@ -1728,7 +1704,7 @@ void main() {
   });
 
   group('leaving', () {
-    test('leaving releases every decryptor, the key, the capture and the '
+    test('leaving releases every decryptor, every key, the capture and the '
         'connection', () {
       inCall((call) {
         call.joinEncrypted();
@@ -1737,7 +1713,11 @@ void main() {
         call.leave();
 
         expect(call.backend.cryptors.live, isEmpty);
-        expect(call.backend.cryptors.keyProviders.single.disposed, isTrue);
+        expect(call.backend.cryptors.keyProviders, hasLength(3));
+        expect(
+          call.backend.cryptors.keyProviders,
+          everyElement(predicate<FakeKeyProvider>((p) => p.disposed)),
+        );
         expect(
           call.backend.streams.where((s) => s.id.startsWith('local_')),
           everyElement(predicate<FakeMediaStream>((s) => s.disposed)),

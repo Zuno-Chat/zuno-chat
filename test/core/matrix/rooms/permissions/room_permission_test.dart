@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/calls/matrixrtc/call_removed_event.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/rooms/communities.dart';
 import 'package:zuno/core/matrix/rooms/permissions/room_permission.dart';
@@ -68,7 +69,26 @@ void main() {
     });
   });
 
+  test('setting Remove people also sets who may remove someone from a '
+      'call', () {
+    final content = <String, Object?>{
+      'events': {'m.room.name': 50},
+    };
+
+    _find('kick').write(content, 75);
+
+    expect(content['kick'], 75);
+    expect(content['events'], {'m.room.name': 50, callRemovedEventType: 75});
+    expect(_find('kick').read(content), 75);
+  });
+
   group('defaultGroupPowerLevels', () {
+    test('lets whoever may remove people remove someone from a call', () {
+      final content = defaultGroupPowerLevels();
+
+      expect((content['events'] as Map)[callRemovedEventType], content['kick']);
+    });
+
     test('matches this app\'s chosen defaults for a new group', () {
       final content = defaultGroupPowerLevels();
       RoomRole levelFor(String id) => roomRoleForLevel(_find(id).read(content));
@@ -184,9 +204,9 @@ void main() {
     });
 
     test('a direct field just sets the key', () {
-      final content = <String, Object?>{'ban': 50};
-      _find('kick').write(content, 0);
-      expect(content, {'ban': 50, 'kick': 0});
+      final content = <String, Object?>{'kick': 50};
+      _find('ban').write(content, 0);
+      expect(content, {'kick': 50, 'ban': 0});
     });
 
     test('a nested notifications field is set without clobbering siblings', () {

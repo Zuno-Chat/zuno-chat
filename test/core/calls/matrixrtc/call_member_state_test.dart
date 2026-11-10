@@ -129,6 +129,36 @@ void main() {
     );
   });
 
+  test('a device listed twice in one call counts once, under its newest '
+      'join', () {
+    final room = buildTestRoom(buildTestClient(userId: '@me:example.org'));
+    final future = clock
+        .now()
+        .add(const Duration(minutes: 5))
+        .millisecondsSinceEpoch;
+    Map<String, Object?> join(int createdAt) => {
+      ..._membershipJson(expiresAtMs: future),
+      'created_ts': createdAt,
+    };
+    room.setState(
+      buildTestEvent(
+        room,
+        eventId: r'$twice',
+        senderId: '@bob:example.org',
+        stateKey: '@bob:example.org',
+        type: callMemberEventType,
+        content: {
+          'memberships': [join(7), join(9), join(8)],
+        },
+      ),
+    );
+
+    final joins = callJoins(room, 'call1').toList();
+
+    expect(joins, hasLength(1));
+    expect(joins.single.membership.createdAtMs, 9);
+  });
+
   group('answered on another device', () {
     late Room room;
 

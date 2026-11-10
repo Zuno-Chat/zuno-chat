@@ -1,5 +1,6 @@
 import 'package:matrix/matrix.dart';
 
+import '../../../calls/matrixrtc/call_removed_event.dart';
 import '../../../l10n/l10n.dart';
 import '../../../location/live_location_protocol.dart';
 import '../optimistic_room_state.dart';
@@ -35,6 +36,17 @@ Map<String, Object?> _nestedMap(Map<String, Object?> content, String key) =>
 
 int? _levelOf(Object? value) => value is int ? value : null;
 
+void _writeNested(
+  Map<String, Object?> content,
+  String key,
+  String field,
+  int level,
+) {
+  final nested = _nestedMap(content, key);
+  nested[field] = level;
+  content[key] = nested;
+}
+
 RoomPermission _stateEventOverride(
   String id,
   LocalizedText label,
@@ -48,11 +60,7 @@ RoomPermission _stateEventOverride(
       _levelOf(_nestedMap(c, 'events')[eventType]) ??
       _levelOf(c['state_default']) ??
       50,
-  write: (c, level) {
-    final events = _nestedMap(c, 'events');
-    events[eventType] = level;
-    c['events'] = events;
-  },
+  write: (c, level) => _writeNested(c, 'events', eventType, level),
 );
 
 RoomPermission _directField(
@@ -79,11 +87,7 @@ RoomPermission _notificationField(
   label: label,
   section: RoomPermissionSection.advanced,
   read: (c) => _levelOf(_nestedMap(c, 'notifications')[type]) ?? fallback,
-  write: (c, level) {
-    final notifications = _nestedMap(c, 'notifications');
-    notifications[type] = level;
-    c['notifications'] = notifications;
-  },
+  write: (c, level) => _writeNested(c, 'notifications', type, level),
 );
 
 final List<RoomPermission> roomPermissions = [
@@ -116,11 +120,15 @@ final List<RoomPermission> roomPermissions = [
     'invite',
     fallback: 0,
   ),
-  _directField(
-    'kick',
-    (l10n) => l10n.matrixPermissionKick,
-    'kick',
-    fallback: 50,
+  RoomPermission(
+    id: 'kick',
+    label: (l10n) => l10n.matrixPermissionKick,
+    section: RoomPermissionSection.advanced,
+    read: (c) => _levelOf(c['kick']) ?? 50,
+    write: (c, level) {
+      c['kick'] = level;
+      _writeNested(c, 'events', callRemovedEventType, level);
+    },
   ),
   _directField('ban', (l10n) => l10n.matrixPermissionBan, 'ban', fallback: 50),
   _directField(

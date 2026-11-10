@@ -455,8 +455,7 @@ class CloudflareConnection implements CallConnection {
     _openQualityChannelOnce();
   }
 
-  @override
-  bool carriesRatingsTo(VoipParticipantId id) =>
+  bool _carriesRatingsTo(VoipParticipantId id) =>
       _quality.isPublished && (_remote[id]?.advertisesRatings ?? false);
 
   void _ratingsRefused(
@@ -475,7 +474,7 @@ class CloudflareConnection implements CallConnection {
     final sessionId = _sessionId;
     final peer = remote.id;
     final peerSession = remote.sessionId;
-    if (pc == null || sessionId == null || !carriesRatingsTo(peer)) return;
+    if (pc == null || sessionId == null || !_carriesRatingsTo(peer)) return;
     final claim = _quality.claim(peer, peerSession);
     if (claim == null) return;
     bool stillWanted() =>

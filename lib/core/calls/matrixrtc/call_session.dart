@@ -1,27 +1,24 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart'
-    show ValueListenable, debugPrint, visibleForTesting;
+    show ValueListenable, visibleForTesting;
 import 'package:flutter/widgets.dart'
     show AppLifecycleListener, AppLifecycleState, WidgetsBinding;
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-import '../../errors/backoff.dart';
 import '../../errors/best_effort.dart';
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
-import '../../matrix/database/ephemeral_to_device.dart';
 import '../../matrix/encryption/late_decryptions.dart';
 import '../../matrix/encryption/olm_sender.dart';
 import '../../platform/platform_capabilities.dart';
 import '../call_engine.dart';
 import '../media/call_connection.dart';
+import '../media/call_key_slots.dart';
 import '../media/call_media_engine.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_failure.dart';
@@ -31,10 +28,14 @@ import '../module/call_provider_discovery.dart' show CallsNotOffered;
 import '../module/calls_module.dart';
 import '../notifications/call_notification_service.dart';
 import 'call_decline.dart';
-import 'call_encryption_key_event.dart';
+import 'call_key_courier.dart';
+import 'call_key_schedule.dart';
 import 'call_member_state.dart';
 import 'call_membership_writer.dart';
 import 'call_moderation.dart';
+import 'call_peer_keys.dart';
+import 'call_removals.dart';
+import 'call_sender_key_event.dart';
 import 'call_summary_message.dart';
 
 enum CallSessionRole { caller, callee }
@@ -64,6 +65,10 @@ const _membershipRefreshInterval = Duration(seconds: 50);
 const _membershipDebounce = Duration(seconds: 1);
 const _remoteLeftConfirmDelay = Duration(seconds: 2);
 const _foregroundWait = Duration(seconds: 3);
+const _leaveKeyDelay = Duration(seconds: 2);
+const _useKeyDelay = Duration(seconds: 2);
+const _joinKeyGrace = Duration(seconds: 10);
+const _maxKeyAge = Duration(minutes: 90);
 
 class CallSession {
   final Client client;
@@ -120,20 +125,30 @@ class CallSession {
   StreamSubscription<LoginState>? _loginSub;
   bool _endedLocally = false;
 
-  final Set<VoipParticipantId> _knownRemote = {};
-  final Map<VoipParticipantId, int> _knownRemoteCreatedAt = {};
+  final Map<VoipParticipantId, int> _remotes = {};
   bool _everHadRemote = false;
   bool get everHadRemote => _everHadRemote;
 
   final _remoteJoinedController = StreamController<void>.broadcast();
   Stream<void> get remoteJoinedStream => _remoteJoinedController.stream;
 
-  Uint8List? _encryptionKey;
-  VoipParticipantId? _keySender;
-  bool get isEncrypted => _encryptionKey != null;
-
-  final Map<VoipParticipantId, Uint8List> _pendingKeys = {};
-  static const _maxPendingKeys = 8;
+  late final CallKeySchedule _keys = CallKeySchedule(
+    leaveDelay: _leaveKeyDelay,
+    useDelay: _useKeyDelay,
+    joinGrace: _joinKeyGrace,
+    maxAge: _maxKeyAge,
+    onMade: _ownKeyMade,
+    onUse: _useOwnKey,
+  );
+  final _peerKeys = CallPeerKeys();
+  late final _removals = CallRemovals(callId);
+  late final _courier = CallKeyCourier(
+    client,
+    callId: callId,
+    baseDelay: keyDeliveryBaseDelay,
+    maxDelay: keyDeliveryMaxDelay,
+    stopped: () => ending,
+  );
 
   bool _membershipLive = false;
   bool _membershipRequested = false;
@@ -147,11 +162,11 @@ class CallSession {
   @visibleForTesting
   final CallEngine Function()? engineBuilder;
 
-  static const _defaultKeyRelayBaseDelay = Duration(milliseconds: 300);
-  static const _defaultKeyRelayMaxDelay = Duration(seconds: 4);
+  static const _defaultKeyDeliveryBaseDelay = Duration(milliseconds: 300);
+  static const _defaultKeyDeliveryMaxDelay = Duration(seconds: 4);
 
-  final Duration keyRelayBaseDelay;
-  final Duration keyRelayMaxDelay;
+  final Duration keyDeliveryBaseDelay;
+  final Duration keyDeliveryMaxDelay;
   final Duration ringTimeout;
   final http.Client? callsHttpClient;
   final CallConnectionOpener _connections;
@@ -167,8 +182,8 @@ class CallSession {
     required this._phase,
     required this._connections,
     this.engineBuilder,
-    this.keyRelayBaseDelay = _defaultKeyRelayBaseDelay,
-    this.keyRelayMaxDelay = _defaultKeyRelayMaxDelay,
+    this.keyDeliveryBaseDelay = _defaultKeyDeliveryBaseDelay,
+    this.keyDeliveryMaxDelay = _defaultKeyDeliveryMaxDelay,
     this.ringTimeout = _ringTimeout,
     this.callsHttpClient,
     ValueListenable<bool>? pictureInPictureCamera,
@@ -215,15 +230,19 @@ class CallSession {
     final moderation = CallModeration.fromEvent(event);
     if (moderation == null || moderation.callId != callId) return;
     final moderator = event.senderId;
-    if (moderation.userId != _myUserId ||
-        !callModerationGate(room, actorId: moderator)(_myUserId)) {
+    if (!callModerationGate(room, actorId: moderator)(moderation.userId)) {
+      return;
+    }
+    if (moderation.userId != _myUserId) {
+      if (moderation is CallRemoval) {
+        _removals.saw(moderation.userId, by: moderator);
+        if (_syncSub != null) _reconcileRemoteMemberships();
+      }
       return;
     }
     switch (moderation) {
       case CallRemoval():
-        removedBy = moderator;
-        endReason = CallEndReason.removed;
-        unawaited(hangUp());
+        _endAsRemoved(moderator);
       case CallMute(:final membershipCreatedTs)
           when _membershipLive &&
               membershipCreatedTs == _joinedAtMs &&
@@ -292,8 +311,8 @@ class CallSession {
     required CallConnectionOpener connections,
     bool lowDataMode = false,
     @visibleForTesting CallEngine Function()? engineBuilder,
-    @visibleForTesting Duration? keyRelayBaseDelay,
-    @visibleForTesting Duration? keyRelayMaxDelay,
+    @visibleForTesting Duration? keyDeliveryBaseDelay,
+    @visibleForTesting Duration? keyDeliveryMaxDelay,
     @visibleForTesting Duration? ringTimeout,
     @visibleForTesting http.Client? callsHttpClient,
     @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
@@ -307,24 +326,17 @@ class CallSession {
       phase: CallSessionPhase.connecting,
       connections: connections,
       engineBuilder: engineBuilder,
-      keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
-      keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
+      keyDeliveryBaseDelay:
+          keyDeliveryBaseDelay ?? _defaultKeyDeliveryBaseDelay,
+      keyDeliveryMaxDelay: keyDeliveryMaxDelay ?? _defaultKeyDeliveryMaxDelay,
       ringTimeout: ringTimeout ?? _ringTimeout,
       callsHttpClient: callsHttpClient,
       pictureInPictureCamera: pictureInPictureCamera,
     );
-    session._encryptionKey = _generateCallKey();
     session._listenForDecline();
     session._followSignInAndRoom();
     unawaited(session._startOutgoingConnect());
     return session;
-  }
-
-  static Uint8List _generateCallKey() {
-    final random = Random.secure();
-    return Uint8List.fromList(
-      List<int>.generate(32, (_) => random.nextInt(256)),
-    );
   }
 
   void _listenForDecline() {
@@ -435,9 +447,8 @@ class CallSession {
     required CallConnectionOpener connections,
     bool lowDataMode = false,
     @visibleForTesting CallEngine Function()? engineBuilder,
-    @visibleForTesting Uint8List? initialEncryptionKeyForTesting,
-    @visibleForTesting Duration? keyRelayBaseDelay,
-    @visibleForTesting Duration? keyRelayMaxDelay,
+    @visibleForTesting Duration? keyDeliveryBaseDelay,
+    @visibleForTesting Duration? keyDeliveryMaxDelay,
     @visibleForTesting http.Client? callsHttpClient,
     @visibleForTesting ValueListenable<bool>? pictureInPictureCamera,
     Future<void>? previousCallReleased,
@@ -451,13 +462,13 @@ class CallSession {
         phase: CallSessionPhase.ringing,
         connections: connections,
         engineBuilder: engineBuilder,
-        keyRelayBaseDelay: keyRelayBaseDelay ?? _defaultKeyRelayBaseDelay,
-        keyRelayMaxDelay: keyRelayMaxDelay ?? _defaultKeyRelayMaxDelay,
+        keyDeliveryBaseDelay:
+            keyDeliveryBaseDelay ?? _defaultKeyDeliveryBaseDelay,
+        keyDeliveryMaxDelay: keyDeliveryMaxDelay ?? _defaultKeyDeliveryMaxDelay,
         callsHttpClient: callsHttpClient,
         pictureInPictureCamera: pictureInPictureCamera,
         previousCallReleased: previousCallReleased,
       )
-      .._encryptionKey = initialEncryptionKeyForTesting
       .._followSignInAndRoom()
       .._endOnceSummarizedUnjoined();
   }
@@ -544,7 +555,11 @@ class CallSession {
       if (await _abandonEngineIfEnded()) return;
 
       final built = engine;
-      if (_encryptionKey case final key?) await built.setEncryptionKey(key);
+      final first = _keys.start(
+        _joinedAtMs ??= clock.now().millisecondsSinceEpoch,
+      );
+      await built.setOwnKey(senderKeySlot(first.gen), first.key);
+      await built.sendWithSlot(senderKeySlot(first.gen));
       if (await _abandonEngineIfEnded()) return;
       _toDeviceSub = client.onToDeviceEvent.stream.listen(_handleToDeviceEvent);
       sessionWatch = _publishOnceSessionOpens(built);
@@ -570,6 +585,7 @@ class CallSession {
         (_) => _reconcileRemoteMemberships(),
       );
       _reconcileRemoteMemberships();
+      if (ending) return;
       _setPhase(CallSessionPhase.active);
       _activeAt = clock.now();
     } catch (e) {
@@ -708,9 +724,9 @@ class CallSession {
   void _handleToDeviceEvent(ToDeviceEvent event) {
     switch (event.type) {
       case EventTypes.Dummy:
-        _relayOverNewOlmSession(event);
-      case callEncryptionKeyEventType:
-        _receiveEncryptionKey(event);
+        _resendOverNewOlmSession(event);
+      case callSenderKeyEventType:
+        _receiveSenderKey(event);
     }
   }
 
@@ -723,50 +739,73 @@ class CallSession {
         _ => null,
       };
 
-  void _relayOverNewOlmSession(ToDeviceEvent event) {
+  void _resendOverNewOlmSession(ToDeviceEvent event) {
     final id = _olmSender(event);
-    if (id != null && _knownRemote.contains(id)) _relayEncryptionKeyTo(id);
+    if (id == null || !_remotes.containsKey(id)) return;
+    _deliverSenderKey([id], resend: true);
   }
 
-  void _receiveEncryptionKey(ToDeviceEvent event) {
-    if (_encryptionKey != null) return;
+  void _receiveSenderKey(ToDeviceEvent event) {
     final id = _olmSender(event);
     if (id == null) return;
-
-    final key = parseCallEncryptionKeyContent(
-      content: event.content,
-      callId: callId,
-    );
+    final key = parseSenderKeyContent(event.content, callId: callId);
     if (key == null) return;
-
-    if (!_currentCallParticipants().contains(id)) {
-      if (_pendingKeys.length < _maxPendingKeys) _pendingKeys[id] = key;
-      return;
-    }
-    _applyEncryptionKey(key, from: id);
-  }
-
-  void _applyEncryptionKey(Uint8List key, {required VoipParticipantId from}) {
-    if (_encryptionKey != null) return;
-    _encryptionKey = key;
-    _keySender = from;
-    _pendingKeys.clear();
-    if (_engine case final engine?) {
-      unawaited(_applyEncryptionKeyToEngine(engine, key));
-    }
-    for (final id in _knownRemote) {
-      if (id != from) _relayEncryptionKeyTo(id);
+    final epoch = _currentCallJoins()
+        .where(
+          (join) =>
+              join.userId == id.userId &&
+              join.membership.deviceId == id.deviceId,
+        )
+        .firstOrNull
+        ?.membership
+        .createdAtMs;
+    if (epoch != null && _peerKeys.restarted(id, epoch)) _forgetPeerKeys(id);
+    if (_peerKeys.receive(id, key, epoch: epoch) case final apply?) {
+      _loadPeerKey(id, apply);
     }
   }
 
-  Future<void> _applyEncryptionKeyToEngine(
+  void _forgetPeerKeys(VoipParticipantId id) => _changeKeys(
+    (engine) => engine.forgetPeer(id),
+    'forget a participant\'s old keys',
+  );
+
+  void _loadPeerKey(VoipParticipantId id, SenderKey key) => _changeKeys(
+    (engine) => engine.setPeerKey(id, senderKeySlot(key.gen), key.key),
+    'apply a sender key we received',
+  );
+
+  void _ownKeyMade(SenderKey key) {
+    _changeKeys(
+      (engine) => engine.setOwnKey(senderKeySlot(key.gen), key.key),
+      'load our new sender key',
+    );
+    _deliverSenderKey(_remotes.keys);
+  }
+
+  void _useOwnKey(int slot) => _changeKeys(
+    (engine) => engine.sendWithSlot(slot),
+    'switch the key we send with',
+  );
+
+  void _changeKeys(
+    Future<void> Function(CallEngine engine) change,
+    String label,
+  ) {
+    final engine = _engine;
+    if (engine == null || ending) return;
+    unawaited(_applyKeyChange(engine, change, label));
+  }
+
+  Future<void> _applyKeyChange(
     CallEngine engine,
-    Uint8List key,
+    Future<void> Function(CallEngine engine) change,
+    String label,
   ) async {
     try {
-      await engine.setEncryptionKey(key);
+      await change(engine);
     } catch (e, s) {
-      reportCaught('apply the call key', e, s);
+      reportCaught(label, e, s);
       if (_phase == CallSessionPhase.ended) return;
       failure = const CallDidNotConnect();
       endReason = CallEndReason.failed;
@@ -774,91 +813,24 @@ class CallSession {
     }
   }
 
-  Set<VoipParticipantId> _currentCallParticipants() => {
-    for (final join in callJoins(room, callId))
-      VoipParticipantId(
-        userId: join.userId,
-        deviceId: join.membership.deviceId,
-      ),
-  };
+  Iterable<CallJoin> _currentCallJoins() =>
+      currentCallJoins(room, callId, _removals.current(room));
 
-  static const _keyRelayReportAfter = 3;
-
-  final Map<VoipParticipantId, _KeyRelay> _keyRelays = {};
-
-  void _relayEncryptionKeyTo(VoipParticipantId id) {
-    final key = _encryptionKey;
-    if (key == null || ending) return;
-    _stopKeyRelay(id);
-    final relay = _keyRelays[id] = _KeyRelay();
-    unawaited(_attemptKeyRelay(id, key, relay, attempt: 1));
-  }
-
-  Future<void> _attemptKeyRelay(
-    VoipParticipantId id,
-    Uint8List key,
-    _KeyRelay relay, {
-    required int attempt,
-  }) async {
-    bool current() => !ending && identical(_keyRelays[id], relay);
-    if (!current()) return;
-    try {
-      await _sendEncryptionKeyOnce(id, key);
-      if (identical(_keyRelays[id], relay)) _keyRelays.remove(id);
-    } catch (e, s) {
-      if (!current()) return;
-      if (attempt == _keyRelayReportAfter) {
-        reportCaught('relay the call key', e, s);
-      }
-      final delay = backoffDelay(
-        attempt,
-        baseDelay: keyRelayBaseDelay,
-        maxDelay: keyRelayMaxDelay,
-      );
-      debugPrint(
-        'zuno/retry: call key relay failed (attempt $attempt), '
-        'retrying in $delay: $e',
-      );
-      relay.retry = Timer(
-        delay,
-        () => unawaited(_attemptKeyRelay(id, key, relay, attempt: attempt + 1)),
-      );
+  void _deliverSenderKey(
+    Iterable<VoipParticipantId> ids, {
+    bool resend = false,
+  }) {
+    final key = _keys.latest;
+    if (key == null) return;
+    if (_courier.send(ids.where(_remotes.containsKey), key, resend: resend)) {
+      _keys.shared(key);
     }
   }
 
-  void _stopKeyRelay(VoipParticipantId id) => _keyRelays.remove(id)?.stop();
-
-  void _stopKeyRelays() {
-    for (final relay in _keyRelays.values) {
-      relay.stop();
-    }
-    _keyRelays.clear();
-  }
-
-  Future<void> _sendEncryptionKeyOnce(
-    VoipParticipantId id,
-    Uint8List key,
-  ) async {
-    final device = await _deviceKeysOf(id);
-    final unreached = await sendEphemeralToDevice(
-      client,
-      [device],
-      callEncryptionKeyEventType,
-      buildCallEncryptionKeyContent(callId: callId, key: key),
-    );
-    if (unreached.isNotEmpty) {
-      throw StateError('No Olm session with the device yet');
-    }
-  }
-
-  Future<DeviceKeys> _deviceKeysOf(VoipParticipantId id) async {
-    DeviceKeys? known() =>
-        client.userDeviceKeys[id.userId]?.deviceKeys[id.deviceId];
-    if (known() case final device?) return device;
-    if (client.userDeviceKeys[id.userId]?.outdated != false) {
-      await client.updateUserDeviceKeys(additionalUsers: {id.userId});
-    }
-    return known() ?? (throw StateError('No device keys yet'));
+  void _endAsRemoved(String by) {
+    removedBy = by;
+    endReason = CallEndReason.removed;
+    unawaited(hangUp());
   }
 
   Future<void> refreshMembership() async {
@@ -924,22 +896,43 @@ class CallSession {
     final eng = _engine;
     if (eng == null) return;
     if (_roomSeen && client.getRoomById(_roomId) == null) return;
+    final removals = _removals.current(room);
+    if (removals[_myUserId] case final moderator?) {
+      if (!ending) _endAsRemoved(moderator);
+      return;
+    }
+    _peerKeys.forgetUsers(removals.keys.toSet()).forEach(_forgetPeerKeys);
     final seenThisPass = <VoipParticipantId>{};
+    final newcomers = <VoipParticipantId>[];
+    final staying = <VoipParticipantId>[];
+    final restarted = <VoipParticipantId>[];
+    var refusedNow = false;
 
-    for (final (:userId, :membership, :eventId) in callJoins(room, callId)) {
+    for (final (:userId, :membership, :eventId) in currentCallJoins(
+      room,
+      callId,
+      removals,
+    )) {
       if (userId == _myUserId) continue;
       final id = VoipParticipantId(
         userId: userId,
         deviceId: membership.deviceId,
       );
       seenThisPass.add(id);
-      if (_pendingKeys.remove(id) case final pending?) {
-        _applyEncryptionKey(pending, from: id);
+      final known = _remotes[id];
+      _remotes[id] = membership.createdAtMs;
+      if (_peerKeys.restarted(id, membership.createdAtMs)) _forgetPeerKeys(id);
+      if (_peerKeys.joined(id, membership.createdAtMs) case final key?) {
+        _loadPeerKey(id, key);
       }
-      final isNewDevice = _knownRemote.add(id);
-      if (isNewDevice || _knownRemoteCreatedAt[id] != membership.createdAtMs) {
-        _knownRemoteCreatedAt[id] = membership.createdAtMs;
-        if (!isNewDevice || id != _keySender) _relayEncryptionKeyTo(id);
+      if (_courier.refuses(id) && _courier.forget(id)) refusedNow = true;
+      switch (known) {
+        case null:
+          newcomers.add(id);
+        case final createdAt when createdAt != membership.createdAtMs:
+          restarted.add(id);
+        case _:
+          staying.add(id);
       }
       if (!_everHadRemote) {
         _everHadRemote = true;
@@ -955,16 +948,24 @@ class CallSession {
       );
     }
 
-    final departed = _knownRemote.difference(seenThisPass);
+    final departed = [
+      for (final id in _remotes.keys)
+        if (!seenThisPass.contains(id)) id,
+    ];
     final hungUp =
         departed.isNotEmpty &&
         departed.every((id) => hasLeftCall(room, id.userId, callId));
+    var removal = false;
     for (final id in departed) {
       eng.removeRemoteParticipant(id);
-      _knownRemote.remove(id);
-      _knownRemoteCreatedAt.remove(id);
-      _stopKeyRelay(id);
+      _remotes.remove(id);
+      _courier.forget(id);
+      if (removals.containsKey(id.userId)) removal = true;
     }
+    if (departed.isNotEmpty || refusedNow) _keys.departed(removal: removal);
+    if (newcomers.isNotEmpty) _keys.joined();
+    _deliverSenderKey([...staying, ...newcomers]);
+    _deliverSenderKey(restarted, resend: true);
 
     if (seenThisPass.isNotEmpty) {
       _consecutiveEmptyReconciles = 0;
@@ -1005,9 +1006,10 @@ class CallSession {
 
   void _releaseListeners() {
     _cancelTimers();
-    _stopKeyRelays();
+    _courier.stopAll();
+    _keys.dispose();
     _stopFollowingAppLifecycle();
-    _pendingKeys.clear();
+    _peerKeys.clear();
     for (final subscription in _subscriptions) {
       unawaited(subscription?.cancel());
     }
@@ -1090,8 +1092,9 @@ class CallSession {
     );
   }
 
-  bool _othersStillInCall() => _currentCallParticipants().any(
-    (id) => id.userId != _myUserId || id.deviceId != _myDeviceId,
+  bool _othersStillInCall() => _currentCallJoins().any(
+    (join) =>
+        join.userId != _myUserId || join.membership.deviceId != _myDeviceId,
   );
 
   void dispose() {
@@ -1102,12 +1105,6 @@ class CallSession {
       }),
     );
   }
-}
-
-class _KeyRelay {
-  Timer? retry;
-
-  void stop() => retry?.cancel();
 }
 
 class MicrophoneUnavailable implements Exception {
