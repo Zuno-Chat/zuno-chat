@@ -21,7 +21,6 @@ import '../pushers/push_gateway.dart';
 import '../pushers/pusher_reconciliation.dart';
 import '../pushers/pusher_removal.dart';
 import 'apns_pusher.dart';
-import 'apns_pusher_check.dart';
 
 enum ApnsStatus {
   idle,
@@ -172,16 +171,16 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
   }
 
   Future<void> _reconcile(Client client, _Registration registration) async {
-    final check = checkApnsPusher(
-      await fetchPushers(client),
+    final check = await checkPusherOnServer(
+      client,
       appId: registration.appId,
       pushkey: registration.pushkey,
-      gatewayUrl: homeserverPushGatewayUri(client.homeserver),
+      gatewayUrl: zunoPushGateway,
     );
     switch (check) {
-      case ApnsPusherCheck.matches || ApnsPusherCheck.unknown:
+      case PusherCheck.matches || PusherCheck.unknown:
         return;
-      case ApnsPusherCheck.outdated:
+      case PusherCheck.outdated:
         debugPrint(
           'zuno/push: the APNs pusher has an old address or format, posting '
           'it again',
@@ -192,7 +191,7 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
           pushkey: registration.pushkey,
           sound: await _alertSound(),
         );
-      case ApnsPusherCheck.missing:
+      case PusherCheck.missing:
         dropped.value += 1;
         await _storeDropped(dropped.value);
         debugPrint(
@@ -263,14 +262,11 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
         if (status.value != ApnsStatus.ready || registration == null) return;
         final sound = await _alertSound();
         if ((sound: sound) == _postedSound) continue;
-        final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
-        if (gatewayUrl == null) return;
         try {
           await _send(
             client,
             appId: registration.appId,
             pushkey: registration.pushkey,
-            gatewayUrl: gatewayUrl,
             sound: sound,
           );
         } catch (e, s) {
@@ -290,21 +286,8 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     required String pushkey,
     required String? sound,
   }) async {
-    final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
-    if (gatewayUrl == null) {
-      lastPusherError = const PusherServerMissing();
-      status.value = ApnsStatus.pusherFailed;
-      _retry.schedule(() => _register(client));
-      return false;
-    }
     try {
-      await _send(
-        client,
-        appId: appId,
-        pushkey: pushkey,
-        gatewayUrl: gatewayUrl,
-        sound: sound,
-      );
+      await _send(client, appId: appId, pushkey: pushkey, sound: sound);
     } catch (e, s) {
       reportCaught('apns pusher post', e, s);
       lastPusherError = PusherPostFailed(e.toString());
@@ -319,14 +302,12 @@ class ApnsDeliveryProvider implements NotificationDeliveryProvider {
     Client client, {
     required String appId,
     required String pushkey,
-    required Uri gatewayUrl,
     required String? sound,
   }) async {
     await client.postPusher(
       buildApnsPusher(
         appId: appId,
         pushkey: pushkey,
-        gatewayUrl: gatewayUrl,
         deviceDisplayName: thisSessionDisplayName(),
         sound: sound,
       ),

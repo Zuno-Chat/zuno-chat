@@ -5,15 +5,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/push/delivery/pusher_failure.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_pusher.dart';
 import 'package:zuno/core/push/fcm/fcm_registration_store.dart';
+import 'package:zuno/core/push/pushers/push_gateway.dart';
+import 'package:zuno/core/push/pushers/pusher_format.dart';
 
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_ring_registration.dart';
 import '../../../helpers/pusher_recording_client.dart';
+
+const _oldGateway = 'https://old.example.org/_matrix/push/v1/notify';
+
+Map<String, Object?> _live({String? url, String format = pusherFormat}) =>
+    livePusherJson(
+      appId: fcmAppId,
+      pushkey: 'token-abc',
+      url: url,
+      format: format,
+    );
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -64,10 +75,7 @@ void main() {
     expect(client.posted, hasLength(1));
     expect(client.posted.single.pushkey, 'token-abc');
     expect(client.posted.single.appId, 'im.zuno.chat.android');
-    expect(
-      client.posted.single.data.url,
-      Uri.parse('https://matrix.example.org/_matrix/push/v1/notify'),
-    );
+    expect(client.posted.single.data.url, zunoPushGateway);
   });
 
   test(
@@ -194,9 +202,7 @@ void main() {
       test('on a restored registration, never while Google cannot be '
           'reached', () async {
         SharedPreferences.setMockInitialValues({'push.fcm.token': 'token-abc'});
-        client.pushersOnServer = [
-          serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
-        ];
+        client.pushersOnServer = [_live()];
         provider.tokenReader = () async =>
             throw const FcmTokenException(FcmTokenFailure.unavailable);
 
@@ -206,9 +212,7 @@ void main() {
       test('on a restored registration, when Firebase fails it any other '
           'way', () async {
         SharedPreferences.setMockInitialValues({'push.fcm.token': 'token-abc'});
-        client.pushersOnServer = [
-          serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
-        ];
+        client.pushersOnServer = [_live()];
         provider.tokenReader = () async =>
             throw const FcmTokenException(FcmTokenFailure.failed);
 
@@ -394,11 +398,24 @@ void main() {
       expect(client.posted, hasLength(1));
     });
 
+    test('moves a pusher off an old gateway to Zuno\'s', () async {
+      await provider.start(client);
+      client.pushersOnServer = [_live(url: _oldGateway)];
+
+      await withClock(
+        Clock.fixed(clock.now().add(registrationRecheckInterval)),
+        () => provider.recheckRegistration(client),
+      );
+
+      expect(client.posted, hasLength(2));
+      expect(client.posted.last.pushkey, 'token-abc');
+      expect(client.posted.last.data.url, zunoPushGateway);
+      expect(client.deleted, isEmpty);
+    });
+
     test('leaves a registration the homeserver still has alone', () async {
       await provider.start(client);
-      client.pushersOnServer = [
-        serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
-      ];
+      client.pushersOnServer = [_live()];
 
       await withClock(
         Clock.fixed(clock.now().add(registrationRecheckInterval)),
@@ -741,11 +758,67 @@ void main() {
       expect(provider.status.value, FcmStatus.ready);
     });
 
+    test(
+      'moves a pusher at the homeserver\'s own gateway to Zuno\'s',
+      () async {
+        client.pushersOnServer = [_live(url: _oldGateway)];
+
+        await provider.start(client);
+
+        expect(client.posted.single.pushkey, 'token-abc');
+        expect(client.posted.single.data.url, zunoPushGateway);
+        expect(provider.status.value, FcmStatus.ready);
+      },
+    );
+
+    test('moves the pusher with the stored token while Google cannot hand '
+        'out a new one', () async {
+      client.pushersOnServer = [_live(url: _oldGateway)];
+      provider.tokenReader = () async =>
+          throw const FcmTokenException(FcmTokenFailure.unavailable);
+
+      await provider.start(client);
+
+      expect(client.posted.single.pushkey, 'token-abc');
+      expect(client.posted.single.data.url, zunoPushGateway);
+      expect(provider.status.value, FcmStatus.ready);
+      expect(provider.retryScheduled, isFalse);
+    });
+
+    test('never puts back a token replaced while the pusher list '
+        'loads', () async {
+      final refreshes = StreamController<String>();
+      addTearDown(refreshes.close);
+      provider.tokenRefreshStream = () => refreshes.stream;
+      client.pushersOnServer = [_live(url: _oldGateway)];
+      final listing = client.holdNextPushersFetch = Completer<void>();
+
+      final starting = provider.start(client);
+      await pumpEventQueue();
+      refreshes.add('token-new');
+      await pumpEventQueue();
+      listing.complete();
+      await starting;
+
+      expect(client.posted.map((p) => p.pushkey), ['token-new']);
+      expect(client.deleted.map((id) => id.pushkey), ['token-abc']);
+      expect(provider.token, 'token-new');
+    });
+
+    test(
+      're-posts a pusher asking for full events with event ids only',
+      () async {
+        client.pushersOnServer = [_live(format: 'full')];
+
+        await provider.start(client);
+
+        expect(client.posted.single.data.format, 'event_id_only');
+      },
+    );
+
     test('leaves a confirmed registration alone when the homeserver still '
         'has it', () async {
-      client.pushersOnServer = [
-        serverPusherJson(appId: fcmAppId, pushkey: 'token-abc'),
-      ];
+      client.pushersOnServer = [_live()];
 
       await provider.start(client);
 
@@ -1068,19 +1141,6 @@ void main() {
       final freshClient = PusherRecordingClient();
       await relaunched.start(freshClient);
       expect(freshClient.posted, hasLength(1));
-    },
-  );
-
-  test(
-    'does not register without a homeserver to derive the gateway from',
-    () async {
-      final unset = PusherRecordingClient()..homeserver = null;
-
-      await provider.start(unset);
-
-      expect(unset.posted, isEmpty);
-      expect(provider.status.value, FcmStatus.pusherFailed);
-      expect(provider.lastPusherError, isA<PusherServerMissing>());
     },
   );
 }

@@ -14,6 +14,8 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/apns/apns_delivery_provider.dart';
 import 'package:zuno/core/push/apns/apns_pusher.dart';
 import 'package:zuno/core/push/delivery/registration_retry.dart';
+import 'package:zuno/core/push/pushers/push_gateway.dart';
+import 'package:zuno/core/push/pushers/pusher_format.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
 
 import '../../../helpers/caught_reports.dart';
@@ -32,14 +34,13 @@ const _newPushkey = '1OX2p9Tl9qfU5fan1OX2p9Tl9qfU5fan1OX2p9Tl9qc=';
 Map<String, Object?> _serverPusher(
   String pushkey, {
   String? appId,
-  String url = 'https://matrix.example.org/_matrix/push/v1/notify',
-  String format = 'event_id_only',
-}) => serverPusherJson(
+  String? url,
+  String format = pusherFormat,
+}) => livePusherJson(
   appId: appId ?? apnsAppId,
   pushkey: pushkey,
-  appName: 'Zuno',
-  deviceName: 'Zuno on iOS',
-  data: {'url': url, 'format': format},
+  url: url,
+  format: format,
 );
 
 void main() {
@@ -111,7 +112,7 @@ void main() {
           },
         },
         'format': 'event_id_only',
-        'url': 'https://matrix.example.org/_matrix/push/v1/notify',
+        'url': zunoPushGateway.toString(),
       });
       expect(provider.token, _token);
       expect(provider.pushkey, _pushkey);
@@ -224,17 +225,6 @@ void main() {
 
     expect(provider.status.value, ApnsStatus.ready);
     expect(provider.lastPusherError, isNull);
-  });
-
-  test('with no server to send through yet, registering is tried again '
-      'later', () async {
-    client.homeserver = null;
-
-    await provider.start(client);
-
-    expect(provider.status.value, ApnsStatus.pusherFailed);
-    expect(provider.retryScheduled, isTrue);
-    expect(client.posted, isEmpty);
   });
 
   test(
@@ -422,8 +412,8 @@ void main() {
       expect(provider.status.value, ApnsStatus.ready);
     });
 
-    test('pointing at an old address is posted again to this server without '
-        'counting a drop', () async {
+    test('pointing at an old address is posted again to Zuno\'s gateway '
+        'without counting a drop', () async {
       await provider.start(client);
       client.posted.clear();
       client.pushersOnServer = [
@@ -439,10 +429,7 @@ void main() {
       final pusher = client.posted.single;
       expect(pusher.appId, apnsAppId);
       expect(pusher.pushkey, _pushkey);
-      expect(
-        pusher.data.url.toString(),
-        'https://matrix.example.org/_matrix/push/v1/notify',
-      );
+      expect(pusher.data.url, zunoPushGateway);
       expect(relaunched.dropped.value, 0);
       expect(relaunched.status.value, ApnsStatus.ready);
       expect(client.deleted, isEmpty);
@@ -468,7 +455,7 @@ void main() {
       client.pushersOnServer = [
         _serverPusher(
           _pushkey,
-          url: 'https://Matrix.Example.org:443/_matrix/push/v1/notify',
+          url: 'https://Push.Zuno.chat:443/_matrix/push/v1/notify',
         ),
       ];
 

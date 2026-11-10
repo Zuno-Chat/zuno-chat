@@ -5,10 +5,6 @@ import 'package:zuno/core/push/delivery/pusher_failure.dart';
 void main() {
   test('each failure renders in the language it is shown in', () {
     expect(
-      const PusherServerMissing().message(englishLocalizations),
-      'No server to send notifications through yet.',
-    );
-    expect(
       const PusherPostFailed('M_FORBIDDEN').message(englishLocalizations),
       'M_FORBIDDEN',
     );

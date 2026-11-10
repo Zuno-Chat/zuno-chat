@@ -951,7 +951,6 @@
   "pushLastError": "Senaste fel",
   "pushNoDistributorFound": "Ingen distributörsapp på den här enheten att leverera via",
   "pushNoDistributorInstalled": "Ingen installerad. Installera en, till exempel ntfy, och uppdatera sedan.",
-  "pushNoServerYet": "Ingen server att skicka notiser via än.",
   "pushNoneSelected": "Ingen vald",
   "pushNoneYet": "Inga än",
   "pushNotRegisteredYet": "Inte registrerad än",

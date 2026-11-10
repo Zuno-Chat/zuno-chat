@@ -12,7 +12,6 @@ import '../../matrix/client/matrix_client_provider.dart';
 import '../../notifications/settings/notification_permission.dart';
 import '../handling/headless_decline_hold.dart';
 import '../handling/headless_push_runner.dart';
-import '../pushers/push_gateway.dart';
 import '../pushers/pusher_removal.dart';
 import 'fcm_bridge.dart';
 import 'fcm_push_notification.dart';
@@ -181,14 +180,8 @@ Future<bool> _moveFcmPusher(
   required String from,
   required String to,
 }) async {
-  final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
-  if (gatewayUrl == null) return false;
   await client.postPusher(
-    buildFcmPusher(
-      token: to,
-      gatewayUrl: gatewayUrl,
-      deviceDisplayName: thisSessionDisplayName(),
-    ),
+    buildFcmPusher(token: to, deviceDisplayName: thisSessionDisplayName()),
   );
   await saveFcmRegistration(prefs, token: to);
   await prefs.remove(fcmPendingTokenKey);

@@ -38,12 +38,12 @@ PusherFailure? lastPusherErrorFor(NotificationDeliveryMode mode) {
   };
 }
 
-Uri? gatewayUrlFor(NotificationDeliveryMode mode, Client client) {
+Uri? gatewayUrlFor(NotificationDeliveryMode mode) {
   return switch (mode) {
     NotificationDeliveryMode.unifiedPush =>
       unifiedPushDeliveryProvider.gatewayUrl,
-    NotificationDeliveryMode.fcm || NotificationDeliveryMode.apns =>
-      homeserverPushGatewayUri(client.homeserver),
+    NotificationDeliveryMode.fcm ||
+    NotificationDeliveryMode.apns => zunoPushGateway,
     NotificationDeliveryMode.backgroundService => null,
   };
 }

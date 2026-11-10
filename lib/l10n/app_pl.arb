@@ -951,7 +951,6 @@
   "pushLastError": "Ostatni błąd",
   "pushNoDistributorFound": "Brak aplikacji dystrybutora na tym urządzeniu",
   "pushNoDistributorInstalled": "Nie zainstalowano żadnej. Zainstaluj na przykład ntfy, a potem odśwież.",
-  "pushNoServerYet": "Nie ma jeszcze serwera, przez który można wysyłać powiadomienia.",
   "pushNoneSelected": "Nie wybrano",
   "pushNoneYet": "Jeszcze brak",
   "pushNotRegisteredYet": "Jeszcze niezarejestrowane",

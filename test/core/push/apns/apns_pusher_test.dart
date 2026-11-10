@@ -58,9 +58,6 @@ void main() {
     Object? payloadWith({required String? sound}) => buildApnsPusher(
       appId: 'im.zuno.chat.ios',
       pushkey: 'obLD1A==',
-      gatewayUrl: Uri.parse(
-        'https://matrix.example.org/_matrix/push/v1/notify',
-      ),
       deviceDisplayName: 'Zuno on iOS',
       sound: sound,
     ).data.toJson()['default_payload'];

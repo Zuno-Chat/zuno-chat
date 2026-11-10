@@ -951,7 +951,6 @@
   "pushLastError": "Laatste fout",
   "pushNoDistributorFound": "Geen distributeur-app op dit apparaat voor de bezorging",
   "pushNoDistributorInstalled": "Geen geïnstalleerd. Installeer er een, zoals ntfy, en vernieuw daarna.",
-  "pushNoServerYet": "Nog geen server die meldingen kan doorsturen.",
   "pushNoneSelected": "Geen gekozen",
   "pushNoneYet": "Nog geen",
   "pushNotRegisteredYet": "Nog niet geregistreerd",

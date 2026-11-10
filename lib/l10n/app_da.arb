@@ -951,7 +951,6 @@
   "pushLastError": "Seneste fejl",
   "pushNoDistributorFound": "Der er ingen distributørapp på denne enhed, der kan levere notifikationer",
   "pushNoDistributorInstalled": "Ingen installeret. Installer en, f.eks. ntfy, og opdater derefter.",
-  "pushNoServerYet": "Der er endnu ingen server at sende notifikationer via.",
   "pushNoneSelected": "Ingen valgt",
   "pushNoneYet": "Ingen endnu",
   "pushNotRegisteredYet": "Ikke registreret endnu",

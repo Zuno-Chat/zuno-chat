@@ -22,7 +22,6 @@ import '../delivery/registration_retry.dart';
 import '../handling/headless_push_runner.dart';
 import '../handling/incoming_push_handler.dart';
 import '../handling/push_wake_lock.dart';
-import '../pushers/push_gateway.dart';
 import '../pushers/pusher_reconciliation.dart';
 import '../pushers/pusher_removal.dart';
 import 'matrix_unified_push_gateway.dart';
@@ -31,7 +30,6 @@ import 'unified_push_pusher.dart';
 import 'unified_push_registration_store.dart';
 
 export '../delivery/registration_retry.dart' show registrationRecheckInterval;
-export 'unified_push_pusher.dart' show unifiedPushViaHomeserverGateway;
 
 const _instance = 'default';
 
@@ -164,21 +162,12 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
 
   Future<void> recheckRegistration(Client client) async {
     await refreshDistributorBattery();
-    final pushkey = _pushkey;
-    if (status.value != UnifiedPushStatus.ready || pushkey == null) return;
+    if (status.value != UnifiedPushStatus.ready || _pushkey == null) return;
     if (!_recheck.claimDue()) return;
-    final registered = await pusherIsRegistered(
-      client,
-      appId: unifiedPushAppId,
-      pushkey: pushkey,
+    final stored = readUnifiedPushRegistration(
+      await SharedPreferences.getInstance(),
     );
-    if (registered == false) {
-      debugPrint('zuno/push: UnifiedPush pusher gone since last check');
-      final stored = readUnifiedPushRegistration(
-        await SharedPreferences.getInstance(),
-      );
-      if (stored != null) await _repostStoredPusher(client, stored);
-    }
+    if (stored != null) await _reconcile(client, stored);
   }
 
   Future<void> refreshDistributorBattery() async {
@@ -213,18 +202,19 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     savedDistributor = await UnifiedPushPlatform.instance.getDistributor();
     status.value = UnifiedPushStatus.ready;
     _recheck.markChecked();
+    await _reconcile(client, stored);
+  }
 
-    final registered = await pusherIsRegistered(
+  Future<void> _reconcile(Client client, UnifiedPushRegistration stored) async {
+    final check = await checkPusherOnServer(
       client,
       appId: unifiedPushAppId,
       pushkey: stored.effectivePushkey,
+      gatewayUrl: stored.gatewayUrl,
     );
-    if (registered == false) {
-      debugPrint(
-        'zuno/push: UnifiedPush pusher gone from the homeserver, re-posting',
-      );
-      await _repostStoredPusher(client, stored);
-    }
+    if (check case PusherCheck.matches || PusherCheck.unknown) return;
+    debugPrint('zuno/push: UnifiedPush pusher ${check.name}, re-posting');
+    await _repostStoredPusher(client, stored);
   }
 
   Future<void> _repostStoredPusher(
@@ -237,7 +227,6 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
       keys: stored.pushkey.isEmpty || auth == null
           ? null
           : PublicKeySet(stored.pushkey, auth),
-      homeserverGateway: homeserverPushGatewayUri(client.homeserver),
       knownGatewayUrl: stored.gatewayUrl,
     );
     await _postPendingPusher(client);
@@ -246,14 +235,12 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
   Future<Pusher> _buildPusher({
     required Uri endpointUrl,
     required PublicKeySet? keys,
-    required Uri? homeserverGateway,
     Uri? knownGatewayUrl,
   }) async {
-    if (keys != null && homeserverGateway != null) {
+    if (keys != null) {
       return buildUnifiedPushWebPusher(
         endpointUrl: endpointUrl,
         keys: keys,
-        gatewayUrl: homeserverGateway,
         deviceDisplayName: thisSessionDisplayName(),
       );
     }
@@ -392,8 +379,7 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
         status.value = UnifiedPushStatus.postingPusher;
         final pusher = await _buildPusher(
           endpointUrl: endpointUrl,
-          keys: unifiedPushViaHomeserverGateway ? endpoint.pubKeySet : null,
-          homeserverGateway: homeserverPushGatewayUri(client.homeserver),
+          keys: unifiedPushViaZunoGateway ? endpoint.pubKeySet : null,
         );
         _gatewayUrl = pusher.data.url;
         _pendingPusher = pusher;

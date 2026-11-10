@@ -39,8 +39,8 @@ Background sync has no push at all: a foreground service keeps `/sync` running.
 
 - **`NotificationDeliveryProvider` is the transport abstraction**, one per mode. `_AuthGate` starts the active provider on every relevant rebuild while notifications are allowed, so `start` and `stop` must be idempotent. Every provider also re-checks the permission itself, because some callers bypass `_AuthGate`.
 - **The platform decides which modes exist** (`capabilities.deliveryModes`). A stored mode the platform does not offer resolves to the platform's default.
-- **Registration heals itself.** Transient failures retry with backoff, and a periodic check re-posts a pusher the homeserver dropped. Final failures, such as missing Play services, are not retried.
-- **Pushers.** Every pusher uses format `event_id_only`, so no message content passes through Google or Apple and every push costs a fetch. FCM and APNs pushers point at the homeserver's own host, which must route to Sygnal (see the `zuno_push` contract). A UnifiedPush pusher points at the distributor server's own Matrix gateway when it advertises one over https, else at the public one, since Dart refuses http (`app-foundation.md`).
+- **Registration heals itself.** Transient failures retry with backoff, and one shared check, at start and periodically, re-posts a pusher the homeserver dropped or holds at another address or format. Final failures, such as missing Play services, are not retried.
+- **Pushers.** Every pusher uses format `event_id_only`, so no message content passes through Google or Apple and every push costs a fetch. FCM and APNs pushers point at Zuno's own gateway, `push.zuno.chat`, whatever the homeserver and in every build, as Element X uses matrix.org's, because only a Sygnal holding Zuno's FCM and APNs keys can push to Zuno; that Sygnal holds the development apps too. A UnifiedPush pusher points at the distributor server's own Matrix gateway when it advertises one over https, else at the public one, since Dart refuses http (`app-foundation.md`).
 - **A failure becomes one `DeliveryFailure`**: a reason and one action, rendered in the screen's language, shown on the home banner and, on iOS, as a problem row on the Notifications page. While notifications are off, only the iOS calls failure still shows, since a VoIP ring needs no notification permission.
 - **Auto-fallback.** When FCM cannot work (no Play services, or a build without Firebase config), the user never chose a mode and no FCM registration exists, the mode moves to UnifiedPush if a distributor is installed, else to background sync. A one-time notice says so.
 - **Settings → Notifications** holds the permission, sounds, Notify me, Notification content (the preview level) and Diagnostics. Delivery gets its own page only on Android, where there is a mode choice.
@@ -155,7 +155,7 @@ FCM is app-owned Kotlin on the Firebase Android SDK, in the app module. Dart rea
 - **Battery.** Every mode asks for Zuno's battery exemption (see Decisions), and UnifiedPush for the distributor's as well. Where a maker's autostart screen exists, Delivery shows an Autostart row and onboarding asks once (`onboarding.md`).
 - **Background sync** is a foreground service keeping the app's `/sync` running, typed `specialUse` on Android 14+. In the background it uses the long long-poll and pauses while the device has no network (`app-foundation.md`).
 - **The service keeps the Flutter engine alive while it runs**, so Back or a swipe from Recents never stops delivery. It is not sticky, so a service the system kills ends with its notification instead of returning with no engine to sync.
-- **Designed, off: UnifiedPush over WebPush** through the homeserver's own Sygnal instead of a third-party Matrix gateway. It needs a WebPush pushkin in Sygnal first.
+- **Designed, off: UnifiedPush over WebPush** through Zuno's gateway instead of a third-party Matrix gateway. It needs a WebPush pushkin in Sygnal first.
 
 ### iOS: APNs alerts
 
@@ -240,7 +240,7 @@ What the app relies on:
 - **The fetch scope.** `ok` means the event notified this user, is still unread by Synapse's own thread-aware receipt rule, and is recent. `gone` is deliberately uniform, so the endpoint never confirms that an event exists.
 - **Credential rotation.** Minting replaces the credential, and the previous one stays valid for 10 minutes, so an extension in the middle of a push never fails on a rotation.
 - **Failures.** Route, network, startup (`IM.ZUNO.STARTING`), 5xx and rate-limit failures back off quietly, while a refusal such as `IM.ZUNO.PUSH_DISABLED` surfaces to the user. Starting has its own code so a module still running its startup checks never reads as disabled. `DELETE voip` and `DELETE device` are never held back by startup, so sign-out always reaches the module.
-- **Server routing.** The homeserver's proxy must route `/_matrix/push/v1/notify` to Sygnal. Without that route Synapse answers with a 404, and every alert push is dropped while Delivery still looks healthy. The module posts rings to Sygnal directly, so rings and message pushes can fail independently, and `GET health` shows which.
+- **Server routing.** Message pushes go from Synapse's pusher to Zuno's gateway, which must accept requests from any homeserver; while it can't be reached every alert push is dropped and Delivery still looks healthy. The module posts rings to Sygnal directly, so rings and message pushes can fail independently, and `GET health` shows which.
 - **Ring push transport.** The module watches `m.call.member` and sends one ring push per target device through Sygnal, at least once, and the device drops repeats by call:
 
   | Platform | Sygnal app | Push |

@@ -24,82 +24,108 @@ void main() {
         ..homeserver = Uri.parse('https://example.org')
         ..accessToken = 'token';
 
-  test('true when the homeserver still lists this device\'s pusher', () async {
-    final client = clientAnswering(
-      () async => _ok({
-        'pushers': [
-          serverPusherJson(
-            appId: 'im.zuno.chat.unifiedpush',
-            pushkey: 'https://ntfy.sh/upOther',
+  final gateway = Uri.parse('https://push.example.org/_matrix/push/v1/notify');
+
+  Future<PusherCheck> check(Client client) => checkPusherOnServer(
+    client,
+    appId: appId,
+    pushkey: pushkey,
+    gatewayUrl: gateway,
+  );
+
+  Client listing(List<Object?> pushers) =>
+      clientAnswering(() async => _ok({'pushers': pushers}));
+
+  test('this device sending event ids through this gateway matches', () async {
+    final client = listing([
+      livePusherJson(
+        appId: 'im.zuno.chat.unifiedpush',
+        pushkey: 'https://ntfy.sh/upOther',
+      ),
+      livePusherJson(appId: appId, pushkey: pushkey, url: '$gateway'),
+    ]);
+
+    expect(await check(client), PusherCheck.matches);
+  });
+
+  test('missing when the homeserver lists only other devices or other '
+      'apps', () async {
+    expect(
+      await check(
+        listing([
+          livePusherJson(appId: appId, pushkey: 'some-other-token'),
+          livePusherJson(appId: 'org.example.other', pushkey: pushkey),
+        ]),
+      ),
+      PusherCheck.missing,
+    );
+  });
+
+  test('missing for an account with no pushers at all, since an empty list '
+      'is a definite answer, not a failed read', () async {
+    expect(await check(listing(const [])), PusherCheck.missing);
+  });
+
+  test('outdated when it misses the gateway or the format', () async {
+    expect(
+      await check(
+        listing([
+          livePusherJson(
+            appId: appId,
+            pushkey: pushkey,
+            url: 'https://old.example.org/_matrix/push/v1/notify',
           ),
-          serverPusherJson(appId: appId, pushkey: pushkey),
-        ],
-      }),
+        ]),
+      ),
+      PusherCheck.outdated,
     );
-
     expect(
-      await pusherIsRegistered(client, appId: appId, pushkey: pushkey),
-      isTrue,
+      await check(
+        listing([
+          livePusherJson(
+            appId: appId,
+            pushkey: pushkey,
+            url: '$gateway',
+            format: 'full',
+          ),
+        ]),
+      ),
+      PusherCheck.outdated,
     );
   });
 
-  test('false when the homeserver lists only other devices', () async {
-    final client = clientAnswering(
-      () async => _ok({
-        'pushers': [
-          serverPusherJson(appId: appId, pushkey: 'some-other-token'),
-        ],
-      }),
-    );
+  test('without a known gateway only the format counts', () async {
+    final client = listing([
+      livePusherJson(
+        appId: appId,
+        pushkey: pushkey,
+        url: 'https://anywhere.example.org/_matrix/push/v1/notify',
+      ),
+    ]);
 
     expect(
-      await pusherIsRegistered(client, appId: appId, pushkey: pushkey),
-      isFalse,
+      await checkPusherOnServer(
+        client,
+        appId: appId,
+        pushkey: pushkey,
+        gatewayUrl: null,
+      ),
+      PusherCheck.matches,
     );
   });
 
-  test('false for an account with no pushers at all — an empty list is a '
-      'definite answer, not a failed read', () async {
-    final client = clientAnswering(() async => _ok({'pushers': const []}));
-
-    expect(
-      await pusherIsRegistered(client, appId: appId, pushkey: pushkey),
-      isFalse,
-    );
-  });
-
-  test('false when another app happens to share our pushkey', () async {
-    final client = clientAnswering(
-      () async => _ok({
-        'pushers': [
-          serverPusherJson(appId: 'org.example.other', pushkey: pushkey),
-        ],
-      }),
-    );
-
-    expect(
-      await pusherIsRegistered(client, appId: appId, pushkey: pushkey),
-      isFalse,
-    );
-  });
-
-  test('null when the homeserver cannot be reached', () async {
+  test('unknown when the homeserver cannot be reached', () async {
     final client = clientAnswering(
       () async => throw http.ClientException('offline'),
     );
 
-    expect(
-      await pusherIsRegistered(client, appId: appId, pushkey: pushkey),
-      isNull,
-    );
+    expect(await check(client), PusherCheck.unknown);
   });
 
-  test('null when the response carries no pushers list', () async {
-    final client = clientAnswering(() async => _ok({'nonsense': true}));
-
+  test('unknown when the response carries no pushers list', () async {
     expect(
-      await pusherIsRegistered(client, appId: appId, pushkey: pushkey),
-      isNull,
+      await check(clientAnswering(() async => _ok({'nonsense': true}))),
+      PusherCheck.unknown,
     );
   });
 

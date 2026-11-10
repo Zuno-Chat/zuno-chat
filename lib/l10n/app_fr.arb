@@ -951,7 +951,6 @@
   "pushLastError": "Dernière erreur",
   "pushNoDistributorFound": "Aucune app de distribution sur cet appareil pour acheminer les notifications",
   "pushNoDistributorInstalled": "Aucune installée. Installez-en une, comme ntfy, puis actualisez.",
-  "pushNoServerYet": "Aucun serveur pour envoyer les notifications pour le moment.",
   "pushNoneSelected": "Aucune app sélectionnée",
   "pushNoneYet": "Aucun push pour l’instant",
   "pushNotRegisteredYet": "Pas encore enregistré",

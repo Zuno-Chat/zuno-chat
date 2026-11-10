@@ -136,14 +136,31 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     if (await _followCurrentToken(client)) return;
     final token = _token;
     if (token == null || !_recheck.claimDue()) return;
-    final registered = await pusherIsRegistered(
+    await _reconcile(client, token);
+  }
+
+  Future<void> _reconcile(Client client, String token) async {
+    final check = await checkPusherOnServer(
       client,
       appId: fcmAppId,
       pushkey: token,
+      gatewayUrl: zunoPushGateway,
     );
-    if (registered == false) {
-      debugPrint('zuno/push: FCM pusher gone since last check, re-posting');
-      await registerNow(client);
+    if (_token != token) return;
+    switch (check) {
+      case PusherCheck.matches || PusherCheck.unknown:
+        return;
+      case PusherCheck.outdated:
+        debugPrint(
+          'zuno/push: the FCM pusher has an old address or format, posting '
+          'it again',
+        );
+        await _postPusher(client, token: token);
+      case PusherCheck.missing:
+        debugPrint(
+          'zuno/push: FCM pusher gone from the homeserver, re-posting',
+        );
+        await registerNow(client);
     }
   }
 
@@ -159,16 +176,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     _recheck.markChecked();
     _listenForTokenRefresh(client);
     if (await _followCurrentToken(client)) return;
-
-    final registered = await pusherIsRegistered(
-      client,
-      appId: fcmAppId,
-      pushkey: stored,
-    );
-    if (registered == false) {
-      debugPrint('zuno/push: FCM pusher gone from the homeserver, re-posting');
-      await registerNow(client);
-    }
+    await _reconcile(client, stored);
   }
 
   Future<bool> _deviceBlocked() async {
@@ -204,10 +212,8 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
       return false;
     }
     if (!await notificationsAllowed()) return false;
-    final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
-    if (gatewayUrl == null) return false;
     debugPrint('zuno/push: FCM token changed, moving the pusher to it');
-    await _postPusher(client, token: wanted, gatewayUrl: gatewayUrl);
+    await _postPusher(client, token: wanted);
     return true;
   }
 
@@ -250,28 +256,17 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     }
 
     status.value = FcmStatus.postingPusher;
-    final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
-    if (gatewayUrl == null) {
-      lastPusherError = const PusherServerMissing();
-      status.value = FcmStatus.pusherFailed;
-      return;
-    }
-    if (await _postPusher(client, token: token, gatewayUrl: gatewayUrl)) {
+    if (await _postPusher(client, token: token)) {
       _listenForTokenRefresh(client);
     }
   }
 
-  Future<bool> _postPusher(
-    Client client, {
-    required String token,
-    required Uri gatewayUrl,
-  }) async {
+  Future<bool> _postPusher(Client client, {required String token}) async {
     final replaced = _token;
     try {
       await client.postPusher(
         buildFcmPusher(
           token: token,
-          gatewayUrl: gatewayUrl,
           deviceDisplayName: thisSessionDisplayName(),
         ),
       );
@@ -350,9 +345,7 @@ class FcmDeliveryProvider implements NotificationDeliveryProvider {
     _tokenRefreshSub = refreshes.listen((token) async {
       if (token == _token) return;
       if (!await notificationsAllowed()) return;
-      final gatewayUrl = homeserverPushGatewayUri(client.homeserver);
-      if (gatewayUrl == null) return;
-      await _postPusher(client, token: token, gatewayUrl: gatewayUrl);
+      await _postPusher(client, token: token);
     });
   }
 

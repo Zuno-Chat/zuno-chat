@@ -14,6 +14,7 @@ import 'package:zuno/core/push/delivery/pusher_failure.dart';
 import 'package:zuno/core/push/fcm/fcm_bridge.dart';
 import 'package:zuno/core/push/fcm/fcm_delivery_provider.dart';
 import 'package:zuno/core/push/fcm/fcm_pusher.dart';
+import 'package:zuno/core/push/pushers/push_gateway.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_pusher.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -215,10 +216,7 @@ void main() {
         expect(detail(tester, 'App ID'), '—');
         expect(detail(tester, 'Push key'), 'fcm-token-abc');
         expect(detail(tester, 'Device ID'), 'HERE');
-        expect(
-          detail(tester, 'Push gateway URL'),
-          'https://matrix.example.org/_matrix/push/v1/notify',
-        );
+        expect(detail(tester, 'Push gateway URL'), zunoPushGateway.toString());
       });
 
       testWidgets('a registration through the public bridge says what that '

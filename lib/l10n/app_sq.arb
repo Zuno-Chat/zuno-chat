@@ -951,7 +951,6 @@
   "pushLastError": "Gabimi i fundit",
   "pushNoDistributorFound": "Në këtë pajisje nuk ka aplikacion shpërndarës për njoftimet",
   "pushNoDistributorInstalled": "Asnjë i instaluar. Instalo një, si ntfy, pastaj rifresko.",
-  "pushNoServerYet": "Ende nuk ka server për të dërguar njoftimet.",
   "pushNoneSelected": "Nuk është zgjedhur asnjë",
   "pushNoneYet": "Ende asnjë",
   "pushNotRegisteredYet": "Ende pa u regjistruar",

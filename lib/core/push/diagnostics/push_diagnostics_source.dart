@@ -84,7 +84,7 @@ class LivePushDiagnosticsSource implements PushDiagnosticsSource {
       reach: reach,
       pushers: pushers,
       currentPushkey: currentPushkeyFor(mode),
-      expectedGateway: gatewayUrlFor(mode, client),
+      expectedGateway: gatewayUrlFor(mode),
       deliveryMode: mode,
       fcmStatus: mode == NotificationDeliveryMode.fcm
           ? fcmDeliveryProvider.status.value

@@ -154,7 +154,7 @@ class _PushTargetStatusPageState extends ConsumerState<PushTargetStatusPage> {
     final mode = ref.watch(notificationDeliveryModeProvider);
     final client = ref.watch(matrixClientProvider);
     final currentPushkey = currentPushkeyFor(mode);
-    final gatewayUrl = gatewayUrlFor(mode, client);
+    final gatewayUrl = gatewayUrlFor(mode);
     final lastPusherError = lastPusherErrorFor(mode);
     final distributor = _distributor;
     final pushers = _pushers;

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:matrix/matrix.dart';
 
 import '../../brand.dart';
+import '../pushers/push_gateway.dart';
 import '../pushers/pusher_format.dart';
 
 const apnsProductionAppId = 'im.zuno.chat.ios';
@@ -42,7 +43,6 @@ String? apnsPushkeyFromToken(String token) {
 Pusher buildApnsPusher({
   required String appId,
   required String pushkey,
-  required Uri gatewayUrl,
   required String deviceDisplayName,
   required String? sound,
 }) {
@@ -54,7 +54,7 @@ Pusher buildApnsPusher({
     kind: 'http',
     lang: 'en',
     data: PusherData(
-      url: gatewayUrl,
+      url: zunoPushGateway,
       format: pusherFormat,
       additionalProperties: {
         'default_payload': {

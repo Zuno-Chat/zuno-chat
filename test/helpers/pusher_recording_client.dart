@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:matrix/matrix.dart';
+import 'package:zuno/core/push/pushers/push_gateway.dart';
+import 'package:zuno/core/push/pushers/pusher_format.dart';
 
 import 'fake_matrix.dart';
 
@@ -21,6 +23,7 @@ mixin PusherRecording on Client {
   Object? postError;
   Object? deleteError;
   Completer<void>? holdNextPost;
+  Completer<void>? holdNextPushersFetch;
   void Function()? onDeletePusher;
   List<Map<String, Object?>>? pushersOnServer;
 
@@ -53,6 +56,9 @@ mixin PusherRecording on Client {
     if (action != '/client/v3/pushers') {
       return super.request(type, action, data: data, query: query);
     }
+    final hold = holdNextPushersFetch;
+    holdNextPushersFetch = null;
+    await hold?.future;
     final pushers = pushersOnServer;
     if (pushers == null) throw Exception('offline');
     return {'pushers': pushers};
@@ -76,3 +82,14 @@ Map<String, Object?> serverPusherJson({
   'data': ?data,
   'device_id': ?deviceId,
 };
+
+Map<String, Object?> livePusherJson({
+  required String appId,
+  required String pushkey,
+  String? url,
+  String format = pusherFormat,
+}) => serverPusherJson(
+  appId: appId,
+  pushkey: pushkey,
+  data: {'url': url ?? zunoPushGateway.toString(), 'format': format},
+);

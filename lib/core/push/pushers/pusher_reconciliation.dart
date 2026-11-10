@@ -23,14 +23,20 @@ Future<List<PusherInfo>?> fetchPushers(Client client) async {
       .toList();
 }
 
-Future<bool?> pusherIsRegistered(
+enum PusherCheck { matches, missing, outdated, unknown }
+
+Future<PusherCheck> checkPusherOnServer(
   Client client, {
   required String appId,
   required String pushkey,
+  required Uri? gatewayUrl,
 }) async {
   final pushers = await fetchPushers(client);
-  if (pushers == null) return null;
-  return pushers.any(
-    (pusher) => pusher.appId == appId && pusher.pushkey == pushkey,
-  );
+  if (pushers == null) return PusherCheck.unknown;
+  final own = pushers
+      .where((pusher) => pusher.appId == appId && pusher.pushkey == pushkey)
+      .firstOrNull;
+  if (own == null) return PusherCheck.missing;
+  final fit = pusherFit(own, gatewayUrl: gatewayUrl);
+  return fit.gateway && fit.format ? PusherCheck.matches : PusherCheck.outdated;
 }

@@ -952,7 +952,6 @@
   "pushLastError": "Último erro",
   "pushNoDistributorFound": "Não há nenhum app distribuidor neste dispositivo para fazer a entrega",
   "pushNoDistributorInstalled": "Nenhum instalado. Instale um, como o ntfy, e depois atualize.",
-  "pushNoServerYet": "Ainda não há servidor para enviar notificações.",
   "pushNoneSelected": "Nenhum selecionado",
   "pushNoneYet": "Nenhum ainda",
   "pushNotRegisteredYet": "Ainda não registrado",

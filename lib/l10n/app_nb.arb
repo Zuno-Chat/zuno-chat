@@ -951,7 +951,6 @@
   "pushLastError": "Siste feil",
   "pushNoDistributorFound": "Ingen distributørapp på denne enheten kan levere varsler",
   "pushNoDistributorInstalled": "Ingen installert. Installer en, for eksempel ntfy, og oppdater.",
-  "pushNoServerYet": "Ingen server å sende varsler gjennom ennå.",
   "pushNoneSelected": "Ingen valgt",
   "pushNoneYet": "Ingen ennå",
   "pushNotRegisteredYet": "Ikke registrert ennå",

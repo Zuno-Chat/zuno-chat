@@ -12,6 +12,7 @@ import 'package:unifiedpush_platform_interface/data/push_endpoint.dart';
 import 'package:unifiedpush_platform_interface/unifiedpush_platform_interface.dart';
 import 'package:zuno/core/network/app_http_client.dart';
 import 'package:zuno/core/push/delivery/pusher_failure.dart';
+import 'package:zuno/core/push/pushers/push_gateway.dart';
 import 'package:zuno/core/push/unified_push/unified_push_delivery_provider.dart';
 import 'package:zuno/core/push/unified_push/unified_push_pusher.dart';
 import 'package:zuno/core/push/unified_push/unified_push_registration_store.dart';
@@ -19,6 +20,7 @@ import 'package:zuno/core/push/unified_push/unified_push_registration_store.dart
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/fake_unified_push.dart';
+import '../../../helpers/pusher_recording_client.dart';
 
 void main() {
   late FakeUnifiedPush fake;
@@ -221,14 +223,10 @@ void main() {
       return (client: c, pusherPosts: posts);
     }
 
-    Map<String, Object?> serverPusher(String pushkey) => {
-      'app_id': unifiedPushAppId,
-      'pushkey': pushkey,
-      'app_display_name': 'Zuno Chat',
-      'device_display_name': 'Phone',
-      'kind': 'http',
-      'lang': 'en',
-    };
+    Map<String, Object?> serverPusher(
+      String pushkey, {
+      String url = 'https://ntfy.sh/_matrix/push/v1/notify',
+    }) => livePusherJson(appId: unifiedPushAppId, pushkey: pushkey, url: url);
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
@@ -259,6 +257,23 @@ void main() {
       await provider.start(env.client);
 
       expect(env.pusherPosts, isEmpty);
+      expect(provider.status.value, UnifiedPushStatus.ready);
+    });
+
+    test('moves a pusher at another gateway back to the stored one', () async {
+      final env = reconcilingClient(
+        onServer: [
+          serverPusher(
+            'https://ntfy.sh/abc123',
+            url: 'https://old.example.org/_matrix/push/v1/notify',
+          ),
+        ],
+      );
+
+      await provider.start(env.client);
+
+      final data = (jsonDecode(env.pusherPosts.single) as Map)['data'] as Map;
+      expect(data['url'], 'https://ntfy.sh/_matrix/push/v1/notify');
       expect(provider.status.value, UnifiedPushStatus.ready);
     });
 
@@ -638,13 +653,12 @@ void main() {
     });
   });
 
-  group('WebPush pusher through the homeserver gateway', () {
+  group('WebPush pusher through Zuno\'s gateway', () {
     setUp(() => SharedPreferences.setMockInitialValues({}));
-    tearDown(() => unifiedPushViaHomeserverGateway = false);
+    tearDown(() => unifiedPushViaZunoGateway = false);
 
-    test('registers the key set with the homeserver\'s own gateway when '
-        'enabled', () async {
-      unifiedPushViaHomeserverGateway = true;
+    test('registers the key set with Zuno\'s gateway when enabled', () async {
+      unifiedPushViaZunoGateway = true;
       final env = postingClient();
       fake.installed = ['io.heckel.ntfy'];
       await provider.start(env.client);
@@ -658,7 +672,7 @@ void main() {
       final body = jsonDecode(env.pusherPosts.single) as Map;
       expect(body['pushkey'], 'P256KEY');
       final data = body['data'] as Map;
-      expect(data['url'], 'https://matrix.example.org/_matrix/push/v1/notify');
+      expect(data['url'], zunoPushGateway.toString());
       expect(data['endpoint'], 'https://ntfy.sh/abc');
       expect(data['auth'], 'AUTH');
       expect(data['format'], 'event_id_only');
@@ -669,7 +683,7 @@ void main() {
     });
 
     test('falls back to the discovered gateway without a key set', () async {
-      unifiedPushViaHomeserverGateway = true;
+      unifiedPushViaZunoGateway = true;
       final env = postingClient();
       fake.installed = ['io.heckel.ntfy'];
       await provider.start(env.client);

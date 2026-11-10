@@ -2,11 +2,12 @@ import 'package:matrix/matrix.dart';
 import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
 
 import '../../brand.dart';
+import '../pushers/push_gateway.dart';
 import '../pushers/pusher_format.dart';
 
 const unifiedPushAppId = 'im.zuno.chat.unifiedpush';
 
-bool unifiedPushViaHomeserverGateway = false;
+bool unifiedPushViaZunoGateway = false;
 
 Pusher buildUnifiedPushPusher({
   required Uri endpointUrl,
@@ -27,7 +28,6 @@ Pusher buildUnifiedPushPusher({
 Pusher buildUnifiedPushWebPusher({
   required Uri endpointUrl,
   required PublicKeySet keys,
-  required Uri gatewayUrl,
   required String deviceDisplayName,
 }) {
   return Pusher(
@@ -38,7 +38,7 @@ Pusher buildUnifiedPushWebPusher({
     kind: 'http',
     lang: 'en',
     data: PusherData(
-      url: gatewayUrl,
+      url: zunoPushGateway,
       format: pusherFormat,
       additionalProperties: {
         'endpoint': endpointUrl.toString(),

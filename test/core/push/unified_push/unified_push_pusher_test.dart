@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:unifiedpush_platform_interface/data/public_key_set.dart';
+import 'package:zuno/core/push/pushers/push_gateway.dart';
 import 'package:zuno/core/push/unified_push/unified_push_pusher.dart';
 
 void main() {
@@ -34,20 +35,16 @@ void main() {
   });
 
   test('builds a WebPush pusher keyed by the p256dh key, carrying the '
-      'endpoint and auth secret for the gateway', () {
-    final homeserverGateway = Uri.parse(
-      'https://matrix.example.org/_matrix/push/v1/notify',
-    );
+      'endpoint and auth secret for Zuno\'s gateway', () {
     final pusher = buildUnifiedPushWebPusher(
       endpointUrl: endpoint,
       keys: PublicKeySet('P256KEY', 'AUTH'),
-      gatewayUrl: homeserverGateway,
       deviceDisplayName: 'Zuno on Android',
     );
     expect(pusher.appId, unifiedPushAppId);
     expect(pusher.pushkey, 'P256KEY');
     expect(pusher.kind, 'http');
-    expect(pusher.data.url, homeserverGateway);
+    expect(pusher.data.url, zunoPushGateway);
     expect(pusher.data.format, 'event_id_only');
     expect(pusher.data.additionalProperties['endpoint'], endpoint.toString());
     expect(pusher.data.additionalProperties['auth'], 'AUTH');

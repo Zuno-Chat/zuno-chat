@@ -3907,7 +3907,6 @@
   },
   "pushNoDistributorFound": "No distributor app on this device to deliver through",
   "pushNoDistributorInstalled": "None installed. Install one, such as ntfy, then refresh.",
-  "pushNoServerYet": "No server to send notifications through yet.",
   "pushNoneSelected": "None selected",
   "@pushNoneSelected": {
     "description": "UnifiedPush status: no distributor app chosen"
