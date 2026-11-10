@@ -1,0 +1,16 @@
+New
+• A soft tone when someone joins a call.
+• Sign up with a registration token.
+• Sign in on your server's own page.
+• More username characters, shorter passwords.
+• What you type waits in its chat.
+• Pick any emoji, with search.
+• Tap a face to see who it is.
+• Rooms show under their community.
+• Preview community rooms before joining.
+• Full usernames and addresses with Matrix experience.
+• Calls on LiveKit servers.
+• Works behind a proxy.
+• Calls shut out whoever leaves.
+
+Fixed 49 bugs.
