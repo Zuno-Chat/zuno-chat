@@ -202,7 +202,7 @@ Polish for `lib/l10n/app_pl.arb`, written for Poland. The rules all languages sh
 | Welcome to Zuno | Witaj w Zuno | |
 | With {name} / In {name} (room) / {name}'s devices | Czat: {name} / W pokoju „{name}” / urządzenia konta: {name} | |
 | {name} is confirmed | {name} ma potwierdzoną tożsamość | The participle agrees with «tożsamość», not the person (§2.4). |
-| character(s), link, check mark | znak · link · znacznik wyboru | |
+| character(s), link, check mark, line (of text) | znak · link · znacznik wyboru · wiersz | |
 
 ### 1.12 UI actions
 

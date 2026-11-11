@@ -104,7 +104,6 @@ One level (`NotificationPreview`, default Name and message) applies on both plat
 - **Android reads earlier lines back from the notification showing only when it was posted at the current level**, else rebuilds them from the encrypted database, decrypting without storing, so "New message" from a lower level never outlives raising the level.
 - **iOS never rebuilds earlier lines**, because its notification shows only the latest one.
 - **The store serializes its own writes, and each write drops the threads whose notification is gone**, so a dismissed conversation leaves no IDs behind; threads and the lines per thread are capped.
-- **Lines older builds kept in preferences, text included, move into the file at startup with their IDs only**, before any push is handled so a waiting line is still taken over, and iOS drops the room names those builds kept there; this is temporary code.
 
 ### Android presentation
 
@@ -295,7 +294,7 @@ Both platforms show the permission, this device's registration and the module's 
 - **The chat-tone player lives in the app module, not `zuno_notifications`**, because the tones are the app's own `res/raw` files, which a plugin can't reach; native code names them through `R.raw`, so resource shrinking keeps them with no `keep.xml` entry.
 - **Every tone comes from `tool/generate_tones.py` in the smallest format that keeps a pure tone clean**: Ogg Vorbis for Android's players, 16-bit PCM WAV for call tones, which Android decodes itself into call audio, and 16-bit PCM CAF for iOS alert and CallKit sounds, because µ-law and IMA4 (iOS's only compressed alert format) lay audible hiss over a sine; Android-only tones are limited to Android in `pubspec.yaml`, so the iPhone app doesn't ship them.
 - **An Android tone must be a file type the build stores uncompressed** (`.ogg` or `.wav`, never `.flac`), because the channel sound and the ringtone open it by file descriptor, which fails on a compressed file.
-- **Never reuse a retired channel id** (`messages`, `messages_group`, `messages_sound_v1`, `messages_group_sound_v1`), because recreating one restores its old settings.
+- **Changing a channel's sound or importance takes a new id, and a deleted id never comes back**, because Android keeps a channel's settings once it exists and restores them when a deleted id is created again.
 - **The instant notice never creates a channel**, so a missing channel means no notice.
 - **Message vibration is done by hand with notification usage**, because message channels have vibration off and Android 12+ drops background vibrations of other usages.
 - **A call or invitation push first gets the instant notice**, since `event_id_only` carries no event type, and Dart then replaces or retracts it.

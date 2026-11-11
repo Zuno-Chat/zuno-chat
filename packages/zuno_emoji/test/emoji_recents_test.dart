@@ -83,11 +83,10 @@ void main() {
     expect(store.values['emoji.recents'], '["😀"]');
   });
 
-  test('adding many at once keeps their order and writes once', () async {
+  test('an emoji the table does not know is not remembered', () async {
     final recents = EmojiRecents(store);
-    await recents.addAll(['😀', '👋🏽', '❤️', '😀']);
-    expect(recents.items, ['😀', '❤️', '👋🏽']);
-    expect(recents.toneOf(emojiTable[indexOf('👋')]), '👋🏽');
-    expect(store.writes, 2);
+    await recents.add('not an emoji');
+    expect(recents.items, isEmpty);
+    expect(store.writes, 0);
   });
 }

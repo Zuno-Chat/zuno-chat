@@ -12,6 +12,10 @@ import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 import '../../../helpers/uia_challenge.dart';
 
+Matcher isCode(String server, String token) => isA<LinkedSignInCode>()
+    .having((c) => c.server, 'server', server)
+    .having((c) => c.token, 'token', token);
+
 void main() {
   group('LinkedSignInCode', () {
     test('round-trips through its QR text, URL-special characters and '
@@ -63,61 +67,57 @@ void main() {
       const code = LinkedSignInCode(server: 'example.org', token: 'syl_abc');
 
       expect(code.typed, 'example.org\nsyl_ abc');
-      expect(parseTypedSignInCode(code.typed), (
-        server: 'example.org',
-        token: 'syl_abc',
-      ));
-    });
-
-    test('a typed code loses the spaces the grouping added', () {
-      expect(parseTypedSignInCode(' syl_ abcd efgh ij\n'), (
-        server: null,
-        token: 'syl_abcdefghij',
-      ));
+      expect(
+        LinkedSignInCode.parseTyped(code.typed),
+        isCode('example.org', 'syl_abc'),
+      );
     });
 
     test('a code typed with its server on one line keeps the server', () {
-      expect(parseTypedSignInCode('example.org syl_ abcd efgh'), (
-        server: 'example.org',
-        token: 'syl_abcdefgh',
-      ));
-      expect(parseTypedSignInCode('localhost:8008 syl_abcd'), (
-        server: 'localhost:8008',
-        token: 'syl_abcd',
-      ));
+      expect(
+        LinkedSignInCode.parseTyped('example.org syl_ abcd efgh'),
+        isCode('example.org', 'syl_abcdefgh'),
+      );
+      expect(
+        LinkedSignInCode.parseTyped('localhost:8008 syl_abcd'),
+        isCode('localhost:8008', 'syl_abcd'),
+      );
     });
 
     test('a pasted two-line code keeps its server', () {
-      expect(parseTypedSignInCode('zuno.chat\nsyl_ abcd efgh\n'), (
-        server: 'zuno.chat',
-        token: 'syl_abcdefgh',
-      ));
+      expect(
+        LinkedSignInCode.parseTyped('zuno.chat\nsyl_ abcd efgh\n'),
+        isCode('zuno.chat', 'syl_abcdefgh'),
+      );
     });
 
     test('the text a camera reads from the QR code is a code', () {
       const code = LinkedSignInCode(server: 'zuno.chat', token: 'syl_abcdefgh');
 
-      expect(parseTypedSignInCode(' ${code.encode()}\n'), (
-        server: 'zuno.chat',
-        token: 'syl_abcdefgh',
-      ));
+      expect(
+        LinkedSignInCode.parseTyped(' ${code.encode()}\n'),
+        isCode('zuno.chat', 'syl_abcdefgh'),
+      );
     });
 
-    test('a token from an older device, without a server, has none', () {
-      expect(parseTypedSignInCode('syl_abcdefgh'), (
-        server: null,
-        token: 'syl_abcdefgh',
-      ));
+    test('a token without its server line is no code', () {
+      for (final raw in [
+        'syl_abcdefgh',
+        ' syl_ abcd efgh ij\n',
+        'hello there',
+      ]) {
+        expect(LinkedSignInCode.parseTyped(raw), isNull, reason: raw);
+      }
     });
 
     test('nothing typed is no code', () {
-      expect(parseTypedSignInCode(''), isNull);
-      expect(parseTypedSignInCode(' \n '), isNull);
+      expect(LinkedSignInCode.parseTyped(''), isNull);
+      expect(LinkedSignInCode.parseTyped(' \n '), isNull);
     });
 
     test('the server line alone is no code', () {
       for (final raw in ['zuno.chat', 'localhost:8008', '[::1]:8448 \n']) {
-        expect(parseTypedSignInCode(raw), isNull, reason: raw);
+        expect(LinkedSignInCode.parseTyped(raw), isNull, reason: raw);
       }
     });
   });
@@ -226,11 +226,10 @@ void main() {
       )..homeserver = Uri.parse('https://example.org');
     }
 
-    Future<void> signIn({required String? server, required Uri chosen}) =>
+    Future<void> signIn({required String server, required Uri chosen}) =>
         signInWithLinkedCode(
           loginServer(),
-          server: server,
-          token: 'syl_abc',
+          LinkedSignInCode(server: server, token: 'syl_abc'),
           chosenServer: chosen,
           deviceDisplayName: 'Zuno on Android',
         );
@@ -322,18 +321,6 @@ void main() {
         );
 
         expect(loginBodies, isEmpty);
-      },
-    );
-
-    test(
-      'a code from an older device, naming no server, is still sent',
-      () async {
-        await expectLater(
-          signIn(server: null, chosen: Uri.https('example.org')),
-          throwsA(isA<MatrixException>()),
-        );
-
-        expect(loginBodies.single['token'], 'syl_abc');
       },
     );
   });

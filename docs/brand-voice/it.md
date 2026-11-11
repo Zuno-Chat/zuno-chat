@@ -207,7 +207,7 @@ Italian for `lib/l10n/app_it.arb`. The rules all languages share are in `transla
 | Make {people} an admin / You are now an admin (room updates) | {sender} ha assegnato il ruolo «Amministratore» a {people} / Ora hai il ruolo «Amministratore» | Every role the same way, with its exact label: «nominare amministratore» would agree with the person. |
 | You joined / joined and left (room updates) | Ora fai parte della stanza / {people} ha lasciato poco dopo l’ingresso | «Sei entrato/a» and «è entrato/a» would agree with the person. |
 | {sender} invited / removed / banned you (room updates) | {sender} ti ha inviato un invito / {sender} ha rimosso il tuo account dalla stanza / Hai ricevuto un ban da {sender} | Past tense, as in every room update, with no participle agreeing with «ti». |
-| character(s), link, check mark | il carattere · i caratteri · il link · il segno di spunta | |
+| character(s), link, check mark, line (of text) | il carattere · i caratteri · il link · il segno di spunta · la riga | |
 
 ### 1.12 UI actions
 

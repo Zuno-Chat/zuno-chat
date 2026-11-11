@@ -474,9 +474,6 @@ sign-out reach them all.
   `FileProvider` that exposes only the hand-over copies**, and Zuno leaves
   itself out of that chooser, since inbound share refuses its own files.
   iOS uses the system share sheet.
-- **A startup cleanup deletes the plaintext copies older builds left in
-  temporary storage**, which nothing else expires. It is temporary code,
-  kept until no install still runs one of those builds.
 
 ### Galleries
 

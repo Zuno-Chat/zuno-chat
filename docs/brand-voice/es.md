@@ -203,7 +203,7 @@ Spanish for `lib/l10n/app_es.arb`, written for Spain and served to every Spanish
 | Room / Community defaults | Valores predeterminados de la sala / de la comunidad | |
 | "You and {name} are…" | Recast so the verb is not plural «vosotros»: «Ubicación en tiempo real compartida por ti y {name}». | |
 | Make {people} an admin / You are now an admin (room updates) | {sender} ha dado el rol «Administrador» a {people} / Ahora tienes el rol «Administrador» | Every role the same way, with its exact label. |
-| character(s), link, check mark | el carácter · los caracteres · el enlace · la marca de verificación | |
+| character(s), link, check mark, line (of text) | el carácter · los caracteres · el enlace · la marca de verificación · la línea | |
 
 ### 1.12 UI actions
 

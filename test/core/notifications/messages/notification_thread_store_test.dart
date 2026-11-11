@@ -91,11 +91,19 @@ void main() {
     expect(line.quiet, isTrue);
   });
 
-  test('a line stored without a kind reads as a message, so a lower preview '
-      'level hides its text', () async {
+  test('a thread stored without its room reads as nothing', () async {
     await storeFile().writeAsString(
-      '{"!r:x":{"title":"Alice","lines":'
-      '[{"senderId":"@a:x","text":"hi","ts":0}]}}',
+      '{"!r:x":{"lines":[{"senderId":"@a:x","kind":"message","ts":0}]}}',
+    );
+
+    expect(await store.read('!r:x'), isNull);
+  });
+
+  test('a line of a kind this build does not know reads as a message, so a '
+      'lower preview level hides its text', () async {
+    await storeFile().writeAsString(
+      '{"!r:x":{"roomId":"!r:x","lines":'
+      '[{"senderId":"@a:x","kind":"retired","ts":0}]}}',
     );
 
     final thread = (await store.read('!r:x'))!;

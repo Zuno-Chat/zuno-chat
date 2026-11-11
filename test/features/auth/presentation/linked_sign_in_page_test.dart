@@ -32,6 +32,8 @@ void main() {
   const invalidCode =
       'That code is not valid or has expired. Make a new one on your other '
       'device.';
+  const incompleteCode =
+      'That code is incomplete. Type both lines your other device shows.';
 
   Finder field(String label) =>
       find.ancestor(of: find.text(label), matching: find.byType(TextField));
@@ -96,7 +98,8 @@ void main() {
 
   Uint8List bytesOf(String text) => Uint8List.fromList(utf8.encode(text));
 
-  testWidgets('a typed code signs in with its spaces dropped', (tester) async {
+  testWidgets('a typed code without its server line asks for both lines '
+      'without reaching the network', (tester) async {
     final bodies = <Map<String, Object?>>[];
     await pumpPage(tester, client: clientRecording(bodies));
 
@@ -106,7 +109,8 @@ void main() {
     );
     await tester.pump();
 
-    expect(bodies.single['token'], 'syl_abcdefgh');
+    expect(find.text(incompleteCode), findsOneWidget);
+    expect(bodies, isEmpty);
   });
 
   testWidgets('a typed code naming the chosen server signs in', (tester) async {
@@ -227,27 +231,12 @@ void main() {
     expect(bodies, isEmpty);
   });
 
-  testWidgets('the server line alone asks for the code without reaching the '
-      'network', (tester) async {
-    final bodies = <Map<String, Object?>>[];
-    await pumpPage(tester, client: clientRecording(bodies));
-
-    await tester.enterText(field('Code'), 'example.org');
-    await tester.showKeyboard(field('Code'));
-    await tester.testTextInput.receiveAction(TextInputAction.done);
-    await tester.pump();
-
-    expect(find.text('Enter the code'), findsOneWidget);
-    expect(find.text(invalidCode), findsNothing);
-    expect(bodies, isEmpty);
-  });
-
   testWidgets('says the code is not valid when the server refuses it', (
     tester,
   ) async {
     await pumpPage(tester, client: clientRecording([]));
 
-    await tester.enterText(field('Code'), 'syl_expired');
+    await tester.enterText(field('Code'), 'example.org syl_expired');
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
@@ -399,7 +388,7 @@ void main() {
       tester.element(find.byType(LinkedSignInPage)),
     );
 
-    await tester.enterText(field('Code'), 'syl_abcdefgh');
+    await tester.enterText(field('Code'), 'example.org syl_abcdefgh');
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );
@@ -418,7 +407,7 @@ void main() {
     await pumpPage(tester, client: clientAnswering((_) => answer.future));
     final navigator = tester.state<NavigatorState>(find.byType(Navigator));
 
-    await tester.enterText(field('Code'), 'syl_abcdefgh');
+    await tester.enterText(field('Code'), 'example.org syl_abcdefgh');
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Sign in with the code'),
     );

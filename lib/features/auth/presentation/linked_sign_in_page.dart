@@ -65,21 +65,26 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
       setState(() => _error = context.l10n.matrixLinkedSignInNotACode);
       return;
     }
-    await _signIn(server: code.server, token: code.token);
+    await _signIn(code);
   }
 
   Future<void> _submitTyped() async {
     if (_busy) return;
     closeKeyboard();
-    final code = parseTypedSignInCode(_code.text);
-    if (code == null) {
+    final typed = _code.text;
+    if (typed.trim().isEmpty) {
       setState(() => _error = context.l10n.authEnterCode);
       return;
     }
-    await _signIn(server: code.server, token: code.token);
+    final code = LinkedSignInCode.parseTyped(typed);
+    if (code == null) {
+      setState(() => _error = context.l10n.matrixLinkedSignInIncomplete);
+      return;
+    }
+    await _signIn(code);
   }
 
-  Future<void> _signIn({required String? server, required String token}) async {
+  Future<void> _signIn(LinkedSignInCode code) async {
     if (_busy) return;
     final Uri chosen;
     try {
@@ -102,8 +107,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
           .during(
             () => signInWithLinkedCode(
               client,
-              server: server,
-              token: token,
+              code,
               chosenServer: chosen,
               deviceDisplayName: thisSessionDisplayName(),
             ),

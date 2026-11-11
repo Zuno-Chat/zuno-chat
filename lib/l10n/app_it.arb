@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{In attesa che {count} persona accetti} other{In attesa che {count} persone accettino}}",
   "matrixInviteWaitingForPerson": "In attesa che {name} accetti",
   "matrixInviteWaitingForThem": "In attesa che questa persona accetti",
+  "matrixLinkedSignInIncomplete": "Questo codice è incompleto. Scrivi entrambe le righe mostrate sull’altro dispositivo.",
   "matrixLinkedSignInInvalid": "Questo codice non è valido o è scaduto. Creane uno nuovo sull’altro dispositivo.",
   "matrixLinkedSignInIssueFailed": "Impossibile creare un codice. Controlla la connessione e riprova.",
   "matrixLinkedSignInNotACode": "Questo non è un codice di accesso di Zuno.",

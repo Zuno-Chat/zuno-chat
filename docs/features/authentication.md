@@ -173,9 +173,9 @@ sequenceDiagram
 | Signed-in device | `SignInAnotherDevicePage` asks for the password, mints a login token (MSC3882) and shows it as a QR code holding `ZUNO-SIGN-IN 1 <server name> <token>`, and as text to type, the server name above the grouped token, until it expires. |
 | New device | `LinkedSignInPage` scans the QR code or takes typed text, and signs in with `m.login.token`. |
 
-- **Typed text may be the two lines, the QR code's text pasted, or the
-  token alone**, since devices on older versions show no server name. A
-  server line alone asks for the code.
+- **Typed text must be the two lines or the QR code's text pasted**, so
+  every code names its server; anything else asks for both lines, and
+  nothing reaches a server.
 - **One redeem function checks the server** for scanned and typed codes
   alike, comparing hosts only, because a server name's port is its
   federation port, not the client API's.

@@ -206,7 +206,7 @@ Swedish for `lib/l10n/app_sv.arb`, written for Sweden. The rules all languages s
 | Welcome to Zuno | Välkommen till Zuno | |
 | With {name} / In {name} (room) / {name}'s devices | Med {name} / I rummet ”{name}” / Enheter: {name} | |
 | {name} is confirmed | {name} är bekräftad | |
-| character(s), check mark | tecken · bock | |
+| character(s), check mark, line (of text) | tecken · bock · rad | Never «linje» for a line of text. |
 | reinstall, sign-in code, the verification check | ominstallation · inloggningskod · kontrollen | |
 | "{type} event" | «Händelse: {type}» | |
 

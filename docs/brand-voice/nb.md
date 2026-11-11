@@ -206,7 +206,7 @@ Norwegian Bokmål for `lib/l10n/app_nb.arb`, written for Norway. The rules all l
 | Welcome to Zuno | Velkommen til Zuno | |
 | With {name} / In {name} (room) / {name}'s devices | Med {name} / I rommet «{name}» / Enhetene til {name} | |
 | {name} is confirmed | {name} er bekreftet | |
-| character(s), check mark | tegn · hake | |
+| character(s), check mark, line (of text) | tegn · hake · linje | |
 | reinstall, sign-in code, the verification check | reinstallering · påloggingskode · kontrollen | |
 | "{type} event", bootloader | «Hendelse: {type}» · oppstartslaster | |
 

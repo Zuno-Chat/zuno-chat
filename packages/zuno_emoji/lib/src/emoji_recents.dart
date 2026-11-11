@@ -24,32 +24,25 @@ class EmojiRecents extends ChangeNotifier {
   String toneOf(EmojiEntry entry) =>
       _currentTones()[entry.emoji] ?? entry.emoji;
 
-  Future<void> add(String emoji) => addAll([emoji]);
-
-  Future<void> addAll(Iterable<String> oldestFirst) async {
-    final items = [..._currentItems()];
-    final tones = {..._currentTones()};
-    var tonesChanged = false;
-    for (final emoji in oldestFirst) {
-      final ref = emojiIndex[emoji];
-      if (ref == null) continue;
-      items
-        ..removeWhere((e) => emojiIndex[e]?.index == ref.index)
-        ..insert(0, emoji);
-      final entry = emojiTable[ref.index];
-      if (entry.tones == ToneKind.none) continue;
-      tonesChanged = true;
+  Future<void> add(String emoji) async {
+    final ref = emojiIndex[emoji];
+    if (ref == null) return;
+    final items = [
+      emoji,
+      ..._currentItems().where((e) => emojiIndex[e]?.index != ref.index),
+    ].take(_limit).toList();
+    final rawItems = _items.remember(jsonEncode(items), items);
+    final entry = emojiTable[ref.index];
+    String? rawTones;
+    if (entry.tones != ToneKind.none) {
+      final tones = {..._currentTones()};
       if (ref.variant == null) {
         tones.remove(entry.emoji);
       } else {
         tones[entry.emoji] = emoji;
       }
+      rawTones = _tones.remember(jsonEncode(tones), tones);
     }
-    final kept = items.take(_limit).toList();
-    final rawItems = _items.remember(jsonEncode(kept), kept);
-    final rawTones = tonesChanged
-        ? _tones.remember(jsonEncode(tones), tones)
-        : null;
     notifyListeners();
     await _store.write(_recentsKey, rawItems);
     if (rawTones != null) await _store.write(_tonesKey, rawTones);

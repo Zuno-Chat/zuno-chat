@@ -10,22 +10,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'app.dart';
 import 'core/calls/notifications/call_notification_service.dart';
 import 'core/calls/notifications/ringing_call_store.dart';
-import 'core/emoji/legacy_emoji_recents.dart';
 import 'core/errors/best_effort.dart';
 import 'core/errors/crash_reporting.dart';
 import 'core/errors/device_log.dart';
 import 'core/errors/global_error_handler.dart';
-import 'core/files/file_system.dart';
 import 'core/l10n/app_locale.dart';
 import 'core/matrix/client/client_startup.dart';
 import 'core/matrix/client/matrix_client_provider.dart';
-import 'core/matrix/database/left_rooms_repair.dart';
 import 'core/matrix/database/send_outbox.dart';
 import 'core/matrix/media/attachments/attachment_cache.dart';
-import 'core/matrix/media/attachments/legacy_plaintext_copies.dart';
 import 'core/network/app_http_overrides.dart';
 import 'core/notifications/actions/native_notification_action_runner.dart';
-import 'core/notifications/messages/retired_notification_records.dart';
 import 'core/platform/platform_capabilities.dart';
 import 'core/push/fcm/fcm_headless_entry.dart';
 import 'core/push/fcm/fcm_startup.dart';
@@ -51,20 +46,11 @@ Future<void> _runApp(List<String> args) async {
   await AppLocale.instance.start();
   await installAppHttpOverrides();
   if (kDebugMode) debugPrint('zuno/push: main(args=$args)');
-  final retired = runBestEffort(
-    () async => moveRetiredNotificationRecords(
-      await SharedPreferences.getInstance(),
-      ambientCapabilities,
-    ),
-    label: 'move the notification records older builds kept',
-  );
   if (args.contains(_fcmBackgroundArg)) {
-    await retired;
     await runFcmHeadless();
     return;
   }
   if (args.contains(_unifiedPushBackgroundArg)) {
-    await retired;
     await _runHeadlessPushHandler();
     return;
   }
@@ -72,10 +58,6 @@ Future<void> _runApp(List<String> args) async {
   final preferencesFuture = SharedPreferences.getInstance();
   await WidgetsBinding.instance.endOfFrame;
   final preferences = await preferencesFuture;
-  await runBestEffort(
-    () => importLegacyEmojiRecents(preferences),
-    label: 'import the recent emoji older builds kept',
-  );
   await initCrashReporting(
     preferences,
     optedIn: readCrashReporting(preferences),
@@ -101,21 +83,13 @@ Future<void> _runApp(List<String> args) async {
 
   await notificationsFuture;
   final client = await clientFuture;
-  await repairLeftRoomsOnce(client, preferences);
   unawaited(
     runBestEffort(
       () => dropSendOutboxOrphans(client),
       label: 'drop files kept for messages that are gone',
     ),
   );
-  unawaited(
-    runBestEffort(
-      () async => removeLegacyPlaintextCopies(await temporaryDirectory()),
-      label: 'remove the plaintext copies older builds left behind',
-    ),
-  );
   unawaited(DiskAttachmentCache.instance.sweep());
-  await retired;
   attachFcmAppClient(client);
   if (ambientCapabilities.nativeNotificationActions) {
     nativeNotificationActionRunner.attach(client);

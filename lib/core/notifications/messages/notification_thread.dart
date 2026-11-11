@@ -136,11 +136,12 @@ class StoredNotificationThread {
 
   static StoredNotificationThread? fromJson(String key, Object? json) {
     if (json is! Map) return null;
-    final rawLines = json['lines'];
     final roomId = json['roomId'];
+    if (roomId is! String) return null;
+    final rawLines = json['lines'];
     return StoredNotificationThread(
       key: key,
-      roomId: roomId is String ? roomId : key,
+      roomId: roomId,
       isGroupChat: json['isGroupChat'] == true,
       preview: NotificationPreview.values
           .where((level) => level.wire == json['preview'])

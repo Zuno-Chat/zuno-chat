@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Väntar på att {count} person ska acceptera} other{Väntar på att {count} personer ska acceptera}}",
   "matrixInviteWaitingForPerson": "Väntar på att {name} ska acceptera",
   "matrixInviteWaitingForThem": "Väntar på att personen ska acceptera",
+  "matrixLinkedSignInIncomplete": "Koden är ofullständig. Skriv båda raderna som din andra enhet visar.",
   "matrixLinkedSignInInvalid": "Koden är ogiltig eller har gått ut. Skapa en ny på din andra enhet.",
   "matrixLinkedSignInIssueFailed": "Kunde inte skapa en kod. Kontrollera anslutningen och försök igen.",
   "matrixLinkedSignInNotACode": "Det här är ingen inloggningskod från Zuno.",

@@ -198,7 +198,7 @@ German for `lib/l10n/app_de.arb`, written for Germany and served to every German
 | Secure backup (screen) | „Wiederherstellung“ | |
 | Welcome to Zuno | Willkommen bei Zuno | |
 | {name} is confirmed | {name} ist bestätigt | Safe: predicate participles never inflect (§2.4). |
-| character(s), link, check mark | das Zeichen · der Link · das Häkchen | |
+| character(s), link, check mark, line (of text) | das Zeichen · der Link · das Häkchen · die Zeile | |
 
 ### 1.12 UI actions
 

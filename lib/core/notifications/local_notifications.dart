@@ -226,9 +226,6 @@ class LocalNotifications {
     );
 
     await _registerChannels(l10n);
-    for (final channelId in _retiredChannelIds) {
-      await android?.deleteNotificationChannel(channelId: channelId);
-    }
     _ready = true;
   }
 
@@ -284,13 +281,6 @@ class LocalNotifications {
       const DarwinNotificationCategory(_plainMessageCategoryId),
     ];
   }
-
-  static const _retiredChannelIds = [
-    'messages',
-    'messages_group',
-    'messages_sound_v1',
-    'messages_group_sound_v1',
-  ];
 
   static List<AndroidNotificationChannel> _channels(AppLocalizations l10n) => [
     AndroidNotificationChannel(

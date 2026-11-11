@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Oczekiwanie na akceptację: {count} osoba} few{Oczekiwanie na akceptację: {count} osoby} many{Oczekiwanie na akceptację: {count} osób} other{Oczekiwanie na akceptację: {count} osób}}",
   "matrixInviteWaitingForPerson": "Oczekiwanie na akceptację: {name}",
   "matrixInviteWaitingForThem": "Oczekiwanie na akceptację",
+  "matrixLinkedSignInIncomplete": "Ten kod jest niepełny. Wpisz oba wiersze wyświetlane na drugim urządzeniu.",
   "matrixLinkedSignInInvalid": "Ten kod jest nieprawidłowy lub wygasł. Utwórz nowy na drugim urządzeniu.",
   "matrixLinkedSignInIssueFailed": "Nie udało się utworzyć kodu. Sprawdź połączenie i spróbuj ponownie.",
   "matrixLinkedSignInNotACode": "To nie jest kod logowania Zuno.",

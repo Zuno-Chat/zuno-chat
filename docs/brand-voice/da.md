@@ -206,7 +206,7 @@ Danish for `lib/l10n/app_da.arb`, written for Denmark. The rules all languages s
 | Welcome to Zuno | Velkommen til Zuno | |
 | With {name} / In {name} (room) / {name}'s devices | Med {name} / I rummet “{name}” / Enheder: {name} | |
 | {name} is confirmed | {name} er bekræftet | |
-| character(s), check mark | tegn · flueben | |
+| character(s), check mark, line (of text) | tegn · flueben · linje | |
 | reinstall, sign-in code, the verification check | geninstallation · loginkode · kontrollen | |
 | "{type} event" | «Hændelse: {type}» | |
 

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,12 +35,6 @@ void main() {
     expect(readResolvedCallIds(prefs), {'fresh'});
   });
 
-  test('a corrupt stored value reads as empty rather than throwing', () async {
-    await prefs.setString('calls.resolved', 'not json');
-
-    expect(readResolvedCallIds(prefs), isEmpty);
-  });
-
   test('marks from two isolates whose caches have not seen each other both '
       'survive', () async {
     SharedPreferences.resetStatic();
@@ -52,33 +45,6 @@ void main() {
 
     await prefs.reload();
     expect(readResolvedCallIds(prefs), {'from-here', 'from-there'});
-  });
-
-  group('a value stored in the single key earlier versions used', () {
-    setUp(() async {
-      SharedPreferences.setMockInitialValues({
-        'calls.resolved': jsonEncode({
-          'old-fresh': clock.now().millisecondsSinceEpoch,
-          'old-stale': clock
-              .now()
-              .subtract(const Duration(minutes: 10))
-              .millisecondsSinceEpoch,
-        }),
-      });
-      prefs = await SharedPreferences.getInstance();
-    });
-
-    test('still reads, within the same retention', () {
-      expect(readResolvedCallIds(prefs), {'old-fresh'});
-    });
-
-    test('moves to one key per call on the next mark, and the old key '
-        'goes', () async {
-      await markCallResolvedOnDisk(prefs, 'new');
-
-      expect(prefs.containsKey('calls.resolved'), isFalse);
-      expect(readResolvedCallIds(prefs), {'old-fresh', 'new'});
-    });
   });
 
   test('only the newest entries are kept', () async {

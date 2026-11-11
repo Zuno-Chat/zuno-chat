@@ -11,8 +11,8 @@ import '../../helpers/platform_capabilities.dart';
 
 void main() {
   test('registers the channels in plain groups: two sound-bearing chat '
-      'channels, a quiet one, and security alerts under Account, and removes the '
-      'retired ones — silence is per post, not per channel', () async {
+      'channels, a quiet one, and security alerts under Account — silence is '
+      'per post, not per channel', () async {
     final notifications = installFakeLocalNotifications();
 
     await LocalNotifications().initialize();
@@ -49,15 +49,6 @@ void main() {
     );
     expect(security['name'], 'Security alerts');
     expect(security['groupId'], 'account_group');
-    expect(
-      notifications.deletedChannels,
-      unorderedEquals([
-        'messages',
-        'messages_group',
-        'messages_sound_v1',
-        'messages_group_sound_v1',
-      ]),
-    );
   });
 
   test('on iOS it initializes without prompting: onboarding owns the '

@@ -12,10 +12,10 @@ import '../l10n/app_locale.dart';
 import '../platform/platform_capabilities.dart';
 import '../settings/app_preferences_provider.dart';
 
-class PreferencesEmojiStore implements EmojiStore {
+class _PreferencesEmojiStore implements EmojiStore {
   final SharedPreferences _preferences;
 
-  PreferencesEmojiStore(this._preferences);
+  _PreferencesEmojiStore(this._preferences);
 
   @override
   String? read(String key) => _preferences.getString(key);
@@ -34,7 +34,7 @@ Future<T> _inBackground<T>(T Function() work) =>
     runInBackground(work, debugName: 'emoji names');
 
 final emojiStoreProvider = Provider<EmojiStore>(
-  (ref) => PreferencesEmojiStore(ref.watch(sharedPreferencesProvider)),
+  (ref) => _PreferencesEmojiStore(ref.watch(sharedPreferencesProvider)),
 );
 
 final emojiRecentsProvider = Provider<EmojiRecents>((ref) {

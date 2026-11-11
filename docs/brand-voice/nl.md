@@ -207,7 +207,7 @@ Dutch for `lib/l10n/app_nl.arb`, written for the Netherlands and Flanders alike.
 | Welcome to Zuno | Welkom bij Zuno | |
 | With {name} / In {name} (room) / {name}'s devices | Met {name} / In de kamer ‘{name}’ / Apparaten van {name} | |
 | {name} is confirmed | {name} is bevestigd | |
-| character(s), check mark | teken · tekens · vinkje | |
+| character(s), check mark, line (of text) | teken · tekens · vinkje · regel | Never «lijn» for a line of text. |
 | reinstall, sign-in code, the verification check | herinstallatie · inlogcode · de controle | |
 | "{type} event", "your friend" | «Gebeurtenis {type}» · «je contactpersoon» | «vriend» marks gender. |
 

@@ -9,6 +9,9 @@ import 'auth_error_message.dart';
 
 const _codeTag = 'ZUNO-SIGN-IN';
 const _codeVersion = '1';
+final _serverName = RegExp(
+  r'^(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)(:\d{1,5})?$',
+);
 
 class LinkedSignInCode {
   final String server;
@@ -26,6 +29,18 @@ class LinkedSignInCode {
       return null;
     }
     return LinkedSignInCode(server: parts[2], token: parts[3]);
+  }
+
+  static LinkedSignInCode? parseTyped(String raw) {
+    if (decode(raw) case final code?) return code;
+    final words = raw.trim().split(RegExp(r'\s+'));
+    final server = words.first;
+    if (words.length < 2 ||
+        !server.contains(RegExp('[.:]')) ||
+        !_serverName.hasMatch(server)) {
+      return null;
+    }
+    return LinkedSignInCode(server: server, token: words.skip(1).join());
   }
 }
 
@@ -58,40 +73,20 @@ class SignInCodeForAnotherServer implements Exception {
 }
 
 Future<void> signInWithLinkedCode(
-  Client client, {
-  required String? server,
-  required String token,
+  Client client,
+  LinkedSignInCode code, {
   required Uri chosenServer,
   required String deviceDisplayName,
 }) async {
-  if (server != null &&
-      Uri.tryParse('https://$server')?.host != chosenServer.host) {
-    throw SignInCodeForAnotherServer(server);
+  if (Uri.tryParse('https://${code.server}')?.host != chosenServer.host) {
+    throw SignInCodeForAnotherServer(code.server);
   }
   await client.login(
     LoginType.mLoginToken,
-    token: token,
+    token: code.token,
     initialDeviceDisplayName: deviceDisplayName,
     refreshToken: true,
   );
-}
-
-final _serverName = RegExp(
-  r'^(\[[0-9A-Fa-f:.]+\]|[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)*)(:\d{1,5})?$',
-);
-
-({String? server, String token})? parseTypedSignInCode(String raw) {
-  if (LinkedSignInCode.decode(raw) case final code?) {
-    return (server: code.server, token: code.token);
-  }
-  final words = raw.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-  if (words.isEmpty) return null;
-  final first = words.first;
-  final namesServer =
-      first.contains(RegExp('[.:]')) && _serverName.hasMatch(first);
-  if (!namesServer) return (server: null, token: words.join());
-  if (words.length == 1) return null;
-  return (server: first, token: words.skip(1).join());
 }
 
 String groupedSignInCode(String token) {

@@ -2353,6 +2353,7 @@
     }
   },
   "matrixInviteWaitingForThem": "Waiting for them to accept",
+  "matrixLinkedSignInIncomplete": "That code is incomplete. Type both lines your other device shows.",
   "matrixLinkedSignInInvalid": "That code is not valid or has expired. Make a new one on your other device.",
   "matrixLinkedSignInIssueFailed": "Could not make a code. Check your connection and try again.",
   "matrixLinkedSignInNotACode": "That is not a Zuno sign-in code.",

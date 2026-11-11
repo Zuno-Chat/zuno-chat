@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Venter på at {count} person skal godta} other{Venter på at {count} personer skal godta}}",
   "matrixInviteWaitingForPerson": "Venter på at {name} skal godta",
   "matrixInviteWaitingForThem": "Venter på at personen skal godta",
+  "matrixLinkedSignInIncomplete": "Koden er ufullstendig. Skriv inn begge linjene som den andre enheten din viser.",
   "matrixLinkedSignInInvalid": "Koden er ugyldig eller utløpt. Lag en ny på den andre enheten din.",
   "matrixLinkedSignInIssueFailed": "Det gikk ikke å lage en kode. Sjekk tilkoblingen og prøv igjen.",
   "matrixLinkedSignInNotACode": "Dette er ikke en påloggingskode for Zuno.",

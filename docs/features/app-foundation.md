@@ -247,7 +247,7 @@ The `zuno/*` channels, each behind its flag:
 
 **The app's client compacts `zuno.db` each time it opens it**, because SQLite never hands freed pages back to the disk on its own. The file runs in incremental auto-vacuum, and each open frees a bounded number of free pages, so a large backlog drains over several launches instead of stalling one.
 - A store not yet incremental is switched at open, with one full `VACUUM`, only while it is small; a large one waits for the next cache clear.
-- Every cache clear is followed by a full rewrite, owned by the database layer (a mixin on both app database classes overriding `clearCache`), so Clear cache, the first-launch repair and the SDK's own clears inside migrations all give the space back.
+- Every cache clear is followed by a full rewrite, owned by the database layer (a mixin on both app database classes overriding `clearCache`), so Clear cache and the SDK's own clears inside migrations both give the space back.
 - It runs before the key cache reads the file, so that read never meets a file mid-rewrite.
 - Background clients never compact at open, since a push wake has no time for a rewrite; an SDK migration that clears the cache still rewrites the file in whichever client runs it, a background one included.
 

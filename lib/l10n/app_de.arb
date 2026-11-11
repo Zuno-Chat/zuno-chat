@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Warten, bis {count} Person annimmt} other{Warten, bis {count} Personen annehmen}}",
   "matrixInviteWaitingForPerson": "Warten, bis {name} annimmt",
   "matrixInviteWaitingForThem": "Warten, bis die Person annimmt",
+  "matrixLinkedSignInIncomplete": "Dieser Code ist unvollständig. Gib beide Zeilen ein, die dein anderes Gerät anzeigt.",
   "matrixLinkedSignInInvalid": "Dieser Code ist ungültig oder abgelaufen. Erstelle auf deinem anderen Gerät einen neuen.",
   "matrixLinkedSignInIssueFailed": "Code konnte nicht erstellt werden. Prüfe deine Verbindung und versuche es erneut.",
   "matrixLinkedSignInNotACode": "Das ist kein Anmeldecode von Zuno.",

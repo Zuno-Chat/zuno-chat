@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Venter på, at {count} person accepterer} other{Venter på, at {count} personer accepterer}}",
   "matrixInviteWaitingForPerson": "Venter på, at {name} accepterer",
   "matrixInviteWaitingForThem": "Venter på, at personen accepterer",
+  "matrixLinkedSignInIncomplete": "Koden er ufuldstændig. Skriv begge de linjer, din anden enhed viser.",
   "matrixLinkedSignInInvalid": "Koden er ugyldig eller udløbet. Opret en ny på din anden enhed.",
   "matrixLinkedSignInIssueFailed": "Kunne ikke oprette en kode. Tjek din forbindelse, og prøv igen.",
   "matrixLinkedSignInNotACode": "Det er ikke en loginkode til Zuno.",

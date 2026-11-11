@@ -62,7 +62,6 @@ class RecordedNotifications {
   List<Map<String, Object?>> active = const [];
   bool shownStylesReadable = true;
   List<Map<String, Object?>> deviceChannels = const [];
-  final List<String> deletedChannels = [];
   Object? showError;
   Future<void>? heldShows;
   Map<String, Object?>? initializeArguments;
@@ -179,9 +178,6 @@ RecordedNotifications installFakeLocalNotifications({
       case 'createNotificationChannel':
         recorded.channels.add((call.arguments as Map).cast<String, Object?>());
         return true;
-      case 'deleteNotificationChannel':
-        recorded.deletedChannels.add(call.arguments as String);
-        return null;
       case 'initialize':
         recorded.initializeArguments = (call.arguments as Map)
             .cast<String, Object?>();

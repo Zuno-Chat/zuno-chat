@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Αναμονή για αποδοχή από {count} άτομο} other{Αναμονή για αποδοχή από {count} άτομα}}",
   "matrixInviteWaitingForPerson": "Αναμονή για αποδοχή από {name}",
   "matrixInviteWaitingForThem": "Αναμονή για αποδοχή",
+  "matrixLinkedSignInIncomplete": "Αυτός ο κωδικός είναι ελλιπής. Πληκτρολογήστε και τις δύο γραμμές που εμφανίζει η άλλη συσκευή σας.",
   "matrixLinkedSignInInvalid": "Αυτός ο κωδικός δεν είναι έγκυρος ή έχει λήξει. Δημιουργήστε νέο στην άλλη συσκευή σας.",
   "matrixLinkedSignInIssueFailed": "Δεν ήταν δυνατή η δημιουργία κωδικού. Ελέγξτε τη σύνδεσή σας και δοκιμάστε ξανά.",
   "matrixLinkedSignInNotACode": "Αυτός δεν είναι κωδικός σύνδεσης του Zuno.",

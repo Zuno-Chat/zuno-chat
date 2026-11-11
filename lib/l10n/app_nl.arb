@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Wachten tot {count} persoon accepteert} other{Wachten tot {count} personen accepteren}}",
   "matrixInviteWaitingForPerson": "Wachten tot {name} accepteert",
   "matrixInviteWaitingForThem": "Wachten op acceptatie",
+  "matrixLinkedSignInIncomplete": "Die code is onvolledig. Typ beide regels die op je andere apparaat staan.",
   "matrixLinkedSignInInvalid": "Die code is ongeldig of verlopen. Maak een nieuwe op je andere apparaat.",
   "matrixLinkedSignInIssueFailed": "Kon geen code maken. Controleer je verbinding en probeer het opnieuw.",
   "matrixLinkedSignInNotACode": "Dat is geen Zuno-inlogcode.",

@@ -617,6 +617,7 @@
   "matrixInviteWaitingForPeople": "{count, plural, one{Në pritje që {count} person të pranojë} other{Në pritje që {count} persona të pranojnë}}",
   "matrixInviteWaitingForPerson": "Në pritje që {name} të pranojë",
   "matrixInviteWaitingForThem": "Në pritje që ky person të pranojë",
+  "matrixLinkedSignInIncomplete": "Ky kod është i paplotë. Shkruaj të dy rreshtat që shfaqen në pajisjen tjetër.",
   "matrixLinkedSignInInvalid": "Ky kod nuk është i vlefshëm ose ka skaduar. Krijo një të ri në pajisjen tjetër.",
   "matrixLinkedSignInIssueFailed": "Kodi nuk u krijua. Kontrollo lidhjen dhe provo sërish.",
   "matrixLinkedSignInNotACode": "Ky nuk është një kod identifikimi nga Zuno.",

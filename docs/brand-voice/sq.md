@@ -210,7 +210,7 @@ Albanian for `lib/l10n/app_sq.arb`, written in standard Albanian for Albania and
 | Welcome to Zuno | Mirë se erdhe në Zuno | |
 | With {name} / In {name} (room) / {name}'s devices | Bisedë: {name} / Në dhomën “{name}” / Pajisjet: {name} | |
 | {name} is confirmed | {name} është konfirmuar | A compound tense, so nothing agrees with the person (§2.4). |
-| character(s), check mark | karakter · shenjë zgjedhjeje | |
+| character(s), check mark, line (of text) | karakter · shenjë zgjedhjeje · rresht | |
 
 ### 1.12 UI actions
 

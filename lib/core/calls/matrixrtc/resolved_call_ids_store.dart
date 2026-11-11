@@ -1,12 +1,9 @@
-import 'dart:convert';
-
 import 'package:clock/clock.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../async/serial_lock.dart';
 import '../../errors/caught_errors.dart';
 
-const _legacyKey = 'calls.resolved';
 const resolvedCallKeyPrefix = 'calls.resolved.';
 const _retention = Duration(minutes: 5);
 const _maxEntries = 32;
@@ -16,7 +13,6 @@ Future<void> markCallResolvedOnDisk(
   String callId,
 ) async {
   final at = clock.now();
-  await _moveLegacyValue(prefs, now: at);
   await prefs.setInt(
     '$resolvedCallKeyPrefix$callId',
     at.millisecondsSinceEpoch,
@@ -27,8 +23,6 @@ Future<void> markCallResolvedOnDisk(
 Set<String> readResolvedCallIds(SharedPreferences prefs) {
   final cutoff = _cutoff(clock.now());
   return {
-    for (final entry in _legacyEntries(prefs).entries)
-      if (entry.value >= cutoff) entry.key,
     for (final entry in _entries(prefs).entries)
       if (entry.value >= cutoff) entry.key,
   };
@@ -42,38 +36,6 @@ Map<String, int> _entries(SharedPreferences prefs) => {
       if (prefs.get(key) case final int at)
         key.substring(resolvedCallKeyPrefix.length): at,
 };
-
-Map<String, int> _legacyEntries(SharedPreferences prefs) {
-  final stored = prefs.getString(_legacyKey);
-  if (stored == null) return {};
-  final Object? decoded;
-  try {
-    decoded = jsonDecode(stored);
-  } on FormatException {
-    return {};
-  }
-  if (decoded is! Map<String, Object?>) return {};
-  return {
-    for (final entry in decoded.entries)
-      if (entry.value case final int at) entry.key: at,
-  };
-}
-
-Future<void> _moveLegacyValue(
-  SharedPreferences prefs, {
-  required DateTime now,
-}) async {
-  if (!prefs.containsKey(_legacyKey)) return;
-  final cutoff = _cutoff(now);
-  final kept = _entries(prefs);
-  for (final entry in _legacyEntries(prefs).entries) {
-    if (entry.value < cutoff || (kept[entry.key] ?? 0) >= entry.value) {
-      continue;
-    }
-    await prefs.setInt('$resolvedCallKeyPrefix${entry.key}', entry.value);
-  }
-  await prefs.remove(_legacyKey);
-}
 
 Future<void> _prune(SharedPreferences prefs, {required DateTime now}) async {
   final cutoff = _cutoff(now);
