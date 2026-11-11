@@ -1,1 +1,1 @@
-Fixed 1 bug.
+Fixed 3 bugs.

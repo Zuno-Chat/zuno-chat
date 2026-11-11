@@ -2,9 +2,11 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:record/record.dart';
 
+import '../../../core/async/elapsed.dart';
 import '../../../core/errors/best_effort.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/files/file_system.dart';
@@ -71,6 +73,7 @@ class VoiceRecorder extends ChangeNotifier {
   Timer? _limit;
   Timer? _holdTimer;
   Offset? _downPosition;
+  Stopwatch? _sinceSendTap;
   bool _disposed = false;
 
   bool get isRecording =>
@@ -91,8 +94,15 @@ class VoiceRecorder extends ChangeNotifier {
         : clock.now().difference(startedAt);
   }
 
+  bool get isSecondTapOfSend {
+    final since = _sinceSendTap;
+    return since != null && since.elapsed < kDoubleTapTimeout;
+  }
+
+  void sendTapped() => _sinceSendTap = startStopwatch();
+
   void pointerDown(PointerDownEvent event) {
-    if (_press == _Press.handsFree) return;
+    if (_press == _Press.handsFree || isSecondTapOfSend) return;
     _downPosition = event.position;
     _press = _Press.none;
     _holdTimer = Timer(_holdThreshold, () {
@@ -116,6 +126,7 @@ class VoiceRecorder extends ChangeNotifier {
     _downPosition = null;
     if (_press == _Press.handsFree) {
       _press = _Press.none;
+      sendTapped();
       await _finish(_Ending.send);
       return;
     }

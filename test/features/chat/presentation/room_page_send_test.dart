@@ -7,6 +7,8 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/matrix/http/upload_http_client.dart';
+import 'package:zuno/core/security/recovery_code.dart';
+import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/features/chat/presentation/not_sent.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
 
@@ -72,5 +74,27 @@ void main() {
     await harness.settle(tester);
 
     expect(find.byType(NotSentRow), findsOneWidget);
+  });
+
+  testWidgets('a double tap on send while the recovery-code check is still '
+      'loading sends the message once', (tester) async {
+    final wordlist = Completer<RecoveryWordlist>();
+    final harness = RoomPageHarness(
+      db: SendingFakeDatabaseApi(),
+      overrides: [
+        recoveryWordlistProvider.overrideWith((ref) => wordlist.future),
+      ],
+    );
+    await harness.pumpRoomPage(tester);
+    await tester.enterText(find.byType(TextField), 'hello');
+    await tester.pump();
+
+    await tester.tap(find.byType(SendIcon));
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.byType(SendIcon));
+    wordlist.complete(RecoveryWordlist(const []));
+    await harness.settle(tester);
+
+    expect(harness.sent, hasLength(1));
   });
 }

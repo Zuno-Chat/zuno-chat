@@ -15,7 +15,9 @@ import 'package:zuno/core/location/map_tiles_provider.dart';
 import 'package:zuno/core/matrix/media/media_gallery_group.dart';
 import 'package:zuno/core/matrix/sync/connection_monitor.dart';
 import 'package:zuno/core/matrix/sync/connectivity_provider.dart';
+import 'package:zuno/core/security/recovery_code.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
+import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/sensitive_clipboard.dart';
 import 'package:zuno/features/chat/presentation/message_bubble.dart';
 import 'package:zuno/features/chat/presentation/message_contents/file_message.dart';
@@ -323,6 +325,37 @@ void main() {
       );
       expect(composerText(tester), 'a long draft');
       expect(find.text('Editing message'), findsNothing);
+    });
+
+    testWidgets('a double tap on send sends the edit, not the draft that '
+        'comes back', (tester) async {
+      await openRoom(
+        tester,
+        () => [own(r'$mine', 'teh plan')],
+        overrides: [
+          recoveryWordlistProvider.overrideWith(
+            (ref) async => RecoveryWordlist(const []),
+          ),
+        ],
+      );
+      await tester.enterText(find.byType(TextField), 'a long draft');
+      await tester.pump();
+      await openActions(tester, 'teh plan');
+      await tapAction(tester, 'Edit');
+      await tester.enterText(find.byType(TextField), 'the plan');
+      await tester.pump();
+
+      await tester.tap(find.byType(SendIcon));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(composerText(tester), 'a long draft');
+      await tester.tap(find.byType(SendIcon));
+      await harness.settle(tester);
+
+      expect(
+        (harness.sent.single['m.new_content']! as Map)['body'],
+        'the plan',
+      );
+      expect(composerText(tester), 'a long draft');
     });
 
     testWidgets('replying instead of editing brings back the draft, not the '

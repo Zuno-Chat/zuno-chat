@@ -10,6 +10,8 @@ import 'package:http/http.dart' as http;
 import 'package:record/record.dart' show RecordState;
 import 'package:zuno/core/matrix/media/media_audio_session.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
+import 'package:zuno/core/security/recovery_code.dart';
+import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/features/chat/data/unsent.dart';
 import 'package:zuno/features/chat/presentation/room_page.dart';
 import 'package:zuno/features/chat/presentation/send_icon.dart';
@@ -102,6 +104,9 @@ void main() {
             FakeAudioSessionPort(recorderCalls),
             ownsRecordingSession: ambientCapabilities.recorderNeedsAudioSession,
           ),
+        ),
+        recoveryWordlistProvider.overrideWith(
+          (ref) async => RecoveryWordlist(const []),
         ),
       ],
     );
@@ -305,6 +310,52 @@ void main() {
     expect(voiceMessages(), hasLength(1));
     expect(find.byTooltip('Cancel recording'), findsNothing);
     expect(toggles, [true, false]);
+  });
+
+  testWidgets('a mic tap right after sending text is the end of a double tap '
+      'and records nothing; one a moment later records', (tester) async {
+    await openRoom(tester);
+    await tester.enterText(find.byType(TextField), 'hello');
+    await drive(tester, turns: 5);
+
+    await tester.tap(find.byType(SendIcon));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tapMic(tester);
+    expect(recorderCalls, isNot(contains('start')));
+    expect(find.byTooltip('Cancel recording'), findsNothing);
+
+    await tapMic(tester);
+    expect(find.byTooltip('Cancel recording'), findsOneWidget);
+    await tester.tap(find.byTooltip('Cancel recording'));
+    await pumpUntil(tester, recordingDone, reason: 'the recording to end');
+  });
+
+  testWidgets('a hold right after a hands-free send records nothing', (
+    tester,
+  ) async {
+    await openRoom(tester);
+    await tapMic(tester);
+    await tester.pump(const Duration(milliseconds: 200));
+    await tapMic(tester, settle: false);
+    await pumpUntil(
+      tester,
+      () => find.byTooltip('Cancel recording').evaluate().isEmpty,
+      reason: 'the recording to stop',
+      step: const Duration(milliseconds: 10),
+    );
+
+    final gesture = await holdMic(tester);
+    await gesture.up();
+    await pumpUntil(
+      tester,
+      () => voiceMessages().isNotEmpty && recordingDone(),
+      reason: 'the voice message to be sent',
+    );
+    await drive(tester, turns: 3);
+
+    expect(recorderCalls.where((call) => call == 'start'), hasLength(1));
+    expect(voiceMessages(), hasLength(1));
+    expect(find.byTooltip('Cancel recording'), findsNothing);
   });
 
   testWidgets('a hold let go too soon keeps recording hands-free', (

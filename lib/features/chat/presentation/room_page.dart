@@ -112,6 +112,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
   Timeline? get _timeline => _timelineNotifier.value;
   set _timeline(Timeline? timeline) => _timelineNotifier.value = timeline;
   Timeline? _pendingTimeline;
+  bool _checkingSend = false;
   Event? _editingEvent;
   String _draftBeforeEdit = '';
   Event? _replyingToEvent;
@@ -413,7 +414,7 @@ class _RoomPageState extends ConsumerState<RoomPage>
 
   void _send() {
     final text = _input.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _checkingSend) return;
     unawaited(
       _confirmThenSend(
         text,
@@ -428,18 +429,27 @@ class _RoomPageState extends ConsumerState<RoomPage>
     Event? editing,
     Event? replyingTo,
   }) async {
-    final wordlist = await _recoveryWordlist();
-    if (!mounted) return;
-    if (messageRevealsRecoveryCode(text, wordlist)) {
-      final send = await confirmSendingRecoveryCode(context);
-      if (!send || !mounted) return;
+    _checkingSend = true;
+    final bool confirmed;
+    try {
+      confirmed = await _confirmSending(text);
+    } finally {
+      _checkingSend = false;
     }
+    if (!confirmed || !mounted) return;
     setState(() {
       if (_editingEvent == null) _input.clear();
       _leaveEdit();
       _replyingToEvent = null;
     });
     await _sender.sendText(text, editing: editing, replyingTo: replyingTo);
+  }
+
+  Future<bool> _confirmSending(String text) async {
+    final wordlist = await _recoveryWordlist();
+    if (!mounted) return false;
+    return !messageRevealsRecoveryCode(text, wordlist) ||
+        await confirmSendingRecoveryCode(context);
   }
 
   Future<RecoveryWordlist?> _recoveryWordlist() async {

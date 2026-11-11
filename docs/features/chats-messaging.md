@@ -236,7 +236,8 @@ one rule for what counts.
 - **Recovery code check.** Sending what looks like the recovery code asks
   for confirmation first (`security-verification.md`). It warns rather
   than blocks, since blocking would also stop someone saving it to their
-  own notes.
+  own notes. The box clears only once the check ends, so another send
+  while it runs is ignored, or the text would go out twice.
 - **Voice recording.** Holding the mic records and releasing sends; a
   short press locks recording on, and sliding up cancels. The message is
   an audio file marked as voice (MSC3245) with a duration and waveform.
@@ -742,6 +743,9 @@ flowchart TD
   paint time**, so accent edges are separate strips in a `Stack`.
 - **The send/mic swap is keyed on the button, not the icon**, because a
   key change mid-gesture kills the hold-to-record pointer stream.
+- **A press on the send/mic button within a double tap's time of a send is
+  ignored**, because the button changes under the finger, so the second
+  tap would start a recording or send the draft an edit puts back.
 - **The message box stays mounted while recording, only hidden**, because
   unmounting it drops the keyboard and the mic jumps from under a held
   finger.

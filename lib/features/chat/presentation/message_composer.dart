@@ -220,7 +220,11 @@ class MessageComposer extends StatelessWidget {
                         icon: const SendIcon(),
                         background: colors.primaryContainer,
                         iconColor: colors.onPrimaryContainer,
-                        onPressed: kept != null ? recorder.sendKept : onSend,
+                        onPressed: () {
+                          if (recorder.isSecondTapOfSend) return;
+                          recorder.sendTapped();
+                          (kept != null ? recorder.sendKept : onSend)();
+                        },
                       )
                     : Listener(
                         key: const ValueKey('mic'),
