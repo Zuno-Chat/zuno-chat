@@ -1,19 +1,19 @@
 # Releases
 
 Releases to Google Play, the App Store and the website's APK download are
-automated. On the 25th of each
-month, everything on `master` since the last release is cut onto a release
-branch; on the 1st, that branch is tested, built, signed and submitted
-straight to production for every user at once, with no human step; any
-failure stops the release. The week between is for picking fixes onto the
-cut, and whatever lands on `master` after it waits for the next month.
+automated and weekly. Every Wednesday, everything on `master` since the
+last release is cut onto a release branch; on Saturday, that branch is
+tested, built, signed and submitted straight to production for every user
+at once, with no human step; any failure stops the release. The days
+between are for picking fixes onto the cut, and whatever lands on `master`
+after it waits for the next week.
 Hotfixes run through the same pipeline when started by hand. Commit
 subjects decide the version, and a draft file supplies the store notes.
 
 ```mermaid
 flowchart LR
-  cut["cut-release<br>the 25th"] --> rc["rc/X.Y.Z"]
-  rc --> ship["ship-release<br>the 1st"]
+  cut["cut-release<br>Wednesday"] --> rc["rc/X.Y.Z"]
+  rc --> ship["ship-release<br>Saturday"]
   ship --> gate
   hotfix["start-hotfix<br>by hand"] --> gate["guards, analyze<br>and all test suites"]
   gate --> builds["Android and<br>iOS builds"]
@@ -30,7 +30,7 @@ upload is a job in `release.yml`.
 ## Commit types and versions
 
 - **The commit type sets the version.** Minor if any `feat` landed since
-  the highest tag, else patch if any `fix` did, else no release that month.
+  the highest tag, else patch if any `fix` did, else no release that week.
   Major is manual.
 - **Every type in a combined subject counts** (`chore: …; fix: …`).
 - **`feat` must mean user-facing.** Tooling filed under `feat` forces a
@@ -48,8 +48,8 @@ upload is a job in `release.yml`.
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `cut-release` | Cron on the 25th, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master` and pushes `rc/X.Y.Z` |
-| `ship-release` | Cron on the 1st, or by hand to ship a cut early | Dispatches `release` on the one rc branch above the highest tag; does nothing when none waits, and stops when several do |
+| `cut-release` | Cron every Wednesday, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master` and pushes `rc/X.Y.Z` |
+| `ship-release` | Cron every Saturday, or by hand to ship a cut early | Dispatches `release` on the one rc branch above the highest tag; does nothing when none waits, and stops when several do |
 | `start-hotfix` | By hand, with master commit SHAs and notes | Branches `rc/X.Y.Z` from the highest tag as the next patch, cherry-picks with `-x`, commits the bump and notes on the rc branch, dispatches `release` |
 | `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds and their scans → tag `vX.Y.Z` → website APK, iOS and Android uploads side by side |
 
@@ -72,7 +72,7 @@ upload is a job in `release.yml`.
   channel's failure never holds back the others and each is re-run alone.
 - **No staged rollout**: Play ships at 100% and iOS skips the phased
   release, so a bad release reaches everyone and the fix is a hotfix.
-- **The next monthly cut skips commits named in a `cherry picked from`
+- **The next cut skips commits named in a `cherry picked from`
   trailer**, so a fix shipped as a hotfix or picked onto a waiting cut is
   not counted twice. Take such fixes off the bug count in `next.txt` for the
   same reason.
@@ -122,16 +122,17 @@ green without FCM or crash reporting.
 | Play refuses the commit until a new permission or foreground-service type is declared | Upload that run's AAB by hand in Play Console, which only then asks for the declaration, and roll it out there. Never re-run the Play job: its version code is taken |
 | A bad release is live | Halt the Play release, which works at 100% too, then `start-hotfix`. iOS has nothing to pause |
 | `cut-release` failed partway | Re-run it. It resumes without dropping new notes |
-| A failed rc is still untagged on the next 25th (a gate or build failure) | The cut fails on the name clash. Delete the stale branch |
+| A failed rc is still untagged on the next Wednesday (a gate or build failure) | The cut fails on the name clash. Delete the stale branch |
 | A run is abandoned after its tag | Nothing. The version is spent and the next cut moves past it |
 
 ## Gotchas
 
 - **A real release's failure emails nobody**, because the bot dispatched it,
-  so check Actions after the 1st and after a hotfix.
-- **GitHub can drop a scheduled run under load without a trace**, so
-  confirm `cut-release` ran on the 25th and `ship-release` on the 1st, and
-  start a missed one by hand.
+  so check Actions every Saturday and after a hotfix.
+- **GitHub can drop a scheduled run under load without a trace**, most of
+  all on the hour, so both crons run off the hour; confirm `cut-release`
+  ran on Wednesday and `ship-release` on Saturday, and start a missed one by
+  hand.
 - **A hotfix must be done by hand** when its base tag predates the pipeline
   (`v1.3.0` and earlier) or the fix touches `.github/workflows/`, which
   `GITHUB_TOKEN` cannot push.

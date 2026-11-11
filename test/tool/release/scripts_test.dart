@@ -113,7 +113,7 @@ void main() {
       expect(ghLog.existsSync(), isFalse);
     });
 
-    test('a month with only chores cuts nothing', () async {
+    test('a week with only chores cuts nothing', () async {
       commit('chore: tidy');
       push();
       final before = head('master');

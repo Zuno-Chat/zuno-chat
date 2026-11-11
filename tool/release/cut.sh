@@ -43,7 +43,7 @@ main() {
     return 1
   fi
 
-  echo "Cut $branch. ship-release ships it on the 1st."
+  echo "Cut $branch. ship-release ships it on Saturday."
 }
 
 main "$@"
