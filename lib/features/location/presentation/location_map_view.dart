@@ -13,13 +13,11 @@ const _pinSize = 40.0;
 class LocationMapView extends ConsumerWidget {
   final GeoUri geo;
   final bool interactive;
-  final double zoom;
   final bool persistTiles;
 
   const LocationMapView({
     required this.geo,
     required this.interactive,
-    this.zoom = 15,
     this.persistTiles = true,
     super.key,
   });
@@ -32,7 +30,6 @@ class LocationMapView extends ConsumerWidget {
       tiles: tiles,
       point: LatLng(geo.latitude, geo.longitude),
       interactive: interactive,
-      zoom: zoom,
       persistTiles: persistTiles,
     );
   }
@@ -42,14 +39,12 @@ class _TiledMap extends StatefulWidget {
   final MapTiles tiles;
   final LatLng point;
   final bool interactive;
-  final double zoom;
   final bool persistTiles;
 
   const _TiledMap({
     required this.tiles,
     required this.point,
     required this.interactive,
-    required this.zoom,
     required this.persistTiles,
   });
 
@@ -100,7 +95,7 @@ class _TiledMapState extends State<_TiledMap> {
         mapController: _map,
         options: MapOptions(
           initialCenter: _start,
-          initialZoom: widget.zoom,
+          initialZoom: locationMapZoom,
           minZoom: interactive ? minFullMapZoom : null,
           maxZoom: maxTileZoom,
           cameraConstraint: interactive

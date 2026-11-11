@@ -83,6 +83,17 @@ void main() {
     expect(find.byType(SimpleAttributionWidget), findsNothing);
   });
 
+  testWidgets('a preview opens at the full map zoom, so opening the full map '
+      'starts from tiles already loaded', (tester) async {
+    for (final interactive in [false, true]) {
+      await tester.pumpWidget(_host(interactive: interactive));
+      await tester.pump();
+
+      final map = tester.widget<FlutterMap>(find.byType(FlutterMap));
+      expect(map.options.initialZoom, 16);
+    }
+  });
+
   testWidgets('the tile layer fetches nothing beyond the viewport', (
     tester,
   ) async {

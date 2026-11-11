@@ -68,6 +68,8 @@ adds its own.
   the full map pans only within a neighbourhood-sized box around the pin and
   zooms out no further than that box, previews are static, and only visible
   tiles are fetched.
+- **Previews and full maps open at one zoom**, so a full map starts from the
+  tiles its preview already loaded.
 - **Out of scope**: place search, "someone viewed your location" receipts,
   and geofences.
 
@@ -75,6 +77,13 @@ adds its own.
 
 - **A tile cache is a location history** in plain files outside the
   encrypted database, so keep the size cap and every purge site.
+- **A failed tile is retried until it loads or no map shows it**, because
+  flutter_map with silenced errors takes a failed tile as loaded and never
+  asks again; only connection errors, timeouts, rate limits and server errors
+  are retried, after growing randomized waits.
+- **A tile several maps show is cancelled only once all of them drop it**,
+  because flutter_map shares one download per tile address but ties it to the
+  first map's cancel.
 - **`mapTileCache()` is a forwarder, not the cache**, because a purge
   replaces flutter_map's singleton and a held instance would stop caching.
 - **`geo:` intents need a `<queries>` entry** on Android, or `launchUrl`

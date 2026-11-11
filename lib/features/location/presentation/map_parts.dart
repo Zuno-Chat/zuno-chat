@@ -6,6 +6,7 @@ import 'package:latlong2/latlong.dart';
 
 const maxTileZoom = 19.0;
 const minFullMapZoom = 12.0;
+const locationMapZoom = 16.0;
 
 const _panRadiusMeters = 10000.0;
 const _metersPerDegreeLatitude = 111320.0;

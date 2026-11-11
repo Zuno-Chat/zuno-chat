@@ -1,1 +1,4 @@
-Fixed 3 bugs.
+New
+• Location maps open faster.
+
+Fixed 4 bugs.

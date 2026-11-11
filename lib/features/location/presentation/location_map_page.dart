@@ -71,9 +71,7 @@ class LocationMapPage extends ConsumerWidget {
       ),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: LocationMapView(geo: geo, interactive: true, zoom: 16),
-          ),
+          Positioned.fill(child: LocationMapView(geo: geo, interactive: true)),
           Positioned(
             left: 12,
             right: 12,

@@ -29,7 +29,6 @@ import 'map_parts.dart';
 
 const _markerSize = 44.0;
 const _ownDotSize = 22.0;
-const _focusZoom = 16.0;
 
 class LiveLocationMapPage extends ConsumerStatefulWidget {
   final Room room;
@@ -159,7 +158,7 @@ class _LiveMapState extends ConsumerState<_LiveMap> with VisibleInFront {
     if (!_following || target == null) return;
     if (!refocused && target == _followed) return;
     _followed = target;
-    final zoom = refocused ? _focusZoom : null;
+    final zoom = refocused ? locationMapZoom : null;
     WidgetsBinding.instance.addPostFrameCallback((_) => _show(target, zoom));
   }
 
@@ -214,7 +213,7 @@ class _LiveMapState extends ConsumerState<_LiveMap> with VisibleInFront {
         _centerOnMe = false;
         _following = false;
         WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _show(point, _focusZoom),
+          (_) => _show(point, locationMapZoom),
         );
       }
     }
@@ -282,7 +281,7 @@ class _LiveMapState extends ConsumerState<_LiveMap> with VisibleInFront {
         mapController: _map,
         options: MapOptions(
           initialCenter: _start,
-          initialZoom: _focusZoom,
+          initialZoom: locationMapZoom,
           minZoom: math.min(
             minFullMapZoom,
             zoomToFit(

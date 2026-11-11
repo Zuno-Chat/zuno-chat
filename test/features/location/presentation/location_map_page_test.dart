@@ -93,7 +93,6 @@ void main() {
     );
     final map = tester.widget<LocationMapView>(find.byType(LocationMapView));
     expect(map.interactive, isTrue);
-    expect(map.zoom, 16);
   });
 
   testWidgets('leaves the accuracy out when there is none', (tester) async {
