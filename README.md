@@ -2,102 +2,74 @@
 
 [![codecov](https://codecov.io/gh/Zuno-Chat/zuno-chat/graph/badge.svg?token=OD3PSTSAEH)](https://codecov.io/gh/Zuno-Chat/zuno-chat)
 
-A Matrix chat client for Android and iOS, written in Flutter.
-
-Runs on Android 8.0 and later, and iOS 18 and later.
+A free, open-source Matrix chat client for Android 8.0+ and iOS 18+,
+written in Flutter. It signs in to any Matrix homeserver.
 
 ## Features
 
-- One-to-one chats and rooms, end-to-end encrypted.
-- Device verification by QR code or emoji, and a recovery code for key backup.
-- Voice and video calls, one-to-one and group, that keep going while you
-  use the rest of the app. On iPhone they ring through CallKit.
-- Photos, video, voice messages, files and per-room media galleries.
-- Location pins and live location.
-- Communities (Matrix spaces), with ask to join.
-- Notifications with Reply and Mark as read: FCM, UnifiedPush or a
-  background service on Android, and APNs on iPhone.
-- Sharing into the app from other apps.
-- Room roles and permissions.
-- Crash reporting that is off by default, release builds only, with message
-  content and identifiers removed.
+| Area | How Zuno differs |
+|---|---|
+| Security UX | Device keys, verification, cross-signing and key backup are presented as one story: recovery, device approval and confirming people. No mechanism is named, and nothing shows unless it needs action. |
+| Security alerts | Alerts for changes that could let a device read along, including a new device of a contact without cross-signing, which default key sharing accepts silently. |
+| Calls | Signaling loosely modeled on MatrixRTC, over an SFU the homeserver picks: Cloudflare or LiveKit. Calls connect Zuno to Zuno only. |
+| Call rings | A Synapse module rings the callee from the server with a sealed push, so a closed app rings without room keys, and Apple and Google learn only that a call arrived. |
+| iOS notifications | The notification extension decrypts with a narrow, read-only credential and never holds the account's access token or identity keys. |
+| Privacy defaults | Screenshot blocking on Android, an incognito keyboard and a self-clearing clipboard are on from the first launch, and a recovery code is caught before it's sent in a chat. |
+| Matrix out of sight | No Matrix terms or full user IDs unless the Matrix experience setting is on. |
+
+Also: chats, rooms and communities, photos, video, voice messages and files,
+live location, notifications over FCM, UnifiedPush or APNs, and opt-in
+crash reporting.
+
+## Upcoming
+
+- MatrixRTC calls that work with other Matrix clients.
+- A custom theme color.
+- Voice masking in calls.
+- Calls with people on other homeservers.
+- Delivery ticks, once Synapse supports delivery receipts (MSC4089).
 
 ## Homeservers
 
-The app signs in to any Matrix homeserver. Some features need extras on
-the homeserver. Without them, those features are unavailable and
-everything else works.
+Everything works on a plain Matrix homeserver except what these two
+Synapse modules enable. zuno.chat runs both.
 
-| Extra | What it does |
+| Module | Enables |
 |---|---|
-| [`zuno_calls`](https://github.com/Zuno-Chat/zuno_calls) | Synapse module for voice and video calls on Cloudflare or LiveKit. It tells the app which one the server uses, proxies Cloudflare Calls signaling and TURN credentials, and mints LiveKit tokens |
-| [`zuno_push`](https://github.com/Zuno-Chat/zuno_push) | Synapse module that rings a closed app through sealed ring pushes (VoIP on iOS, FCM on Android), and serves the notification extension's API |
-| [Sygnal](https://github.com/element-hq/sygnal) | Push gateway: FCM on Android, APNs on iOS |
-| Tile source | Maps for location messages: an `https://` URL template with `{z}`, `{x}` and `{y}`, advertised under `im.zuno.tiles` in `.well-known/matrix/client` |
+| [`zuno_calls`](https://github.com/Zuno-Chat/zuno_calls) | Calls on Cloudflare or LiveKit (SFU), whichever the homeserver configures. |
+| [`zuno_push`](https://github.com/Zuno-Chat/zuno_push) | Native rings on a closed app (CallKit on iOS, a call notification on Android), and message content in iOS notifications. |
 
-The modules are AGPL-3.0, like the app. Each installs through the
-`modules:` entry in `homeserver.yaml`, documented in its repository.
+Both are AGPL-3.0, each set up as its repository describes.
 
 ## Build and run
 
-Requires Flutter with Dart 3.13 or later. Android needs a device or
-emulator. iOS needs a Mac with Xcode 27 and CocoaPods, and a simulator or
-iPhone.
+Needs Flutter. iOS also needs a Mac with Xcode and CocoaPods.
 
 ```
 flutter pub get
-flutter run                    # debug build on a device, emulator or simulator
-flutter run --profile          # a physical iPhone, where a debug build won't launch from the home screen
-flutter analyze
+flutter run        # on a physical iPhone, add --profile
 flutter test
-flutter build apk --config-only && android/gradlew -p android :app:testDebugUnitTest   # Kotlin tests
-flutter build ios --config-only --no-codesign && (cd ios && pod install)
-xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner -only-testing:RunnerTests \
-  -destination 'platform=iOS Simulator,name=iPhone 17' -parallel-testing-enabled NO test   # Swift tests
-flutter build apk --release --dart-define-from-file=.env
 ```
 
-- `.env` holds build-time values such as the crash-reporting DSN; copy
-  `.env.example`. Without it a release build ships with crash reporting off.
-- Android release builds are signed with `android/key.properties`; see
-  `KEYSTORE.md`. Without it the build falls back to the debug key, which
-  must never be distributed.
-- Push over FCM needs a Firebase project: run `flutterfire configure` or
-  drop its `google-services.json` into `android/app/`. Without it the app
-  still builds, and notifications come through UnifiedPush or the
-  background service, picked in Settings.
-- iPhone builds are signed for Zuno's Apple team, so on your own device
-  set your team and bundle IDs.
-- Store releases for both platforms are built and shipped by the release
-  pipeline; see `docs/features/releases.md`.
+- Release builds need a `.env` (copy `.env.example`); without it, crash
+  reporting is off. Signing is in `KEYSTORE.md`.
+- FCM needs Zuno's `google-services.json`, which isn't in the repo; without
+  it, Android uses UnifiedPush or background sync.
 
 ## Layout
 
-- `lib/core/` — shared logic: the Matrix client, calls, notifications,
-  security, location, theme and motion.
-- `lib/features/<feature>/presentation/` — screens, one folder per feature.
-- `packages/` — three small Android plugins for call-style notifications,
-  conversation shortcuts and vibration.
-- `android/app/src/main/kotlin/` — services, receivers and device checks.
-- `ios/` — the app target and its native plugins, the share and
-  notification service extensions, and XCTests in `ios/RunnerTests/`.
-- `test/` — mirrors `lib/`, with fakes in `test/helpers/`.
-
-There is one `Client` for the whole app and no service layer: screens call
-the Matrix SDK directly, and the SDK's types are the app state.
+| Path | Holds |
+|---|---|
+| `lib/` | The app: shared code in `core/`, screens in `features/` |
+| `packages/` | Emoji picker, network clients, Android notifications |
+| `android/`, `ios/` | Native code and extensions |
+| `test/` | Tests |
+| `docs/features/` | How each feature works |
 
 ## Contributing
 
-Issues and pull requests are welcome. For a change to be merged:
-
-- `flutter analyze` is clean, and the Flutter, Kotlin and Swift tests pass.
-  Pull requests run all four automatically.
-- Every change comes with tests: the happy path and a couple of failure
-  paths.
-- No comments in code, including doc comments. Names and tests carry the
-  meaning.
-- Widget tests use the fakes in `test/helpers/` rather than a real database,
-  which hangs in sandboxed environments.
+Issues and pull requests are welcome. A change comes with tests, adds no
+code comments, and passes the checks that run on every pull request.
 
 ## Security
 
@@ -106,13 +78,9 @@ in a public issue.
 
 ## License
 
-Free software under the GNU Affero General Public License, version 3 or any
-later version. See [LICENSE](LICENSE).
+GNU Affero General Public License, version 3 or later. See
+[LICENSE](LICENSE). Copyright (C) 2026 The Zuno Chat Authors.
 
-Copyright (C) 2026 The Zuno Chat Authors.
-
-The app links the `matrix` and `flutter_vodozemac` libraries, which are
-AGPL-3.0, so a fork cannot be relicensed more permissively.
-
-The Zuno name and logo are not covered by the license. A modified build
-needs its own name and icon.
+The `matrix` and `flutter_vodozemac` libraries are AGPL-3.0, so a fork
+cannot be relicensed more permissively. The Zuno name and logo are not
+covered by the license: a modified build needs its own name and icon.
