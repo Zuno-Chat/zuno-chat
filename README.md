@@ -69,7 +69,7 @@ flutter test
 ## Contributing
 
 Issues and pull requests are welcome. A change comes with tests, adds no
-code comments, and passes the checks that run on every pull request.
+code comments, and passes the checks that run on pull requests.
 
 ## Security
 

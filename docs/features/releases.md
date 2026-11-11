@@ -48,6 +48,7 @@ upload is a job in `release.yml`.
 
 | Workflow | Trigger | Does |
 |---|---|---|
+| `ci` | A push to `master` or a pull request that changes more than docs, Markdown, fastlane, Ruby or other workflows | Analyze and the Dart, Kotlin and Swift suites; coverage to Codecov on `master` only; drafts are skipped |
 | `cut-release` | Cron every Wednesday, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master` and pushes `rc/X.Y.Z` |
 | `ship-release` | Cron every Saturday, or by hand to ship a cut early | Dispatches `release` on the one rc branch above the highest tag; does nothing when none waits, and stops when several do |
 | `start-hotfix` | By hand, with master commit SHAs and notes | Branches `rc/X.Y.Z` from the highest tag as the next patch, cherry-picks with `-x`, commits the bump and notes on the rc branch, dispatches `release` |
@@ -63,8 +64,8 @@ upload is a job in `release.yml`.
   missing from HEAD, so a release never drops a fix users already have.
 - **Built artifacts are scanned for on-device content-scanning APIs**
   (`tool/ci/forbidden_apis.dart`): the release AAB, APK and IPA before the
-  tag, and the simulator app in every checks run (pull requests, `master`
-  and the release gate). Google SafetyCore, Android's ContentSafetyManager
+  tag, and the simulator app in every checks run (`ci` and the release
+  gate). Google SafetyCore, Android's ContentSafetyManager
   or Apple's SensitiveContentAnalysis (framework or entitlement) fails the
   run, because Zuno must never ship one and a dependency can bring one in
   unseen.
@@ -136,5 +137,8 @@ green without FCM or crash reporting.
 - **A hotfix must be done by hand** when its base tag predates the pipeline
   (`v1.3.0` and earlier) or the fix touches `.github/workflows/`, which
   `GITHUB_TOKEN` cannot push.
+- **`ci` skips changes that touch no code**, so only the release gate runs
+  the checks every time, and a required status check would leave a
+  docs-only pull request waiting forever.
 - **A public repo disables scheduled workflows after 60 days** without
   commits, so re-enable `cut-release` and `ship-release` after a quiet spell.

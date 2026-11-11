@@ -1,0 +1,36 @@
+name: ci
+
+on:
+  push:
+    branches: [master]
+    paths: &code
+      - '**'
+      - '!**.md'
+      - '!LICENSE'
+      - '!docs/**'
+      - '!fastlane/**'
+      - '!Gemfile*'
+      - '!.ruby-version'
+      - '!.vscode/**'
+      - '!.github/**'
+      - '.github/workflows/ci.yml'
+      - '.github/workflows/checks.yml'
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft, closed]
+    paths: *code
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    if: ${{ github.event_name == 'push' || (github.event.pull_request.state == 'open' && !github.event.pull_request.draft) }}
+    uses: ./.github/workflows/checks.yml
+    with:
+      coverage: ${{ github.event_name == 'push' }}
+    secrets:
+      CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
