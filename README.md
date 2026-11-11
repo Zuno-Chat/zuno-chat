@@ -96,7 +96,6 @@ Issues and pull requests are welcome. For a change to be merged:
   paths.
 - No comments in code, including doc comments. Names and tests carry the
   meaning.
-- User-facing text follows `docs/brand-voice/`.
 - Widget tests use the fakes in `test/helpers/` rather than a real database,
   which hangs in sandboxed environments.
 

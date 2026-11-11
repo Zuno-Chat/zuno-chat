@@ -47,7 +47,7 @@ Delete account (`authentication.md`).
   avatars): GPS EXIF is dropped and the image is scaled to avatar size. Any
   new avatar upload path must go through it too.
 - **Matrix experience is the one place the app names Matrix**, for people
-  who already know it (`../brand-voice/README.md`). It is a device
+  who already know it. It is a device
   preference every screen reads from the app root, so turning it on redraws
   what is already open.
 - **Privacy and data-saving settings start on**: prevent accidental calls,
@@ -60,7 +60,7 @@ Delete account (`authentication.md`).
   Clear media cache drops the attachment, map tile and image caches, with no
   server call.
 - **Donation is one static About row** that opens the site in the browser.
-  It is never a prompt, badge or popup (`../brand-voice/README.md`), and there is
+  It is never a prompt, badge or popup, and there is
   no in-app payment.
 - **iOS has no Donate row**, because the App Store forbids linking out to
   pay the developer. The rule is one capability for the whole platform, not
