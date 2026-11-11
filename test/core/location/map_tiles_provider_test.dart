@@ -9,22 +9,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:matrix/matrix.dart';
 import 'package:zuno/core/location/map_tile_cache.dart';
 import 'package:zuno/core/location/map_tiles.dart';
 import 'package:zuno/core/location/map_tiles_provider.dart';
-import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/network/app_http_client.dart';
 import 'package:zuno/core/network/app_http_overrides.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 
 import '../../helpers/fake_http.dart';
-import '../../helpers/fake_matrix.dart';
 import '../../helpers/hybrid_fake_async.dart';
 import '../../helpers/pump_until.dart';
 
 const _template = 'https://tiles.example.org/{z}/{x}/{y}.png';
-const _credit = '© OpenStreetMap contributors';
+const _credit = 'OpenStreetMap contributors';
 
 http.Response _image() =>
     http.Response('png', 200, headers: {'content-type': 'image/png'});
@@ -35,34 +32,11 @@ void main() {
   late List<Uri> tileRequests;
   late List<FakeHttpClient> tileClients;
   late http.Response Function() tileServer;
-  late int wellKnownFetches;
-  late Map<String, Object?> advertised;
-  late StreamController<bool> logins;
-  late Client client;
 
   setUp(() {
     tileRequests = [];
     tileClients = [];
     tileServer = _image;
-    wellKnownFetches = 0;
-    advertised = {
-      'im.zuno.tiles': {'url': _template, 'attribution': _credit},
-    };
-    logins = StreamController<bool>.broadcast();
-    client = buildTestClient(
-      userId: '@a:example.org',
-      httpClient: FakeHttpClient((request) async {
-        wellKnownFetches++;
-        return http.Response(
-          jsonEncode({
-            'm.homeserver': {'base_url': 'https://api.example.org'},
-            ...advertised,
-          }),
-          200,
-          headers: {'content-type': 'application/json'},
-        );
-      }),
-    )..homeserver = Uri.parse('https://api.example.org');
   });
 
   http.Client newTileClient() {
@@ -76,12 +50,7 @@ void main() {
 
   ProviderContainer listening() {
     appHttpClientFactory = (_) => newTileClient();
-    final container = ProviderContainer(
-      overrides: [
-        matrixClientProvider.overrideWithValue(client),
-        isLoggedInProvider.overrideWith((ref) => logins.stream),
-      ],
-    );
+    final container = ProviderContainer();
     container.listen(mapTilesProvider, (_, _) {});
     return container;
   }
@@ -90,17 +59,18 @@ void main() {
       container.read(mapTilesProvider.future);
 
   group('mapTilesProvider', () {
-    test('serves the advertised tiles once a probe gets an image', () async {
+    test('serves Zuno\'s credited tiles, whatever the homeserver, once a '
+        'probe gets an image', () async {
       final container = listening();
       addTearDown(container.dispose);
 
       final served = await tiles(container);
 
-      expect(served?.urlTemplate, _template);
-      expect(served?.attribution, _credit);
+      expect(served?.urlTemplate, 'https://maps.zuno.chat/{z}/{x}/{y}');
+      expect(served?.attribution, 'MapTiler © OpenStreetMap contributors');
       expect(served?.httpClient, same(tileClients.single));
       expect(tileRequests.map((uri) => '$uri'), [
-        'https://tiles.example.org/0/0/0.png',
+        'https://maps.zuno.chat/0/0/0',
       ]);
     });
 
@@ -128,34 +98,8 @@ void main() {
       expect(tileRequests, hasLength(1));
     });
 
-    test(
-      'serves nothing and probes nothing when no tiles are advertised',
-      () async {
-        advertised = {};
-        final container = listening();
-        addTearDown(container.dispose);
-
-        expect(await tiles(container), isNull);
-        expect(tileRequests, isEmpty);
-      },
-    );
-
-    test('a new sign-in state fetches the tiles again', () async {
-      final container = listening();
-      addTearDown(container.dispose);
-      await tiles(container);
-      final fetchesBefore = wellKnownFetches;
-
-      logins.add(true);
-      await pumpEventQueue();
-      await tiles(container);
-
-      expect(wellKnownFetches, fetchesBefore + 1);
-      expect(tileClients.first.closed, isTrue);
-    });
-
     test('looks for tiles again five minutes after finding none', () {
-      client.homeserver = null;
+      tileServer = _unavailable;
       fakeAsync((async) {
         final container = listening();
         async.flushMicrotasks();
@@ -174,7 +118,7 @@ void main() {
     });
 
     test('once disposed, closes its client and looks no more', () {
-      client.homeserver = null;
+      tileServer = _unavailable;
       fakeAsync((async) {
         final container = listening();
         async.flushMicrotasks();
@@ -188,7 +132,7 @@ void main() {
   });
 
   group('MapTiles', () {
-    const source = TileSource(urlTemplate: _template);
+    const source = TileSource(urlTemplate: _template, attribution: _credit);
 
     test('sends its user agent with every tile request', () {
       final tiles = MapTiles(

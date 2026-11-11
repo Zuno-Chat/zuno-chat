@@ -22,39 +22,37 @@ was stays anywhere.
 encrypted, redactable message, with nothing uploaded. On receipt the bubble
 draws a mini map, and a tap opens the full-screen map.
 
-**Tiles**: the server name's `/.well-known/matrix/client` names a raster
-tile template, and the app fetches tiles straight from that vendor.
+**Tiles**: every account, whatever its homeserver, fetches raster tiles from
+Zuno's tile proxy at `maps.zuno.chat`, which adds the vendor's (MapTiler's)
+key on the server.
 
 ```mermaid
 flowchart LR
-  A["First map shown,<br>login or logout"] --> B["Read the well-known,<br>the SDK's 3-day copy"]
-  B --> C{"Usable im.zuno.tiles entry<br>and a test tile loads?"}
-  C -- yes --> D["Tiles from the vendor,<br>cached on disk"]
-  C -- no --> E["Grid with pin, coordinates<br>and Open in Maps"]
+  A["First map shown"] --> B{"A test tile from<br>maps.zuno.chat loads?"}
+  B -- yes --> D["Tiles from maps.zuno.chat,<br>cached on disk"]
+  B -- no --> E["Grid with pin, coordinates<br>and Open in Maps"]
   E -- retry later --> B
 ```
 
 The tile cache is purged at logout, at account deletion and by Clear media
 cache.
 
-**Server contract** (outside this repo): the well-known carries
-`"im.zuno.tiles": {"url": "https://…/{z}/{x}/{y}.png?key=…", "attribution":
-"…"}`. The `url` must be `https` with all three placeholders, or the map
-falls back to the grid. Tiles are 256 px raster, up to zoom 19.
-`attribution` is optional and must not start with `©`, because flutter_map
-adds its own.
+**Server contract** (the server repo): `https://maps.zuno.chat/{z}/{x}/{y}`
+answers the app's User-Agent with a 256 px raster tile, up to zoom 19, and
+refuses other clients. The credit ships in the app and must not start with
+`©`, because flutter_map adds its own.
 
 ## Pin: decisions
 
 - **The pin is plain MSC3488**, the one interoperable piece of the design:
   other clients such as Element render Zuno's pins, and theirs render here.
-- **The homeserver names the tile source, and the app holds no key.** A key
-  rotation or style change is a well-known edit, not a release, and someone
-  on another homeserver never spends Zuno's quota. The key is public by
-  nature, so restrict it at the vendor.
-- **The well-known is the SDK's saved copy (`getWellknown()`), not a
-  second reader of the same file**, so a new or changed source reaches
-  phones within that copy's 3-day lifetime.
+- **One Zuno-hosted tile source for every homeserver**, as push uses one
+  gateway, so maps work wherever the account lives and Zuno's key pays for
+  all of them. Element X does the same with its key baked into the app.
+- **The key stays on the server, not in the app**, because a key in an app
+  can be extracted and buys the vendor's whole API, while the proxy passes
+  only tile coordinates, caps spend and never shows the vendor a user's
+  address; a key rotation or style change is a server edit, not a release.
 - **Degrade, never fail.** With no usable source, the map becomes a grid
   with the pin, the coordinates and Open in Maps.
 - **`flutter_map`, not `google_maps_flutter`**, which would pull in Play
@@ -98,10 +96,8 @@ adds its own.
   the two are sized together.
 - **The bubble's tap detector must be `HitTestBehavior.opaque`**, because
   the preview map sits inside an `IgnorePointer`.
-- **The probe result lasts the whole process and the saved well-known 3
-  days**, so a revoked key shows grey tiles until restart, keys must be
-  rotated with an overlap longer than 3 days, and Clear cache, which drops
-  the saved copy, doesn't reach tiles already loaded this run.
+- **A passed probe lasts the whole process**, so a tile proxy that breaks
+  later shows grey tiles until restart.
 - Widget tests cover the bubble and sheet on the grid path, with
   `mapTilesProvider` overridden.
 

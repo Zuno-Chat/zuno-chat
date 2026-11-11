@@ -30,6 +30,7 @@ Widget _host(Widget child, {MapTiles? tiles}) => ProviderScope(
 MapTiles _offlineTiles() => MapTiles(
   source: const TileSource(
     urlTemplate: 'https://tiles.example.org/{z}/{x}/{y}.png',
+    attribution: 'credit',
   ),
   httpClient: FakeHttpClient((_) async => http.Response('', 404)),
   cachingProvider: const DisabledMapCachingProvider(),

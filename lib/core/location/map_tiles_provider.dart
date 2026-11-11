@@ -8,7 +8,6 @@ import 'package:http/http.dart' as http;
 
 import '../errors/backoff.dart';
 import '../errors/connection_error.dart';
-import '../matrix/client/matrix_client_provider.dart';
 import '../network/app_http_client.dart';
 import '../network/app_http_overrides.dart';
 import 'map_tile_cache.dart';
@@ -29,7 +28,7 @@ class MapTiles {
 
   String get urlTemplate => source.urlTemplate;
 
-  String? get attribution => source.attribution;
+  String get attribution => source.attribution;
 
   late final http.Client tileClient = _TileRetries(httpClient);
 
@@ -162,14 +161,11 @@ bool _isTransient(int status) =>
     status == 408 || status == 429 || status >= 500;
 
 final mapTilesProvider = FutureProvider<MapTiles?>((ref) async {
-  final client = ref.watch(matrixClientProvider);
-  ref.watch(isLoggedInProvider);
   final httpClient = appHttpClient(HttpClientKind.service);
   ref.onDispose(httpClient.close);
-  final source = await fetchTileSource(client);
-  if (source != null && await probeMapTiles(httpClient, source)) {
+  if (await probeMapTiles(httpClient, zunoTileSource)) {
     return MapTiles(
-      source: source,
+      source: zunoTileSource,
       httpClient: httpClient,
       userAgent: appUserAgent,
     );

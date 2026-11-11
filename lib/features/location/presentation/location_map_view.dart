@@ -87,7 +87,6 @@ class _TiledMapState extends State<_TiledMap> {
   Widget build(BuildContext context) {
     final tiles = widget.tiles;
     final interactive = widget.interactive;
-    final attribution = tiles.attribution;
     final colors = Theme.of(context).colorScheme;
     return IgnorePointer(
       ignoring: !interactive,
@@ -130,7 +129,7 @@ class _TiledMapState extends State<_TiledMap> {
               ),
             ],
           ),
-          if (interactive && attribution != null) MapAttribution(attribution),
+          if (interactive) MapAttribution(tiles.attribution),
         ],
       ),
     );

@@ -22,16 +22,15 @@ const _agent = 'Zuno/1.2.0 (Android; im.zuno.chat)';
 
 Widget _host({
   required bool interactive,
-  String? attribution = _credit,
   GeoUri geo = _geo,
   bool persistTiles = true,
 }) => ProviderScope(
   overrides: [
     mapTilesProvider.overrideWith(
       (ref) async => MapTiles(
-        source: TileSource(
+        source: const TileSource(
           urlTemplate: 'https://tiles.example.org/{z}/{x}/{y}.png',
-          attribution: attribution,
+          attribution: _credit,
         ),
         httpClient: FakeHttpClient((_) async => http.Response('', 404)),
         userAgent: _agent,
@@ -64,8 +63,9 @@ void main() {
     expect(find.byType(SimpleAttributionWidget), findsNothing);
   });
 
-  testWidgets('the full map credits whoever the server names, tucked '
-      'top-right', (tester) async {
+  testWidgets('the full map credits the tile source, tucked top-right', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host(interactive: true));
     await tester.pump();
 
@@ -74,13 +74,6 @@ void main() {
     );
     expect(attribution.alignment, Alignment.topRight);
     expect(find.text(_credit), findsOneWidget);
-  });
-
-  testWidgets('an uncredited source shows no attribution bar', (tester) async {
-    await tester.pumpWidget(_host(interactive: true, attribution: null));
-    await tester.pump();
-
-    expect(find.byType(SimpleAttributionWidget), findsNothing);
   });
 
   testWidgets('a preview opens at the full map zoom, so opening the full map '
