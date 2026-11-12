@@ -511,7 +511,7 @@ void main() {
       inCall((call) {
         final gate = Completer<void>();
         call.backend.transceiverGate = gate;
-        final joining = call.engine.join();
+        final joining = joinWithLocalMedia(call.engine);
         call.flush();
 
         call.leave();
@@ -623,7 +623,7 @@ void main() {
       inCall((call) {
         final gate = Completer<void>();
         call.backend.captureGate = gate;
-        final joining = call.engine.join();
+        final joining = joinWithLocalMedia(call.engine);
         call.flush();
 
         call.leave();

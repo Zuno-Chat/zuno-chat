@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 
+import '../../../helpers/call_fixtures.dart';
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_webrtc.dart';
@@ -46,7 +47,7 @@ void main() {
           Map<String, dynamic>? configuration() =>
               backend.peerConnections.firstOrNull?.configuration;
 
-          unawaited(engine.join().catchError((Object _) {}));
+          unawaited(joinWithLocalMedia(engine).catchError((Object _) {}));
           async.elapse(const Duration(seconds: 5));
 
           expect(sessions, hasLength(1));

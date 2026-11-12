@@ -373,7 +373,7 @@ class EngineHarness {
 
   void flush() => async.flushAll();
 
-  void join() => wait(engine.join());
+  void join() => wait(joinWithLocalMedia(engine));
 
   void encrypt() => wait(keyEveryone(engine));
 

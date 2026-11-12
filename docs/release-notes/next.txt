@@ -1,4 +1,5 @@
 New
 • Location maps open faster.
+• Calls connect faster.
 
 Fixed 5 bugs.

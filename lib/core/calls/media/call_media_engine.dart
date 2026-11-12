@@ -68,7 +68,7 @@ class CallMediaEngine implements CallEngine {
   bool _removed = false;
 
   Future<void>? _callAudioPrepared;
-  Future<void>? _localMediaStarted;
+  final _localMediaOpened = Completer<void>()..future.ignore();
   bool _sendingCamera = false;
   bool _inBackground = false;
   bool _switchingToVideo = false;
@@ -401,7 +401,7 @@ class CallMediaEngine implements CallEngine {
   }
 
   Future<void> _publishLocalMedia(Future<bool> Function() publish) async {
-    if (_localMediaStarted case final started?) await started;
+    await _localMediaOpened.future;
     if (_left) return;
     await _serialCameraWork(() async {
       if (await publish()) await _reapplyVideoEncoding();
@@ -425,15 +425,21 @@ class CallMediaEngine implements CallEngine {
   @override
   Future<void> startLocalMedia() async {
     if (_left) return;
-    await _prepareCallAudio();
-    if (_left) return;
-    await _serialCameraWork(
-      () => _media.open(
-        withCamera: !_inBackground || _capabilities.cameraStopsInBackground,
-      ),
-    );
+    try {
+      await _prepareCallAudio();
+      if (_left) return;
+      await _serialCameraWork(
+        () => _media.open(
+          withCamera: !_inBackground || _capabilities.cameraStopsInBackground,
+        ),
+      );
+    } catch (e, s) {
+      if (!_localMediaOpened.isCompleted) _localMediaOpened.completeError(e, s);
+      rethrow;
+    }
     _applyLocalTrackState();
     _notifyParticipants();
+    if (!_localMediaOpened.isCompleted) _localMediaOpened.complete();
   }
 
   Future<void> _prepareCallAudio() => _callAudioPrepared ??= _armCallAudio();
@@ -462,7 +468,7 @@ class CallMediaEngine implements CallEngine {
     try {
       var connection = await _opening;
       if (_left) return;
-      final media = _localMediaStarted = startLocalMedia();
+      final media = _localMediaOpened.future;
       try {
         await Future.wait<void>([connection.join(), media], eagerError: true);
       } on CallsRouteGone {
@@ -559,6 +565,7 @@ class CallMediaEngine implements CallEngine {
   Future<void> leave() async {
     if (_left) return;
     _left = true;
+    if (!_localMediaOpened.isCompleted) _localMediaOpened.complete();
     _statsTimer?.cancel();
     _statsTimer = null;
     _lastCounters = null;

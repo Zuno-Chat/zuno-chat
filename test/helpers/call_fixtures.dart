@@ -15,3 +15,10 @@ Future<void> keyEveryone(CallEngine engine) async {
     await engine.setPeerKey(peer, 1, keyBytes());
   }
 }
+
+Future<void> joinWithLocalMedia(CallEngine engine) async {
+  await Future.wait([
+    engine.startLocalMedia(),
+    engine.join(),
+  ], eagerError: true);
+}

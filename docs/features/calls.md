@@ -149,12 +149,13 @@ stateDiagram-v2
 - **Both factories return at once.** Connecting (permissions, the engine,
   the join and the first membership publish) runs in the background, so
   the call screen renders before any of it finishes.
-- **Local media opens before the join.** A caller checks the microphone
-  permission before it rings anyone, then opens the microphone and camera
-  while it waits for the server's provider (Providers) and sends the
-  invite; answering opens them at once. Joining only
-  publishes them, and the session follows the app's lifecycle from the
-  moment local media opens.
+- **Local media opens beside the join, never inside it.** A caller checks
+  the microphone permission before it rings anyone, then opens the
+  microphone and camera while it waits for the server's provider (Providers)
+  and sends the invite; answering checks it, then opens them while it joins.
+  Joining only publishes them once they are open, so the SFU session and the
+  first membership never wait on the camera, and the session follows the
+  app's lifecycle from the moment local media opens.
 - **Permissions**: a refused microphone fails the call with the microphone
   message on every platform, and a refused camera starts a video call with
   the camera off.
@@ -739,7 +740,8 @@ understand.
   accepted.
 - **The answered call opens its microphone and camera only once the
   replaced call's engine has let go of them**, waiting at most a few
-  seconds, because two engines must never hold the camera at once.
+  seconds, because two engines must never hold the camera at once; its join
+  goes ahead meanwhile.
 - **The answered call continues the live audio route**: the speaker or a
   still-connected headset, and the earpiece only for a voice call.
 - **If the call on the line ends first, the waiting ring rings aloud.**

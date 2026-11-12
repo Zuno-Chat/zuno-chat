@@ -386,10 +386,10 @@ class LiveKitCall {
     flush();
   }
 
-  void join() => wait(engine.join());
+  void join() => wait(joinWithLocalMedia(engine));
 
   void startJoin() {
-    joining = engine.join();
+    joining = joinWithLocalMedia(engine);
     flush();
   }
 

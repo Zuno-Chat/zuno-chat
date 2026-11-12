@@ -551,10 +551,11 @@ class CallSession {
     _setPhase(CallSessionPhase.connecting);
     StreamSubscription<void>? sessionWatch;
     try {
-      await _startLocalMedia();
+      await ensurePermissions();
       if (await _abandonEngineIfEnded()) return;
 
       final built = engine;
+      final media = _startLocalMedia()..ignore();
       final first = _keys.start(
         _joinedAtMs ??= clock.now().millisecondsSinceEpoch,
       );
@@ -563,7 +564,7 @@ class CallSession {
       if (await _abandonEngineIfEnded()) return;
       _toDeviceSub = client.onToDeviceEvent.stream.listen(_handleToDeviceEvent);
       sessionWatch = _publishOnceSessionOpens(built);
-      await built.join();
+      await Future.wait([built.join(), media], eagerError: true);
       if (await _abandonEngineIfEnded()) return;
 
       _statusSub = built.statusStream.listen(_followEngineStatus);

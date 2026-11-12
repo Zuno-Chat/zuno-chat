@@ -46,7 +46,7 @@ class _Core {
 
   void flush() => async.flushAll();
 
-  void join() => wait(engine.join());
+  void join() => wait(joinWithLocalMedia(engine));
 
   void encrypt() => wait(keyEveryone(engine));
 
@@ -98,7 +98,7 @@ void main() {
         final gate = Completer<void>();
         core.backend.cryptors.senderGate = gate;
 
-        final joining = core.engine.join();
+        final joining = joinWithLocalMedia(core.engine);
         core.flush();
 
         final audio = core.connection.senders[MediaKind.audio]!;
@@ -128,6 +128,59 @@ void main() {
         expect(core.local.videoEnabled, isFalse);
         expect(core.engine.status, CallEngineStatus.connected);
       }, kind: CallKind.video);
+    });
+
+    test('join opens no microphone or camera, and publishes them once they '
+        'open', () {
+      _run((core) {
+        final joining = core.engine.join();
+        core.flush();
+
+        expect(core.backend.captureConstraints, isEmpty);
+        expect(core.connection.joins, 1);
+        expect(core.connection.senders, isEmpty);
+
+        core.wait(core.engine.startLocalMedia());
+        core.wait(joining);
+
+        expect(core.backend.captureConstraints, hasLength(1));
+        expect(
+          core.connection.senders[MediaKind.audio]!.placements.single.track,
+          core.microphone,
+        );
+      });
+    });
+
+    test('a microphone that cannot be opened fails the join', () {
+      _run((core) {
+        core.backend.captureError = StateError('the microphone is busy');
+        final joining = core.engine.join()..ignore();
+        core.flush();
+
+        expect(
+          () => core.wait(core.engine.startLocalMedia()),
+          throwsStateError,
+        );
+        expect(() => core.wait(joining), throwsStateError);
+
+        expect(core.engine.status, CallEngineStatus.failed);
+        expect(core.connection.senders, isEmpty);
+      });
+    });
+
+    test('leaving releases a join still waiting for the microphone and '
+        'camera', () {
+      _run((core) {
+        final joining = core.engine.join();
+        core.flush();
+
+        core.leave();
+        core.wait(joining);
+
+        expect(core.backend.captureConstraints, isEmpty);
+        expect(core.connection.senders, isEmpty);
+        expect(core.engine.status, CallEngineStatus.disconnected);
+      });
     });
 
     test('a connection that cannot be opened fails the join', () {
@@ -190,7 +243,7 @@ void main() {
       _run((core) {
         core.connection.joinError = const CallsRouteGone('POST /sessions/new');
         core.connections.rediscoverGate = Completer<void>();
-        final joining = core.engine.join();
+        final joining = joinWithLocalMedia(core.engine);
         core.flush();
 
         core.remoteUpdates({'encrypted': true});
@@ -226,7 +279,7 @@ void main() {
           ..joinError = const CallsRouteGone('POST /sessions/new')
           ..closeGate = Completer<void>();
         final stale = core.connection;
-        final joining = core.engine.join();
+        final joining = joinWithLocalMedia(core.engine);
         core.flush();
 
         core.leave();

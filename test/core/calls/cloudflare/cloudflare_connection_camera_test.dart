@@ -7,6 +7,7 @@ import 'package:zuno/core/calls/models/call_engine_status.dart';
 import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 
+import '../../../helpers/call_fixtures.dart';
 import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_webrtc.dart';
 import '../../../helpers/platform_capabilities.dart';
@@ -381,7 +382,7 @@ void main() {
       inCall((call) {
         final gate = Completer<void>();
         call.backend.captureGate = gate;
-        final joining = call.engine.join();
+        final joining = joinWithLocalMedia(call.engine);
         call.flush();
 
         final off = call.engine.setCameraEnabled(false);
@@ -408,7 +409,7 @@ void main() {
       inCall((call) {
         final gate = Completer<void>();
         call.sfu.sessionGate = gate;
-        final joining = call.engine.join();
+        final joining = joinWithLocalMedia(call.engine);
         call.flush();
 
         final switching = call.engine.switchToVideo();

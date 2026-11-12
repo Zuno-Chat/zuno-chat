@@ -1822,7 +1822,7 @@ void main() {
 
       await incoming(engine: engine).accept();
 
-      expect(engine.journal, ['local media', 'key 0', 'send 0', 'join']);
+      expect(engine.journal, containsAllInOrder(['key 0', 'send 0', 'join']));
     });
   });
 
@@ -2006,6 +2006,20 @@ void main() {
       ]);
     });
 
+    test('rings while its microphone and camera are still opening', () async {
+      final c = _PublishCountingClient();
+      final engine = _OpeningSessionEngine(joinGate: Completer<void>())
+        ..startGate = Completer<void>();
+      outgoing(sendRoom(c), engine: engine);
+      await pumpEventQueue();
+
+      engine.openSession();
+      await pumpEventQueue();
+
+      expect(engine.startLocalMediaCalls, 1);
+      expect(c.publishes.single, contains('"sessionId":"opening-session"'));
+    });
+
     test('a session that opens as the caller hangs up publishes '
         'nothing', () async {
       final c = _PublishCountingClient();
@@ -2045,6 +2059,56 @@ void main() {
       expect(session.phase, CallSessionPhase.active);
       expect(c.publishes, hasLength(2));
       expect(c.publishes.last, contains('"audio":"audio"'));
+    });
+
+    test('answers while its microphone and camera are still opening', () async {
+      final c = _PublishCountingClient();
+      final r = buildTestRoom(c);
+      joinTheCall(r, _caller, deviceId: 'CALLERDEV');
+      final joinGate = Completer<void>();
+      final startGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: joinGate)
+        ..startGate = startGate;
+      final session = incoming(inRoom: r, engine: engine);
+      final accepting = session.accept();
+      await pumpEventQueue();
+
+      engine.openSession();
+      await pumpEventQueue();
+      expect(engine.startLocalMediaCalls, 1);
+      expect(c.publishes.single, contains('"sessionId":"opening-session"'));
+
+      joinGate.complete();
+      await pumpEventQueue();
+      expect(session.phase, CallSessionPhase.connecting);
+
+      startGate.complete();
+      await accepting;
+      expect(session.phase, CallSessionPhase.active);
+    });
+
+    test('a microphone that fails to open after the session opened fails the '
+        'call and takes the membership back', () async {
+      final c = _PublishCountingClient();
+      final r = sendRoom(c);
+      joinTheCall(r, _caller, deviceId: 'CALLERDEV');
+      final startGate = Completer<void>();
+      final engine = _OpeningSessionEngine(joinGate: Completer<void>())
+        ..startGate = startGate;
+      final session = incoming(inRoom: r, engine: engine);
+      final accepting = session.accept();
+      await pumpEventQueue();
+      engine.openSession();
+      await pumpEventQueue();
+
+      startGate.completeError(StateError('the microphone is busy'));
+      await expectLater(accepting, throwsStateError);
+      await session.hangUpFinished;
+
+      expect(session.phase, CallSessionPhase.ended);
+      expect(session.failure, const CallDidNotConnect());
+      expect(c.publishes.last, contains('"memberships":[]'));
+      expect(engine.leaveCalls, 1);
     });
 
     test('a callee whose join fails after its session opened takes its '
@@ -2345,16 +2409,14 @@ void main() {
       },
     );
 
-    for (final (stage, heldBy, engineSaw) in [
+    for (final (stage, heldBy) in [
       (
         'the microphone is still opening',
         (Completer<void> gate) => _JournalEngine()..startGate = gate,
-        ['local media'],
       ),
       (
         'the engine is still joining',
         (Completer<void> gate) => _JournalEngine(joinGate: gate),
-        ['local media', 'key 0', 'send 0', 'join'],
       ),
     ]) {
       test('a hang-up while $stage tears the engine down and goes no further: '
@@ -2373,7 +2435,10 @@ void main() {
         await pumpEventQueue();
 
         expect(session.phase, CallSessionPhase.ended);
-        expect(engine.journal, engineSaw);
+        expect(
+          engine.journal,
+          unorderedEquals(['local media', 'key 0', 'send 0', 'join']),
+        );
         expect(engine.leaveCalls, 1);
         expect(engine.disposeCalls, 1);
         expect(memberPuts, isEmpty);
@@ -2789,6 +2854,23 @@ void main() {
       released.complete();
       await pumpEventQueue();
       expect(engine.startLocalMediaCalls, 1);
+    });
+
+    test('joins without waiting for the call it replaced to let go of the '
+        'microphone and camera', () async {
+      final released = Completer<void>();
+      final engine = FakeCallEngine();
+      final session = incoming(
+        engine: engine,
+        previousCallReleased: released.future,
+      );
+
+      unawaited(session.accept());
+      await pumpEventQueue();
+
+      expect(engine.joined, isTrue);
+      expect(engine.startLocalMediaCalls, 0);
+      released.complete();
     });
 
     test('stops waiting on a call that never lets go', () {
