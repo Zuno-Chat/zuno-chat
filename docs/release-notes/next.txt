@@ -1,8 +1,0 @@
-New
-• Location maps open faster.
-• Calls connect faster.
-• A new look for text fields.
-• Sign out and Delete account moved to Account.
-• Take more photos or videos before sending them together.
-
-Fixed 10 bugs.
