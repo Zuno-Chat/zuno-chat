@@ -150,14 +150,15 @@ class FakeTransceiver extends RTCRtpTransceiver {
 }
 
 class FakeDataChannel extends RTCDataChannel {
-  FakeDataChannel(this._label, this._id, {required this.negotiated});
+  FakeDataChannel(this._label, this._id, {required this.negotiated})
+    : _state = negotiated ? null : RTCDataChannelState.RTCDataChannelOpen;
 
   final String _label;
   final int _id;
   final bool negotiated;
   final sent = <String>[];
   final sentBinary = <Uint8List>[];
-  RTCDataChannelState _state = RTCDataChannelState.RTCDataChannelOpen;
+  RTCDataChannelState? _state;
   bool closed = false;
 
   @override
@@ -184,8 +185,9 @@ class FakeDataChannel extends RTCDataChannel {
   );
 
   void opens() {
-    _state = RTCDataChannelState.RTCDataChannelOpen;
-    onDataChannelState?.call(_state);
+    const open = RTCDataChannelState.RTCDataChannelOpen;
+    _state = open;
+    onDataChannelState?.call(open);
   }
 
   void connecting() => _state = RTCDataChannelState.RTCDataChannelConnecting;

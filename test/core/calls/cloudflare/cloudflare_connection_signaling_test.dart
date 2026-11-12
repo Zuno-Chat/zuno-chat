@@ -1474,10 +1474,12 @@ void main() {
       }, kind: CallKind.video);
     });
 
-    test('every stats poll sends our rating', () {
+    test('every stats poll sends our rating, though flutter_webrtc never '
+        'reports the negotiated channel open', () {
       inCall((call) {
         joinConnected(call);
         final channel = call.pc.dataChannel('quality')!;
+        expect(channel.state, isNull);
 
         call.pollStats(polls(3, [roundTrip(0.5)]));
 

@@ -45,10 +45,7 @@ class CloudflareQualityChannel {
 
   void send(CallQuality quality) {
     final channel = _published;
-    if (channel == null ||
-        channel.state != RTCDataChannelState.RTCDataChannelOpen) {
-      return;
-    }
+    if (channel == null) return;
     unawaited(
       runBestEffort(
         () => channel.send(RTCDataChannelMessage(encodeQualityReport(quality))),

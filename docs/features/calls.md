@@ -1029,6 +1029,9 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
   refuse the whole change.
 - RTT comes only from the transport's selected candidate pair, because
   unused TURN relay pairs keep stale RTTs that read as a weak link.
+- Our Cloudflare rating is sent without checking the channel's state,
+  because the negotiated channel opens while flutter_webrtc creates it,
+  before flutter_webrtc listens, so it never reports the channel open.
 - Send settings (the sent codec and the video start bitrate on both
   providers, Opus FEC and DTX on Cloudflare) are written into the SDP the
   SFU sends us (every one from Cloudflare, LiveKit's publisher answer),
