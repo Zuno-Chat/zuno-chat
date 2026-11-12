@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -149,11 +150,45 @@ void main() {
     },
   );
 
-  test('deleting a failed voice message lets go of what was recorded', () async {
-    final failed = await failVoice();
+  test(
+    'deleting a failed voice message lets go of what was recorded',
+    () async {
+      final failed = await failVoice();
 
-    await sender.discardUnsent(failed);
+      await sender.discardUnsent(failed);
 
-    expect(await unsentFileBytes(failed), isNull);
+      expect(await unsentFileBytes(failed), isNull);
+    },
+  );
+
+  File temporaryCopy(String name) =>
+      File('${server.temporaryDirectory.path}/picker-$name/$name')
+        ..createSync(recursive: true);
+
+  test('a copy joining a hold stays until the hold ends', () async {
+    final copy = temporaryCopy('added.jpg');
+    final release = Completer<void>();
+
+    final held = sender.holdCopies([], (hold) async {
+      hold(copy.path);
+      await release.future;
+    });
+    await pumpEventQueue();
+    expect(copy.existsSync(), isTrue);
+
+    release.complete();
+    await held;
+    expect(copy.existsSync(), isFalse);
+  });
+
+  test('a copy joining a hold that has ended is removed at once', () async {
+    final copy = temporaryCopy('late.jpg');
+    late void Function(String path) lateHold;
+    await sender.holdCopies([], (hold) async => lateHold = hold);
+
+    lateHold(copy.path);
+    await pumpEventQueue();
+
+    expect(copy.existsSync(), isFalse);
   });
 }

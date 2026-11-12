@@ -143,6 +143,7 @@
   "callsWaiting": "En attente…",
   "callsWaitingForOther": "En attente de l’autre personne…",
   "chatAddMembers": "Ajouter des membres",
+  "chatAddPhotoOrVideo": "Ajouter une photo ou une vidéo",
   "chatAddToHomeScreen": "Ajouter à l’écran d’accueil",
   "chatAlreadyInCall": "Vous êtes déjà en appel",
   "chatCallTitle": "Appeler {name} ?",

@@ -182,16 +182,26 @@ class RoomSender extends ChangeNotifier {
 
   Future<void> holdCopies(
     List<String> paths,
-    Future<void> Function() body,
+    Future<void> Function(void Function(String path) hold) body,
   ) async {
-    _copies.addAll(paths);
-    for (final path in paths) {
+    final held = <String>[];
+    var open = true;
+    void hold(String path) {
+      _copies.add(path);
+      if (!open) {
+        unawaited(_releaseCopies([path]));
+        return;
+      }
+      held.add(path);
       _copyUses.update(path, (uses) => uses + 1, ifAbsent: () => 1);
     }
+
+    paths.forEach(hold);
     try {
-      await body();
+      await body(hold);
     } finally {
-      for (final path in paths) {
+      open = false;
+      for (final path in held) {
         final uses = _copyUses[path]! - 1;
         if (uses > 0) {
           _copyUses[path] = uses;
@@ -199,7 +209,7 @@ class RoomSender extends ChangeNotifier {
           _copyUses.remove(path);
         }
       }
-      await _releaseCopies(paths);
+      await _releaseCopies(held);
     }
   }
 
@@ -289,7 +299,7 @@ class RoomSender extends ChangeNotifier {
   Future<void> retry(FailedMediaSend failed) async {
     if (!_failed.remove(failed)) return;
     _changed();
-    await holdCopies([?failed.path], () async {
+    await holdCopies([?failed.path], (_) async {
       switch (failed) {
         case FailedComposedSend(:final media):
           await _sendComposedItem(media, gallery: failed.gallery);

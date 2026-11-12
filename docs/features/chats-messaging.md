@@ -392,6 +392,9 @@ prepared file, thumbnail and blurhash go to `sendFileEvent`.
 - **One dispatch** picks the caption screen for the camera, the gallery
   picker and inbound share alike, and more than one item becomes a
   gallery.
+- **The caption screen's add button** takes another photo or video from
+  the camera into the same gallery, from every entry point, through the
+  attachment menu's own capture and error messages.
 
 | Step | Android | iOS |
 |---|---|---|
@@ -429,7 +432,9 @@ named the Android way.
   each file in the app's temporary storage. The room's sender owns them
   all and deletes each once it is sent or dropped, or sent files pile up,
   but keeps it while a failed photo or video can still be retried, until
-  sign-out.
+  sign-out. A shot added on the caption screen joins the sender's hold the
+  moment it is taken, and one that lands after the screen closed under the
+  camera (a notification tap or sign-out pops it) is deleted at once.
 - **Sending outlives the chat screen.** Each room has one sender, living
   until sign-out, so leaving mid-batch still sends every item and shows
   any error, and progress and failed items are still there when the chat

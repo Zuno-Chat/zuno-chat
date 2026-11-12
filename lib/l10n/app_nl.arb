@@ -143,6 +143,7 @@
   "callsWaiting": "Wachten…",
   "callsWaitingForOther": "Wachten tot de ander deelneemt…",
   "chatAddMembers": "Leden toevoegen",
+  "chatAddPhotoOrVideo": "Foto of video toevoegen",
   "chatAddToHomeScreen": "Toevoegen aan startscherm",
   "chatAlreadyInCall": "Je zit al in een oproep",
   "chatCallTitle": "{name} bellen?",

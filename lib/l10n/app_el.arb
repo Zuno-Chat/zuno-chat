@@ -143,6 +143,7 @@
   "callsWaiting": "Αναμονή…",
   "callsWaitingForOther": "Αναμονή για να συμμετάσχει η άλλη πλευρά…",
   "chatAddMembers": "Προσθήκη μελών",
+  "chatAddPhotoOrVideo": "Προσθήκη φωτογραφίας ή βίντεο",
   "chatAddToHomeScreen": "Προσθήκη στην αρχική οθόνη",
   "chatAlreadyInCall": "Συμμετέχετε ήδη σε μια κλήση",
   "chatCallTitle": "Κλήση στον χρήστη {name};",

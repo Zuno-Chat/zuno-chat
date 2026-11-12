@@ -226,17 +226,24 @@ void main() {
     await harness.settle(tester);
   }
 
-  Future<void> openAttachMenu(WidgetTester tester) async {
-    await tester.tap(find.byIcon(Icons.attach_file_outlined));
+  Future<void> openAttachMenu(WidgetTester tester, {Finder? from}) async {
+    await tester.tap(from ?? find.byIcon(Icons.attach_file_outlined));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
   }
 
-  Future<void> choose(WidgetTester tester, String option) async {
-    await openAttachMenu(tester);
+  Future<void> choose(
+    WidgetTester tester,
+    String option, {
+    Finder? from,
+  }) async {
+    await openAttachMenu(tester, from: from);
     await tester.tap(find.text(option));
     await harness.drive(tester, turns: 4);
   }
+
+  Future<void> addFromComposer(WidgetTester tester, String option) =>
+      choose(tester, option, from: find.byTooltip('Add photo or video'));
 
   int failedTiles() => find.byType(GalleryFailedThumbnail).evaluate().length;
 
@@ -314,6 +321,30 @@ void main() {
       await harness.drive(tester);
 
       expect(harness.sent, isEmpty);
+    });
+
+    testWidgets('a video recorded from the caption screen joins the camera '
+        'photo in one gallery', (tester) async {
+      picker.answer = [photo('IMG_1.jpg')];
+      await openRoom(tester);
+      await choose(tester, 'Take photo');
+
+      picker.answer = [_video('rec.mp4')];
+      await addFromComposer(tester, 'Record video');
+      expect(picker.calls, ['image:camera', 'video:camera']);
+      expect(find.text('2 of 2'), findsOneWidget);
+      await sendFromComposer(
+        tester,
+        tooltip: 'Send all',
+        awaiting: 'the photo and the video to be sent',
+        until: () => harness.sent.length == 2,
+      );
+
+      expect(
+        [for (final s in harness.sent) s['msgtype']],
+        ['m.image', 'm.video'],
+      );
+      expect([for (final s in harness.sent) galleryOf(s)!['index']], [0, 1]);
     });
 
     testWidgets('several gallery photos go out as one gallery, in order', (
@@ -602,6 +633,47 @@ void main() {
           tester,
           () => !picked.any(pickerCopyLeft),
           reason: 'the copies to be removed',
+        );
+
+        expect(harness.sent, isEmpty);
+      });
+
+      testWidgets('an added photo leaves no copy behind once sent', (
+        tester,
+      ) async {
+        picker.answer = [photo('a.jpg')];
+        await openRoom(tester);
+        await choose(tester, 'Choose from gallery');
+        final added = photo('b.jpg');
+        picker.answer = [added];
+
+        await addFromComposer(tester, 'Take photo');
+        await sendFromComposer(
+          tester,
+          tooltip: 'Send all',
+          awaiting: 'both photos to be sent and the added copy removed',
+          until: () => harness.sent.length == 2 && !pickerCopyLeft(added),
+        );
+
+        expect(pickerCopyLeft(added), isFalse);
+      });
+
+      testWidgets('leaving the caption screen removes an added photo', (
+        tester,
+      ) async {
+        final picked = photo('a.jpg');
+        picker.answer = [picked];
+        await openRoom(tester);
+        await choose(tester, 'Take photo');
+        final added = photo('b.jpg');
+        picker.answer = [added];
+        await addFromComposer(tester, 'Take photo');
+
+        await tester.pageBack();
+        await pumpUntil(
+          tester,
+          () => !pickerCopyLeft(picked) && !pickerCopyLeft(added),
+          reason: 'both copies to be removed',
         );
 
         expect(harness.sent, isEmpty);
@@ -1407,6 +1479,24 @@ void main() {
         expect(find.text(message), findsOneWidget);
       });
     }
+
+    testWidgets('adding with camera access denied says so and keeps the '
+        'caption screen', (tester) async {
+      picker.answer = [photo('IMG_1.jpg')];
+      await openRoom(tester);
+      await choose(tester, 'Take photo');
+      picker.error = PlatformException(code: 'camera_access_denied');
+
+      await addFromComposer(tester, 'Take photo');
+
+      expect(tester.takeException(), isNull);
+      expect(
+        find.text('Allow camera access to take photos and videos'),
+        findsOneWidget,
+      );
+      expect(find.byType(MediaCaptionComposerPage), findsOneWidget);
+      expect(find.text('Add a caption'), findsOneWidget);
+    });
 
     testWidgets('a file picker that fails says so', (tester) async {
       files.pickError = PlatformException(code: 'unknown_path');

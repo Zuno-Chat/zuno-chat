@@ -586,6 +586,10 @@
   "@chatAddMembers": {
     "description": "Chat menu item and dialog title: invite people to this room"
   },
+  "chatAddPhotoOrVideo": "Add photo or video",
+  "@chatAddPhotoOrVideo": {
+    "description": "Caption screen button: take another photo or record another video to send with the others"
+  },
   "chatAddToHomeScreen": "Add to home screen",
   "chatAlreadyInCall": "You are already in a call",
   "chatCallTitle": "Call {name}?",

@@ -28,6 +28,37 @@ import 'media_caption_composer_page.dart';
 
 enum _Attachment { camera, gallery, videoCamera, file, location }
 
+SheetAction<_Attachment> _sheetAction(
+  AppLocalizations l10n,
+  _Attachment choice,
+) => switch (choice) {
+  _Attachment.camera => SheetAction(
+    choice,
+    icon: Icons.photo_camera_outlined,
+    label: l10n.commonTakePhoto,
+  ),
+  _Attachment.gallery => SheetAction(
+    choice,
+    icon: Icons.photo_library_outlined,
+    label: l10n.commonChooseFromGallery,
+  ),
+  _Attachment.videoCamera => SheetAction(
+    choice,
+    icon: Icons.videocam_outlined,
+    label: l10n.chatRecordVideo,
+  ),
+  _Attachment.file => SheetAction(
+    choice,
+    icon: Icons.attach_file_outlined,
+    label: l10n.chatChooseFile,
+  ),
+  _Attachment.location => SheetAction(
+    choice,
+    icon: Icons.location_on_outlined,
+    label: l10n.chatLocation,
+  ),
+};
+
 Future<void> showAttachmentMenu(
   BuildContext context,
   WidgetRef ref,
@@ -38,58 +69,21 @@ Future<void> showAttachmentMenu(
   final choice = await showActionSheet<_Attachment>(
     context,
     actions: [
-      SheetAction(
-        _Attachment.camera,
-        icon: Icons.photo_camera_outlined,
-        label: l10n.commonTakePhoto,
-      ),
-      SheetAction(
-        _Attachment.gallery,
-        icon: Icons.photo_library_outlined,
-        label: l10n.commonChooseFromGallery,
-      ),
-      SheetAction(
-        _Attachment.videoCamera,
-        icon: Icons.videocam_outlined,
-        label: l10n.chatRecordVideo,
-      ),
-      SheetAction(
-        _Attachment.file,
-        icon: Icons.attach_file_outlined,
-        label: l10n.chatChooseFile,
-      ),
-      SheetAction(
-        _Attachment.location,
-        icon: Icons.location_on_outlined,
-        label: l10n.chatLocation,
-      ),
+      for (final option in _Attachment.values) _sheetAction(l10n, option),
     ],
   );
   if (choice == null || !context.mounted) return;
   final flow = _AttachmentFlow(context, ref, room);
-  try {
-    switch (choice) {
-      case _Attachment.camera:
-        await flow.pickPhoto(ImageSource.camera);
-      case _Attachment.gallery:
-        await flow.pickGalleryMedia();
-      case _Attachment.videoCamera:
-        await flow.pickVideo(ImageSource.camera);
-      case _Attachment.file:
-        await flow.pickFiles(onFetchingFile);
-      case _Attachment.location:
-        await _sendLocation(context, ref, room);
-    }
-  } catch (e, s) {
-    if (!context.mounted) return;
-    final messenger = ScaffoldMessenger.of(context);
-    if (isPickerAccessDenied(e)) {
-      messenger.say(_accessDenied(l10n, e));
-      return;
-    }
-    reportCaught('attach ${choice.name}', e, s);
-    messenger.sayFailed(l10n, e, failed: _didNotOpen(l10n, choice));
-  }
+  await flow.guarded(
+    choice,
+    () => switch (choice) {
+      _Attachment.camera ||
+      _Attachment.videoCamera => flow.sendCaptured(choice),
+      _Attachment.gallery => flow.pickGalleryMedia(),
+      _Attachment.file => flow.pickFiles(onFetchingFile),
+      _Attachment.location => _sendLocation(context, ref, room),
+    },
+  );
 }
 
 Future<void> sendSharedFiles(
@@ -175,16 +169,39 @@ class _AttachmentFlow {
   final RoomSender _sender;
   final ({double? maxDimension, int? quality}) _limits;
 
-  Future<void> pickPhoto(ImageSource source) async {
+  Future<T?> guarded<T>(_Attachment choice, Future<T> Function() action) async {
+    try {
+      return await action();
+    } catch (e, s) {
+      if (!_chat.mounted) return null;
+      if (isPickerAccessDenied(e)) {
+        _messenger.say(_accessDenied(_l10n, e));
+      } else {
+        reportCaught('attach ${choice.name}', e, s);
+        _messenger.sayFailed(_l10n, e, failed: _didNotOpen(_l10n, choice));
+      }
+      return null;
+    }
+  }
+
+  Future<PickedMedia?> capture(_Attachment camera) async {
+    if (camera == _Attachment.videoCamera) {
+      final file = await ImagePicker().pickVideo(source: ImageSource.camera);
+      return file == null
+          ? null
+          : PickedVideo(path: file.path, name: file.name);
+    }
     final file = await ImagePicker().pickImage(
-      source: source,
+      source: ImageSource.camera,
       maxWidth: _limits.maxDimension,
       maxHeight: _limits.maxDimension,
       imageQuality: _limits.quality,
     );
-    if (file == null) return;
-    await _composeAndSend([file], isVideo: (_) => false);
+    return file == null ? null : PickedImage(path: file.path, name: file.name);
   }
+
+  Future<void> sendCaptured(_Attachment camera) async =>
+      _composeAndSend([?await capture(camera)]);
 
   Future<void> pickGalleryMedia() async {
     final picked = await ImagePicker().pickMultipleMedia(
@@ -192,13 +209,7 @@ class _AttachmentFlow {
       maxHeight: _limits.maxDimension,
       imageQuality: _limits.quality,
     );
-    await _composeAndSend(picked);
-  }
-
-  Future<void> pickVideo(ImageSource source) async {
-    final picked = await ImagePicker().pickVideo(source: source);
-    if (picked == null) return;
-    await _composeAndSend([picked], isVideo: (_) => true);
+    await _composeAndSend([for (final file in picked) _pickedMedia(file)]);
   }
 
   Future<void> pickFiles(void Function(bool fetching) onFetching) async {
@@ -206,7 +217,7 @@ class _AttachmentFlow {
       (onFileLoading) => FilePicker.pickFiles(onFileLoading: onFileLoading),
       onCopying: onFetching,
     );
-    await _sender.holdCopies([for (final file in files) ?file.path], () async {
+    await _sender.holdCopies([for (final file in files) ?file.path], (_) async {
       for (final file in files) {
         await _sender.sendFile(await file.readAsBytes(), name: file.name);
       }
@@ -216,12 +227,12 @@ class _AttachmentFlow {
   Future<void> sendShared(List<SharedFile> files) async {
     if (files.isEmpty) return;
     final copies = await copySharedFilesToCache(files);
-    await _sender.holdCopies([for (final copy in copies) copy.path], () async {
+    await _sender.holdCopies([for (final copy in copies) copy.path], (_) async {
       if (!_chat.mounted) return;
       final unopened = files.length - copies.length;
       if (unopened > 0) _messenger.say(_l10n.chatUnopenedShares(unopened));
       final (:media, :others) = await partitionSharedFiles(copies);
-      if (media.isNotEmpty) await _composeAndSend(media);
+      await _composeAndSend([for (final file in media) _pickedMedia(file)]);
       for (final file in others) {
         await _sender.sendFile(
           await fileSystem.file(file.path).readAsBytes(),
@@ -232,24 +243,37 @@ class _AttachmentFlow {
     });
   }
 
-  Future<void> _composeAndSend(
-    List<XFile> picked, {
-    bool Function(XFile file) isVideo = looksLikeVideo,
-  }) => _sender.holdCopies([for (final file in picked) file.path], () async {
-    if (picked.isEmpty || !_chat.mounted) return;
-    final composed = await _navigator.push<List<ComposedMedia>>(
-      MaterialPageRoute(
-        builder: (_) => MediaCaptionComposerPage(
-          items: [
-            for (final file in picked)
-              isVideo(file)
-                  ? PickedVideo(path: file.path, name: file.name)
-                  : PickedImage(path: file.path, name: file.name),
-          ],
-        ),
-      ),
+  Future<PickedMedia?> _addCaptured() async {
+    final choice = await showActionSheet<_Attachment>(
+      _chat,
+      actions: [
+        for (final option in [_Attachment.camera, _Attachment.videoCamera])
+          _sheetAction(_l10n, option),
+      ],
     );
-    if (composed == null) return;
-    await _sender.sendComposed(composed);
-  });
+    if (choice == null) return null;
+    return guarded<PickedMedia?>(choice, () => capture(choice));
+  }
+
+  Future<void> _composeAndSend(List<PickedMedia> picked) =>
+      _sender.holdCopies([for (final item in picked) item.path], (hold) async {
+        if (picked.isEmpty || !_chat.mounted) return;
+        final composed = await _navigator.push<List<ComposedMedia>>(
+          MaterialPageRoute(
+            builder: (_) => MediaCaptionComposerPage(
+              items: picked,
+              onAdd: () async {
+                final item = await _addCaptured();
+                if (item != null) hold(item.path);
+                return item;
+              },
+            ),
+          ),
+        );
+        if (composed != null) await _sender.sendComposed(composed);
+      });
 }
+
+PickedMedia _pickedMedia(XFile file) => looksLikeVideo(file)
+    ? PickedVideo(path: file.path, name: file.name)
+    : PickedImage(path: file.path, name: file.name);

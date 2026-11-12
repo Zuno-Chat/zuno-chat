@@ -143,6 +143,7 @@
   "callsWaiting": "Në pritje…",
   "callsWaitingForOther": "Në pritje që të bashkohet pala tjetër…",
   "chatAddMembers": "Shto persona",
+  "chatAddPhotoOrVideo": "Shto një foto ose video",
   "chatAddToHomeScreen": "Shto në ekranin bazë",
   "chatAlreadyInCall": "Je tashmë në një thirrje",
   "chatCallTitle": "Të thirret {name}?",

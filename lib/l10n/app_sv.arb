@@ -143,6 +143,7 @@
   "callsWaiting": "Väntar…",
   "callsWaitingForOther": "Väntar på att den andra parten ansluter…",
   "chatAddMembers": "Lägg till medlemmar",
+  "chatAddPhotoOrVideo": "Lägg till bild eller video",
   "chatAddToHomeScreen": "Lägg till på hemskärmen",
   "chatAlreadyInCall": "Du är redan i ett samtal",
   "chatCallTitle": "Ring {name}?",

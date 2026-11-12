@@ -143,6 +143,7 @@
   "callsWaiting": "Oczekiwanie…",
   "callsWaitingForOther": "Oczekiwanie na dołączenie drugiej strony…",
   "chatAddMembers": "Dodaj członków",
+  "chatAddPhotoOrVideo": "Dodaj zdjęcie lub film",
   "chatAddToHomeScreen": "Dodaj do ekranu głównego",
   "chatAlreadyInCall": "Już uczestniczysz w połączeniu",
   "chatCallTitle": "Zadzwonić: {name}?",

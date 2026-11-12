@@ -37,6 +37,7 @@ void main() {
     WidgetTester tester,
     List<PickedMedia> items, {
     bool settle = true,
+    Future<PickedMedia?> Function()? add,
   }) async {
     SharedPreferences.setMockInitialValues({});
     final preferences = await SharedPreferences.getInstance();
@@ -53,7 +54,10 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: routeLauncher<List<ComposedMedia>>(
-            (_) => MediaCaptionComposerPage(items: items),
+            (_) => MediaCaptionComposerPage(
+              items: items,
+              onAdd: add ?? () async => null,
+            ),
             onResult: (composed) {
               result = composed;
               closed = true;
@@ -132,6 +136,49 @@ void main() {
       [for (final item in result!) (item.name, item.caption)],
       [('a.jpg', 'first'), ('b.jpg', 'second')],
     );
+  });
+
+  testWidgets('an added video goes last and shows, earlier captions kept, '
+      'and goes out with the rest', (tester) async {
+    await open(tester, [photo('a.jpg')], add: () async => clip('b.mp4'));
+    await tester.enterText(find.byType(TextField), 'first');
+
+    await tester.tap(find.byTooltip('Add photo or video'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2 of 2'), findsOneWidget);
+    expect(player.opened, ['file:///cache/b.mp4']);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      '',
+    );
+    await tester.tap(find.byTooltip('Send all'));
+    await tester.pumpAndSettle();
+    expect(
+      [for (final item in result!) (item.name, item.caption)],
+      [('a.jpg', 'first'), ('b.mp4', '')],
+    );
+  });
+
+  testWidgets('nothing added leaves the screen as it was', (tester) async {
+    await open(tester, [photo('a.jpg')], add: () async => null);
+
+    await tester.tap(find.byTooltip('Add photo or video'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Add a caption'), findsOneWidget);
+    expect(find.byType(PageDots), findsNothing);
+  });
+
+  testWidgets('adding pauses a playing preview', (tester) async {
+    await open(tester, [clip('clip.mp4')], add: () async => null);
+    await tester.tap(find.byType(VideoPlayer));
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Add photo or video'));
+    await tester.pumpAndSettle();
+
+    expect(player.calls.last, 'pause');
   });
 
   testWidgets('only photos offer to remove this photo', (tester) async {

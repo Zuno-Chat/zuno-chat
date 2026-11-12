@@ -143,6 +143,7 @@
   "callsWaiting": "Venter…",
   "callsWaitingForOther": "Venter på at den andre parten blir med…",
   "chatAddMembers": "Legg til medlemmer",
+  "chatAddPhotoOrVideo": "Legg til bilde eller video",
   "chatAddToHomeScreen": "Legg til på startskjermen",
   "chatAlreadyInCall": "Du er allerede i et anrop",
   "chatCallTitle": "Ringe {name}?",

@@ -35,8 +35,13 @@ class PickedVideo extends PickedMedia {
 
 class MediaCaptionComposerPage extends ConsumerStatefulWidget {
   final List<PickedMedia> items;
+  final Future<PickedMedia?> Function() onAdd;
 
-  const MediaCaptionComposerPage({required this.items, super.key});
+  const MediaCaptionComposerPage({
+    required this.items,
+    required this.onAdd,
+    super.key,
+  });
 
   @override
   ConsumerState<MediaCaptionComposerPage> createState() =>
@@ -136,6 +141,18 @@ class _MediaCaptionComposerPageState
     });
   }
 
+  Future<void> _add() async {
+    unawaited(_player?.pause());
+    final added = await widget.onAdd();
+    if (added == null || !mounted) return;
+    setState(() {
+      _items.add(added);
+      _captionControllers.add(TextEditingController());
+    });
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) _pageController.jumpToPage(_items.length - 1);
+  }
+
   ComposedMedia _composeItem(int i) {
     final caption = _captionControllers[i].text.trim();
     switch (_items[i]) {
@@ -177,6 +194,11 @@ class _MediaCaptionComposerPageState
                 : l10n.chatCaptionTitle,
           ),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.add_a_photo_outlined),
+              tooltip: l10n.chatAddPhotoOrVideo,
+              onPressed: _add,
+            ),
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: _items.every((item) => item is PickedImage)
