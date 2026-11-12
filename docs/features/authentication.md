@@ -127,8 +127,9 @@ browser, and Zuno waits until the page is closed.
 | Delete account, after a warning | `org.matrix.account_deactivate` |
 | A step the server approves instead of a password (UIA `m.oauth`, `org.matrix.cross_signing_reset`) | The link the server sends, then "Continue" retries the request |
 
-Your devices reloads once the page is closed. An action the server doesn't
-advertise opens the plain account page.
+Closing the page refreshes the session at once, so a deletion or this
+device's removal there wipes the app then, not at the next sync. Your devices reloads once the page is closed. An action the server
+doesn't advertise opens the plain account page.
 
 ### Registration
 
@@ -184,7 +185,7 @@ sequenceDiagram
 
 | Path | Steps, in order |
 |---|---|
-| Sign out (Settings, or this device in Your devices) | Refused while offline. End the active call and clear live location shares (each bounded), `stopAllNotificationDelivery`, then `client.logout()` |
+| Sign out (Account, or this device in Your devices) | Refused while offline. End the active call and clear live location shares (each bounded), `stopAllNotificationDelivery`, then `client.logout()` |
 | Delete account | Warning, typed username, password, ending the active call and clearing live location shares, `deactivateAccount(erase: true)`, best-effort push teardown, then `client.clear()` |
 
 Both paths end in `client.clear`, which triggers the `_AuthGate` wipe;
@@ -234,13 +235,16 @@ What the push teardown does is in `notifications.md`.
 - **No password form on an OAuth server**, though MAS's compatibility layer
   accepts one, because the spec keeps the two APIs apart and the server's
   page owns two-factor sign-in and upstream sign-in providers.
-- **The sign-in browser keeps its cookies** (not ephemeral), so the account
-  page opens signed in; on iOS that costs a "wants to use … to sign in"
-  alert each time.
-- **Account pages open in the sign-in browser, not the default browser**,
-  because only it is sure to hold the sign-in cookie: iOS's sign-in sheet
-  shares cookies only with Safari, and Android's sign-in falls back to a
-  Custom Tabs browser when the default browser has none.
+- **The sign-in browser forgets its session when it closes** (ephemeral),
+  because MAS offers no way to end a browser session and ignores
+  `prompt=login`, so a kept session would outlive sign-out; the account page
+  asks for the password on each visit, and on Android only browsers with
+  private tabs honor it.
+- **Account pages open in the sign-in browser, not the default browser**, so
+  Zuno knows when the page closes and the visit leaves no session behind.
+- **A session check after the page closes skips a signed-out client**, since
+  the SDK's sign-out keeps the token expiry and a soft logout would flash the
+  signed-in screens before failing.
 - **The client registration describes the app, the same on every server**,
   and the redirect scheme is the homepage's host reversed, as the spec
   requires; the Android manifest registers that scheme too, so the

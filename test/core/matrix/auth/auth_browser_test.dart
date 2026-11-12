@@ -34,7 +34,7 @@ void main() {
     final call = calls.singleWhere((call) => call.method == 'authenticate');
     expect(call.arguments['url'], authorization.toString());
     expect(call.arguments['callbackUrlScheme'], 'chat.zuno');
-    expect(call.arguments['options']['preferEphemeral'], isFalse);
+    expect(call.arguments['options']['preferEphemeral'], isTrue);
   });
 
   test('a malformed callback fails without carrying it', () async {

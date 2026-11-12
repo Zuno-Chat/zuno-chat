@@ -3,24 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:matrix/matrix.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:zuno/core/calls/active_call_provider.dart';
-import 'package:zuno/core/calls/models/call_kind.dart';
 import 'package:zuno/core/errors/crash_reporting.dart';
 import 'package:zuno/core/l10n/l10n.dart';
-import 'package:zuno/core/matrix/account/account_capabilities.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
-import 'package:zuno/core/security/account_security_status.dart';
-import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/settings/matrix_experience.dart';
 import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/settings_page.dart';
 
-import '../../../helpers/fake_call_session.dart';
 import '../../../helpers/fake_matrix.dart';
-import '../../../helpers/native_method_calls.dart';
 import '../../../helpers/platform_capabilities.dart';
 
 class _OwnMemberDb extends FakeDatabaseApi {
@@ -31,23 +23,8 @@ class _OwnMemberDb extends FakeDatabaseApi {
       ownMember?.id == userId ? ownMember : null;
 }
 
-class _SigningOutClient extends Client {
-  _SigningOutClient() : super('test', database: FakeDatabaseApi()) {
-    setUserId('@alex:example.org');
-  }
-
-  final journal = <String>[];
-
-  @override
-  Future<void> logout() async => journal.add('logged out');
-}
-
-final _capabilities = accountCapabilitiesProvider.overrideWith(
-  (ref) async => const AccountCapabilities(),
-);
-
-Client _client([Client? base]) {
-  final client = base ?? buildTestClient(userId: '@alex:example.org');
+Client _client() {
+  final client = buildTestClient(userId: '@alex:example.org');
   final room = buildTestRoom(client)..partial = false;
   room.setState(
     User(
@@ -63,24 +40,17 @@ Client _client([Client? base]) {
 
 Future<void> _pumpSettingsPage(
   WidgetTester tester, {
-  AccountSecurityStatus? status,
   bool showFeedback = false,
   PlatformCapabilities? capabilities,
-  Client? client,
   bool matrixExperience = false,
 }) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
-        matrixClientProvider.overrideWithValue(client ?? _client()),
-        _capabilities,
+        matrixClientProvider.overrideWithValue(_client()),
         sentryConfiguredProvider.overrideWithValue(showFeedback),
         if (capabilities != null)
           platformCapabilitiesProvider.overrideWithValue(capabilities),
-        if (status != null)
-          accountSecurityStatusProvider.overrideWithValue(
-            AsyncValue.data(status),
-          ),
       ],
       child: MaterialApp(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -157,7 +127,6 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          _capabilities,
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -205,7 +174,6 @@ void main() {
       ProviderScope(
         overrides: [
           matrixClientProvider.overrideWithValue(client),
-          _capabilities,
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -220,114 +188,14 @@ void main() {
     expect(find.text('Alex From Disk'), findsOneWidget);
   });
 
-  testWidgets('settings sit in four cards, leaving last', (tester) async {
+  testWidgets('settings sit in three cards, with no way to leave here', (
+    tester,
+  ) async {
     await _pumpSettingsPage(tester);
 
-    expect(find.byType(CardGroup), findsNWidgets(4));
-    final leaving = find.byType(CardGroup).last;
-    expect(
-      find.descendant(of: leaving, matching: find.text('Sign out')),
-      findsOneWidget,
-    );
-    expect(
-      find.descendant(of: leaving, matching: find.text('Delete account')),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('logging out asks first', (tester) async {
-    await _pumpSettingsPage(tester, status: AccountSecurityStatus.protected);
-
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Sign out?'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
-    expect(find.text('Set up recovery'), findsNothing);
-    expect(
-      find.textContaining(
-        'erases everything it stored on this device and '
-        'closes',
-      ),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('an account with no recovery is told what it will lose', (
-    tester,
-  ) async {
-    await _pumpSettingsPage(tester, status: AccountSecurityStatus.noRecovery);
-
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-
-    expect(find.textContaining('gone for good'), findsOneWidget);
-    expect(find.text('Set up recovery'), findsOneWidget);
-    expect(find.text('Sign out anyway'), findsOneWidget);
-  });
-
-  testWidgets('when the sign-out choices stack, the action comes first and '
-      'Cancel last', (tester) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(360, 640);
-    addTearDown(tester.view.reset);
-    await _pumpSettingsPage(tester, status: AccountSecurityStatus.noRecovery);
-
-    await tester.scrollUntilVisible(find.text('Sign out'), 200);
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-
-    final anyway = tester.getCenter(find.text('Sign out anyway')).dy;
-    final recovery = tester.getCenter(find.text('Set up recovery')).dy;
-    final cancel = tester.getCenter(find.text('Cancel')).dy;
-    expect(anyway, lessThan(recovery));
-    expect(recovery, lessThan(cancel));
-  });
-
-  testWidgets('signing out mid-call ends the call before the token goes', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
-    silenceMethodChannels(const ['zuno/background_sync']);
-    final client = _SigningOutClient();
-    await _pumpSettingsPage(
-      tester,
-      status: AccountSecurityStatus.protected,
-      client: _client(client),
-    );
-    ProviderScope.containerOf(tester.element(find.byType(SettingsPage)))
-        .read(activeCallProvider.notifier)
-        .set(
-          FakeCallSession(
-            room: buildCallRoom(),
-            kind: CallKind.voice,
-            journal: client.journal,
-          ),
-        );
-
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Sign out').last);
-    await tester.pumpAndSettle();
-
-    expect(client.journal, ['call ended', 'logged out']);
-  });
-
-  testWidgets('cancelling leaves the account alone', (tester) async {
-    final client = _SigningOutClient();
-    await _pumpSettingsPage(
-      tester,
-      status: AccountSecurityStatus.protected,
-      client: _client(client),
-    );
-
-    await tester.tap(find.text('Sign out'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Cancel'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Sign out?'), findsNothing);
-    expect(client.journal, isEmpty);
+    expect(find.byType(CardGroup), findsNWidgets(3));
+    expect(find.text('Sign out'), findsNothing);
+    expect(find.text('Delete account'), findsNothing);
   });
 
   testWidgets('Send feedback opens the feedback sheet', (tester) async {

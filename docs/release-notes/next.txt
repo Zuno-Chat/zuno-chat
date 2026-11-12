@@ -2,5 +2,6 @@ New
 • Location maps open faster.
 • Calls connect faster.
 • A new look for text fields.
+• Sign out and Delete account moved to Account.
 
-Fixed 8 bugs.
+Fixed 10 bugs.

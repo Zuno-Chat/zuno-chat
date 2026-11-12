@@ -7,25 +7,19 @@ import 'package:matrix/matrix.dart';
 import '../../../core/errors/crash_reporting.dart';
 import '../../../core/l10n/l10n.dart';
 import '../../../core/matrix/account/own_profile.dart';
-import '../../../core/matrix/account/sign_out.dart';
 import '../../../core/matrix/client/matrix_client_provider.dart';
 import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/platform/platform_capabilities.dart';
-import '../../../core/security/account_security_status.dart';
-import '../../../core/security/security_providers.dart';
 import '../../../core/settings/matrix_experience.dart';
 import '../../../core/ui/card_group.dart';
 import '../../../core/ui/card_list_view.dart';
 import '../../../core/ui/circle_icon.dart';
-import '../../../core/ui/danger_tile.dart';
 import '../../feedback/presentation/feedback_sheet.dart';
 import 'about_page.dart';
 import 'account_settings_page.dart';
 import 'chats_calls_settings_page.dart';
 import 'data_storage_settings_page.dart';
-import 'delete_account_tile.dart';
 import 'notifications_settings_page.dart';
-import 'secure_backup_page.dart';
 import 'security_privacy_settings_page.dart';
 
 class SettingsPage extends ConsumerWidget {
@@ -94,79 +88,11 @@ class SettingsPage extends ConsumerWidget {
                 ),
             ],
           ),
-          CardGroup(
-            children: [
-              DangerTile(
-                icon: Icons.logout_outlined,
-                label: l10n.settingsSignOut,
-                onTap: () => _confirmLogOut(context, ref),
-              ),
-              const DeleteAccountTile(),
-            ],
-          ),
         ],
       ),
     );
-  }
-
-  Future<void> _confirmLogOut(BuildContext context, WidgetRef ref) async {
-    final noRecovery =
-        ref.read(accountSecurityStatusProvider).value ==
-        AccountSecurityStatus.noRecovery;
-    final navigator = Navigator.of(context);
-    final l10n = context.l10n;
-
-    final choice = await showDialog<_LogOutChoice>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(l10n.settingsPageSignOutTitle),
-        actionsOverflowDirection: VerticalDirection.up,
-        actionsOverflowButtonSpacing: 4,
-        content: Text(
-          noRecovery
-              ? l10n.settingsPageSignOutBodyNoRecovery
-              : l10n.settingsPageSignOutBody,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(l10n.commonCancel),
-          ),
-          if (noRecovery)
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(context).pop(_LogOutChoice.setUpRecovery),
-              child: Text(l10n.securitySetUpRecovery),
-            ),
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(_LogOutChoice.logOut),
-            style: TextButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.error,
-            ),
-            child: Text(
-              noRecovery
-                  ? l10n.settingsPageSignOutAnyway
-                  : l10n.settingsSignOut,
-            ),
-          ),
-        ],
-      ),
-    );
-
-    switch (choice) {
-      case null:
-        return;
-      case _LogOutChoice.setUpRecovery:
-        await navigator.push(
-          MaterialPageRoute(builder: (_) => const SecureBackupPage()),
-        );
-      case _LogOutChoice.logOut:
-        if (context.mounted) await signOutThisDeviceOrExplain(context, ref);
-    }
   }
 }
-
-enum _LogOutChoice { setUpRecovery, logOut }
 
 class _CategoryTile extends StatelessWidget {
   final IconData icon;

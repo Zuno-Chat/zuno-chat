@@ -15,6 +15,7 @@ import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
 import 'package:zuno/core/platform/app_settings_opener.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/settings/matrix_experience.dart';
+import 'package:zuno/core/ui/card_group.dart';
 import 'package:zuno/features/settings/presentation/account_settings_page.dart';
 import 'package:zuno/features/settings/presentation/change_password_dialog.dart';
 
@@ -239,6 +240,44 @@ void main() {
       await pumpPage(tester);
 
       expect(row('Manage account'), findsNothing);
+    });
+  });
+
+  group('leaving', () {
+    Future<void> expectLeavingLast(WidgetTester tester) async {
+      await tester.scrollUntilVisible(find.text('Delete account'), 200);
+      final leaving = find.byType(CardGroup).last;
+      expect(
+        find.descendant(of: leaving, matching: find.text('Sign out')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: leaving, matching: find.text('Delete account')),
+        findsOneWidget,
+      );
+    }
+
+    testWidgets('Sign out and Delete account sit together, last', (
+      tester,
+    ) async {
+      await pumpPage(tester);
+
+      await expectLeavingLast(tester);
+    });
+
+    testWidgets('an OAuth server keeps both', (tester) async {
+      await pumpPage(
+        tester,
+        capabilities: Future.value(
+          AccountCapabilities(
+            canChangePassword: false,
+            canMintSignInCodes: false,
+            accountPage: AccountPage(Uri.parse(_accountPage), const {}),
+          ),
+        ),
+      );
+
+      await expectLeavingLast(tester);
     });
   });
 

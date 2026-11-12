@@ -7,7 +7,7 @@ are documented with that feature.
 
 | Category | Holds | Behavior documented in |
 |---|---|---|
-| Account (the profile card) | Picture, display name, username, language, change password, or Manage account on a server with its own account page | here; language in `app-foundation.md`, password and account page in `authentication.md` |
+| Account (the profile card) | Picture, display name, username, language, change password, or Manage account on a server with its own account page; Sign out and Delete account last | here; language in `app-foundation.md`, password, account page, sign-out and deletion in `authentication.md` |
 | Notifications | Enable, notify-for, sounds, content, Delivery (Android), Diagnostics hub | `notifications.md` |
 | Chats & calls | Theme, typing indicator, Matrix experience, prevent accidental calls | here; accidental calls in `calls.md`, what Matrix experience shows in `rooms-membership.md` |
 | Data & storage | Reduce media size, less data for calls, clear cache, clear media cache | here; `chats-messaging.md`, `calls.md` |
@@ -15,8 +15,7 @@ are documented with that feature.
 | About | Versions, donate (Android), privacy policy, terms, source, licenses, crash and error reports, hidden messages | here; `crash-reporting.md`, `chats-messaging.md` |
 
 The root opens with the profile card, which leads to Account. Below the
-categories sit Send feedback (`crash-reporting.md`), then Sign out and
-Delete account (`authentication.md`).
+categories sits Send feedback (`crash-reporting.md`).
 
 ## Architecture
 
@@ -37,8 +36,11 @@ Delete account (`authentication.md`).
   Everything that costs bytes is in Data & storage, theme sits under Chats &
   calls, and a page that would hold only one or two rows is merged into
   another.
-- **Sign out sits on the Settings root, not in an app-bar menu**, which would
-  put the most destructive action one tap from every screen.
+- **Sign out and Delete account sit at the end of Account, on every server**,
+  with the account they act on, never in an app-bar menu, which would put the
+  most destructive action one tap from every screen; an OAuth server keeps
+  both, since its page's sign-out ends only the browser session and the
+  stores require deletion to start in the app.
 - **The sign-out dialog depends on recovery.** Without a recovery code,
   signing out loses every room key held only on this device, so the dialog
   says so and offers Set up recovery. The sign-out sequence itself is in

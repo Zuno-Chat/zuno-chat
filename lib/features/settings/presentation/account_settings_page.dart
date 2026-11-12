@@ -22,6 +22,8 @@ import '../../../core/ui/inline_feedback.dart';
 import '../../../core/ui/notice.dart';
 import '../../../core/ui/sheet.dart';
 import 'change_password_dialog.dart';
+import 'delete_account_tile.dart';
+import 'sign_out_tile.dart';
 
 class AccountSettingsPage extends ConsumerStatefulWidget {
   const AccountSettingsPage({super.key});
@@ -316,6 +318,7 @@ class _AccountSettingsPageState extends ConsumerState<AccountSettingsPage> {
                 ),
               ],
             ),
+          const CardGroup(children: [SignOutTile(), DeleteAccountTile()]),
         ],
       ),
     );

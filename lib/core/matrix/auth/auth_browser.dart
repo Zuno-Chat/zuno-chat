@@ -49,7 +49,7 @@ Future<Uri> systemAuthBrowser(
     final callback = await FlutterWebAuth2.authenticate(
       url: authorizationUri.toString(),
       callbackUrlScheme: callbackScheme,
-      options: const FlutterWebAuth2Options(preferEphemeral: false),
+      options: const FlutterWebAuth2Options(preferEphemeral: true),
     );
     try {
       return Uri.parse(callback);
