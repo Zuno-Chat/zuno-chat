@@ -699,18 +699,16 @@ class CloudflareConnection implements CallConnection {
   void observeStats(Iterable<StatsReport> reports) =>
       _noteSendingTracks(reports);
 
-  static const _firstMediaPollStart = Duration(milliseconds: 250);
-  static const _firstMediaPollMax = Duration(seconds: 2);
+  static const _firstMediaPoll = Duration(milliseconds: 100);
   static const _firstMediaDeadline = Duration(seconds: 20);
 
   void _watchFirstMedia(RTCPeerConnection pc) {
     _firstMediaTimer?.cancel();
-    var delay = _firstMediaPollStart;
     var waited = Duration.zero;
     void schedule() {
-      _firstMediaTimer = Timer(delay, () async {
+      _firstMediaTimer = Timer(_firstMediaPoll, () async {
         if (!_isLiveConnection(pc)) return;
-        waited += delay;
+        waited += _firstMediaPoll;
         await _bestEffortOn(pc, () async {
           final reports = await pc.getStats();
           if (!_isLiveConnection(pc)) return;
@@ -731,7 +729,6 @@ class CloudflareConnection implements CallConnection {
           }
           return;
         }
-        delay = delay * 2 > _firstMediaPollMax ? _firstMediaPollMax : delay * 2;
         schedule();
       });
     }

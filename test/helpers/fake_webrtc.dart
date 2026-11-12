@@ -222,6 +222,7 @@ class FakePeerConnection extends RTCPeerConnection {
   var iceRestarts = 0;
   List<StatsReport> stats = [];
   Completer<void>? statsGate;
+  var statsCalls = 0;
   Object? setRemoteDescriptionError;
   Object? createAnswerError;
   RTCSessionDescription? _local;
@@ -332,6 +333,7 @@ class FakePeerConnection extends RTCPeerConnection {
 
   @override
   Future<List<StatsReport>> getStats([MediaStreamTrack? track]) async {
+    statsCalls++;
     await statsGate?.future;
     return stats;
   }

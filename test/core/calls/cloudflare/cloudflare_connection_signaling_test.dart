@@ -248,6 +248,63 @@ void main() {
       });
     });
 
+    test('a track is offered within a tenth of a second of its first '
+        'media', () {
+      inCall((call) {
+        call.join();
+        call.async.elapse(const Duration(milliseconds: 800));
+
+        call.pc.stats = [
+          EngineHarness.outbound('audio'),
+          EngineHarness.outbound('video'),
+        ];
+        call.async.elapse(const Duration(milliseconds: 100));
+        call.flush();
+
+        expect(call.engine.localFociInfo?['tracks'], {
+          'audio': 'audio',
+          'video': 'video',
+        });
+      });
+    });
+
+    test('a track that never sends media is reported once, when the wait for '
+        'its first media runs out', () {
+      inCall((call) {
+        call.join();
+        call.pc.stats = [EngineHarness.outbound('audio')];
+
+        call.async.elapse(const Duration(seconds: 19));
+        call.flush();
+        expect(caught().where((line) => line.contains('publish video')), []);
+
+        call.async.elapse(const Duration(seconds: 10));
+        call.flush();
+        expect(
+          caught().where((line) => line.contains('publish video')),
+          hasLength(1),
+        );
+      });
+    });
+
+    test('stops asking for stats once every track sends media', () {
+      inCall((call) {
+        call.join();
+        call.pc.stats = [
+          EngineHarness.outbound('audio'),
+          EngineHarness.outbound('video'),
+        ];
+        call.async.elapse(const Duration(milliseconds: 300));
+        call.flush();
+        final calls = call.pc.statsCalls;
+
+        call.async.elapse(const Duration(milliseconds: 2500));
+        call.flush();
+
+        expect(call.pc.statsCalls, calls);
+      });
+    });
+
     test('publishing asks for no receive-only slots, so each pull brings its '
         'own', () {
       inCall((call) {
