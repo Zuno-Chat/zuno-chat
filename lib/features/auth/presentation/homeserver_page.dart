@@ -91,7 +91,6 @@ class _HomeserverPageState extends ConsumerState<HomeserverPage>
           autocorrect: false,
           onSubmitted: (_) => _continue(),
           decoration: InputDecoration(
-            labelText: l10n.authServerLabel,
             hintText: l10n.authHomeserverHint,
             helperText: l10n.authServerHelper,
           ),

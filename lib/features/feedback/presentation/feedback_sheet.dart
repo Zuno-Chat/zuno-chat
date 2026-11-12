@@ -17,7 +17,7 @@ Future<void> showFeedbackSheet(
     builder: (_) => FormSheet(
       title: l10n.feedbackSheetTitle,
       explanation: l10n.feedbackExplanation,
-      fieldLabel: l10n.feedbackLabel,
+      fieldHint: l10n.feedbackLabel,
       minLines: 3,
       maxLines: 8,
       maxLength: 2000,

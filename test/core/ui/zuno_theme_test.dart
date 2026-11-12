@@ -6,6 +6,7 @@ import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 
 import '../../helpers/contrast.dart';
+import '../../helpers/zuno_app.dart';
 
 void main() {
   final themes = {'light': zunoLightTheme, 'dark': zunoDarkTheme};
@@ -113,7 +114,7 @@ void main() {
       expect(theme.appBarTheme.scrolledUnderElevation, 0);
     });
 
-    test('$name: inputs keep one border type in every state', () {
+    test('$name: inputs ring the whole rounded box in every state', () {
       final inputs = theme.inputDecorationTheme;
       final borders = [
         inputs.border,
@@ -124,10 +125,50 @@ void main() {
         inputs.focusedErrorBorder,
       ];
       for (final border in borders) {
-        expect(border, isA<UnderlineInputBorder>());
+        expect(border, isA<OutlineInputBorder>());
+        expect(border!.isOutline, isFalse);
+        expect(
+          (border as OutlineInputBorder).borderRadius,
+          BorderRadius.circular(ZunoRadius.medium),
+        );
       }
+      expect(inputs.enabledBorder!.borderSide, BorderSide.none);
       expect(inputs.disabledBorder!.borderSide, BorderSide.none);
-      expect(inputs.focusedBorder!.borderSide.width, 2);
+      expect(
+        inputs.focusedBorder!.borderSide,
+        BorderSide(color: scheme.primary, width: 2),
+      );
+      expect(inputs.errorBorder!.borderSide, BorderSide(color: scheme.error));
+      expect(
+        inputs.focusedErrorBorder!.borderSide,
+        BorderSide(color: scheme.error, width: 2),
+      );
+    });
+
+    testWidgets('$name: a focused field keeps its label inside a closed ring', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        inZunoApp(
+          const TextField(decoration: InputDecoration(labelText: 'Password')),
+          theme: theme,
+        ),
+      );
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(find.byType(InputDecorator), isNot(paints..path()));
+
+      await tester.pump(const Duration(seconds: 1));
+      expect(
+        find.byType(InputDecorator),
+        paints
+          ..rrect(color: theme.colorScheme.surfaceContainer)
+          ..rrect(color: theme.colorScheme.primary),
+      );
+      final box = tester.getRect(find.byType(InputDecorator));
+      final label = tester.getRect(find.text('Password'));
+      expect(label.top, greaterThan(box.top));
     });
 
     test('$name: divider is a hairline with no layout change', () {

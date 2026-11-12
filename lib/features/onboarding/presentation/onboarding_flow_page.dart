@@ -582,7 +582,7 @@ class _ProfileStepState extends ConsumerState<_ProfileStep> {
           controller: _name,
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.done,
-          decoration: InputDecoration(labelText: l10n.onboardingNameLabel),
+          decoration: InputDecoration(hintText: l10n.onboardingNameLabel),
           onSubmitted: (_) => _save(),
         ),
       ],

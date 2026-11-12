@@ -142,6 +142,20 @@ void main() {
       ),
     );
 
+    testWidgets('with only a hint, is still named by it once filled', (
+      tester,
+    ) async {
+      await pump(
+        tester,
+        SecretTextField(
+          controller: controller,
+          decoration: const InputDecoration(hintText: '12 words'),
+        ),
+      );
+
+      expect(tester.getSemantics(find.byType(EditableText)).label, '12 words');
+    });
+
     testWidgets('keeps typing out of the keyboard learning, suggestions and '
         'autocorrect', (tester) async {
       await pumpField(tester);

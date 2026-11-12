@@ -32,7 +32,7 @@ void main() {
                   builder: (_) => FormSheet(
                     title: 'Tell us',
                     explanation: 'It goes to the team.',
-                    fieldLabel: 'Message',
+                    fieldHint: 'Message',
                     maxLines: 4,
                     maxLength: 100,
                     sendLabel: 'Send',
@@ -69,6 +69,11 @@ void main() {
     expect(find.text('Tell us'), findsOneWidget);
     expect(find.text('It goes to the team.'), findsOneWidget);
     expect(find.text('Reasons'), findsOneWidget);
+    final decoration = tester
+        .widget<TextField>(find.byType(TextField))
+        .decoration!;
+    expect(decoration.labelText, isNull);
+    expect(decoration.hintText, 'Message');
   });
 
   testWidgets('sends the trimmed text, closes and says it was sent', (

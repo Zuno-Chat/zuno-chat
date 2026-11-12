@@ -52,7 +52,7 @@
   },
   "authCodeLabel": "Code",
   "@authCodeLabel": {
-    "description": "Field label: the sign-in code typed from another device"
+    "description": "Placeholder in the empty field: the sign-in code typed from another device"
   },
   "authConfirmPasswordLabel": "Confirm password",
   "@authConfirmPasswordLabel": {
@@ -121,10 +121,6 @@
     "description": "Button: scan the sign-in QR code shown on another device"
   },
   "authServerHelper": "A hostname or a full https:// address",
-  "authServerLabel": "Server",
-  "@authServerLabel": {
-    "description": "Field label: the chat server address"
-  },
   "authSignIn": "Sign in",
   "@authSignIn": {
     "description": "Sign-in screen title and its button"
@@ -1177,7 +1173,7 @@
   },
   "commonPassword": "Password",
   "@commonPassword": {
-    "description": "Field label: your account password"
+    "description": "Field label or placeholder: your account password"
   },
   "commonPhotoNotSaved": "Photo not saved.",
   "commonPhotoUpdated": "Photo updated",
@@ -1940,7 +1936,7 @@
   "feedbackExplanation": "Your feedback goes to a reporting service with your app version and system version. Names and addresses are removed. Nothing identifies you, so there is no reply.",
   "feedbackLabel": "Your feedback",
   "@feedbackLabel": {
-    "description": "Field label on the feedback sheet"
+    "description": "Placeholder in the empty field on the feedback sheet"
   },
   "feedbackNotSent": "Feedback not sent.",
   "feedbackSent": "Feedback sent.",
@@ -3765,7 +3761,7 @@
   "onboardingImproveTitle": "Help improve Zuno",
   "onboardingNameLabel": "Name",
   "@onboardingNameLabel": {
-    "description": "Field label during setup: your display name"
+    "description": "Placeholder in the empty field during setup: your display name"
   },
   "onboardingNotSaved": "Not saved. You can set it later in Settings.",
   "onboardingNotificationsBodyMessages": "Zuno needs your permission to show new messages.",
@@ -4103,7 +4099,7 @@
   },
   "reportsWhatHappened": "What happened",
   "@reportsWhatHappened": {
-    "description": "Field label on the report sheet: describe what happened"
+    "description": "Placeholder in the empty field on the report sheet: describe what happened"
   },
   "reportsWhatHappenedOptional": "What happened (optional)",
   "roomInfoAccessBullet": "• {line}",
@@ -5179,10 +5175,6 @@
         "format": "decimalPattern"
       }
     }
-  },
-  "settingsRecoveryCodeLabel": "Recovery code",
-  "@settingsRecoveryCodeLabel": {
-    "description": "Field label: your recovery code"
   },
   "settingsRecoveryConfirmBody": "Type the {first} and {second} words from your saved copy.",
   "@settingsRecoveryConfirmBody": {

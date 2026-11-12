@@ -405,7 +405,6 @@ class _RecoveryCodeEntryFieldState
             maxLines: 4,
             keyboardType: TextInputType.visiblePassword,
             decoration: InputDecoration(
-              labelText: context.l10n.settingsRecoveryCodeLabel,
               hintText: context.l10n.settingsRecoveryCodeHint(
                 recoveryCodeWordCount,
               ),

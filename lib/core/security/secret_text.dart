@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'screen_security_service.dart';
 import 'sensitive_clipboard.dart';
+import 'zuno_text_field.dart';
 
 class SecretText extends StatefulWidget {
   final String text;
@@ -61,22 +62,26 @@ class _SecretTextFieldState extends State<SecretTextField>
   Widget build(BuildContext context) {
     return Actions(
       actions: _actions,
-      child: TextField(
-        controller: widget.controller,
+      child: HintNamedField(
         decoration: widget.decoration,
-        autofocus: widget.autofocus,
-        // shortcut: a screen reader's copy and cut skip SensitiveClipboard, since EditableText's semantics copy calls copySelection directly with no hook, route them through it once Flutter sends them through CopySelectionTextIntent or exposes a hook
-        contextMenuBuilder: _secretMenu,
-        minLines: widget.minLines,
-        maxLines: widget.maxLines,
-        autofillHints: widget.autofillHints,
-        keyboardType: widget.keyboardType,
-        autocorrect: false,
-        enableSuggestions: false,
-        enableIMEPersonalizedLearning: false,
-        textCapitalization: TextCapitalization.none,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
+        controller: widget.controller,
+        field: (context, controller) => TextField(
+          controller: controller,
+          decoration: widget.decoration,
+          autofocus: widget.autofocus,
+          // shortcut: a screen reader's copy and cut skip SensitiveClipboard, since EditableText's semantics copy calls copySelection directly with no hook, route them through it once Flutter sends them through CopySelectionTextIntent or exposes a hook
+          contextMenuBuilder: _secretMenu,
+          minLines: widget.minLines,
+          maxLines: widget.maxLines,
+          autofillHints: widget.autofillHints,
+          keyboardType: widget.keyboardType,
+          autocorrect: false,
+          enableSuggestions: false,
+          enableIMEPersonalizedLearning: false,
+          textCapitalization: TextCapitalization.none,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+        ),
       ),
     );
   }

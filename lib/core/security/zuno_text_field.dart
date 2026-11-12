@@ -72,30 +72,83 @@ class ZunoTextField extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => TextField(
-    autofillHints: autofillHints,
-    controller: controller,
-    focusNode: focusNode,
+  Widget build(BuildContext context) => HintNamedField(
     decoration: decoration,
-    keyboardType: keyboardType,
-    textInputAction: textInputAction,
-    textCapitalization: textCapitalization,
-    style: style,
-    readOnly: readOnly,
-    showCursor: showCursor,
-    canRequestFocus: canRequestFocus,
-    autofocus: autofocus,
-    obscureText: obscureText,
-    autocorrect: autocorrect,
-    enableSuggestions: enableSuggestions,
-    maxLines: maxLines,
-    minLines: minLines,
-    maxLength: maxLength,
-    onChanged: onChanged,
-    onSubmitted: onSubmitted,
-    onTap: onTap,
-    inputFormatters: inputFormatters,
-    enabled: enabled,
-    enableIMEPersonalizedLearning: KeyboardLearning.allowedIn(context),
+    controller: controller,
+    field: _field,
   );
+
+  Widget _field(BuildContext context, TextEditingController controller) =>
+      TextField(
+        autofillHints: autofillHints,
+        controller: controller,
+        focusNode: focusNode,
+        decoration: decoration,
+        textAlignVertical:
+            decoration?.prefixIcon != null || decoration?.suffixIcon != null
+            ? TextAlignVertical.center
+            : null,
+        keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        textCapitalization: textCapitalization,
+        style: style,
+        readOnly: readOnly,
+        showCursor: showCursor,
+        canRequestFocus: canRequestFocus,
+        autofocus: autofocus,
+        obscureText: obscureText,
+        autocorrect: autocorrect,
+        enableSuggestions: enableSuggestions,
+        maxLines: maxLines,
+        minLines: minLines,
+        maxLength: maxLength,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        onTap: onTap,
+        inputFormatters: inputFormatters,
+        enabled: enabled,
+        enableIMEPersonalizedLearning: KeyboardLearning.allowedIn(context),
+      );
+}
+
+class HintNamedField extends StatefulWidget {
+  final InputDecoration? decoration;
+  final TextEditingController? controller;
+  final Widget Function(BuildContext context, TextEditingController controller)
+  field;
+
+  const HintNamedField({
+    required this.decoration,
+    required this.controller,
+    required this.field,
+    super.key,
+  });
+
+  @override
+  State<HintNamedField> createState() => _HintNamedFieldState();
+}
+
+class _HintNamedFieldState extends State<HintNamedField> {
+  TextEditingController? _own;
+
+  @override
+  void dispose() {
+    _own?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final text = widget.controller ?? (_own ??= TextEditingController());
+    final decoration = widget.decoration;
+    final name = decoration?.labelText == null && decoration?.label == null
+        ? decoration?.hintText
+        : null;
+    return ListenableBuilder(
+      listenable: text,
+      builder: (context, field) =>
+          Semantics(label: text.text.isEmpty ? null : name, child: field),
+      child: widget.field(context, text),
+    );
+  }
 }

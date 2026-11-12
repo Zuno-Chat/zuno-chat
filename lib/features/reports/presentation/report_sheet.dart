@@ -50,7 +50,7 @@ class _ReportSheetState extends State<_ReportSheet> {
     return FormSheet(
       title: widget.title,
       explanation: widget.explanation,
-      fieldLabel: _reason == ReportReason.other
+      fieldHint: _reason == ReportReason.other
           ? l10n.reportsWhatHappened
           : l10n.reportsWhatHappenedOptional,
       maxLines: 4,

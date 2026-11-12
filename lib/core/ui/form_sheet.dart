@@ -27,7 +27,7 @@ Future<bool> showFormSheet(
 class FormSheet extends StatefulWidget {
   final String title;
   final String explanation;
-  final String fieldLabel;
+  final String fieldHint;
   final int minLines;
   final int maxLines;
   final int maxLength;
@@ -42,7 +42,7 @@ class FormSheet extends StatefulWidget {
   const FormSheet({
     @displayText required this.title,
     @displayText required this.explanation,
-    @displayText required this.fieldLabel,
+    @displayText required this.fieldHint,
     required this.maxLines,
     required this.maxLength,
     @displayText required this.sendLabel,
@@ -127,8 +127,7 @@ class _FormSheetState extends State<FormSheet> {
                 maxLength: widget.maxLength,
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
-                  labelText: widget.fieldLabel,
-                  alignLabelWithHint: true,
+                  hintText: widget.fieldHint,
                   errorText: _error == null
                       ? null
                       : failureMessage(

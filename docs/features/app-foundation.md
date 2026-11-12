@@ -132,6 +132,8 @@ Shared pieces:
 | `TopBannerFrame` | App-wide top banners (the call bar, the offline notice). They stack and slide in and out, and the content keeps its own status-bar inset, moving only by what that inset cannot hide. The slide re-lays out the content each frame, as the keyboard does: the one exception to animating position only. |
 | `KeepClearArea`, `showSheet` | Bottom chrome the floating call window keeps clear of: the composer, the home bar, caption bars. Every bottom sheet opens through `showSheet`, which marks the whole sheet and keeps its content above the system navigation bar, since Flutter's sheets run under it even with `useSafeArea`. A card on a sheet takes the next surface up by itself. |
 
+**Text fields are a filled, rounded box ringed in amber while typing, and a field alone under a title that already names it shows a hint instead of a label**, while forms with several fields keep labels, because a hint disappears as you type.
+
 **Every yes/no question is one dialog, and its confirm button is red for a destructive answer** (delete, remove, ban, block, sign out, start over, sending what looks like the recovery code), so a destructive choice looks the same on every screen.
 
 **Performance rules**, binding on every screen. The floor is a mid-range phone from about 2021.
@@ -405,6 +407,9 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 **Theme and layout**
 - **Two ambers.** Brand amber is too faint as text, so `primary` is a darker amber for text, icons and lines, and `primaryContainer` is brand amber as a fill. A soft tint uses `secondaryContainer`, because a tonal button on `primaryContainer` disappears.
 - **A theme edit restyles screens its diff never touches**, through call sites that override only part of a themed component (a local `InputDecoration.border` loses to the themed state borders), so sweep them.
+- **The field ring is an outline border that reports itself as not an outline**, because Flutter's outline puts the floating label on the top edge and cuts a gap there for every labelled field.
+- **Only a field with an icon centres its text**, because Flutter top-aligns filled fields, leaving an icon field's hint high, and centring a field without an icon counts Flutter's own minimum-height centring twice.
+- **Flutter drops a hint from screen readers once the field has text**, so `ZunoTextField` and `SecretTextField` give a field with only a hint that hint as its spoken name while it has text.
 - **A `ListView` with explicit `padding` stops handling the system insets**, so its last row sits under the navigation bar; `CardListView` handles them, and any other nested scrollable takes `padding: EdgeInsets.zero`.
 - **The push curve must start gently**, because a push spends its first frames building the new screen and whatever the curve covers then is never seen (`zuno_motion_test.dart` pins it).
 - **Bringing the system bars back names both bars before going edge to edge**, because the engine ignores edge-to-edge below Android 10 and the bars would stay hidden.

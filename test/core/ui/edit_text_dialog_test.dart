@@ -29,6 +29,16 @@ void main() {
     return result;
   }
 
+  testWidgets('names the field with a hint, never a label', (tester) async {
+    await open(tester);
+
+    final decoration = tester
+        .widget<TextField>(find.byType(TextField))
+        .decoration!;
+    expect(decoration.labelText, isNull);
+    expect(decoration.hintText, 'Room name');
+  });
+
   testWidgets('saves the trimmed text', (tester) async {
     final result = await open(tester, initialValue: 'Old');
     await tester.enterText(find.byType(TextField), '  Book club  ');

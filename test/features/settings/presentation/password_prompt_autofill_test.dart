@@ -214,11 +214,12 @@ void main() {
         ),
       );
 
-      expect(fieldLabelled(tester, 'Recovery code').autofillHints, [
-        AutofillHints.password,
-      ]);
       expect(
-        groupAround(tester, 'Recovery code').onDisposeAction,
+        fieldLabelled(tester, '12 words, separated by spaces').autofillHints,
+        [AutofillHints.password],
+      );
+      expect(
+        groupAround(tester, '12 words, separated by spaces').onDisposeAction,
         AutofillContextAction.cancel,
       );
     });

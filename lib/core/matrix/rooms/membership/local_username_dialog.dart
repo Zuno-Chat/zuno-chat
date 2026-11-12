@@ -68,7 +68,6 @@ class _LocalUsernameDialogState extends State<_LocalUsernameDialog> {
         inputFormatters: _formatters,
         decoration: InputDecoration(
           prefixText: '@',
-          border: const OutlineInputBorder(),
           hintText: context.l10n.matrixUsernameHint,
         ),
       ),

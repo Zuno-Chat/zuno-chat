@@ -158,7 +158,7 @@ class _LinkedSignInPageState extends ConsumerState<LinkedSignInPage>
             maxLines: 2,
             textInputAction: TextInputAction.done,
             onSubmitted: (_) => _submitTyped(),
-            decoration: InputDecoration(labelText: l10n.authCodeLabel),
+            decoration: InputDecoration(hintText: l10n.authCodeLabel),
           ),
           if (_error case final error?) ...[
             const SizedBox(height: 16),

@@ -94,10 +94,36 @@ const _textTheme = TextTheme(
 
 BorderRadius _rounded(double radius) => BorderRadius.circular(radius);
 
-UnderlineInputBorder _inputBorder(BorderSide side) => UnderlineInputBorder(
-  borderRadius: _rounded(ZunoRadius.medium),
-  borderSide: side,
-);
+class _RingInputBorder extends OutlineInputBorder {
+  const _RingInputBorder([BorderSide side = BorderSide.none])
+    : super(
+        borderSide: side,
+        borderRadius: const BorderRadius.all(
+          Radius.circular(ZunoRadius.medium),
+        ),
+      );
+
+  @override
+  bool get isOutline => false;
+
+  @override
+  ShapeBorder? lerpFrom(ShapeBorder? a, double t) => a is _RingInputBorder
+      ? _RingInputBorder(BorderSide.lerp(a.borderSide, borderSide, t))
+      : super.lerpFrom(a, t);
+
+  @override
+  void paint(
+    Canvas canvas,
+    Rect rect, {
+    double? gapStart,
+    double gapExtent = 0.0,
+    double gapPercentage = 0.0,
+    TextDirection? textDirection,
+  }) {
+    if (borderSide.style == BorderStyle.none) return;
+    super.paint(canvas, rect, textDirection: textDirection);
+  }
+}
 
 ThemeData _theme(ColorScheme scheme, ZunoColors zuno) {
   final text = ThemeData(
@@ -164,12 +190,14 @@ ThemeData _theme(ColorScheme scheme, ZunoColors zuno) {
     inputDecorationTheme: InputDecorationThemeData(
       filled: true,
       fillColor: scheme.surfaceContainer,
-      border: _inputBorder(BorderSide.none),
-      enabledBorder: _inputBorder(BorderSide.none),
-      disabledBorder: _inputBorder(BorderSide.none),
-      focusedBorder: _inputBorder(BorderSide(color: scheme.primary, width: 2)),
-      errorBorder: _inputBorder(BorderSide(color: scheme.error)),
-      focusedErrorBorder: _inputBorder(
+      border: const _RingInputBorder(),
+      enabledBorder: const _RingInputBorder(),
+      disabledBorder: const _RingInputBorder(),
+      focusedBorder: _RingInputBorder(
+        BorderSide(color: scheme.primary, width: 2),
+      ),
+      errorBorder: _RingInputBorder(BorderSide(color: scheme.error)),
+      focusedErrorBorder: _RingInputBorder(
         BorderSide(color: scheme.error, width: 2),
       ),
     ),

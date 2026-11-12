@@ -83,7 +83,7 @@ class _EditTextDialogState extends State<_EditTextDialog> {
         if (_error != null) setState(() => _error = null);
       },
       decoration: InputDecoration(
-        labelText: widget.title,
+        hintText: widget.title,
         prefixText: widget.prefixText,
         errorText: _error,
       ),

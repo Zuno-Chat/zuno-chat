@@ -1,5 +1,6 @@
 New
 • Location maps open faster.
 • Calls connect faster.
+• A new look for text fields.
 
-Fixed 6 bugs.
+Fixed 8 bugs.

@@ -35,7 +35,7 @@ Future<String?> askPasswordForUia(
           autofocus: true,
           autofillHints: const [AutofillHints.password],
           decoration: InputDecoration(
-            labelText: l10n.commonPassword,
+            hintText: l10n.commonPassword,
             errorText: error,
           ),
           onSubmitted: (v) => Navigator.of(context).pop(v),
