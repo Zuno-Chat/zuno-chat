@@ -62,9 +62,7 @@ Future<bool> nameChosenAtSignUp(Client client) async {
   try {
     return await hasChosenDisplayName(client).timeout(_nameReadWait);
   } catch (e, s) {
-    if (!isServerOrNetworkFailure(e)) {
-      reportCaught('read the chosen name', e, s);
-    }
+    reportUnlessServerOrNetwork('read the chosen name', e, s);
     return false;
   }
 }

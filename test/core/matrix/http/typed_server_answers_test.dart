@@ -7,6 +7,7 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/matrix/client/zuno_client.dart';
 import 'package:zuno/core/matrix/http/typed_server_answers.dart';
 
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_http.dart';
 import '../../../helpers/fake_matrix.dart';
 
@@ -142,6 +143,22 @@ void main() {
     ]) {
       expect(isExpectedServerFailure(error), isFalse, reason: '$error');
     }
+  });
+
+  test('a failure of the server or the connection goes unreported; anything '
+      'else is reported', () async {
+    final reports = await reportsDuring(() async {
+      for (final (label, error) in <(String, Object)>[
+        ('offline', const SocketException('down')),
+        ('refused', MatrixException.fromJson({'errcode': 'M_FORBIDDEN'})),
+        ('broken server', const ServerAnswerFailed(502)),
+        ('bug', StateError('boom')),
+      ]) {
+        reportUnlessServerOrNetwork(label, error, StackTrace.empty);
+      }
+    });
+
+    expect(reports, ['bug']);
   });
 
   test('the app’s client answers the same way', () async {

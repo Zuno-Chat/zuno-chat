@@ -101,9 +101,7 @@ class CallProviderDiscovery {
         _saved = (offer: offer, savedAt: saved.savedAt);
       }
     } catch (error, stack) {
-      if (!isServerOrNetworkFailure(error)) {
-        reportCaught('read the saved call provider', error, stack);
-      }
+      reportUnlessServerOrNetwork('read the saved call provider', error, stack);
     }
   }
 
@@ -141,9 +139,7 @@ class CallProviderDiscovery {
     try {
       await saveServerAnswer(_client, _cacheKey, {'offer': offer.name});
     } catch (error, stack) {
-      if (!isServerOrNetworkFailure(error)) {
-        reportCaught('save the call provider', error, stack);
-      }
+      reportUnlessServerOrNetwork('save the call provider', error, stack);
     }
     return offer;
   }

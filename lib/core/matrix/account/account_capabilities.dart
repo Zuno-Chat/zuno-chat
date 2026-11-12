@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
-import '../../errors/caught_errors.dart';
 import '../auth/server_choice.dart';
 import '../client/matrix_client_provider.dart';
 import '../http/typed_server_answers.dart';
@@ -80,10 +79,6 @@ Map<String, Object?>? _savedAccountPage(AccountPage? page) => page == null
         'actions': [for (final action in page.actions) action.name],
       };
 
-void _report(String label, Object error, StackTrace stack) {
-  if (!isServerOrNetworkFailure(error)) reportCaught(label, error, stack);
-}
-
 const _capabilitiesLabel = 'read account capabilities';
 
 Future<AccountCapabilities> readAccountCapabilities(Client client) async {
@@ -91,7 +86,7 @@ Future<AccountCapabilities> readAccountCapabilities(Client client) async {
   try {
     saved = await _readSaved(client);
   } catch (error, stack) {
-    _report(_capabilitiesLabel, error, stack);
+    reportUnlessServerOrNetwork(_capabilitiesLabel, error, stack);
   }
   if (saved != null && isFresh(saved.savedAt, accountCapabilitiesLifetime)) {
     return saved.capabilities;
@@ -100,7 +95,7 @@ Future<AccountCapabilities> readAccountCapabilities(Client client) async {
   try {
     fetched = await client.getCapabilities();
   } catch (error, stack) {
-    _report(_capabilitiesLabel, error, stack);
+    reportUnlessServerOrNetwork(_capabilitiesLabel, error, stack);
     return saved?.capabilities ?? const AccountCapabilities();
   }
   final canChangePassword = fetched.mChangePassword?.enabled ?? true;
@@ -109,7 +104,7 @@ Future<AccountCapabilities> readAccountCapabilities(Client client) async {
   try {
     accountPage = canChangePassword ? null : await _readAccountPage(client);
   } catch (error, stack) {
-    _report('read account page', error, stack);
+    reportUnlessServerOrNetwork('read account page', error, stack);
     return AccountCapabilities(
       canChangePassword: canChangePassword,
       canMintSignInCodes: canMintSignInCodes,
@@ -128,7 +123,7 @@ Future<AccountCapabilities> readAccountCapabilities(Client client) async {
       'account_page': _savedAccountPage(result.accountPage),
     });
   } catch (error, stack) {
-    _report(_capabilitiesLabel, error, stack);
+    reportUnlessServerOrNetwork(_capabilitiesLabel, error, stack);
   }
   return result;
 }

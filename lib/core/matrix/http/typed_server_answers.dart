@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
+import '../../errors/caught_errors.dart';
 import '../../errors/connection_error.dart';
 
 class ServerAnswerFailed implements Exception {
@@ -45,10 +46,14 @@ bool isRateLimit(Object error) => switch (error) {
 bool isServerError(Object error) =>
     error is ServerAnswerFailed && error.statusCode >= 500;
 
-bool isServerOrNetworkFailure(Object error) =>
-    isConnectionError(error) ||
-    error is MatrixException ||
-    error is ServerAnswerFailed;
+void reportUnlessServerOrNetwork(String label, Object error, StackTrace stack) {
+  if (isConnectionError(error) ||
+      error is MatrixException ||
+      error is ServerAnswerFailed) {
+    return;
+  }
+  reportCaught(label, error, stack);
+}
 
 bool isExpectedServerFailure(Object error) =>
     isConnectionError(error) || isRateLimit(error) || isServerError(error);
