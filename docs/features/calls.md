@@ -218,9 +218,11 @@ stateDiagram-v2
   so a key sent in reply is never lost. The module rings on a
   caller's, so the ring never waits on the caller's camera; an answerer's
   is the answer, so the caller stops ringing and sends its key while the
-  answerer is still connecting. After that it is republished periodically
-  and on every change, with user toggles coalesced, because state events
-  are permanent room history.
+  answerer is still connecting. From that first publish the session also
+  follows the others' memberships, so an answerer sends its own key and
+  takes in the caller while it connects. After that it is republished
+  periodically and on every change, with user toggles coalesced, because
+  state events are permanent room history.
 - **One serial writer per room carries all of our membership writes**, each
   waited on for a bounded time, and the latest membership is written again
   if a stale write lands late, so a quick redial is never wiped by the
@@ -347,6 +349,7 @@ sequenceDiagram
 | A black placeholder stands in whenever the camera is not sending, and a track is advertised only once it has sent bytes | Cloudflare drops a published track that receives no packets for 30 s, and advertising earlier lets someone pull a track the SFU does not have yet |
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
 | A pull the SFU cannot find is retried on every sync and reported only once the remote has published a newer membership and the pull still fails | During a reconnect the remote's last-advertised session may already be gone, so an early not-found is a race, not a defect |
+| A pull waits for our own publish on its session, at a first join or a rejoin, and every remote heard of meanwhile is pulled right after | A session's first negotiation is then always our publish, never an SFU offer, and a remote that arrived before the session existed is never dropped |
 | Every track swap is `replaceTrack`, never a mid-call re-offer | A re-offer recreates the receive streams, and Android's flutter_webrtc then renders nothing (flutter-webrtc#2124) |
 
 **The placeholder** is a tiny native black video, Cloudflare's own pattern
@@ -928,7 +931,8 @@ events queue until Dart takes them, so a cold-started Dart misses no ring.
 
 - **Answering a pushed ring** first re-reads the caller's membership from
   the server, since local state is stale after suspension. CallKit's
-  answer is held until Dart reports the call connected.
+  answer is held until Dart reports the call connected: once the
+  answerer's SFU session is open and it sees the caller's membership.
 - **The call ledger** (notify App Group) records each CallKit call's state,
   so a late push never rings a resolved call and the extension can tell
   whether CallKit rang.

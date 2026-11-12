@@ -81,6 +81,7 @@ class CloudflareConnection implements CallConnection {
 
   RTCRtpTransceiver? _localAudioTransceiver;
   RTCRtpTransceiver? _localVideoTransceiver;
+  bool _published = false;
   final Set<String> _sendingTrackNames = {};
   Timer? _firstMediaTimer;
 
@@ -240,6 +241,14 @@ class CloudflareConnection implements CallConnection {
     if (_closed) return;
     await _host.publishLocalMedia(_attachLocalMediaAndPublish);
     if (_closed) return;
+    for (final remote in _remote.values.toList()) {
+      unawaited(
+        runBestEffort(
+          () => _syncRemoteTracks(remote),
+          label: 'sync remote tracks',
+        ),
+      );
+    }
     if (!_reconnecting) _host.reportStatus(CallEngineStatus.connected);
   }
 
@@ -327,6 +336,7 @@ class CloudflareConnection implements CallConnection {
       return false;
     }
     if (!_isLiveConnection(pc)) return false;
+    _published = true;
     _watchFirstMedia(pc);
     return true;
   }
@@ -642,6 +652,7 @@ class CloudflareConnection implements CallConnection {
   void _forgetLocalSenders() {
     _localAudioTransceiver = null;
     _localVideoTransceiver = null;
+    _published = false;
   }
 
   Future<void> _resetRemotesForRejoin() async {
@@ -927,7 +938,7 @@ class CloudflareConnection implements CallConnection {
     }
     final pc = _pc;
     final sessionId = _sessionId;
-    if (pc == null || sessionId == null) return;
+    if (pc == null || sessionId == null || !_published) return;
 
     remote.pulling = true;
     try {

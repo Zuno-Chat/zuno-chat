@@ -2061,6 +2061,55 @@ void main() {
       expect(c.publishes.last, contains('"audio":"audio"'));
     });
 
+    test(
+      'takes in the caller and sends it our key as soon as its session '
+      'opens, before the join finishes, and follows each sync once',
+      () async {
+        final joinGate = Completer<void>();
+        final engine = _OpeningSessionEngine(joinGate: joinGate);
+        final call = keyDeliveryCall(
+          inCall: const {_caller: 'CALLERDEV'},
+          engine: engine,
+          keyDeliveryDelay: Duration.zero,
+        );
+        final accepting = call.session.accept();
+        await pumpEventQueue();
+        expect(engine.updatedRemotes, isEmpty);
+
+        engine.openSession();
+        await pumpEventQueue();
+        expect(engine.updatedRemotes, [_callerDevice]);
+        expect(call.client.keysSent.keys, ['CALLERDEV']);
+        expect(call.session.phase, CallSessionPhase.connecting);
+
+        joinGate.complete();
+        await accepting;
+        final seen = engine.updatedRemotes.length;
+        call.client.onSync.add(SyncUpdate(nextBatch: 'next'));
+        await pumpEventQueue();
+        expect(engine.updatedRemotes, hasLength(seen + 1));
+      },
+    );
+
+    test('a session that opens as the callee hangs up takes in no '
+        'one', () async {
+      final engine = _OpeningSessionEngine(joinGate: Completer<void>());
+      final call = keyDeliveryCall(
+        inCall: const {_caller: 'CALLERDEV'},
+        engine: engine,
+        keyDeliveryDelay: Duration.zero,
+      );
+      unawaited(call.session.accept());
+      await pumpEventQueue();
+
+      unawaited(call.session.hangUp());
+      engine.openSession();
+      await pumpEventQueue();
+
+      expect(engine.updatedRemotes, isEmpty);
+      expect(call.client.keysSent, isEmpty);
+    });
+
     test('answers while its microphone and camera are still opening', () async {
       final c = _PublishCountingClient();
       final r = buildTestRoom(c);

@@ -575,6 +575,8 @@ class CallSession {
           runBestEffort(_publishOwnMembership, label: 'republish membership'),
         ),
       );
+      _followRemoteMemberships();
+      if (ending) return;
 
       await _publishOwnMembership();
       if (ending) return;
@@ -582,11 +584,6 @@ class CallSession {
         _membershipRefreshInterval,
         (_) => _publishMembershipBestEffort(force: true),
       );
-      _syncSub = client.onSync.stream.listen(
-        (_) => _reconcileRemoteMemberships(),
-      );
-      _reconcileRemoteMemberships();
-      if (ending) return;
       _setPhase(CallSessionPhase.active);
       _activeAt = clock.now();
     } catch (e) {
@@ -611,8 +608,17 @@ class CallSession {
       if (built.localFociInfo == null) return;
       unawaited(watch.cancel());
       _publishOwnMembership().ignore();
+      _followRemoteMemberships();
     });
     return watch;
+  }
+
+  void _followRemoteMemberships() {
+    if (_syncSub != null || ending) return;
+    _syncSub = client.onSync.stream.listen(
+      (_) => _reconcileRemoteMemberships(),
+    );
+    _reconcileRemoteMemberships();
   }
 
   void _followEngineStatus(CallEngineStatus status) {

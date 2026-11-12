@@ -248,6 +248,48 @@ void main() {
       });
     });
 
+    test('a remote that joins while our media opens is pulled only once our '
+        'tracks are published', () {
+      inCall((call) {
+        call.encrypt();
+        final gate = Completer<void>();
+        call.backend.captureGate = gate;
+        final joining = joinWithLocalMedia(call.engine);
+        call.flush();
+
+        call.remoteJoins();
+        expect(call.sfu.pulls, isEmpty);
+
+        gate.complete();
+        call.wait(joining);
+        call.flush();
+
+        expect(call.sfu.pulls, hasLength(1));
+        expect(
+          call.sfu.requests.indexOf(call.sfu.pushes.single),
+          lessThan(call.sfu.requests.indexOf(call.sfu.pulls.single)),
+        );
+      });
+    });
+
+    test('a remote handed over before the session opens is pulled once the '
+        'join has published', () {
+      inCall((call) {
+        call.encrypt();
+        final gate = Completer<void>();
+        call.sfu.sessionGate = gate;
+        final joining = joinWithLocalMedia(call.engine);
+        call.flush();
+
+        call.remoteJoins();
+        gate.complete();
+        call.wait(joining);
+        call.flush();
+
+        expect(call.sfu.pulls, hasLength(1));
+      });
+    });
+
     test('a track is offered within a tenth of a second of its first '
         'media', () {
       inCall((call) {
