@@ -16,7 +16,7 @@ class ChatRowData {
   final String roomId;
   final String title;
   final Uri? avatarUrl;
-  final bool isDirect;
+  final String? directUserId;
   final String toneSeed;
   final String? lastEventId;
   final EventStatus? lastEventStatus;
@@ -35,7 +35,7 @@ class ChatRowData {
     required this.roomId,
     required this.title,
     required this.avatarUrl,
-    required this.isDirect,
+    required this.directUserId,
     required this.toneSeed,
     required this.lastEventId,
     required this.lastEventStatus,
@@ -55,7 +55,7 @@ class ChatRowData {
     roomId: '',
     title: 'Name',
     avatarUrl: null,
-    isDirect: true,
+    directUserId: null,
     toneSeed: '',
     lastEventId: null,
     lastEventStatus: null,
@@ -77,7 +77,7 @@ class ChatRowData {
     roomId,
     title,
     avatarUrl,
-    isDirect,
+    directUserId,
     toneSeed,
     lastEventId,
     lastEventStatus,
@@ -121,7 +121,7 @@ ChatRowData chatRowDataFor(
     roomId: room.id,
     title: display.title,
     avatarUrl: display.avatarUrl,
-    isDirect: room.isDirectChat,
+    directUserId: room.directChatMatrixID,
     toneSeed: roomToneSeed(room),
     lastEventId: event?.eventId,
     lastEventStatus: event?.status,

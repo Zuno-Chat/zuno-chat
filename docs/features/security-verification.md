@@ -18,7 +18,8 @@ Three rules govern every surface:
   can act on teaches people to dismiss warnings, including the ones that
   matter.
 - **Absence is the default.** No badge, mark or color appears unless something
-  is wrong and the user can act on it now.
+  is wrong and the user can act on it now, except the receipt on a confirmed
+  person's picture.
 
 ## Architecture
 
@@ -30,7 +31,7 @@ Logic lives in `lib/core/security/`, screens in `features/settings/`,
 | Status | `account_security_status.dart`, shown by `security_status_card.dart` |
 | Recovery | `recovery_code.dart` (generation, normalization), `recovery_code_file.dart` (the saved file), `secure_backup_page.dart` |
 | Devices | `verification_page.dart`, `approve_this_device_page.dart`, `active_sessions_page.dart` |
-| People | `user_trust.dart`, `confirmed_identity_store.dart`, `confirm_person.dart` |
+| People | `user_trust.dart`, `confirmed_identity_store.dart`, `confirm_person.dart`, `confirmed_person_mark.dart` |
 | Alerts | `alerts/` (the alert model, its stores and the one watcher), shown by `security_alert_banners.dart` |
 | Messages | `undecryptable_reason.dart`, `room_encryption.dart` (sent in clear), `recovery_code_leak.dart` |
 
@@ -179,8 +180,8 @@ confirmation of it, their devices' signatures and the key we stored:
 |---|---|---|
 | `noIdentity` | They never set up recovery | Nothing to confirm; a new device of theirs raises an alert |
 | `unconfirmed` | Not confirmed by our account | A confirm row in room info, a note in an empty one-to-one chat, the call pill |
-| `confirmed` | Confirmed, every device signed | A muted check in the chat header |
-| `confirmedWithPendingDevice` | Confirmed, but one of their devices is not approved by them | The check plus a passive line in room info |
+| `confirmed` | Confirmed, every device signed | The confirmed mark on their picture in the chat list and chat header |
+| `confirmedWithPendingDevice` | Confirmed, but one of their devices is not approved by them | The mark plus a passive line in room info |
 | `identityChanged` | Their master key differs from the one we confirmed | A banner in the chat, the call pill |
 
 The call pill (`calls.md`) shows only when both ends can finish a
@@ -335,19 +336,23 @@ the commonest words of ordinary prose break any run.
 
 | Surface | Rule |
 |---|---|
-| Confirmed person | A muted check, once per screen, as a receipt; absence means nothing |
+| Confirmed person | The confirmed mark on their picture, as a receipt; absence means nothing |
 | Empty room | One line that clears itself, promising privacy only once the person is confirmed |
 | Room list | Only alerts about this account that need acting on, never reassurance, because the same words about nobody read as marketing |
 | Message from a confirmed person's unapproved device | Long-press sheet only, since a per-message mark becomes wallpaper |
 | Call with someone on a device their account never approved | A badge naming them |
 
 - **Three visual states, no shields** (shields mean nothing outside Matrix):
-  nothing, a muted check, and attention (`security_emphasis.dart`). Attention
-  is a filled glyph among outlined icons, so it differs in kind before color
-  and stays legible to people who cannot tell colors apart. There is no
-  "settled" color, because two colored ends would read as a scale and make an
-  unmarked room look unsafe. The devices screen alone uses green and red,
-  because sorting pass from fail is its whole job.
+  nothing, the confirmed mark, and attention (`security_emphasis.dart`).
+  Attention is a filled glyph among outlined icons, so it differs in kind
+  before color and stays legible to people who cannot tell colors apart. The
+  devices screen alone uses green and red, because sorting pass from fail is
+  its whole job.
+- **The confirmed mark is the person mark with a check, in the theme's
+  amber**, so a confirmed chat differs from the others by shape and color,
+  and the person sheet leaves it off the photo because its Confirmed row
+  already says so. It takes the theme's amber, not the logo's brighter one,
+  which is too faint on light backgrounds at that small size.
 - **Ask about recovery at a moment of consequence** (`security_prompt.dart`):
   only without recovery and with a conversation, after a few days of use or
   once a second own device appears, with a cooldown, and never at

@@ -134,7 +134,6 @@ class _ChatListViewState extends State<ChatListView> {
         client: community.client,
         avatarUrl: community.avatar,
         fallbackText: title,
-        isDirect: false,
         community: true,
         radius: _headingAvatarRadius,
         toneSeed: roomToneSeed(community),

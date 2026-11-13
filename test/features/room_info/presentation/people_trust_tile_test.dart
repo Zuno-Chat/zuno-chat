@@ -5,6 +5,7 @@ import 'package:matrix/matrix.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/core/settings/app_preferences_provider.dart';
@@ -158,6 +159,7 @@ void main() {
       );
 
       expect(find.text('@bob is confirmed'), findsOneWidget);
+      expect(find.byIcon(confirmedPersonIcon), findsOneWidget);
       expect(
         find.text(
           'Confirmed March 5, 2026. Covers any device they add later. You '

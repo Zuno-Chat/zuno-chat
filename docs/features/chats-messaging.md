@@ -531,6 +531,11 @@ viewer and the caption screen's preview), iOS recording and iOS chat tones
   direct chat matches its partner everywhere, the call screen included.
 - **A failed load is evicted and its bytes deleted**, or one bad
   response would break a never-expiring entry for good.
+- **A chat's avatar carries one corner mark**: a person for a chat, the
+  confirmed mark for a confirmed person (`security-verification.md`), its
+  community's avatar for a room in a community, otherwise a group. The mark
+  sits on a ring in the color of the card or sheet beneath it, so it never
+  shows as a disc of the wrong color.
 
 ## Media viewer
 

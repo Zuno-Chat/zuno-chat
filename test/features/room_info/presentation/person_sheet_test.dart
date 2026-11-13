@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/client/matrix_client_provider.dart';
+import 'package:zuno/core/security/security_emphasis.dart';
 import 'package:zuno/core/security/security_providers.dart';
 import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/core/settings/matrix_experience.dart';
@@ -201,6 +202,22 @@ void main() {
 
     expect(inSheet(find.text('Confirmed')), findsOneWidget);
     expect(inSheet(find.text('March 5, 2026')), findsOneWidget);
+    final confirmedRow = find.ancestor(
+      of: find.text('Confirmed'),
+      matching: find.byType(ListTile),
+    );
+    expect(
+      find.descendant(
+        of: confirmedRow,
+        matching: find.byIcon(confirmedPersonIcon),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      inSheet(find.byIcon(confirmedPersonIcon)),
+      findsOneWidget,
+      reason: 'the Confirmed row says it, so their picture carries no mark',
+    );
   });
 
   testWidgets('says nothing about trust for someone not confirmed', (
@@ -213,6 +230,7 @@ void main() {
     );
 
     expect(inSheet(find.text('Confirmed')), findsNothing);
+    expect(inSheet(find.byIcon(confirmedPersonIcon)), findsNothing);
   });
 
   testWidgets('lists the other rooms you share once you expand the row', (

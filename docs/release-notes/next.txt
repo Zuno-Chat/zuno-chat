@@ -1,0 +1,4 @@
+New
+• See who you've confirmed right in your chat list.
+
+Fixed 1 bug.

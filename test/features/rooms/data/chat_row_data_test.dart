@@ -83,7 +83,7 @@ void main() {
 
     expect(data.roomId, room.id);
     expect(data.title, 'Bob');
-    expect(data.isDirect, isTrue);
+    expect(data.directUserId, '@bob:example.org');
     expect(data.toneSeed, '@bob:example.org');
     expect(data.preview?.text, 'Sure, talk soon');
     expect(data.preview?.kind, MessageKind.text);

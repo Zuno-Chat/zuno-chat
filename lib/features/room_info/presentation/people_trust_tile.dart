@@ -95,13 +95,19 @@ class _PersonTrustRow extends ConsumerWidget {
         );
       case UserTrustState.confirmed:
         return ListTile(
-          leading: Icon(Icons.check_circle_outline, color: colors.primary),
+          leading: Icon(
+            confirmedPersonIcon,
+            color: confirmedPersonColor(context),
+          ),
           title: Text(l10n.roomInfoIsConfirmed(name)),
           subtitle: Text(_confirmedSubtitle(context, ref, userId)),
         );
       case UserTrustState.confirmedWithPendingDevice:
         return ListTile(
-          leading: Icon(Icons.check_circle_outline, color: colors.primary),
+          leading: Icon(
+            confirmedPersonIcon,
+            color: confirmedPersonColor(context),
+          ),
           title: Text(l10n.roomInfoIsConfirmed(name)),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

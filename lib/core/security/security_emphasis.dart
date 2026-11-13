@@ -6,12 +6,16 @@ import '../ui/zuno_colors.dart';
 const attentionIcon = Icons.warning_rounded;
 const settledIcon = Icons.check_circle_outline;
 const notEncryptedIcon = Icons.no_encryption;
+const confirmedPersonIcon = Icons.how_to_reg;
 
 const deviceApprovedIcon = Icons.verified_user;
 const deviceUnapprovedIcon = Icons.gpp_maybe;
 
 Color deviceApprovedColor(BuildContext context) =>
     ZunoColors.of(context).success;
+
+Color confirmedPersonColor(BuildContext context) =>
+    Theme.of(context).colorScheme.primary;
 
 Color deviceUnapprovedColor(BuildContext context) =>
     Theme.of(context).colorScheme.error;

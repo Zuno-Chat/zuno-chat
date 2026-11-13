@@ -148,7 +148,7 @@ class _ShareTargetListState extends State<ShareTargetList> {
         client: widget.client,
         avatarUrl: target.avatarUrl,
         fallbackText: target.title,
-        isDirect: room.isDirectChat,
+        directUserId: room.directChatMatrixID,
         toneSeed: roomToneSeed(room),
         inCommunity: target.community,
       ),

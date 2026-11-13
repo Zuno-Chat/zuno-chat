@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:matrix/matrix.dart';
 
 import '../../../core/matrix/media/avatars/mxc_avatar.dart';
+import '../../../core/security/confirmed_person_mark.dart';
+import '../../../core/ui/avatar_mark.dart';
 
 typedef CommunityMark = ({Uri? avatarUrl, String name, String toneSeed});
 
@@ -9,7 +11,7 @@ class RoomKindAvatar extends StatelessWidget {
   final Client client;
   final Uri? avatarUrl;
   final String fallbackText;
-  final bool isDirect;
+  final String? directUserId;
   final bool community;
   final CommunityMark? inCommunity;
   final double radius;
@@ -19,8 +21,8 @@ class RoomKindAvatar extends StatelessWidget {
     required this.client,
     required this.avatarUrl,
     required this.fallbackText,
-    required this.isDirect,
     required this.toneSeed,
+    this.directUserId,
     this.community = false,
     this.inCommunity,
     this.radius = 20,
@@ -40,54 +42,42 @@ class RoomKindAvatar extends StatelessWidget {
       );
     }
     final colors = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: radius * 2,
-      height: radius * 2,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          MxcAvatar(
-            client: client,
-            avatarUrl: avatarUrl,
-            fallbackText: fallbackText,
-            radius: radius,
-            toneSeed: toneSeed,
-          ),
-          Positioned(
-            right: -2,
-            bottom: -2,
-            child: switch (inCommunity) {
-              final mark? when !isDirect => Container(
-                padding: const EdgeInsets.all(1.5),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(_markRadius * 0.6 + 1.5),
-                ),
-                child: MxcAvatar(
-                  client: client,
-                  avatarUrl: mark.avatarUrl,
-                  fallbackText: mark.name,
-                  toneSeed: mark.toneSeed,
-                  radius: _markRadius,
-                  shape: AvatarShape.roundedSquare,
-                ),
-              ),
-              _ => Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(
-                  isDirect ? Icons.person : Icons.groups,
-                  size: 12,
-                  color: colors.onSurfaceVariant,
-                ),
-              ),
-            },
-          ),
-        ],
+    return MarkedAvatar(
+      avatar: MxcAvatar(
+        client: client,
+        avatarUrl: avatarUrl,
+        fallbackText: fallbackText,
+        radius: radius,
+        toneSeed: toneSeed,
       ),
+      mark: switch ((directUserId, inCommunity)) {
+        (final userId?, _) => ConfirmedPersonMark(
+          userId: userId,
+          orElse: AvatarMark(
+            icon: Icons.person,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        (null, final mark?) => Container(
+          padding: const EdgeInsets.all(1.5),
+          decoration: BoxDecoration(
+            color: avatarMarkRingColor(context),
+            borderRadius: BorderRadius.circular(_markRadius * 0.6 + 1.5),
+          ),
+          child: MxcAvatar(
+            client: client,
+            avatarUrl: mark.avatarUrl,
+            fallbackText: mark.name,
+            toneSeed: mark.toneSeed,
+            radius: _markRadius,
+            shape: AvatarShape.roundedSquare,
+          ),
+        ),
+        (null, null) => AvatarMark(
+          icon: Icons.groups,
+          color: colors.onSurfaceVariant,
+        ),
+      },
     );
   }
 }

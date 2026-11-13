@@ -11,6 +11,7 @@ import '../../../core/matrix/media/avatars/mxc_avatar.dart';
 import '../../../core/matrix/rooms/membership/rooms_in_common.dart';
 import '../../../core/matrix/rooms/permissions/room_roles.dart';
 import '../../../core/matrix/rooms/room_title.dart';
+import '../../../core/security/security_emphasis.dart';
 import '../../../core/security/security_providers.dart';
 import '../../../core/security/user_trust.dart';
 import '../../../core/settings/matrix_experience.dart';
@@ -110,8 +111,8 @@ class _PersonSheetState extends ConsumerState<_PersonSheet> {
       if (confirmed)
         ListTile(
           leading: Icon(
-            Icons.check_circle_outline,
-            color: theme.colorScheme.primary,
+            confirmedPersonIcon,
+            color: confirmedPersonColor(context),
           ),
           title: Text(l10n.roomInfoConfirmedPerson),
           subtitle: confirmedAt == null
@@ -236,7 +237,6 @@ class _SharedRoomTile extends StatelessWidget {
         client: room.client,
         avatarUrl: room.avatar,
         fallbackText: title,
-        isDirect: false,
         toneSeed: roomToneSeed(room),
         radius: 18,
       ),

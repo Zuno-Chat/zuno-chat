@@ -253,7 +253,6 @@ class _RoomRow extends StatelessWidget {
         client: client,
         avatarUrl: room.avatarUrl,
         fallbackText: title,
-        isDirect: false,
         toneSeed: room.roomId,
         community: community,
       ),

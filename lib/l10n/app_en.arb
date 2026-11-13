@@ -641,7 +641,7 @@
   },
   "chatConfirmedLabel": "Confirmed",
   "@chatConfirmedLabel": {
-    "description": "Screen-reader label for the check icon: this person is confirmed"
+    "description": "Screen-reader label for the mark on a person's picture: this person is confirmed"
   },
   "chatDeleteAll": "Delete all",
   "@chatDeleteAll": {

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zuno/core/l10n/l10n.dart';
+import 'package:zuno/core/security/security_emphasis.dart';
+import 'package:zuno/core/security/security_providers.dart';
+import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/core/ui/zuno_colors.dart';
 import 'package:zuno/features/rooms/presentation/room_kind_avatar.dart';
 
@@ -9,24 +13,28 @@ import '../../../helpers/fake_matrix.dart';
 void main() {
   Future<void> pump(
     WidgetTester tester, {
-    required bool isDirect,
+    String? directUserId,
+    UserTrustState trust = UserTrustState.unconfirmed,
     bool community = false,
     String fallbackText = 'Bob',
     String toneSeed = '@bob:example.org',
   }) async {
     final client = buildTestClient(userId: '@me:example.org');
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: RoomKindAvatar(
-            client: client,
-            avatarUrl: null,
-            fallbackText: fallbackText,
-            isDirect: isDirect,
-            community: community,
-            toneSeed: toneSeed,
+      ProviderScope(
+        overrides: [userTrustProvider.overrideWith((ref, _) => trust)],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: RoomKindAvatar(
+              client: client,
+              avatarUrl: null,
+              fallbackText: fallbackText,
+              directUserId: directUserId,
+              community: community,
+              toneSeed: toneSeed,
+            ),
           ),
         ),
       ),
@@ -34,23 +42,43 @@ void main() {
   }
 
   testWidgets('a direct chat is badged with one person', (tester) async {
-    await pump(tester, isDirect: true);
+    await pump(tester, directUserId: '@bob:example.org');
 
     expect(find.byIcon(Icons.person), findsOneWidget);
     expect(find.byIcon(Icons.groups), findsNothing);
+    expect(find.byIcon(confirmedPersonIcon), findsNothing);
+  });
+
+  testWidgets('a direct chat with a confirmed person is badged confirmed '
+      'instead', (tester) async {
+    await pump(
+      tester,
+      directUserId: '@bob:example.org',
+      trust: UserTrustState.confirmed,
+    );
+
+    expect(find.byIcon(confirmedPersonIcon), findsOneWidget);
+    expect(find.byIcon(Icons.person), findsNothing);
   });
 
   testWidgets('a group is badged with several', (tester) async {
-    await pump(tester, isDirect: false);
+    await pump(tester);
 
     expect(find.byIcon(Icons.groups), findsOneWidget);
     expect(find.byIcon(Icons.person), findsNothing);
   });
 
+  testWidgets('a group is never badged confirmed', (tester) async {
+    await pump(tester, trust: UserTrustState.confirmed);
+
+    expect(find.byIcon(Icons.groups), findsOneWidget);
+    expect(find.byIcon(confirmedPersonIcon), findsNothing);
+  });
+
   testWidgets('the avatar underneath keeps its initials and tone', (
     tester,
   ) async {
-    await pump(tester, isDirect: true);
+    await pump(tester, directUserId: '@bob:example.org');
 
     expect(find.text('B'), findsOneWidget);
     final circle =
@@ -70,7 +98,6 @@ void main() {
   testWidgets('a community is a rounded square with no badge', (tester) async {
     await pump(
       tester,
-      isDirect: false,
       community: true,
       fallbackText: 'Climbing club',
       toneSeed: '!club:example.org',

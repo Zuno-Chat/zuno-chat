@@ -65,7 +65,6 @@ class JoinableRoomRow extends StatelessWidget {
                 client: client,
                 avatarUrl: chunk.avatarUrl,
                 fallbackText: title,
-                isDirect: false,
                 radius: ChatRow.avatarRadius,
                 toneSeed: chunk.roomId,
               ),

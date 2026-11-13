@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/events/event_display.dart';
 import 'package:zuno/core/security/security_emphasis.dart';
+import 'package:zuno/core/security/security_providers.dart';
+import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
 import 'package:zuno/features/rooms/data/chat_row_data.dart';
 import 'package:zuno/features/rooms/presentation/chat_row.dart';
@@ -24,7 +27,7 @@ ChatRowData data({
   roomId: '!room:example.org',
   title: 'Maya',
   avatarUrl: null,
-  isDirect: true,
+  directUserId: '@maya:example.org',
   toneSeed: '@maya:example.org',
   lastEventId: r'$e',
   lastEventStatus: EventStatus.synced,
@@ -52,23 +55,36 @@ void main() {
     VoidCallback? onTap,
     VoidCallback? onLongPress,
     bool compact = false,
+    UserTrustState trust = UserTrustState.unconfirmed,
   }) => tester.pumpWidget(
-    MaterialApp(
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      theme: zunoLightTheme,
-      home: Scaffold(
-        body: ChatRow(
-          data: row,
-          client: client,
-          preview: const Text('See you at seven'),
-          onTap: onTap,
-          onLongPress: onLongPress,
-          compact: compact,
+    ProviderScope(
+      overrides: [userTrustProvider.overrideWith((ref, _) => trust)],
+      child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        theme: zunoLightTheme,
+        home: Scaffold(
+          body: ChatRow(
+            data: row,
+            client: client,
+            preview: const Text('See you at seven'),
+            onTap: onTap,
+            onLongPress: onLongPress,
+            compact: compact,
+          ),
         ),
       ),
     ),
   );
+
+  testWidgets("a confirmed person's chat carries the confirmed mark", (
+    tester,
+  ) async {
+    await pump(tester, data(), trust: UserTrustState.confirmed);
+
+    expect(find.byIcon(confirmedPersonIcon), findsOneWidget);
+    expect(find.byIcon(Icons.person), findsNothing);
+  });
 
   Text nameText(WidgetTester tester) => tester.widget<Text>(find.text('Maya'));
 

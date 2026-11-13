@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/security/security_emphasis.dart';
+import 'package:zuno/core/security/security_providers.dart';
+import 'package:zuno/core/security/user_trust.dart';
 import 'package:zuno/features/room_info/presentation/room_info_page.dart';
 
 import '../../../helpers/fake_matrix.dart';
@@ -42,6 +44,48 @@ void main() {
     await harness.settle(tester);
 
     expect(find.byType(RoomInfoPage), findsOneWidget);
+  });
+
+  group('the confirmed mark on the avatar', () {
+    Finder mark() => find.descendant(
+      of: find.byType(AppBar),
+      matching: find.byIcon(confirmedPersonIcon),
+    );
+
+    void trust(UserTrustState state) => harness = RoomPageHarness(
+      overrides: [userTrustProvider.overrideWith((ref, _) => state)],
+    );
+
+    void makeDirectChat() =>
+        harness.client.accountData['m.direct'] = BasicEvent(
+          type: 'm.direct',
+          content: {
+            '@bob:example.org': [harness.room.id],
+          },
+        );
+
+    testWidgets('shows on a chat with a confirmed person', (tester) async {
+      trust(UserTrustState.confirmed);
+      makeDirectChat();
+      await harness.pumpRoomPage(tester);
+
+      expect(mark(), findsOneWidget);
+    });
+
+    testWidgets('is absent for someone not confirmed', (tester) async {
+      trust(UserTrustState.unconfirmed);
+      makeDirectChat();
+      await harness.pumpRoomPage(tester);
+
+      expect(mark(), findsNothing);
+    });
+
+    testWidgets('never shows on a group, whoever is in it', (tester) async {
+      trust(UserTrustState.confirmed);
+      await harness.pumpRoomPage(tester);
+
+      expect(mark(), findsNothing);
+    });
   });
 
   group('the not-encrypted mark beside the name', () {

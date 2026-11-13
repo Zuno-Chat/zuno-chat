@@ -9,10 +9,11 @@ import '../../../core/matrix/rooms/membership/room_invite.dart';
 import '../../../core/matrix/rooms/official_room.dart';
 import '../../../core/matrix/rooms/room_changes.dart';
 import '../../../core/matrix/rooms/typing_indicator_text.dart';
+import '../../../core/security/confirmed_person_mark.dart';
 import '../../../core/security/security_emphasis.dart';
+import '../../../core/ui/avatar_mark.dart';
 import '../../../core/ui/line_strut.dart';
 import '../../room_info/presentation/room_access_label.dart';
-import 'confirmed_person_check.dart';
 import 'emoji_panel.dart';
 
 class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -49,12 +50,18 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
         onTap: onOpenInfo,
         child: Row(
           children: [
-            MxcAvatar(
-              client: room.client,
-              avatarUrl: display.avatarUrl,
-              fallbackText: display.title,
-              toneSeed: roomToneSeed(room),
-              radius: 18,
+            MarkedAvatar(
+              avatar: MxcAvatar(
+                client: room.client,
+                avatarUrl: display.avatarUrl,
+                fallbackText: display.title,
+                toneSeed: roomToneSeed(room),
+                radius: 18,
+              ),
+              mark: switch (room.directChatMatrixID) {
+                final userId? => ConfirmedPersonMark(userId: userId),
+                null => null,
+              },
             ),
             const SizedBox(width: 10),
             Expanded(
@@ -80,7 +87,6 @@ class RoomAppBar extends StatelessWidget implements PreferredSizeWidget {
                         const SizedBox(width: 6),
                         const NotEncryptedMark(size: 18),
                       ],
-                      ConfirmedPersonCheck(room: room),
                     ],
                   ),
                   RoomChangesBuilder(
