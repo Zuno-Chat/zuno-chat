@@ -4,6 +4,8 @@ import 'package:flutter_webrtc/flutter_webrtc.dart'
 ({int width, int height}) captureSizeFor({required bool lowDataMode}) =>
     lowDataMode ? (width: 640, height: 360) : (width: 854, height: 480);
 
+const fullLayerRid = 'h';
+
 typedef SimulcastLayer = ({
   String rid,
   double scaleResolutionDownBy,
@@ -19,7 +21,7 @@ List<SimulcastLayer> simulcastLayersFor({required bool lowDataMode}) => [
     maxBitrate: lowDataMode ? 150000 : 200000,
   ),
   (
-    rid: 'h',
+    rid: fullLayerRid,
     scaleResolutionDownBy: 1.0,
     maxFramerate: 30,
     maxBitrate: lowDataMode ? 500000 : 950000,

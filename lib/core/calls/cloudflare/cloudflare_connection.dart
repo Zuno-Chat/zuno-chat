@@ -11,6 +11,7 @@ import '../../matrix/http/bearer_authorization.dart';
 import '../media/call_connection.dart';
 import '../media/quality_report.dart';
 import '../media/reconnect_policy.dart';
+import '../media/simulcast_layers.dart';
 import '../models/call_engine_status.dart';
 import '../models/call_quality.dart';
 import '../models/voip_participant_id.dart';
@@ -973,8 +974,11 @@ class CloudflareConnection implements CallConnection {
       sessionId: sessionId,
       tracks: toPull
           .map(
-            (name) =>
-                CfTrack.remote(sessionId: remote.sessionId, trackName: name),
+            (name) => CfTrack.remote(
+              sessionId: remote.sessionId,
+              trackName: name,
+              preferredRid: name == MediaKind.video.name ? fullLayerRid : null,
+            ),
           )
           .toList(),
     );

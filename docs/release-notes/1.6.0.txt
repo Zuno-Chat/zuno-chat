@@ -5,4 +5,4 @@ New
 • Sign out and Delete account moved to Account.
 • Take more photos or videos before sending them together.
 
-Fixed 10 bugs.
+Fixed 11 bugs.

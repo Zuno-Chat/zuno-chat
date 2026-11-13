@@ -27,6 +27,7 @@ class CfTrack {
   final String? trackName;
   final String? sessionId;
   final String? errorCode;
+  final String? preferredRid;
 
   const CfTrack({
     required this.location,
@@ -34,6 +35,7 @@ class CfTrack {
     this.trackName,
     this.sessionId,
     this.errorCode,
+    this.preferredRid,
   });
 
   factory CfTrack.local({required String mid, required String trackName}) =>
@@ -42,7 +44,13 @@ class CfTrack {
   factory CfTrack.remote({
     required String sessionId,
     required String trackName,
-  }) => CfTrack(location: 'remote', sessionId: sessionId, trackName: trackName);
+    String? preferredRid,
+  }) => CfTrack(
+    location: 'remote',
+    sessionId: sessionId,
+    trackName: trackName,
+    preferredRid: preferredRid,
+  );
 
   factory CfTrack.fromJson(Map<String, dynamic> json) => CfTrack(
     location: json['location'] as String?,
@@ -57,6 +65,12 @@ class CfTrack {
     if (mid != null) 'mid': mid,
     if (trackName != null) 'trackName': trackName,
     if (sessionId != null) 'sessionId': sessionId,
+    if (preferredRid != null)
+      'simulcast': {
+        'preferredRid': preferredRid,
+        'priorityOrdering': 'asciibetical',
+        'ridNotAvailable': 'asciibetical',
+      },
   };
 
   bool get hasError => errorCode != null;

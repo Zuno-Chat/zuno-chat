@@ -1492,17 +1492,22 @@ void main() {
       });
     });
 
-    test('video and audio pulls carry no simulcast object', () {
+    test('a video pull asks for the full layer and falls back to the next '
+        'one the sender still sends; an audio pull names no layer', () {
       inCall((call) {
         call.joinEncrypted();
 
         call.remoteJoins();
 
-        expect(call.sfu.pulls.single.tracks, isNotEmpty);
-        expect(
-          call.sfu.pulls.single.tracks.where((t) => t.containsKey('simulcast')),
-          isEmpty,
-        );
+        final tracks = {
+          for (final t in call.sfu.pulls.single.tracks) t['trackName']: t,
+        };
+        expect(tracks['audio']!.containsKey('simulcast'), isFalse);
+        expect(tracks['video']!['simulcast'], {
+          'preferredRid': 'h',
+          'priorityOrdering': 'asciibetical',
+          'ridNotAvailable': 'asciibetical',
+        });
       }, kind: CallKind.video);
     });
   });
