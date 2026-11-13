@@ -50,7 +50,8 @@ class JoinableRoomRow extends StatelessWidget {
     final title = listedRoomTitle(chunk, l10n);
     final topic = chunk.topic?.trim();
     final detail = joinDetails([
-      if (entry != JoinEntry.join) RoomAccess.askToJoin.label(l10n),
+      if (entry != JoinEntry.join)
+        RoomAccess.askToJoin.label(l10n, inCommunity: true),
       l10n.unitsMembers(chunk.numJoinedMembers),
       if (topic != null && topic.isNotEmpty) topic,
     ]);

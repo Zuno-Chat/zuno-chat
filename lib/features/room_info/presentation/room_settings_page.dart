@@ -76,6 +76,7 @@ class RoomSettingsPage extends StatefulWidget {
 
 class _RoomSettingsPageState extends State<RoomSettingsPage> {
   late final bool _community = widget.room.isSpace;
+  bool get _inCommunity => isCommunityRoom(widget.room);
   final _saving = <_Field>{};
 
   String _nameLabel(AppLocalizations l10n) =>
@@ -270,21 +271,20 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
     final l10n = context.l10n;
     final current = roomAccessOf(room);
     final communities = _community ? const <Room>[] : mutualCommunitiesOf(room);
-    final inCommunity = !_community && room.spaceParents.isNotEmpty;
     final chosen = await showChoiceSheet(
       context,
       current: current,
       choices: [
         for (final access in [
-          if (!inCommunity) RoomAccess.public,
+          if (!_inCommunity) RoomAccess.public,
           if (communities.isNotEmpty) RoomAccess.community,
-          if (inCommunity) RoomAccess.askToJoin,
+          if (_inCommunity) RoomAccess.askToJoin,
           RoomAccess.private,
         ])
           SheetChoice(
             access,
-            label: access.label(l10n),
-            subtitle: access.description(l10n),
+            label: access.label(l10n, inCommunity: _inCommunity),
+            subtitle: access.description(l10n, inCommunity: _inCommunity),
           ),
       ],
     );
@@ -308,26 +308,59 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<bool> _confirmAccessChange(RoomAccess chosen) {
     final l10n = context.l10n;
-    final (title, action) = switch (chosen) {
+    final (title, action, lines) = switch (chosen) {
       RoomAccess.public => (
         _community
             ? l10n.roomInfoMakeCommunityPublicTitle
             : l10n.roomInfoMakeRoomPublicTitle,
         l10n.roomInfoMakePublic,
+        [
+          l10n.roomInfoAccessFindable,
+          l10n.roomInfoAccessJoinFree,
+          _community
+              ? l10n.roomInfoAccessCommunityRoomsKeep
+              : l10n.roomInfoAccessHistoryDepends,
+        ],
       ),
       RoomAccess.community => (
         l10n.roomInfoOpenToCommunityTitle,
         l10n.roomInfoOpenToMembers,
+        [
+          l10n.roomInfoAccessCommunityMembersJoin,
+          l10n.roomInfoAccessNotListed,
+          l10n.roomInfoAccessMembersStay,
+        ],
       ),
       RoomAccess.askToJoin => (
-        l10n.roomInfoLetMembersAskTitle,
-        l10n.roomInfoLetThemAsk,
+        l10n.roomInfoMakeRoomPrivateTitle,
+        l10n.roomInfoMakePrivate,
+        [
+          l10n.roomInfoAccessCommunitySeesAndAsks,
+          l10n.roomInfoAccessModeratorsDecide,
+          l10n.roomInfoAccessMembersStay,
+        ],
+      ),
+      RoomAccess.private when _inCommunity => (
+        l10n.roomInfoMakeRoomInviteOnlyTitle,
+        l10n.roomInfoMakeInviteOnly,
+        [
+          l10n.roomInfoAccessOnlyRoomSeesIt,
+          l10n.roomInfoAccessNeedInvite,
+          l10n.roomInfoAccessMembersStay,
+        ],
       ),
       RoomAccess.private => (
         _community
             ? l10n.roomInfoMakeCommunityPrivateTitle
             : l10n.roomInfoMakeRoomPrivateTitle,
         l10n.roomInfoMakePrivate,
+        [
+          _community
+              ? l10n.roomInfoAccessCommunityLeavesList
+              : l10n.roomInfoAccessRoomLeavesList,
+          l10n.roomInfoAccessNeedInvite,
+          l10n.roomInfoAccessMembersStay,
+        ],
       ),
     };
     return confirm(
@@ -337,7 +370,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final line in _accessConsequences(l10n, chosen, _community))
+          for (final line in lines)
             Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: Text(l10n.roomInfoAccessBullet(line)),
@@ -454,7 +487,9 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                   title: _community
                       ? l10n.roomInfoCommunityAccess
                       : l10n.roomInfoRoomAccess,
-                  subtitle: Text(roomAccessOf(room).label(l10n)),
+                  subtitle: Text(
+                    roomAccessOf(room).label(l10n, inCommunity: _inCommunity),
+                  ),
                   edit: _changeAccess,
                 ),
             ],
@@ -493,34 +528,3 @@ class _SettingTile extends StatelessWidget {
     onTap: saving ? null : onEdit,
   );
 }
-
-List<String> _accessConsequences(
-  AppLocalizations l10n,
-  RoomAccess access,
-  bool community,
-) => switch (access) {
-  RoomAccess.public => [
-    l10n.roomInfoAccessFindable,
-    l10n.roomInfoAccessJoinFree,
-    community
-        ? l10n.roomInfoAccessCommunityRoomsKeep
-        : l10n.roomInfoAccessHistoryDepends,
-  ],
-  RoomAccess.community => [
-    l10n.roomInfoAccessCommunityMembersJoin,
-    l10n.roomInfoAccessNotListed,
-    l10n.roomInfoAccessMembersStay,
-  ],
-  RoomAccess.askToJoin => [
-    l10n.roomInfoAccessCommunitySeesAndAsks,
-    l10n.roomInfoAccessModeratorsDecide,
-    l10n.roomInfoAccessMembersStay,
-  ],
-  RoomAccess.private => [
-    community
-        ? l10n.roomInfoAccessCommunityLeavesList
-        : l10n.roomInfoAccessRoomLeavesList,
-    l10n.roomInfoAccessNeedInvite,
-    l10n.roomInfoAccessMembersStay,
-  ],
-};

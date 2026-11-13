@@ -207,6 +207,27 @@ void main() {
     expect(find.text('Private'), findsOneWidget);
   });
 
+  testWidgets('a room people ask to join outside any community says so, and '
+      'Private makes it invite only', (tester) async {
+    setOwnLevel(100);
+    setJoinRule('knock');
+    await pumpPage(tester);
+
+    expect(find.text('Ask to join'), findsOneWidget);
+
+    await pickAccess(tester, 'Private');
+
+    expect(find.text('Make room private?'), findsOneWidget);
+    await tester.tap(find.text('Make private'));
+    await tester.pumpAndSettle();
+
+    final joinRule = requests.firstWhere(
+      (r) => r.url.pathSegments.contains('m.room.join_rules'),
+    );
+    expect(jsonDecode(joinRule.body), {'join_rule': 'invite'});
+    expect(find.text('Private'), findsOneWidget);
+  });
+
   group('a room inside a community', () {
     void addToCommunity({bool named = true}) {
       final community = buildTestRoom(client, id: '!club:example.org')
@@ -263,7 +284,7 @@ void main() {
           .toList();
     }
 
-    testWidgets('offers Community, Ask to join and Private, never Public', (
+    testWidgets('offers Community, Private and Invite only, never Public', (
       tester,
     ) async {
       setOwnLevel(100);
@@ -273,8 +294,8 @@ void main() {
 
       expect(await accessChoices(tester), [
         'Community',
-        'Ask to join',
         'Private',
+        'Invite only',
       ]);
     });
 
@@ -295,7 +316,7 @@ void main() {
       );
       await pumpPage(tester);
 
-      expect(await accessChoices(tester), ['Ask to join', 'Private']);
+      expect(await accessChoices(tester), ['Public', 'Private']);
     });
 
     testWidgets('a community listing a room that does not name it cannot be '
@@ -304,33 +325,60 @@ void main() {
       addToCommunity(named: false);
       await pumpPage(tester);
 
-      expect(await accessChoices(tester), ['Public', 'Private']);
+      expect(await accessChoices(tester), ['Private', 'Invite only']);
     });
 
-    testWidgets('switching to Ask to join says what changes, then lets '
-        'people knock', (tester) async {
+    testWidgets('switching to Private says what changes, then lets people '
+        'knock', (tester) async {
       setOwnLevel(100);
       setJoinRule('restricted');
       addToCommunity();
       await pumpPage(tester);
 
-      await pickAccess(tester, 'Ask to join');
+      await pickAccess(tester, 'Private');
 
-      expect(find.text('Let members ask to join?'), findsOneWidget);
+      expect(find.text('Make room private?'), findsOneWidget);
       expect(find.textContaining('can ask to join'), findsOneWidget);
       expect(
         find.textContaining('Moderators and admins decide'),
         findsOneWidget,
       );
 
-      await tester.tap(find.text('Let them ask'));
+      await tester.tap(find.text('Make private'));
       await tester.pumpAndSettle();
 
       final joinRule = requests.firstWhere(
         (r) => r.url.pathSegments.contains('m.room.join_rules'),
       );
       expect(jsonDecode(joinRule.body), {'join_rule': 'knock'});
-      expect(find.text('Ask to join'), findsOneWidget);
+      expect(find.text('Private'), findsOneWidget);
+    });
+
+    testWidgets('switching to Invite only says the community stops seeing '
+        'it, then needs invites', (tester) async {
+      setOwnLevel(100);
+      setJoinRule('knock');
+      addToCommunity();
+      await pumpPage(tester);
+
+      await pickAccess(tester, 'Invite only');
+
+      expect(find.text('Make room invite only?'), findsOneWidget);
+      expect(
+        find.textContaining('Only people in the room see it'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('leaves the public list'), findsNothing);
+      expect(find.textContaining('need an invite'), findsOneWidget);
+
+      await tester.tap(find.text('Make invite only'));
+      await tester.pumpAndSettle();
+
+      final joinRule = requests.firstWhere(
+        (r) => r.url.pathSegments.contains('m.room.join_rules'),
+      );
+      expect(jsonDecode(joinRule.body), {'join_rule': 'invite'});
+      expect(find.text('Invite only'), findsOneWidget);
     });
 
     testWidgets('a room outside any community still offers Public', (

@@ -10,19 +10,26 @@ import 'room_history.dart';
 enum RoomAccess { public, community, askToJoin, private }
 
 extension RoomAccessX on RoomAccess {
-  String label(AppLocalizations l10n) => switch (this) {
-    RoomAccess.public => l10n.matrixAccessPublic,
-    RoomAccess.community => l10n.matrixAccessCommunity,
-    RoomAccess.askToJoin => l10n.matrixAccessAskToJoin,
-    RoomAccess.private => l10n.matrixAccessPrivate,
-  };
+  String label(AppLocalizations l10n, {required bool inCommunity}) =>
+      switch (this) {
+        RoomAccess.public => l10n.matrixAccessPublic,
+        RoomAccess.community => l10n.matrixAccessCommunity,
+        RoomAccess.askToJoin =>
+          inCommunity ? l10n.matrixAccessPrivate : l10n.matrixAccessAskToJoin,
+        RoomAccess.private =>
+          inCommunity ? l10n.matrixAccessInviteOnly : l10n.matrixAccessPrivate,
+      };
 
-  String description(AppLocalizations l10n) => switch (this) {
-    RoomAccess.public => l10n.matrixAccessPublicDescription,
-    RoomAccess.community => l10n.matrixAccessCommunityDescription,
-    RoomAccess.askToJoin => l10n.matrixAccessAskToJoinDescription,
-    RoomAccess.private => l10n.matrixAccessPrivateDescription,
-  };
+  String description(AppLocalizations l10n, {required bool inCommunity}) =>
+      switch (this) {
+        RoomAccess.public => l10n.matrixAccessPublicDescription,
+        RoomAccess.community => l10n.matrixAccessCommunityDescription,
+        RoomAccess.askToJoin => l10n.matrixAccessAskToJoinDescription,
+        RoomAccess.private =>
+          inCommunity
+              ? l10n.matrixAccessHiddenFromCommunity
+              : l10n.matrixAccessInviteOnly,
+      };
 }
 
 class RoomListingRefused implements Exception {

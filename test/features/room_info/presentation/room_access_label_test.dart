@@ -104,13 +104,52 @@ void main() {
     expect(find.text('Community'), findsOneWidget);
   });
 
-  testWidgets('a room people ask to join says so', (tester) async {
+  testWidgets('a community room people ask to join reads as private, with a '
+      'hand', (tester) async {
+    community('!club:example.org', 'Climbing club');
+    put(room, EventTypes.RoomJoinRules, {'join_rule': 'knock'});
+
+    await pump(tester);
+
+    expect(find.text('Private'), findsOneWidget);
+    expect(find.byIcon(Icons.front_hand_outlined), findsOneWidget);
+  });
+
+  testWidgets('a room people ask to join outside any community says Ask to '
+      'join', (tester) async {
     put(room, EventTypes.RoomJoinRules, {'join_rule': 'knock'});
 
     await pump(tester);
 
     expect(find.text('Ask to join'), findsOneWidget);
+    expect(find.text('Private'), findsNothing);
     expect(find.byIcon(Icons.front_hand_outlined), findsOneWidget);
+  });
+
+  testWidgets('an invite-only room inside a community says Invite only', (
+    tester,
+  ) async {
+    community('!club:example.org', 'Climbing club');
+    put(room, EventTypes.RoomJoinRules, {'join_rule': 'invite'});
+
+    await pump(tester);
+
+    expect(find.text('Invite only'), findsOneWidget);
+    expect(find.text('Private'), findsNothing);
+    expect(find.byIcon(Icons.public_off), findsOneWidget);
+  });
+
+  testWidgets('an invite-only room naming a community that does not list it '
+      'is just private', (tester) async {
+    put(room, EventTypes.SpaceParent, {
+      'via': ['example.org'],
+    }, key: '!club:example.org');
+    put(room, EventTypes.RoomJoinRules, {'join_rule': 'invite'});
+
+    await pump(tester);
+
+    expect(find.text('Private'), findsOneWidget);
+    expect(find.text('Invite only'), findsNothing);
   });
 
   testWidgets('public and private keep their globes', (tester) async {

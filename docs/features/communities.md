@@ -45,14 +45,14 @@ A joinable room shows Join when its join rule is not `knock`, and Ask or Request
 
 ## Decisions
 
-- **A community holds the rooms it lists** (`m.space.child` with a `via`), as Matrix and other clients read it, so a room another app added one way stays under the community once joined. This rule decides home placement, the community page, share badges and what leaving takes along.
+- **A community holds the rooms it lists** (`m.space.child` with a `via`), as Matrix and other clients read it, so a room another app added one way stays under the community once joined. This rule decides home placement, the community page, share badges, what leaving takes along and whether a room gets community access names and choices.
 - **Opening a room to a community needs both links**: the room must also name the community (`m.space.parent`), because that grant changes who can join and needs the room's own side.
 - **A community card's heading has no preview or unread count**, because each room under it shows its own.
 - **A room held by two joined communities shows in both cards**, since each card lists everything its community holds.
 - **Chats never shows a community or a room a joined community holds.** A direct chat listed in a community stays in Chats, and so does a room whose community you have not joined.
 - **A community is Public or Private**, and its access works like a room's.
 - **New communities lock everything except rooms and invites.** Settings and messages are admin-only, adding rooms needs a moderator, and any member can invite.
-- **A community room is Community, Ask to join or Private, never Public** (what each maps to: `rooms-membership.md`). This is an app rule only, so another client can still publish such a room.
+- **A community room is Community, Private or Invite only, never Public** (what each maps to: `rooms-membership.md`). This is an app rule only, so another client can still publish such a room.
 - **Leaving a community also leaves the rooms that no other joined community holds**, and the confirmation says how many and warns when you are the last admin of the community or of a room leaving with it.
 - **Rooms inherit neither roles nor access.** Matrix has no inheritance, so community admins are not admins of its rooms.
 - **Only moderators and admins answer requests**, because declining is a kick, which Zuno's default levels give to moderators and up.

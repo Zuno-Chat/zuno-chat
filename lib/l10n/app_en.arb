@@ -2241,19 +2241,26 @@
     "description": "Location sheet title: your current location"
   },
   "matrixAccessAskToJoin": "Ask to join",
-  "matrixAccessAskToJoinDescription": "Members can ask; a moderator lets them in",
+  "@matrixAccessAskToJoin": {
+    "description": "Room access label outside a community: people ask to join and a moderator lets them in. Inside a community the same access reads as Private"
+  },
+  "matrixAccessAskToJoinDescription": "Members see it and can ask to join",
   "matrixAccessCommunity": "Community",
   "@matrixAccessCommunity": {
     "description": "Room access option: anyone in the community can join"
   },
   "matrixAccessCommunityDescription": "Members of the community can join",
+  "matrixAccessHiddenFromCommunity": "Hidden from the community",
+  "@matrixAccessHiddenFromCommunity": {
+    "description": "Explanation under the invite-only room access option inside a community: people outside the room do not see it there"
+  },
+  "matrixAccessInviteOnly": "Invite only",
+  "@matrixAccessInviteOnly": {
+    "description": "Room access: only invited people can join. Explains the Private option, and labels the invite-only option inside a community"
+  },
   "matrixAccessPrivate": "Private",
   "@matrixAccessPrivate": {
-    "description": "Room access option: only invited people can join"
-  },
-  "matrixAccessPrivateDescription": "Invite only",
-  "@matrixAccessPrivateDescription": {
-    "description": "Explanation under the private room access option"
+    "description": "Room access option: only invited people can join. Inside a community it is the option where people ask to join"
   },
   "matrixAccessPublic": "Public",
   "@matrixAccessPublic": {
@@ -4126,6 +4133,7 @@
   "roomInfoAccessModeratorsDecide": "Moderators and admins decide who gets in.",
   "roomInfoAccessNeedInvite": "New people need an invite to join.",
   "roomInfoAccessNotListed": "It is not listed under Find public rooms.",
+  "roomInfoAccessOnlyRoomSeesIt": "Only people in the room see it in the community.",
   "roomInfoAccessRoomLeavesList": "The room leaves the public list.",
   "roomInfoAdminsOnlyBanner": "Only admins can change these. You can view them here.",
   "roomInfoAdvanced": "Advanced",
@@ -4286,8 +4294,6 @@
       }
     }
   },
-  "roomInfoLetMembersAskTitle": "Let members ask to join?",
-  "roomInfoLetThemAsk": "Let them ask",
   "roomInfoLoadOlder": "Load older",
   "@roomInfoLoadOlder": {
     "description": "Button on the room media screen: load older items"
@@ -4300,6 +4306,10 @@
   "roomInfoMainAddressUpdated": "Main address updated",
   "roomInfoMakeCommunityPrivateTitle": "Make community private?",
   "roomInfoMakeCommunityPublicTitle": "Make community public?",
+  "roomInfoMakeInviteOnly": "Make invite only",
+  "@roomInfoMakeInviteOnly": {
+    "description": "Dialog button: make a room inside a community invite only"
+  },
   "roomInfoMakePrivate": "Make private",
   "@roomInfoMakePrivate": {
     "description": "Dialog button: make the room or community private"
@@ -4308,6 +4318,7 @@
   "@roomInfoMakePublic": {
     "description": "Dialog button: make the room or community public"
   },
+  "roomInfoMakeRoomInviteOnlyTitle": "Make room invite only?",
   "roomInfoMakeRoomPrivateTitle": "Make room private?",
   "roomInfoMakeRoomPublicTitle": "Make room public?",
   "roomInfoMedia": "Media",

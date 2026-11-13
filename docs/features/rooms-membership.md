@@ -100,9 +100,10 @@ files, and the media viewer pages through it (`chats-messaging.md`).
   |---|---|---|---|
   | Public | `public` | Yes | Rooms outside a community, and communities |
   | Community | `restricted` to the communities it is linked with both ways | No | Rooms inside a community (`communities.md`) |
-  | Ask to join | `knock` | No | Rooms inside a community |
-  | Private | `invite` | No | Everything; the default for a new room outside a community |
+  | Private (Ask to join outside a community) | `knock` | No | Rooms inside a community |
+  | Private (Invite only inside a community) | `invite` | No | Everything; the default for a new room outside a community |
 
+- **Inside a community, a `knock` room is called Private and an `invite` room Invite only**, because both are closed and differ only in whether community members see the room and can ask; outside a community nothing lists a `knock` room, so one made by another app keeps the name Ask to join.
 - **Public means listed and open**, since one without the other leaves a room invisible or unjoinable. Going public lists first, so a refused listing changes nothing. Going private closes first, because stopping joins matters most. Changing access is admin-only and never offered in direct chats.
 - **A new public room is one `createRoom` call**, so a server that refuses the listing creates nothing instead of leaving a private room behind an error.
 - **Rooms are joined from the directory or an invitation, never by a typed ID.**

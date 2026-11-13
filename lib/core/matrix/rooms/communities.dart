@@ -40,6 +40,9 @@ bool communityLists(Room community, String roomId) =>
 bool _hasVia(StrippedStateEvent? link) =>
     link?.content.tryGetList<String>('via')?.isNotEmpty ?? false;
 
+bool isCommunityRoom(Room room) =>
+    !room.isSpace && communitiesOf(room).isNotEmpty;
+
 bool isJoinedGroupRoom(Room room) =>
     room.membership == Membership.join && !room.isSpace && !room.isDirectChat;
 

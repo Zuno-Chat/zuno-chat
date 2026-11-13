@@ -52,7 +52,7 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
     String community,
   ) => access == RoomAccess.community
       ? l10n.roomsAnyoneInCommunityCanJoin(community)
-      : access.description(l10n);
+      : access.description(l10n, inCommunity: true);
 
   void _submit() {
     final name = _controller.text.trim();
@@ -106,7 +106,7 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
                     RadioListTile<RoomAccess>(
                       value: access,
                       contentPadding: EdgeInsets.zero,
-                      title: Text(access.label(l10n)),
+                      title: Text(access.label(l10n, inCommunity: true)),
                       subtitle: Text(
                         _communityDescription(l10n, access, community),
                       ),
@@ -121,12 +121,16 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
                 ButtonSegment(
                   value: RoomAccess.private,
                   icon: const Icon(Icons.public_off),
-                  label: Text(RoomAccess.private.label(l10n)),
+                  label: Text(
+                    RoomAccess.private.label(l10n, inCommunity: false),
+                  ),
                 ),
                 ButtonSegment(
                   value: RoomAccess.public,
                   icon: const Icon(Icons.public),
-                  label: Text(RoomAccess.public.label(l10n)),
+                  label: Text(
+                    RoomAccess.public.label(l10n, inCommunity: false),
+                  ),
                 ),
               ],
               selected: {_access},
@@ -135,7 +139,7 @@ class _NewRoomDialogState extends State<_NewRoomDialog> {
             ),
             const SizedBox(height: 8),
             Text(
-              _access.description(l10n),
+              _access.description(l10n, inCommunity: false),
               textAlign: TextAlign.center,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

@@ -9,24 +9,31 @@ import 'room_header.dart';
 
 class RoomAccessLabel extends StatelessWidget {
   final RoomAccess access;
-  final String? community;
+  final String text;
   final double iconSize;
 
-  const RoomAccessLabel({
+  RoomAccessLabel._({
     required this.access,
-    this.community,
+    required String? community,
+    required bool inCommunity,
+    required AppLocalizations l10n,
     this.iconSize = 16,
     super.key,
-  });
+  }) : text = switch ((access, community)) {
+         (RoomAccess.community, final String name) => name,
+         _ => access.label(l10n, inCommunity: inCommunity),
+       };
 
   factory RoomAccessLabel.of(
     Room room,
     AppLocalizations l10n, {
     double iconSize = 16,
     Key? key,
-  }) => RoomAccessLabel(
+  }) => RoomAccessLabel._(
     access: roomAccessOf(room),
     community: _communityName(room.client, allowedRoomIdsOf(room), l10n),
+    inCommunity: isCommunityRoom(room),
+    l10n: l10n,
     iconSize: iconSize,
     key: key,
   );
@@ -36,17 +43,17 @@ class RoomAccessLabel extends StatelessWidget {
     Client client,
     AppLocalizations l10n, {
     Key? key,
-  }) => RoomAccessLabel(
+  }) => RoomAccessLabel._(
     access: listedRoomAccess(room.joinRule),
     community: _communityName(client, room.allowedRoomIds ?? const [], l10n),
+    inCommunity: true,
+    l10n: l10n,
     key: key,
   );
 
   @override
   Widget build(BuildContext context) => RoomDetail(
-    access == RoomAccess.community
-        ? community ?? access.label(context.l10n)
-        : access.label(context.l10n),
+    text,
     icon: switch (access) {
       RoomAccess.public => Icons.public,
       RoomAccess.community => Icons.workspaces_outlined,

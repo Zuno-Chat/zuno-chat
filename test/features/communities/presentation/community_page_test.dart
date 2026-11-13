@@ -484,7 +484,7 @@ void main() {
 
       await tester.tap(find.text('Coaches'));
       await tester.pumpAndSettle();
-      expect(inSheet(find.text('Ask to join')), findsOneWidget);
+      expect(inSheet(find.text('Private')), findsOneWidget);
       await tester.tap(inSheet(find.widgetWithText(FilledButton, 'Ask')));
       await tester.pumpAndSettle();
 
@@ -748,8 +748,10 @@ void main() {
       matching: find.text(text),
     );
     expect(inDialog('Anyone in Climbing club can join'), findsOneWidget);
-    expect(inDialog('Ask to join'), findsOneWidget);
     expect(inDialog('Private'), findsOneWidget);
+    expect(inDialog('Members see it and can ask to join'), findsOneWidget);
+    expect(inDialog('Invite only'), findsOneWidget);
+    expect(inDialog('Hidden from the community'), findsOneWidget);
     expect(inDialog('Public'), findsNothing);
 
     await tester.enterText(find.byType(TextField), 'Gear swap');
@@ -778,7 +780,12 @@ void main() {
     await tester.tap(find.text('New room'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'Coaches');
-    await tester.tap(find.text('Ask to join'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Private'),
+      ),
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.text('Create'));
     await tester.pump();
@@ -1034,7 +1041,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Ask to join · 8 members · Start here if you are new'),
+        find.text('Private · 8 members · Start here if you are new'),
         findsOneWidget,
       );
       await tester.tap(find.widgetWithText(FilledButton, 'Ask'));
