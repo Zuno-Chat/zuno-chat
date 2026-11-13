@@ -350,6 +350,7 @@ sequenceDiagram
 | Opus goes out without DTX | A muted microphone with DTX sends nothing, so the 30 s rule would drop the audio track |
 | A pull the SFU cannot find is retried on every sync and reported only once the remote has published a newer membership and the pull still fails | During a reconnect the remote's last-advertised session may already be gone, so an early not-found is a race, not a defect |
 | A pull waits for our own publish on its session, at a first join or a rejoin, and every remote heard of meanwhile is pulled right after | A session's first negotiation is then always our publish, never an SFU offer, and a remote that arrived before the session existed is never dropped |
+| A video pull asks for `h` with the `asciibetical` fallback both for a weak viewer and for a layer the sender stopped | Cloudflare's default picks no other layer, so the viewer's picture froze whenever the sender's WebRTC dropped `h` |
 | Every track swap is `replaceTrack`, never a mid-call re-offer | A re-offer recreates the receive streams, and Android's flutter_webrtc then renders nothing (flutter-webrtc#2124) |
 
 **The placeholder** is a tiny native black video, Cloudflare's own pattern
@@ -474,11 +475,12 @@ estimate of the upload bandwidth.
   neither sent nor read.
 - **Video goes out in two simulcast layers on both providers**, `q` (half
   size, 15 fps) and `h` (full size), and the SFU picks one per viewer, so
-  a weak viewer gets `q` while everyone else keeps `h`: Cloudflare pulls
-  and LiveKit subscriptions name no layer. WebRTC drops `h` on its own
-  when our upload cannot carry it. The names are LiveKit's, whose server
-  maps layers by position in `q,h,f`, and they sort best-first for
-  Cloudflare's `asciibetical` fallback.
+  a weak viewer, or one whose sender stopped `h`, gets `q` while everyone
+  else keeps `h` (LiveKit subscriptions name no layer; Cloudflare's pull
+  rule is under Cloudflare). WebRTC drops `h` on its own when our upload
+  cannot carry it. The names are LiveKit's, whose server maps layers by
+  position in `q,h,f`, and they sort best-first for Cloudflare's
+  `asciibetical` order.
 - **Layers keep their frame rate and lose resolution first**
   (`MAINTAIN_FRAMERATE`). Audio is never scaled.
 - **WebRTC's bandwidth estimate starts above the weak line**
