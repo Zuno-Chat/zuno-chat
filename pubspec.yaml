@@ -24,8 +24,8 @@ dependencies:
   zuno_http:
     path: packages/zuno_http
 
-  flutter_riverpod: ^3.4.2
-  matrix: ^16.0.1
+  flutter_riverpod: ^3.5.0
+  matrix: ^16.0.4
   mime: ^2.1.0
   flutter_secure_storage: ^11.2.0
   # SQLCipher-backed drop-in for sqflite — the Matrix SDK's local database
@@ -35,7 +35,7 @@ dependencies:
   # already takes, so this substitutes at the open call and nowhere else.
   # See lib/core/matrix/database/database_key.dart.
   sqflite_sqlcipher: ^3.1.0+1
-  flutter_vodozemac: ^0.9.0
+  flutter_vodozemac: ^0.9.1
   vodozemac: ^0.9.0
   path: ^1.9.1
   path_provider: ^2.1.6
@@ -52,10 +52,10 @@ dependencies:
   # class) — listed directly for the same reason as image_picker_android
   # above, ImagePickerPlatform.instance specifically.
   image_picker_platform_interface: ^2.11.2
-  file_picker: ^13.3.2
+  file_picker: ^13.3.3
   flutter_html: ^3.0.0
   url_launcher: ^6.3.3
-  record: ^7.1.2
+  record: ^7.2.0
   clock: ^1.1.2
   just_audio: ^0.10.6
   audio_session: ^0.2.4
@@ -75,7 +75,7 @@ dependencies:
   light_compressor: ^2.2.0
   video_player: ^2.14.1
   image: ^4.12.0
-  flutter_svg: ^2.3.2
+  flutter_svg: ^2.4.0
   unifiedpush_android: ^3.5.0
   unifiedpush_platform_interface: ^4.0.0
   # Verification QR codes (docs/features/security-verification.md). Both are
