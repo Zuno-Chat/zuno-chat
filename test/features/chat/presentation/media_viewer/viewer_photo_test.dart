@@ -6,23 +6,18 @@ import 'package:matrix/matrix.dart';
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media/attachments/attachment_cache.dart';
 import 'package:zuno/core/matrix/media/attachments/blurhash_image.dart';
-import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/core/ui/zuno_theme.dart';
+import 'package:zuno/features/chat/presentation/media_viewer/media_hero.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_photo.dart';
 
 import '../../../../helpers/fake_attachments.dart';
 import '../../../../helpers/pump_until.dart';
+import '../../../../helpers/zoom_gestures.dart';
 
 void main() {
   late AttachmentServer server;
-  late int taps;
-  late List<bool> zooms;
 
-  setUp(() {
-    server = installAttachmentServer();
-    taps = 0;
-    zooms = [];
-  });
+  setUp(() => server = installAttachmentServer());
 
   Future<void> pumpPhoto(WidgetTester tester, Event event) => tester.pumpWidget(
     MaterialApp(
@@ -30,17 +25,13 @@ void main() {
       supportedLocales: AppLocalizations.supportedLocales,
       theme: zunoViewerTheme,
       home: Scaffold(
-        body: ViewerPhoto(
-          event: event,
-          onTap: () => taps++,
-          onZoomChanged: zooms.add,
-        ),
+        body: ViewerPhoto(event: event, onTap: () {}),
       ),
     ),
   );
 
   final photoImage = find.descendant(
-    of: find.byType(InteractiveViewer),
+    of: find.byType(ViewerPhoto),
     matching: find.byWidgetPredicate(
       (widget) => widget is Image && widget.image is! BlurhashImage,
     ),
@@ -54,20 +45,8 @@ void main() {
     server.served,
   );
 
-  double scale(WidgetTester tester) => tester
-      .widget<InteractiveViewer>(find.byType(InteractiveViewer))
-      .transformationController!
-      .value
-      .getMaxScaleOnAxis();
-
-  Future<void> doubleTap(WidgetTester tester) async {
-    final center = tester.getCenter(find.byType(ViewerPhoto));
-    await tester.tapAt(center);
-    await tester.pump(kDoubleTapMinTime);
-    await tester.tapAt(center);
-    await tester.pump();
-    await tester.pump(ZunoDurations.standard);
-  }
+  Future<void> doubleTap(WidgetTester tester) =>
+      doubleTapAt(tester, tester.getCenter(find.byType(ViewerPhoto)));
 
   testWidgets('shows the photo, zoomable, filling the screen', (tester) async {
     final event = server.attachment();
@@ -112,7 +91,7 @@ void main() {
     expect(blurhashStandIn, findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     final painted = find.descendant(
-      of: find.byType(InteractiveViewer),
+      of: find.byType(ViewerPhoto),
       matching: find.byType(RawImage),
     );
     expect(tester.widget<RawImage>(painted).image, isNotNull);
@@ -131,7 +110,7 @@ void main() {
     await doubleTap(tester);
     await doubleTap(tester);
 
-    expect(scale(tester), closeTo(1, 0.001));
+    expect(zoomOf(tester, find.byType(ViewerFrame)), closeTo(1, 0.001));
     expect(shownImage(tester), isNot(isA<ResizeImage>()));
   });
 
@@ -173,35 +152,5 @@ void main() {
       () => server.downloads.length == 2,
       reason: 'the second download',
     );
-  });
-
-  testWidgets('double-tap zooms in to 2.5x and double-tap again zooms back '
-      'out', (tester) async {
-    server.holdDownloads();
-    addTearDown(server.releaseDownloads);
-    await pumpPhoto(tester, server.attachment(eventId: r'$zoom'));
-
-    await doubleTap(tester);
-    expect(scale(tester), closeTo(2.5, 0.001));
-    expect(zooms, [true]);
-
-    await doubleTap(tester);
-    expect(scale(tester), closeTo(1, 0.001));
-    expect(zooms, [true, false]);
-    expect(taps, 0);
-  });
-
-  testWidgets('a single tap reaches onTap after the double-tap window', (
-    tester,
-  ) async {
-    server.holdDownloads();
-    addTearDown(server.releaseDownloads);
-    await pumpPhoto(tester, server.attachment(eventId: r'$tap'));
-
-    await tester.tap(find.byType(ViewerPhoto));
-    await tester.pump(kDoubleTapTimeout);
-
-    expect(taps, 1);
-    expect(scale(tester), 1);
   });
 }

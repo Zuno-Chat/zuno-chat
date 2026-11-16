@@ -11,6 +11,7 @@ import '../../../core/matrix/media/media_audio_session.dart';
 import '../../../core/settings/app_preferences_provider.dart';
 import '../../../core/ui/bottom_bars.dart';
 import '../../../core/ui/page_dots.dart';
+import '../../../core/ui/zoomable.dart';
 import '../../../core/ui/zuno_colors.dart';
 import '../data/composed_media.dart';
 import 'caption_bar.dart';
@@ -256,7 +257,8 @@ class _MediaCaptionComposerPageState
   Widget _buildPage(int i) {
     final item = _items[i];
     if (item is PickedImage) {
-      return InteractiveViewer(
+      return Zoomable(
+        key: ObjectKey(item),
         child: Center(
           child: Image.file(
             fileSystem.file(item.path),

@@ -1,4 +1,4 @@
 New
 • See who you've confirmed right in your chat list.
 
-Fixed 3 bugs.
+Fixed 4 bugs.

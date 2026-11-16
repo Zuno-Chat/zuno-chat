@@ -9,13 +9,11 @@ const _dismissVelocity = 800.0;
 const _fadeDistance = 300.0;
 
 class ViewerDismiss extends StatefulWidget {
-  final bool enabled;
   final ValueChanged<double> onProgress;
   final VoidCallback onDismiss;
   final Widget child;
 
   const ViewerDismiss({
-    required this.enabled,
     required this.onProgress,
     required this.onDismiss,
     required this.child,
@@ -60,10 +58,9 @@ class _ViewerDismissState extends State<ViewerDismiss>
 
   @override
   Widget build(BuildContext context) {
-    final enabled = widget.enabled;
     return GestureDetector(
-      onVerticalDragUpdate: enabled ? _onUpdate : null,
-      onVerticalDragEnd: enabled ? _onEnd : null,
+      onVerticalDragUpdate: _onUpdate,
+      onVerticalDragEnd: _onEnd,
       child: AnimatedBuilder(
         animation: _offset,
         builder: (context, child) =>

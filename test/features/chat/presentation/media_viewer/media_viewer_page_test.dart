@@ -16,6 +16,7 @@ import 'package:zuno/core/matrix/media/media_audio_session.dart';
 import 'package:zuno/core/matrix/media/room_media_feed.dart';
 import 'package:zuno/core/ui/zuno_motion.dart';
 import 'package:zuno/features/chat/data/chat_timeline.dart';
+import 'package:zuno/features/chat/presentation/media_viewer/media_hero.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/media_viewer_page.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_chrome.dart';
 import 'package:zuno/features/chat/presentation/media_viewer/viewer_photo.dart';
@@ -29,6 +30,7 @@ import '../../../../helpers/fake_media_feed.dart';
 import '../../../../helpers/fake_video_player.dart';
 import '../../../../helpers/native_method_calls.dart';
 import '../../../../helpers/pump_until.dart';
+import '../../../../helpers/zoom_gestures.dart';
 
 void main() {
   late AttachmentServer server;
@@ -133,14 +135,8 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  Future<void> zoomIn(WidgetTester tester) async {
-    final center = tester.getCenter(find.byType(ViewerPhoto));
-    await tester.tapAt(center);
-    await tester.pump(kDoubleTapMinTime);
-    await tester.tapAt(center);
-    await tester.pump();
-    await tester.pump(ZunoDurations.standard);
-  }
+  Future<void> zoomIn(WidgetTester tester) =>
+      doubleTapAt(tester, tester.getCenter(find.byType(ViewerPhoto)));
 
   void delete(String eventId) => server.client.onTimelineEvent.add(
     buildTestRedaction(server.room, eventId),
@@ -324,6 +320,90 @@ void main() {
 
     await closeGesture(tester, 300);
     expect(viewerOpen(), isTrue);
+  });
+
+  Finder frameOf(String eventId) => find.descendant(
+    of: find.byWidgetPredicate(
+      (widget) => widget is ViewerPhoto && widget.event.eventId == eventId,
+    ),
+    matching: find.byType(ViewerFrame),
+  );
+
+  Future<void> pinchOneFingerStill(WidgetTester tester, Offset way) async {
+    final center = tester.getCenter(find.byType(PageView));
+    await pinch(
+      tester,
+      from: [center, center + way * 60],
+      to: [center, center + way * 240],
+    );
+    await tester.pump(ZunoDurations.page * 2);
+  }
+
+  testWidgets('a pinch with one finger still zooms even when the other '
+      'moves sideways', (tester) async {
+    final opened = photo(r'$a', 1);
+    await openViewer(
+      tester,
+      pages: {
+        null: (events: [photo(r'$b', 2), opened], nextBatch: null),
+      },
+      opened: opened,
+    );
+
+    await pinchOneFingerStill(tester, const Offset(-1, 0));
+
+    expect(shown(tester), r'$a');
+    expect(zoomOf(tester, frameOf(r'$a')), closeTo(4, 0.01));
+  });
+
+  testWidgets('a pinch with one finger still zooms even when the other '
+      'moves down', (tester) async {
+    final opened = photo(r'$a', 1);
+    await openViewer(
+      tester,
+      pages: {
+        null: (events: [opened], nextBatch: null),
+      },
+      opened: opened,
+    );
+
+    await pinchOneFingerStill(tester, const Offset(0, 1));
+
+    expect(viewerOpen(), isTrue);
+    expect(zoomOf(tester, frameOf(r'$a')), closeTo(4, 0.01));
+  });
+
+  testWidgets('a second finger landing mid-swipe keeps the swipe', (
+    tester,
+  ) async {
+    final opened = photo(r'$a', 1);
+    await openViewer(
+      tester,
+      pages: {
+        null: (events: [photo(r'$b', 2), opened], nextBatch: null),
+      },
+      opened: opened,
+    );
+    final center = tester.getCenter(find.byType(PageView));
+
+    final first = await tester.startGesture(center);
+    for (var step = 0; step < 5; step++) {
+      await first.moveBy(const Offset(-20, 0));
+      await tester.pump();
+    }
+    final second = await tester.startGesture(center + const Offset(100, 0));
+    for (var step = 0; step < 10; step++) {
+      await first.moveBy(const Offset(-40, 0));
+      await second.moveBy(const Offset(-40, 0));
+      await tester.pump();
+    }
+    expect(zoomOf(tester, frameOf(r'$a')), 1);
+    await first.up();
+    await second.up();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(shown(tester), r'$b');
   });
 
   testWidgets('Back closes the viewer and restores the system bars', (

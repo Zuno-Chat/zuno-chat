@@ -99,7 +99,6 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage>
   final _dismissProgress = ValueNotifier<double>(0);
   bool _chromeVisible = true;
   bool _dragging = false;
-  String? _zoomedId;
   bool _muted = false;
   bool _scrolling = false;
   bool _itemsChangedWhileScrolling = false;
@@ -110,8 +109,6 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage>
   Timer? _autoHide;
 
   Event get _shown => _list[_index];
-
-  bool get _zoomed => _zoomedId == _shown.eventId;
 
   @override
   void initState() {
@@ -315,16 +312,6 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage>
     }
   }
 
-  void _onZoomChanged(Event event, bool zoomed) {
-    setState(() {
-      if (zoomed) {
-        _zoomedId = event.eventId;
-      } else if (_zoomedId == event.eventId) {
-        _zoomedId = null;
-      }
-    });
-  }
-
   void _onDismissProgress(double progress) {
     _dismissProgress.value = progress;
     final dragging = progress > 0;
@@ -452,12 +439,7 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage>
               onPlay: () => _play(event),
             ),
           )
-        : ViewerPhoto(
-            event: event,
-            heroTag: heroTag,
-            onTap: _toggleChrome,
-            onZoomChanged: (zoomed) => _onZoomChanged(event, zoomed),
-          );
+        : ViewerPhoto(event: event, heroTag: heroTag, onTap: _toggleChrome);
     return KeyedSubtree(key: ValueKey(event.eventId), child: media);
   }
 
@@ -491,16 +473,13 @@ class _MediaViewerPageState extends ConsumerState<MediaViewerPage>
                   ),
                   Positioned.fill(
                     child: ViewerDismiss(
-                      enabled: !_zoomed,
                       onProgress: _onDismissProgress,
                       onDismiss: () => closeOwnRouteAndAbove(context),
                       child: NotificationListener<ScrollNotification>(
                         onNotification: _onScroll,
                         child: PageView.builder(
                           controller: _pages,
-                          physics: _zoomed
-                              ? const NeverScrollableScrollPhysics()
-                              : const AlwaysScrollableScrollPhysics(),
+                          physics: const AlwaysScrollableScrollPhysics(),
                           itemCount: _list.length,
                           onPageChanged: _onPageChanged,
                           findChildIndexCallback: (key) =>

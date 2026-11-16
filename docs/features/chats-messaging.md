@@ -591,9 +591,16 @@ edit.
 |---|---|
 | Tap | Hides or shows the controls and the system bars |
 | Swipe sideways | The next or previous item; off while zoomed |
-| Swipe down | Closes; the chat shows through while dragging |
-| Double-tap or pinch a photo | Zooms |
+| Swipe down | Closes; the chat shows through while dragging; off while zoomed |
+| Double-tap or pinch a photo | Zooms, up to 5x |
+| Drag a zoomed photo | Pans it, gliding on after a flick |
 
+- **Two fingers on a photo always zoom, and a zoomed photo keeps
+  one-finger drags to pan**, in the viewer and the caption screen alike:
+  one shared zoom widget (`lib/core/ui/`) claims the gesture as soon as a
+  second finger lands, since Flutter's `InteractiveViewer` lost any uneven
+  pinch to the sideways and swipe-down drags, which take a gesture after
+  less finger travel than a pinch needs.
 - **A video pauses while a full page covers the viewer or the app is in
   the background, and plays on after**, so its sound never runs behind the
   forward picker; a sheet over it leaves it playing.

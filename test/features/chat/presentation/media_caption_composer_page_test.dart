@@ -19,6 +19,7 @@ import '../../../helpers/fake_emoji.dart';
 import '../../../helpers/fake_video_player.dart';
 import '../../../helpers/pump_until.dart';
 import '../../../helpers/route_launcher.dart';
+import '../../../helpers/zoom_gestures.dart';
 
 void main() {
   late FakeVideoPlayer player;
@@ -518,6 +519,46 @@ void main() {
 
     expect(result, hasLength(2));
     expect(result!.whereType<ComposedVideo>(), isEmpty);
+  });
+
+  Future<void> pinchSideways(WidgetTester tester) async {
+    final center = tester.getCenter(find.byType(PageView));
+    await pinch(
+      tester,
+      from: [center, center - const Offset(60, 0)],
+      to: [center, center - const Offset(240, 0)],
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('a pinch zooms a photo even when one finger moves sideways, '
+      'a zoomed photo stays on its page, and zoomed out it swipes again', (
+    tester,
+  ) async {
+    await open(tester, [photo('a.jpg'), photo('b.jpg')]);
+
+    await pinchSideways(tester);
+    expect(find.text('1 of 2'), findsOneWidget);
+    await swipeNext(tester);
+    expect(find.text('1 of 2'), findsOneWidget);
+
+    await doubleTapAt(tester, tester.getCenter(find.byType(PageView)));
+    await swipeNext(tester);
+    expect(find.text('2 of 2'), findsOneWidget);
+  });
+
+  testWidgets('removing a zoomed photo leaves the next one swipeable', (
+    tester,
+  ) async {
+    await open(tester, [photo('a.jpg'), photo('b.jpg'), photo('c.jpg')]);
+    await pinchSideways(tester);
+
+    await tester.tap(find.byTooltip('Remove this photo'));
+    await tester.pumpAndSettle();
+    expect(find.text('1 of 2'), findsOneWidget);
+
+    await swipeNext(tester);
+    expect(find.text('2 of 2'), findsOneWidget);
   });
 
   testWidgets('the caption gets the emoji list too', (tester) async {
