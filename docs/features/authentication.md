@@ -242,9 +242,6 @@ What the push teardown does is in `notifications.md`.
   private tabs honor it.
 - **Account pages open in the sign-in browser, not the default browser**, so
   Zuno knows when the page closes and the visit leaves no session behind.
-- **A session check after the page closes skips a signed-out client**, since
-  the SDK's sign-out keeps the token expiry and a soft logout would flash the
-  signed-in screens before failing.
 - **The client registration describes the app, the same on every server**,
   and the redirect scheme is the homepage's host reversed, as the spec
   requires; the Android manifest registers that scheme too, so the
@@ -260,15 +257,12 @@ What the push teardown does is in `notifications.md`.
 - **Only `M_UNKNOWN_TOKEN` and `M_FORBIDDEN` from `/refresh`, or
   `invalid_grant` from the token endpoint, end a session, and the refresh
   handler ends it itself.** Every other failure stays a plain exception
-  carrying only its code, so a transient server fault never wipes the
+  carrying only its code, because the SDK ends the session on any Matrix
+  error but a rate limit, and a transient server fault must never wipe the
   device's keys.
-- **The handler never hands the SDK a Matrix or OAuth error.** The SDK keeps
-  a refresh that failed that way and replays it to every later request, and
-  iOS keeps the same client across sign-out and sign-in, so the next sign-in
-  would stop syncing and sending within one token lifetime
-  (famedly/matrix-dart-sdk#2445).
-- **The SDK keeps the old token's expiry after `clear()`**, so the handler
-  also runs for a signed-out client and must end it, never refresh it.
+- **The SDK keeps the old token's expiry after `clear()` but runs the
+  handler only for a signed-in client**, so nothing in the app checks for a
+  signed-out client before a session check.
 - **A refused refresh is retried once if the stored token changed.** The
   app and a push engine's client share one refresh token that the server
   rotates on every use, so the loser of that race re-reads the winner's

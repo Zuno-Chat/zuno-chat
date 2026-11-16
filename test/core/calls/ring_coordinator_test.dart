@@ -604,9 +604,9 @@ void main() {
 
       container.listen(pushRingServicesProvider, (_, _) {});
 
-      expect(container.exists(ringCoordinatorProvider), isTrue);
-      expect(container.exists(readModelPublisherProvider), isTrue);
-      expect(container.exists(ringLifecycleProvider), isTrue);
+      expect(container.read(ringCoordinatorProvider.exists), isTrue);
+      expect(container.read(readModelPublisherProvider.exists), isTrue);
+      expect(container.read(ringLifecycleProvider.exists), isTrue);
     });
 
     test('on Android, starts the coordinator and the server ring '
@@ -622,9 +622,9 @@ void main() {
 
       container.listen(pushRingServicesProvider, (_, _) {});
 
-      expect(container.exists(ringCoordinatorProvider), isTrue);
-      expect(container.exists(readModelPublisherProvider), isFalse);
-      expect(container.exists(ringLifecycleProvider), isTrue);
+      expect(container.read(ringCoordinatorProvider.exists), isTrue);
+      expect(container.read(readModelPublisherProvider.exists), isFalse);
+      expect(container.read(ringLifecycleProvider.exists), isTrue);
     });
   });
 }

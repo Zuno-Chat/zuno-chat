@@ -165,7 +165,7 @@ class NotificationDeliveryModeNotifier
       ref.read(platformCapabilitiesProvider).deliveryModes.contains(mode);
 
   bool _pickableNow(NotificationDeliveryMode mode) {
-    if (!ref.exists(fcmAvailabilityProvider)) return true;
+    if (!ref.read(fcmAvailabilityProvider.exists)) return true;
     final fcm = ref.read(fcmAvailabilityProvider).value;
     return deliveryModeEnabled(mode, fcm: fcm);
   }

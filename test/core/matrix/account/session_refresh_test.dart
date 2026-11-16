@@ -504,24 +504,16 @@ void main() {
     });
   });
 
-  test(
-    'a client already signed out is ended without asking the server',
-    () async {
-      final database = _ClientRowDatabase(refreshToken: 'r0');
-      var requests = 0;
-      final server = FakeHttpClient((request) async {
-        requests++;
-        return _json(200, {});
-      });
-      final client = _client(database, server)..accessToken = null;
+  test('a client already signed out never reaches the handler, though its old '
+      'token expiry is left', () async {
+    var handled = 0;
+    final client = ExpiringTokenClient()..onSoftLogout = (_) async => handled++;
 
-      await expectLater(
-        refreshSession(client, settle: Duration.zero),
-        throwsA(isA<SessionEnded>()),
-      );
-      expect(requests, 0);
-    },
-  );
+    await client.ensureNotSoftLoggedOut();
+
+    expect(client.isLogged(), isFalse);
+    expect(handled, 0);
+  });
 
   test('a session with no refresh token is ended, not retried', () async {
     final database = _ClientRowDatabase();

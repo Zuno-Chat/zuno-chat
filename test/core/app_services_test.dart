@@ -65,25 +65,25 @@ void main() {
   test('signed out, only the services that outlive a session run', () async {
     final container = await start(signedIn: false);
 
-    expect(container.exists(pushRingServicesProvider), isTrue);
-    expect(container.exists(ringCoordinatorProvider), isTrue);
-    expect(container.exists(messageNotificationProvider), isFalse);
-    expect(container.exists(securityAlertsProvider), isFalse);
+    expect(container.read(pushRingServicesProvider.exists), isTrue);
+    expect(container.read(ringCoordinatorProvider.exists), isTrue);
+    expect(container.read(messageNotificationProvider.exists), isFalse);
+    expect(container.read(securityAlertsProvider.exists), isFalse);
   });
 
   test('signed in, every headless service runs', () async {
     final container = await start(signedIn: true);
 
-    expect(container.exists(pushRingServicesProvider), isTrue);
-    expect(container.exists(messageNotificationProvider), isTrue);
-    expect(container.exists(headlessMessageActionProvider), isTrue);
-    expect(container.exists(securityAlertsProvider), isTrue);
+    expect(container.read(pushRingServicesProvider.exists), isTrue);
+    expect(container.read(messageNotificationProvider.exists), isTrue);
+    expect(container.read(headlessMessageActionProvider.exists), isTrue);
+    expect(container.read(securityAlertsProvider.exists), isTrue);
   });
 
   test('a sign-in still finishing waits before starting them', () async {
     final container = await start(signedIn: true, signingIn: true);
 
-    expect(container.exists(messageNotificationProvider), isFalse);
+    expect(container.read(messageNotificationProvider.exists), isFalse);
   });
 
   test('signed in, a Mark as read handed over from a notification is done '

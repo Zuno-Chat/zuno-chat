@@ -13,7 +13,6 @@ Future<void> refreshSession(
   Client client, {
   Duration settle = const Duration(seconds: 2),
 }) async {
-  if (!client.isLogged()) return _endSession(client, 'signed out');
   final attempted = await _storedRefreshToken(client);
   if (attempted == null) return _endSession(client, 'no refresh token stored');
   var refusal = await _refusalOf(client);

@@ -295,15 +295,15 @@ class VoiceRecorder extends ChangeNotifier {
     _startedAt = null;
     await _stopTimers();
     final waveform = resampleWaveform(_waveform);
-    final stopped = await _stopRecorder();
+    await _stopRecorder();
     await _audio.endRecording(this);
     ScreenAwake.instance.release(this);
     if (ending != _Ending.keep) _clear();
 
     final recorded = ending == _Ending.discard
         ? null
-        : await _readRecording(stopped);
-    await Future.wait({?path, ?stopped}.map(discardTemporaryCopy));
+        : await _readRecording(path);
+    if (path != null) await discardTemporaryCopy(path);
     final clip = recorded == null || duration < _shortestSent
         ? null
         : await _clipOf(recorded, duration, waveform);
@@ -316,19 +316,20 @@ class VoiceRecorder extends ChangeNotifier {
     }
   }
 
-  Future<String?> _stopRecorder() async {
+  Future<void> _stopRecorder() async {
     try {
-      return await _recorder?.stop();
+      await _recorder?.stop();
     } catch (e, s) {
       reportCaught('stop recording', e, s);
-      return null;
     }
   }
 
   Future<Uint8List?> _readRecording(String? path) async {
     if (path == null) return null;
+    final file = fileSystem.file(path);
+    if (!file.existsSync()) return null;
     try {
-      return await fileSystem.file(path).readAsBytes();
+      return await file.readAsBytes();
     } catch (e, s) {
       reportCaught('read recording', e, s);
       return null;

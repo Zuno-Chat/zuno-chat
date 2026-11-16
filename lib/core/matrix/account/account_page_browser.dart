@@ -20,9 +20,10 @@ Future<void> openAccountPage(BuildContext context, Uri page) {
         page,
         callbackScheme: zunoOAuthCallbackScheme,
       );
-      final client = container.read(matrixClientProvider);
-      if (shown && client.isLogged()) {
-        await client.ensureNotSoftLoggedOut(_longerThanAnyToken);
+      if (shown) {
+        await container
+            .read(matrixClientProvider)
+            .ensureNotSoftLoggedOut(_longerThanAnyToken);
       }
       return shown;
     },
