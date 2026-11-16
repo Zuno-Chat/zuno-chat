@@ -112,7 +112,9 @@ class _ExpiringClient extends ZunoClient {
           'errcode': 'M_UNKNOWN_TOKEN',
           'error': 'refresh token already used',
         }),
-      );
+      ) {
+    accessToken = 'expiring';
+  }
 
   @override
   DateTime? get accessTokenExpiresAt => clock.now();

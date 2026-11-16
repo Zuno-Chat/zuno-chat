@@ -297,7 +297,7 @@ void main() {
       'itself', (tester) async {
     final container = await pumpRoomList(tester);
 
-    expect(container.exists(messageNotificationProvider), isFalse);
+    expect(container.read(messageNotificationProvider.exists), isFalse);
   });
 
   testWidgets('tapping a chat opens it', (tester) async {

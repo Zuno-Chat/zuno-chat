@@ -18,6 +18,7 @@ import 'package:zuno/features/chat/presentation/send_icon.dart';
 import 'package:zuno_emoji/zuno_emoji.dart';
 
 import '../../../helpers/app_lifecycle.dart';
+import '../../../helpers/caught_reports.dart';
 import '../../../helpers/fake_audio_player.dart';
 import '../../../helpers/fake_audio_session.dart';
 import '../../../helpers/fake_emoji.dart';
@@ -36,7 +37,7 @@ void main() {
   late bool permitted;
   late bool promptAllows;
   late Object? startError;
-  late bool stopGivesPath;
+  late bool writesFile;
   late bool sendFails;
   late bool recordingUnreadable;
   late List<http.Request> uploads;
@@ -54,7 +55,7 @@ void main() {
     permitted = true;
     promptAllows = false;
     startError = null;
-    stopGivesPath = true;
+    writesFile = true;
     sendFails = false;
     recordingUnreadable = false;
     uploads = [];
@@ -168,9 +169,13 @@ void main() {
           case 'stop':
             final path = recordingPath;
             recordingPath = null;
-            recorderState?.success(2);
-            if (path == null || !stopGivesPath) return null;
-            File(path).writeAsBytesSync(recordedBytes(path));
+            if (path == null) return null;
+            if (writesFile) File(path).writeAsBytesSync(recordedBytes(path));
+            recorderState?.success({
+              'state': RecordState.stop.index,
+              'reason': 'stop',
+              'path': path,
+            });
             return path;
         }
         return null;
@@ -640,6 +645,28 @@ void main() {
       expect(find.byTooltip('Cancel recording'), findsNothing);
     });
 
+    testWidgets('the recorder ending the take itself, as when capture fails, '
+        'keeps what it recorded', (tester) async {
+      await openRoom(tester);
+      await recordHandsFree(tester);
+
+      final path = recordingPath!;
+      recordingPath = null;
+      File(path).writeAsBytesSync(recordedBytes(path));
+      recorderState!.success({
+        'state': RecordState.stop.index,
+        'reason': 'error',
+        'path': path,
+        'error': 'capture failed',
+      });
+      await untilKept(tester);
+
+      expect(find.text('0:02'), findsOneWidget);
+      expect(voiceMessages(), isEmpty);
+      expect(find.byTooltip('Cancel recording'), findsNothing);
+      expect(leftoverRecordings(), isEmpty);
+    });
+
     testWidgets('one stopped in its first tenth of a second keeps nothing', (
       tester,
     ) async {
@@ -805,21 +832,25 @@ void main() {
     expect(find.byTooltip('Cancel recording'), findsNothing);
   });
 
-  testWidgets('a recorder that returns nothing sends nothing', (tester) async {
-    stopGivesPath = false;
+  testWidgets('a recorder that writes no file, as on Android while a headset '
+      'connects, sends and reports nothing', (tester) async {
+    writesFile = false;
     await openRoom(tester);
 
     await tapMic(tester);
     await tester.pump(const Duration(milliseconds: 200));
-    await tapMic(tester);
-    await pumpUntil(
-      tester,
-      () =>
-          recorderCalls.contains('stop') &&
-          find.byTooltip('Cancel recording').evaluate().isEmpty,
-      reason: 'the recording to end',
-    );
+    final reports = await reportsDuring(() async {
+      await tapMic(tester);
+      await pumpUntil(
+        tester,
+        () =>
+            recorderCalls.contains('stop') &&
+            find.byTooltip('Cancel recording').evaluate().isEmpty,
+        reason: 'the recording to end',
+      );
+    });
 
+    expect(reports, isEmpty);
     expect(uploads, isEmpty);
     expect(voiceMessages(), isEmpty);
     expect(find.byType(SnackBar), findsNothing);

@@ -366,7 +366,7 @@ void main() {
       await pumpEventQueue();
 
       expect(
-        container.exists(unifiedPushDistributorInstalledProvider),
+        container.read(unifiedPushDistributorInstalledProvider.exists),
         isFalse,
       );
       expect(distributors.lookups, 0);

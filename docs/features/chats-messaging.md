@@ -244,8 +244,9 @@ one rule for what counts.
   The screen stays on while recording, and a recording stops at five
   minutes.
 - **Whatever else stops a recording keeps it and never sends it**:
-  leaving Zuno, a call or Siri taking the microphone, the system taking
-  the touch, closing the chat or the five-minute limit. The composer then
+  leaving Zuno, a call or Siri taking the microphone, a Bluetooth
+  microphone going away, the recorder failing, the system taking the
+  touch, closing the chat or the five-minute limit. The composer then
   offers it to play, send or delete in the message box's place.
 - **A press that has to ask for the microphone only asks**, and the next
   press records, because the system prompt takes the touch away
@@ -769,9 +770,13 @@ flowchart TD
   download and resend cancel the send, deleting the message, when the file
   is missing, so unsent files are read from the kept copy and resent only
   when there is one.
-- **The recorder pauses itself for a call or Siri and says so only on its
-  state stream**, so any state but recording ends the recording, or its
-  timer runs on over silence.
+- **The recorder pauses itself for a call, Siri or a lost Bluetooth
+  microphone and says so only on its state stream**, so any state but
+  recording ends the recording, or its timer runs on over silence.
+- **A recording is read from the path Zuno gave the recorder, never from
+  `stop()`**, because after the recorder ends a take itself `stop()` returns
+  nothing; no file there means nothing was recorded, as on Android while a
+  Bluetooth headset connects.
 - **A stop that lands while the recorder is still starting is applied once
   it starts**, or a recording begun as the phone locks runs on in the
   background.
