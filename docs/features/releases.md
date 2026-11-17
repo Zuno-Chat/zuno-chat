@@ -102,8 +102,12 @@ upload is a job in `release.yml`.
   changes between build-tools versions.
 - **The website's contract is `android/latest.json`** in the R2 bucket,
   uncached: the current version, the APK's path relative to it, its SHA-256
-  and size. Each version's APK is its own immutable object, uploaded before
-  the manifest so the manifest never points at a missing file.
+  and size. Each version's APK is its own immutable object, with a
+  `.sha256` file beside it for the download page, uploaded before the
+  manifest so the manifest never points at a missing file.
+- **Installed apps read `latest.json` too**: a copy not installed from Play
+  offers the update when its `version` is newer (`app-foundation.md`), so
+  the field is a contract with every installed copy.
 
 ## Environments
 

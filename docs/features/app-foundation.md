@@ -384,6 +384,27 @@ Every user-facing string, Dart and native, lives in `lib/l10n/app_en.arb` (`gen-
 - `isConnectionError` is the one test for a network failure, native ones from the error journal included.
 - **A failed action's notice says only what failed, and one formatter adds the ending**: "Check your connection and try again." for a network failure, "Try again." for anything else, so every failure reads alike and no translation repeats the retry wording.
 
+### Update notice (`lib/core/updates/`)
+
+**Zuno asks the place it was installed from whether a newer version is out, never the release schedule**, because each channel gets a release at a different time (Play and the App Store after review, the website at once), and a popup sent on "a release happened" would point to a store that doesn't have it yet.
+
+| Installed from | Asks | "Update" opens |
+|---|---|---|
+| Google Play | the Play Store app, through Google's app-update library on `zuno/app_update` | Zuno's Play listing |
+| App Store | Apple's lookup by bundle ID, skipped when the new version needs a newer iOS | the listing from that answer |
+| Anything else on Android (website, adb, other stores) | the website's `android/latest.json` (`releases.md`) | the download page |
+| iOS outside the App Store (TestFlight, Xcode, simulator) | nothing | — |
+
+- **Which sources each platform offers is a platform capability**, so "anything else" means the website on Android and nothing on iOS without a platform check.
+- **Every other Android installer counts as the website**, since the website APK shares Play's signing key and updates any install in place, and listing every browser and file manager isn't possible.
+- **Release builds only**: it checks at start and on return to the app, at most every six hours per process, a figure the privacy policy states, so changing it changes the policy.
+- **One popup per version**: either answer records that version across restarts, and only a higher one asks again.
+- **The popup waits for a calm moment**: the chat list on top, no call, onboarding settled and no other chat-list prompt open (it queues with the recovery prompt); a result found elsewhere shows as soon as those hold.
+- **Every failure is silent** and retried at the next check, never reported as an error.
+- **Apple's lookup sends no country**, so it answers for the US store, which matches everywhere because iOS releases go live in every storefront at once.
+- **Play's "Update" opens the listing, not Play's in-app download**, which would stack Play's own sheet and a restart prompt on top of ours.
+- **Own checker, not an update package**: all-in-one packages scrape Play's web page, blind to which version this device can get, and know no website source; `in_app_update` re-registered its activity callbacks on every check and replied twice without an activity, so the Play check is a few lines of own Kotlin.
+
 ## Decisions
 
 - **Single `Client`, no repository layer**: one source of truth, and no app-level model drifting from the SDK's own.

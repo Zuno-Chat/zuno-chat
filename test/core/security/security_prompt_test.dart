@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zuno/core/onboarding/onboarding_step.dart';
 import 'package:zuno/core/security/account_security_status.dart';
 import 'package:zuno/core/security/security_prompt.dart';
 
@@ -74,56 +73,6 @@ void main() {
       expect(
         _decide(deviceCount: 2, promptedAgo: securityPromptCooldown),
         SecurityPromptDecision.setUpRecovery,
-      );
-    });
-  });
-
-  group('recoveryPromptDefersToOnboarding', () {
-    test('the dialog steps aside while onboarding still has steps to ask', () {
-      expect(
-        recoveryPromptDefersToOnboarding(
-          flow: OnboardingFlow.undecided,
-          pendingSteps: const [OnboardingStep.setUpRecovery],
-        ),
-        isTrue,
-      );
-      expect(
-        recoveryPromptDefersToOnboarding(
-          flow: OnboardingFlow.undecided,
-          pendingSteps: const [OnboardingStep.notifications],
-        ),
-        isTrue,
-      );
-    });
-
-    test('the dialog steps aside while the flow is open', () {
-      expect(
-        recoveryPromptDefersToOnboarding(
-          flow: OnboardingFlow.open,
-          pendingSteps: const [],
-        ),
-        isTrue,
-      );
-    });
-
-    test('the dialog goes ahead once onboarding has nothing left', () {
-      expect(
-        recoveryPromptDefersToOnboarding(
-          flow: OnboardingFlow.undecided,
-          pendingSteps: const [],
-        ),
-        isFalse,
-      );
-    });
-
-    test('the dialog goes ahead once the flow has run, whatever is still '
-        'listed', () {
-      expect(
-        recoveryPromptDefersToOnboarding(
-          flow: OnboardingFlow.done,
-          pendingSteps: const [OnboardingStep.batteryExemption],
-        ),
-        isFalse,
       );
     });
   });

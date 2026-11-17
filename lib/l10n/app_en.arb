@@ -5616,6 +5616,23 @@
       }
     }
   },
+  "updateNoticeBody": "Zuno {version} is ready to install.",
+  "@updateNoticeBody": {
+    "description": "Update popup body: the newer Zuno version the person can install from where they got the app",
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "updateNoticeTitle": "Update available",
+  "@updateNoticeTitle": {
+    "description": "Update popup title: a newer Zuno is available from where the person installed it"
+  },
+  "updateNoticeUpdate": "Update",
+  "@updateNoticeUpdate": {
+    "description": "Update popup button: opens the store or download page with the newer Zuno"
+  },
   "uploadsChannelSendingFiles": "Sending files",
   "@uploadsChannelSendingFiles": {
     "description": "Android notification category name: files being sent",

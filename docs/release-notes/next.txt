@@ -1,4 +1,5 @@
 New
 • See who you've confirmed right in your chat list.
+• See when a new version of Zuno is ready to install.
 
 Fixed 5 bugs.

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:matrix/matrix.dart';
 
+import '../../../core/async/serial_lock.dart';
 import '../../../core/calls/matrixrtc/call_unread_correction_provider.dart';
 import '../../../core/errors/caught_errors.dart';
 import '../../../core/l10n/display_text.dart';
@@ -34,6 +35,7 @@ import 'new_room_dialog.dart';
 import 'notification_delivery_banner.dart';
 import 'public_rooms_sheet.dart';
 import 'room_actions.dart';
+import 'update_prompt.dart';
 
 enum _NewChatType {
   directMessage,
@@ -87,6 +89,7 @@ class RoomListPage extends ConsumerStatefulWidget {
 
 class _RoomListPageState extends ConsumerState<RoomListPage> {
   HomeTab _tab = HomeTab.chats;
+  final _prompts = SerialLock();
 
   Client get _client => ref.read(matrixClientProvider);
 
@@ -206,9 +209,14 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }
     store.flow = OnboardingFlow.open;
     try {
-      await Navigator.of(context).push(
-        ForwardExitPageRoute(builder: (_) => OnboardingFlowPage(steps: steps)),
-      );
+      await _prompts.run(() async {
+        if (!mounted) return;
+        await Navigator.of(context).push(
+          ForwardExitPageRoute(
+            builder: (_) => OnboardingFlowPage(steps: steps),
+          ),
+        );
+      });
     } finally {
       store.flow = OnboardingFlow.done;
     }
@@ -224,7 +232,7 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     }
     final pendingSteps = await ref.read(onboardingStepsProvider.future);
     if (!mounted || store.promptInFlight) return;
-    if (recoveryPromptDefersToOnboarding(
+    if (promptDefersToOnboarding(
       flow: ref.read(onboardingStoreProvider).flow,
       pendingSteps: pendingSteps,
     )) {
@@ -240,16 +248,18 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
 
   Future<void> _offerRecovery(SecurityPromptStore store) async {
     await store.markPrompted();
-    if (!mounted) return;
-    final l10n = context.l10n;
-    final accepted = await confirm(
-      context,
-      title: l10n.roomsRecoveryPromptTitle,
-      body: l10n.roomsRecoveryPromptBody,
-      confirmLabel: l10n.securitySetUpRecovery,
-      cancelLabel: l10n.commonNotNow,
-      tone: ConfirmTone.primary,
-    );
+    final accepted = await _prompts.run(() async {
+      if (!mounted) return false;
+      final l10n = context.l10n;
+      return confirm(
+        context,
+        title: l10n.roomsRecoveryPromptTitle,
+        body: l10n.roomsRecoveryPromptBody,
+        confirmLabel: l10n.securitySetUpRecovery,
+        cancelLabel: l10n.commonNotNow,
+        tone: ConfirmTone.primary,
+      );
+    });
     if (!accepted || !mounted) return;
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const SecureBackupPage()));
@@ -281,64 +291,72 @@ class _RoomListPageState extends ConsumerState<RoomListPage> {
     });
 
     final communities = _tab == HomeTab.communities;
-    return PopScope(
-      canPop: !communities,
-      onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _select(HomeTab.chats);
-      },
-      child: RoomChangesBuilder(
-        changes: RoomChanges.everywhere(client),
-        builder: (context) {
-          final layout = arrangeHome(client.rooms, pendingJoins: pendingJoins);
-          final loading = firstSyncPending && client.rooms.isEmpty;
-          return Scaffold(
-            appBar: AppBar(
-              toolbarHeight: 72,
-              centerTitle: false,
-              titleSpacing: 20,
-              title: Text(
-                _tab.label(context.l10n),
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
-              actions: [
-                IconButton(
-                  icon: const Icon(Icons.settings_outlined),
-                  tooltip: context.l10n.roomsSettings,
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsPage()),
-                  ),
-                ),
-                const SizedBox(width: 8),
-              ],
-            ),
-            bottomNavigationBar: HomeBottomBar(
-              selected: _tab,
-              chatsUnread: layout.hasUnreadChats(unreadCorrections),
-              communitiesUnread: layout.hasUnreadCommunities(unreadCorrections),
-              onSelect: _select,
-              onNew: _newChat,
-            ),
-            body: Column(
-              children: [
-                const SecurityAlertBanners.account(),
-                const NotificationDeliveryBanner(),
-                OwnLiveLocationBanner(onOpen: _open),
-                Expanded(
-                  child: ChatListView(
-                    key: ValueKey(_tab),
-                    client: client,
-                    layout: layout,
-                    section: _tab,
-                    unreadCorrections: unreadCorrections,
-                    onOpen: _open,
-                    onActions: _showRoomActions,
-                    loading: loading,
-                  ),
-                ),
-              ],
-            ),
-          );
+    return UpdatePrompt(
+      prompts: _prompts,
+      child: PopScope(
+        canPop: !communities,
+        onPopInvokedWithResult: (didPop, _) {
+          if (!didPop) _select(HomeTab.chats);
         },
+        child: RoomChangesBuilder(
+          changes: RoomChanges.everywhere(client),
+          builder: (context) {
+            final layout = arrangeHome(
+              client.rooms,
+              pendingJoins: pendingJoins,
+            );
+            final loading = firstSyncPending && client.rooms.isEmpty;
+            return Scaffold(
+              appBar: AppBar(
+                toolbarHeight: 72,
+                centerTitle: false,
+                titleSpacing: 20,
+                title: Text(
+                  _tab.label(context.l10n),
+                  style: Theme.of(context).textTheme.headlineMedium,
+                ),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    tooltip: context.l10n.roomsSettings,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SettingsPage()),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ),
+              bottomNavigationBar: HomeBottomBar(
+                selected: _tab,
+                chatsUnread: layout.hasUnreadChats(unreadCorrections),
+                communitiesUnread: layout.hasUnreadCommunities(
+                  unreadCorrections,
+                ),
+                onSelect: _select,
+                onNew: _newChat,
+              ),
+              body: Column(
+                children: [
+                  const SecurityAlertBanners.account(),
+                  const NotificationDeliveryBanner(),
+                  OwnLiveLocationBanner(onOpen: _open),
+                  Expanded(
+                    child: ChatListView(
+                      key: ValueKey(_tab),
+                      client: client,
+                      layout: layout,
+                      section: _tab,
+                      unreadCorrections: unreadCorrections,
+                      onOpen: _open,
+                      onActions: _showRoomActions,
+                      loading: loading,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

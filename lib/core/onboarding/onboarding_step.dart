@@ -13,6 +13,15 @@ enum OnboardingStep {
 
 enum OnboardingFlow { undecided, open, done }
 
+bool promptDefersToOnboarding({
+  required OnboardingFlow flow,
+  required List<OnboardingStep>? pendingSteps,
+}) => switch (flow) {
+  OnboardingFlow.undecided => pendingSteps?.isNotEmpty ?? true,
+  OnboardingFlow.open => true,
+  OnboardingFlow.done => false,
+};
+
 const _deliverySteps = {
   OnboardingStep.deliveryMethod,
   OnboardingStep.batteryExemption,

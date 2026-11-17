@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../location/maps_link.dart';
 import '../push/delivery/notification_delivery_mode.dart';
+import '../updates/update_source.dart';
 import 'app_platform.dart';
 
 enum AppLanguageSetting { inApp, systemSettings }
@@ -70,6 +71,7 @@ class PlatformCapabilities {
   final MapsApp mapsApp;
   final List<NotificationDeliveryMode> deliveryModes;
   final NotificationDeliveryMode defaultDeliveryMode;
+  final Set<UpdateSource> updateSources;
 
   const PlatformCapabilities({
     required this.batteryExemption,
@@ -131,6 +133,7 @@ class PlatformCapabilities {
     required this.mapsApp,
     required this.deliveryModes,
     required this.defaultDeliveryMode,
+    required this.updateSources,
   });
 
   bool get incognitoKeyboard =>
@@ -203,6 +206,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
           NotificationDeliveryMode.backgroundService,
         ],
         defaultDeliveryMode: NotificationDeliveryMode.fcm,
+        updateSources: {UpdateSource.play, UpdateSource.website},
       ),
       AppPlatform.ios => const PlatformCapabilities(
         batteryExemption: false,
@@ -264,6 +268,7 @@ PlatformCapabilities capabilitiesFor(AppPlatform platform) =>
         mapsApp: MapsApp.appleMaps,
         deliveryModes: [NotificationDeliveryMode.apns],
         defaultDeliveryMode: NotificationDeliveryMode.apns,
+        updateSources: {UpdateSource.appStore},
       ),
     };
 

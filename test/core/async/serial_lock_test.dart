@@ -19,6 +19,21 @@ void main() {
     });
   });
 
+  test('a lock is busy from the moment an action is queued until the last '
+      'one finishes', () async {
+    final lock = SerialLock();
+    expect(lock.busy, isFalse);
+
+    final first = Completer<void>();
+    final running = lock.run(() => first.future);
+    expect(lock.busy, isTrue);
+    final queued = lock.run(() async {});
+
+    first.complete();
+    await Future.wait([running, queued]);
+    expect(lock.busy, isFalse);
+  });
+
   test('forgetting every lock frees one jammed by an action that never '
       'finished', () async {
     final lock = SerialLock();

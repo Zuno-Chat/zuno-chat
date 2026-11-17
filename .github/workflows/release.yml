@@ -194,12 +194,16 @@ jobs:
           [ "$DRY_RUN" = true ] && dir=dry-run
           apk="$RUNNER_TEMP/apk/app-release.apk"
           name="zuno-$VERSION.apk"
+          sha256=$(sha256sum "$apk" | cut -d' ' -f1)
+          printf '%s  %s\n' "$sha256" "$name" >"$RUNNER_TEMP/$name.sha256"
           jq -n --arg version "$VERSION" --arg apk "$name" \
-            --arg sha256 "$(sha256sum "$apk" | cut -d' ' -f1)" --argjson size "$(stat -c %s "$apk")" \
+            --arg sha256 "$sha256" --argjson size "$(stat -c %s "$apk")" \
             '{version: $version, apk: $apk, sha256: $sha256, size: $size}' >"$RUNNER_TEMP/latest.json"
           aws s3 cp "$apk" "s3://$R2_BUCKET/$dir/$name" \
             --content-type application/vnd.android.package-archive \
             --cache-control 'public, max-age=31536000, immutable'
+          aws s3 cp "$RUNNER_TEMP/$name.sha256" "s3://$R2_BUCKET/$dir/$name.sha256" \
+            --content-type text/plain --cache-control 'public, max-age=31536000, immutable'
           aws s3 cp "$RUNNER_TEMP/latest.json" "s3://$R2_BUCKET/$dir/latest.json" \
             --content-type application/json --cache-control no-cache
           if [ "$DRY_RUN" = true ]; then

@@ -31,6 +31,8 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.cloudwebrtc.webrtc.audio.AudioSwitchManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.install.model.UpdateAvailability
 import im.zuno.chat.zuno_notifications.AppLaunchIntent
 import im.zuno.chat.zuno_notifications.IncomingRing
 import im.zuno.chat.zuno_notifications.RingDecisions
@@ -674,6 +676,28 @@ class MainActivity : FlutterActivity() {
             }
         }
 
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, APP_UPDATE_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "playUpdate" ->
+                        AppUpdateManagerFactory
+                            .create(applicationContext)
+                            .appUpdateInfo
+                            .addOnSuccessListener { info ->
+                                result.success(
+                                    info
+                                        .availableVersionCode()
+                                        .takeIf {
+                                            info.updateAvailability() ==
+                                                UpdateAvailability.UPDATE_AVAILABLE
+                                        },
+                                )
+                            }.addOnFailureListener { result.error("play_update", it.message, null) }
+
+                    else -> result.notImplemented()
+                }
+            }
+
         if (kept != null) {
             applyScreenSecurity()
             if (host.showOverLockscreen) setShowOverLockscreen(true)
@@ -945,6 +969,7 @@ class MainActivity : FlutterActivity() {
         private const val IMAGE_CHANNEL = "zuno/image"
         private const val VIDEO_CHANNEL = "zuno/video"
         private const val DEVICE_SAFETY_CHANNEL = "zuno/device_safety"
+        private const val APP_UPDATE_CHANNEL = "zuno/app_update"
         private const val APP_DATA_CHANNEL = "zuno/app_data"
         private const val PUSH_DIAG_CHANNEL = "zuno/push_diag"
         private const val ERRORS_CHANNEL = "zuno/errors"

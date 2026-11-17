@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../errors/caught_errors.dart';
 import '../../l10n/l10n.dart';
+import '../../platform/os_version.dart';
 import '../../platform/platform_capabilities.dart';
 
 enum NotificationPreview {
@@ -59,27 +60,18 @@ Future<NotificationPreview> currentNotificationPreview() async {
   }
 }
 
-const _retentionFixes = <int, List<int>>{
-  15: [15, 8, 8],
-  16: [16, 7, 16],
-  18: [18, 7, 8],
-  26: [26, 4, 2],
+const _retentionFixes = <int, String>{
+  15: '15.8.8',
+  16: '16.7.16',
+  18: '18.7.8',
+  26: '26.4.2',
 };
 
 bool notificationRetentionUnpatched(String osVersion) {
-  final match = RegExp(r'(\d+)(?:\.(\d+))?(?:\.(\d+))?').firstMatch(osVersion);
-  if (match == null) return false;
-  final version = [
-    for (var group = 1; group <= 3; group++)
-      int.tryParse(match.group(group) ?? '0') ?? 0,
-  ];
-  if (version[0] == 17) return true;
-  final fixed = _retentionFixes[version[0]];
-  if (fixed == null) return false;
-  for (var part = 0; part < 3; part++) {
-    if (version[part] != fixed[part]) return version[part] < fixed[part];
-  }
-  return false;
+  final major = osVersionParts(osVersion)?.first;
+  if (major == 17) return true;
+  final fixed = _retentionFixes[major];
+  return fixed != null && !osAtLeast(osVersion, fixed);
 }
 
 final notificationRetentionUnpatchedProvider = Provider<bool>(

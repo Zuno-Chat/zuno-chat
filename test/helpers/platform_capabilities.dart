@@ -2,6 +2,7 @@ import 'package:zuno/core/location/maps_link.dart';
 import 'package:zuno/core/platform/app_platform.dart';
 import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
+import 'package:zuno/core/updates/update_source.dart';
 
 final androidCapabilities = capabilitiesFor(AppPlatform.android);
 
@@ -53,6 +54,7 @@ PlatformCapabilities capabilitiesLike(
   MapsApp? mapsApp,
   List<NotificationDeliveryMode>? deliveryModes,
   NotificationDeliveryMode? defaultDeliveryMode,
+  Set<UpdateSource>? updateSources,
 }) => PlatformCapabilities(
   batteryExemption: batteryExemption ?? base.batteryExemption,
   backgroundDataRestriction:
@@ -121,4 +123,5 @@ PlatformCapabilities capabilitiesLike(
   mapsApp: mapsApp ?? base.mapsApp,
   deliveryModes: deliveryModes ?? base.deliveryModes,
   defaultDeliveryMode: defaultDeliveryMode ?? base.defaultDeliveryMode,
+  updateSources: updateSources ?? base.updateSources,
 );

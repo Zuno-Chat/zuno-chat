@@ -8,6 +8,7 @@ import '../l10n/l10n.dart';
 final zunoWebsite = Uri.parse('https://zuno.chat');
 final zunoLogoUri = zunoWebsite.resolve('/assets/apple-touch-icon.png');
 final donateUri = zunoWebsite.resolve('/#donate');
+final downloadUri = zunoWebsite.resolve('/download');
 final privacyPolicyUri = zunoWebsite.resolve('/privacy');
 final termsUri = zunoWebsite.resolve('/terms');
 final securityUri = zunoWebsite.resolve('/security');

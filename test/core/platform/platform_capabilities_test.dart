@@ -8,6 +8,7 @@ import 'package:zuno/core/platform/platform_capabilities.dart';
 import 'package:zuno/core/push/background_sync/background_sync_service.dart';
 import 'package:zuno/core/push/delivery/notification_delivery_mode.dart';
 import 'package:zuno/core/shortcuts/home_screen_shortcut.dart';
+import 'package:zuno/core/updates/update_source.dart';
 
 import '../../helpers/platform_capabilities.dart';
 
@@ -352,6 +353,12 @@ final _capabilities = <_Capability>[
       NotificationDeliveryMode.backgroundService,
     ],
     ios: [NotificationDeliveryMode.apns],
+  ),
+  _Capability(
+    'updateSources',
+    read: (c) => c.updateSources,
+    android: {UpdateSource.play, UpdateSource.website},
+    ios: {UpdateSource.appStore},
   ),
   _Capability(
     'incognitoKeyboard',

@@ -375,4 +375,71 @@ void main() {
       }
     });
   });
+
+  group('promptDefersToOnboarding', () {
+    test(
+      'a home prompt steps aside while onboarding still has steps to ask',
+      () {
+        expect(
+          promptDefersToOnboarding(
+            flow: OnboardingFlow.undecided,
+            pendingSteps: const [OnboardingStep.setUpRecovery],
+          ),
+          isTrue,
+        );
+        expect(
+          promptDefersToOnboarding(
+            flow: OnboardingFlow.undecided,
+            pendingSteps: const [OnboardingStep.notifications],
+          ),
+          isTrue,
+        );
+      },
+    );
+
+    test('a home prompt steps aside until the steps are known', () {
+      expect(
+        promptDefersToOnboarding(
+          flow: OnboardingFlow.undecided,
+          pendingSteps: null,
+        ),
+        isTrue,
+      );
+      expect(
+        promptDefersToOnboarding(flow: OnboardingFlow.done, pendingSteps: null),
+        isFalse,
+      );
+    });
+
+    test('a home prompt steps aside while the flow is open', () {
+      expect(
+        promptDefersToOnboarding(
+          flow: OnboardingFlow.open,
+          pendingSteps: const [],
+        ),
+        isTrue,
+      );
+    });
+
+    test('a home prompt goes ahead once onboarding has nothing left', () {
+      expect(
+        promptDefersToOnboarding(
+          flow: OnboardingFlow.undecided,
+          pendingSteps: const [],
+        ),
+        isFalse,
+      );
+    });
+
+    test('a home prompt goes ahead once the flow has run, whatever is still '
+        'listed', () {
+      expect(
+        promptDefersToOnboarding(
+          flow: OnboardingFlow.done,
+          pendingSteps: const [OnboardingStep.batteryExemption],
+        ),
+        isFalse,
+      );
+    });
+  });
 }

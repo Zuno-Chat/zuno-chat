@@ -1,4 +1,3 @@
-import '../onboarding/onboarding_step.dart';
 import 'account_security_status.dart';
 
 enum SecurityPromptDecision { none, setUpRecovery }
@@ -30,12 +29,3 @@ SecurityPromptDecision securityPromptDecision({
       ? SecurityPromptDecision.setUpRecovery
       : SecurityPromptDecision.none;
 }
-
-bool recoveryPromptDefersToOnboarding({
-  required OnboardingFlow flow,
-  required List<OnboardingStep> pendingSteps,
-}) => switch (flow) {
-  OnboardingFlow.undecided => pendingSteps.isNotEmpty,
-  OnboardingFlow.open => true,
-  OnboardingFlow.done => false,
-};

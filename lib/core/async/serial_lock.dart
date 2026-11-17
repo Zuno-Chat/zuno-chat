@@ -6,6 +6,8 @@ class SerialLock {
   final _keyed = KeyedSerialLock();
 
   Future<T> run<T>(Future<T> Function() action) => _keyed.run('', action);
+
+  bool get busy => _keyed._tails.isNotEmpty;
 }
 
 class KeyedSerialLock {
