@@ -15,6 +15,7 @@ class FakeUnifiedPush extends UnifiedPushPlatform {
   int unregistrations = 0;
   void Function(PushEndpoint endpoint, String instance)? onNewEndpoint;
   void Function(FailedReason reason, String instance)? onRegistrationFailed;
+  void Function(String instance)? onUnregistered;
 
   @override
   Future<List<String>> getDistributors(List<String> features) async {
@@ -64,6 +65,7 @@ class FakeUnifiedPush extends UnifiedPushPlatform {
   }) async {
     this.onNewEndpoint = onNewEndpoint;
     this.onRegistrationFailed = onRegistrationFailed;
+    this.onUnregistered = onUnregistered;
   }
 
   @override

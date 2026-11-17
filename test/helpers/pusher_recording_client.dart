@@ -23,6 +23,7 @@ mixin PusherRecording on Client {
   Object? postError;
   Object? deleteError;
   Completer<void>? holdNextPost;
+  Completer<void>? holdNextDelete;
   Completer<void>? holdNextPushersFetch;
   void Function()? onDeletePusher;
   List<Map<String, Object?>>? pushersOnServer;
@@ -40,6 +41,9 @@ mixin PusherRecording on Client {
   @override
   Future<void> deletePusher(PusherId pusherId) async {
     onDeletePusher?.call();
+    final hold = holdNextDelete;
+    holdNextDelete = null;
+    await hold?.future;
     final error = deleteError;
     if (error != null) throw error;
     deleted.add(pusherId);

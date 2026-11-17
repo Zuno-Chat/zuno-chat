@@ -399,9 +399,19 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
       await client.postPusher(pusher);
     } catch (e, s) {
       reportCaught('unifiedpush pusher post', e, s);
+      if (!identical(_pendingPusher, pusher)) return;
       lastPusherError = PusherPostFailed(e.toString());
       status.value = UnifiedPushStatus.pusherFailed;
       _retry.schedule(() => _retryWithLiveClient());
+      return;
+    }
+    if (!identical(_pendingPusher, pusher)) {
+      if (_pendingPusher?.pushkey == pusher.pushkey) return;
+      try {
+        await removePusher(client, unifiedPushPusherIdFor(pusher.pushkey));
+      } catch (e, s) {
+        reportCaught('unifiedpush dropped pusher delete', e, s);
+      }
       return;
     }
     _pushkey = pusher.pushkey;
@@ -435,17 +445,28 @@ class UnifiedPushDeliveryProvider implements NotificationDeliveryProvider {
     _runner.signalCallbackDone();
   }
 
-  void _onUnregistered(String instance) {
+  Future<void> _onUnregistered(String instance) async {
+    final known = _pushkey;
     _endpointUrl = null;
     _gatewayUrl = null;
     _pushkey = null;
     _pendingPusher = null;
     savedDistributor = null;
     status.value = UnifiedPushStatus.idle;
-    unawaited(
-      SharedPreferences.getInstance().then(clearUnifiedPushRegistration),
-    );
-    _runner.signalCallbackDone();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final stale =
+          known ?? readUnifiedPushRegistration(prefs)?.effectivePushkey;
+      await clearUnifiedPushRegistration(prefs);
+      if (stale == null) return;
+      await _runner.withClient(
+        (client) => removePusher(client, unifiedPushPusherIdFor(stale)),
+      );
+    } catch (e, s) {
+      reportCaught('unifiedpush unregistered pusher delete', e, s);
+    } finally {
+      _runner.signalCallbackDone();
+    }
   }
 
   IncomingPushOutcome get lastPushOutcome => _runner.lastPushOutcome;

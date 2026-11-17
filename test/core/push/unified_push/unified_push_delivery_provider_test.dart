@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:clock/clock.dart';
@@ -723,6 +724,132 @@ void main() {
 
       final body = jsonDecode(env.pusherPosts.single) as Map;
       expect(body['pushkey'], 'https://ntfy.sh/abc');
+    });
+  });
+
+  group('the distributor unregisters this app', () {
+    late PusherRecordingClient client;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      client = PusherRecordingClient();
+      provider.notificationsAllowed = () async => true;
+      await provider.ensureCallbacksRegistered(client);
+    });
+
+    Future<void> persistRegistration() async {
+      await saveUnifiedPushRegistration(
+        await SharedPreferences.getInstance(),
+        endpointUrl: Uri.parse('https://ntfy.sh/old'),
+        gatewayUrl: Uri.parse('https://ntfy.sh/_matrix/push/v1/notify'),
+      );
+    }
+
+    Future<UnifiedPushRegistration?> persisted() async =>
+        readUnifiedPushRegistration(await SharedPreferences.getInstance());
+
+    test('deletes its pusher on the homeserver and forgets it', () async {
+      await persistRegistration();
+
+      fake.onUnregistered!('default');
+      await pumpEventQueue();
+
+      expect(client.deleted.map((id) => id.pushkey), ['https://ntfy.sh/old']);
+      expect(await persisted(), isNull);
+      expect(provider.status.value, UnifiedPushStatus.idle);
+    });
+
+    test('asks the homeserver nothing when nothing was registered', () async {
+      fake.onUnregistered!('default');
+      await pumpEventQueue();
+
+      expect(client.deleted, isEmpty);
+    });
+
+    test('still forgets the registration when the delete fails', () async {
+      await persistRegistration();
+      client.deleteError = Exception('offline');
+
+      fake.onUnregistered!('default');
+      await pumpEventQueue();
+
+      expect(await persisted(), isNull);
+      expect(provider.status.value, UnifiedPushStatus.idle);
+    });
+
+    test('keeps a registration that lands while the old pusher is being '
+        'deleted', () async {
+      await persistRegistration();
+      final release = Completer<void>();
+      client.holdNextDelete = release;
+
+      fake.onUnregistered!('default');
+      await pumpEventQueue();
+      fake.onNewEndpoint!(PushEndpoint('https://ntfy.sh/new', null), 'default');
+      await pumpEventQueue();
+      release.complete();
+      await pumpEventQueue();
+
+      expect(client.deleted.map((id) => id.pushkey), ['https://ntfy.sh/old']);
+      expect((await persisted())?.effectivePushkey, 'https://ntfy.sh/new');
+    });
+
+    test('drops a pusher post that was still in flight, and deletes what it '
+        'posted', () async {
+      final release = Completer<void>();
+      client.holdNextPost = release;
+
+      fake.onNewEndpoint!(PushEndpoint('https://ntfy.sh/new', null), 'default');
+      await pumpEventQueue();
+      fake.onUnregistered!('default');
+      await pumpEventQueue();
+      release.complete();
+      await pumpEventQueue();
+
+      expect(await persisted(), isNull);
+      expect(provider.status.value, UnifiedPushStatus.idle);
+      expect(client.deleted.map((id) => id.pushkey), ['https://ntfy.sh/new']);
+    });
+
+    test(
+      'shows no error for a failed post that was dropped meanwhile',
+      () async {
+        final release = Completer<void>();
+        client
+          ..holdNextPost = release
+          ..postError = Exception('offline');
+
+        fake.onNewEndpoint!(
+          PushEndpoint('https://ntfy.sh/new', null),
+          'default',
+        );
+        await pumpEventQueue();
+        fake.onUnregistered!('default');
+        await pumpEventQueue();
+        release.complete();
+        await pumpEventQueue();
+
+        expect(provider.status.value, UnifiedPushStatus.idle);
+        expect(provider.lastPusherError, isNull);
+        expect(provider.retryScheduled, isFalse);
+      },
+    );
+
+    test('keeps the pusher when the same address is posted again while the '
+        'first post is in flight', () async {
+      final release = Completer<void>();
+      client.holdNextPost = release;
+
+      fake.onNewEndpoint!(PushEndpoint('https://ntfy.sh/new', null), 'default');
+      await pumpEventQueue();
+      fake.onNewEndpoint!(PushEndpoint('https://ntfy.sh/new', null), 'default');
+      await pumpEventQueue();
+      release.complete();
+      await pumpEventQueue();
+
+      expect(client.deleted, isEmpty);
+      expect((await persisted())?.effectivePushkey, 'https://ntfy.sh/new');
+      expect(provider.status.value, UnifiedPushStatus.ready);
     });
   });
 }
