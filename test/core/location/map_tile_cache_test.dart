@@ -22,10 +22,13 @@ CachedMapTileMetadata _freshForADay() => CachedMapTileMetadata(
 
 Future<CachedMapTile?> _readBack(MapCachingProvider cache, String url) async {
   CachedMapTile? cached;
-  await waitUntilInRealTime(
-    () async => (cached = await cache.getTile(url)) != null,
-    reason: 'the tile to be cached',
-  );
+  await waitUntilInRealTime(() async {
+    try {
+      return (cached = await cache.getTile(url)) != null;
+    } on CachedMapTileReadFailure {
+      return false;
+    }
+  }, reason: 'the tile to be cached');
   return cached;
 }
 
