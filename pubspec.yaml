@@ -2,7 +2,7 @@ name: zuno
 description: "Zuno, an end-to-end encrypted chat app for Android and iOS."
 publish_to: 'none'
 
-version: 1.6.0+1006000
+version: 1.7.0+1007000
 
 environment:
   sdk: ^3.13.4
