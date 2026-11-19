@@ -590,7 +590,7 @@ edit.
 | Gesture | Effect |
 |---|---|
 | Tap | Hides or shows the controls and the system bars |
-| Swipe sideways | The next or previous item; off while zoomed |
+| Swipe sideways | The next or previous item; while zoomed, only once the photo is at the edge being swiped past |
 | Swipe down | Closes; the chat shows through while dragging; off while zoomed |
 | Double-tap or pinch a photo | Zooms, up to 5x |
 | Drag a zoomed photo | Pans it, gliding on after a flick |
@@ -601,6 +601,12 @@ edit.
   second finger lands, since Flutter's `InteractiveViewer` lost any uneven
   pinch to the sideways and swipe-down drags, which take a gesture after
   less finger travel than a pinch needs.
+- **A zoomed photo decides at the start of a one-finger drag whether it
+  pans or lets the swipe page**: a mostly sideways drag toward an edge the
+  photo already shows pages, anything else pans, and the zoom widget
+  measures finger travel with the phone's own touch slop like the swipes
+  do, since Android's is smaller than Flutter's default and the swipe
+  otherwise took a zoomed drag first.
 - **A video pauses while a full page covers the viewer or the app is in
   the background, and plays on after**, so its sound never runs behind the
   forward picker; a sheet over it leaves it playing.

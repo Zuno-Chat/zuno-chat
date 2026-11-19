@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'dart:ui' show lerpDouble;
 
+import 'package:flutter/foundation.dart' show precisionErrorTolerance;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -63,6 +64,17 @@ class _ZoomableState extends State<Zoomable>
     if (zoomed == _zoomed) return;
     _zoomed = zoomed;
     widget.onZoomChanged?.call(zoomed);
+  }
+
+  GestureDisposition? _claimDrag(Offset move) {
+    if (!_zoomed) return null;
+    if (move.dx.abs() <= move.dy.abs()) return GestureDisposition.accepted;
+    final room = move.dx > 0
+        ? -_offset.dx
+        : _offset.dx - context.size!.width * (1 - _scale);
+    return room > precisionErrorTolerance
+        ? GestureDisposition.accepted
+        : GestureDisposition.rejected;
   }
 
   void _setView(double scale, Offset offset) {
@@ -145,8 +157,9 @@ class _ZoomableState extends State<Zoomable>
       gestures: {
         _PinchRecognizer:
             GestureRecognizerFactoryWithHandlers<_PinchRecognizer>(
-              () => _PinchRecognizer(zoomed: () => _zoomed, debugOwner: this),
+              () => _PinchRecognizer(claimDrag: _claimDrag, debugOwner: this),
               (recognizer) => recognizer
+                ..gestureSettings = MediaQuery.maybeGestureSettingsOf(context)
                 ..onStart = _onPinchStart
                 ..onUpdate = _onPinchUpdate
                 ..onEnd = _onPinchEnd,
@@ -163,10 +176,10 @@ class _ZoomableState extends State<Zoomable>
 }
 
 class _PinchRecognizer extends ScaleGestureRecognizer {
-  final ValueGetter<bool> zoomed;
+  final GestureDisposition? Function(Offset move) claimDrag;
   Offset _downAt = Offset.zero;
 
-  _PinchRecognizer({required this.zoomed, super.debugOwner});
+  _PinchRecognizer({required this.claimDrag, super.debugOwner});
 
   @override
   void handleEvent(PointerEvent event) {
@@ -175,10 +188,10 @@ class _PinchRecognizer extends ScaleGestureRecognizer {
       _downAt = event.position;
       if (pointerCount > 1) resolve(GestureDisposition.accepted);
     } else if (event is PointerMoveEvent &&
-        zoomed() &&
         (event.position - _downAt).distance >
             computeHitSlop(event.kind, gestureSettings)) {
-      resolve(GestureDisposition.accepted);
+      final claim = claimDrag(event.position - _downAt);
+      if (claim != null) resolve(claim);
     }
   }
 }

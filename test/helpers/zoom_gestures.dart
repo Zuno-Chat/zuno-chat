@@ -31,3 +31,13 @@ Future<void> doubleTapAt(WidgetTester tester, Offset at) async {
 
 double zoomOf(WidgetTester tester, Finder finder) =>
     tester.getRect(finder).width / tester.getSize(finder).width;
+
+Future<void> slide(WidgetTester tester, Offset from, Offset by) async {
+  final finger = await tester.startGesture(from);
+  for (var step = 0; step < 20; step++) {
+    await finger.moveBy(by / 20);
+    await tester.pump();
+  }
+  await finger.up();
+  await tester.pump(const Duration(seconds: 1));
+}

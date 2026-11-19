@@ -110,20 +110,10 @@ void main() {
     await doubleTap(tester);
     final zoomed = tester.getRect(content);
 
-    Future<void> slide(Offset by) async {
-      final finger = await tester.startGesture(tester.getCenter(content));
-      for (var step = 0; step < 20; step++) {
-        await finger.moveBy(by / 20);
-        await tester.pump();
-      }
-      await finger.up();
-      await tester.pump(const Duration(seconds: 1));
-    }
-
-    await slide(const Offset(0, -100));
+    await slide(tester, tester.getCenter(content), const Offset(0, -100));
     expect(zoomed.top - tester.getRect(content).top, greaterThan(50));
 
-    await slide(const Offset(2000, 0));
+    await slide(tester, tester.getCenter(content), const Offset(2000, 0));
     expect(tester.getRect(content).left, closeTo(0, 0.001));
     expect(scale(tester), closeTo(2.5, 0.001));
   });

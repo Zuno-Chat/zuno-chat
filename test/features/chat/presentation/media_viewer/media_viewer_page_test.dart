@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'dart:convert';
+import 'dart:ui' show GestureSettings;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -302,25 +303,35 @@ void main() {
     expect(find.text('chat'), findsNothing);
   });
 
-  testWidgets('a zoomed photo neither pages nor closes on drag', (
-    tester,
-  ) async {
-    final opened = photo(r'$a', 1);
+  final touchSlops = ValueVariant<double?>({null, 8});
+
+  void useTouchSlop(WidgetTester tester) {
+    final slop = touchSlops.currentValue;
+    if (slop == null) return;
+    tester.view.gestureSettings = GestureSettings(
+      physicalTouchSlop: slop * tester.view.devicePixelRatio,
+    );
+    addTearDown(tester.view.resetGestureSettings);
+  }
+
+  Future<void> pan(WidgetTester tester, Offset by) =>
+      slide(tester, tester.getCenter(find.byType(PageView)), by);
+
+  Future<void> openZoomedMiddle(WidgetTester tester) async {
+    useTouchSlop(tester);
+    final opened = photo(r'$b', 2);
     await openViewer(
       tester,
       pages: {
-        null: (events: [photo(r'$b', 2), opened], nextBatch: null),
+        null: (
+          events: [photo(r'$c', 3), opened, photo(r'$a', 1)],
+          nextBatch: null,
+        ),
       },
       opened: opened,
     );
     await zoomIn(tester);
-
-    await swipeToNewer(tester);
-    expect(shown(tester), r'$a');
-
-    await closeGesture(tester, 300);
-    expect(viewerOpen(), isTrue);
-  });
+  }
 
   Finder frameOf(String eventId) => find.descendant(
     of: find.byWidgetPredicate(
@@ -328,6 +339,59 @@ void main() {
     ),
     matching: find.byType(ViewerFrame),
   );
+
+  testWidgets('a zoomed photo neither pages nor closes on drag', (
+    tester,
+  ) async {
+    await openZoomedMiddle(tester);
+
+    await swipeToNewer(tester);
+    expect(shown(tester), r'$b');
+
+    await swipeToOlder(tester);
+    expect(shown(tester), r'$b');
+
+    await closeGesture(tester, 300);
+    expect(viewerOpen(), isTrue);
+  }, variant: touchSlops);
+
+  testWidgets('a zoomed photo panned to its right edge pages to the newer '
+      'one on the next swipe left', (tester) async {
+    await openZoomedMiddle(tester);
+
+    await pan(tester, const Offset(-2000, 0));
+    expect(shown(tester), r'$b');
+
+    await swipeToNewer(tester);
+    expect(shown(tester), r'$c');
+  }, variant: touchSlops);
+
+  testWidgets('a zoomed photo panned to its left edge pages to the older one '
+      'on the next swipe right', (tester) async {
+    await openZoomedMiddle(tester);
+
+    await pan(tester, const Offset(2000, 0));
+    expect(shown(tester), r'$b');
+
+    await swipeToOlder(tester);
+    expect(shown(tester), r'$a');
+  }, variant: touchSlops);
+
+  testWidgets('a zoomed photo at its edge pans back the other way and pans '
+      'instead of closing', (tester) async {
+    await openZoomedMiddle(tester);
+    await pan(tester, const Offset(-2000, 0));
+    final atEdge = tester.getRect(frameOf(r'$b'));
+
+    await swipeToOlder(tester);
+    expect(shown(tester), r'$b');
+    expect(tester.getRect(frameOf(r'$b')).left, greaterThan(atEdge.left + 50));
+
+    await pan(tester, const Offset(0, 2000));
+    await closeGesture(tester, 300);
+    expect(viewerOpen(), isTrue);
+    expect(shown(tester), r'$b');
+  }, variant: touchSlops);
 
   Future<void> pinchOneFingerStill(WidgetTester tester, Offset way) async {
     final center = tester.getCenter(find.byType(PageView));
