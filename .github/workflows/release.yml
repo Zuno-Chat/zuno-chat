@@ -261,3 +261,14 @@ jobs:
         run: |
           bundle exec fastlane android upload aab:"$RUNNER_TEMP/android/app-release.aab" \
             version:"$VERSION" build_number:"$BUILD_NUMBER" dry_run:"$DRY_RUN"
+
+  delete-branch:
+    needs: [upload-website, upload-ios, upload-android]
+    if: ${{ !inputs.dry_run }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - run: git push --force-with-lease="refs/heads/$GITHUB_REF_NAME:$GITHUB_SHA" origin --delete "$GITHUB_REF_NAME"

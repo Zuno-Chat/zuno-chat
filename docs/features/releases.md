@@ -21,6 +21,9 @@ flowchart LR
   tag --> web["Website APK<br>to R2"]
   tag --> ios["App Store<br>upload"]
   tag --> play["Play upload"]
+  web --> drop["delete<br>rc/X.Y.Z"]
+  ios --> drop
+  play --> drop
 ```
 
 The logic (versions, build numbers, commit types, guards) is pure Dart in
@@ -52,9 +55,12 @@ upload is a job in `release.yml`.
 | `cut-release` | Cron every Wednesday, or by hand | Computes the version, commits `chore: release X.Y.Z` (pubspec bump, notes moved) to `master` and pushes `rc/X.Y.Z` |
 | `ship-release` | Cron every Saturday, or by hand to ship a cut early | Dispatches `release` on the one rc branch above the highest tag; does nothing when none waits, and stops when several do |
 | `start-hotfix` | By hand, with master commit SHAs and notes | Branches `rc/X.Y.Z` from the highest tag as the next patch, cherry-picks with `-x`, commits the bump and notes on the rc branch, dispatches `release` |
-| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds and their scans → tag `vX.Y.Z` → website APK, iOS and Android uploads side by side |
+| `release` | Dispatch, on `rc/*` only | Guards → analyze and the Dart, Kotlin and Swift suites → both builds and their scans → tag `vX.Y.Z` → website APK, iOS and Android uploads side by side → delete the rc branch |
 
 - **The release branch name is the version.**
+- **A release deletes its rc branch once all three uploads succeed**, and
+  only while it still points at the shipped commit, so a fix picked onto it
+  mid-run is kept and the run goes red; the tag keeps every shipped commit.
 - **The tag spends the version before any channel holds its binary**: it
   is pushed once both builds pass and before any upload, so no channel ever
   holds an untagged version and a re-cut never resubmits an old binary.
@@ -124,11 +130,12 @@ green without FCM or crash reporting.
 | A gate or build fails | Nothing was tagged or uploaded. Fix on `master`, `git cherry-pick -x` onto the rc branch, re-dispatch `release` |
 | An upload fails | "Re-run failed jobs", never "Re-run all jobs": the guard refuses a tagged version. A build Apple already holds is that run's, so the iOS lane submits it without re-uploading |
 | A store rejects the binary | The version is spent. Ship the fix as the next patch through `start-hotfix` |
-| Play refuses the commit until a new permission or foreground-service type is declared | Upload that run's AAB by hand in Play Console, which only then asks for the declaration, and roll it out there. Never re-run the Play job: its version code is taken |
+| Play refuses the commit until a new permission or foreground-service type is declared | Upload that run's AAB by hand in Play Console, which only then asks for the declaration, and roll it out there. Never re-run the Play job: its version code is taken. Then delete the rc branch |
 | A bad release is live | Halt the Play release, which works at 100% too, then `start-hotfix`. iOS has nothing to pause |
 | `cut-release` failed partway | Re-run it. It resumes without dropping new notes |
 | A failed rc is still untagged on the next Wednesday (a gate or build failure) | The cut fails on the name clash. Delete the stale branch |
-| A run is abandoned after its tag | Nothing. The version is spent and the next cut moves past it |
+| A run is abandoned after its tag | Delete its rc branch. The version is spent and the next cut moves past it |
+| The rc branch moved during the run, so it was kept | Its new commits never shipped: ship their fixes through `start-hotfix`, then delete the branch |
 
 ## Gotchas
 
