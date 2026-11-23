@@ -6,6 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gal/gal.dart';
+import 'package:gal/gal_platform_interface.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker_platform_interface/image_picker_platform_interface.dart';
 import 'package:matrix/matrix.dart';
@@ -360,16 +362,59 @@ FakeImagePicker installFakeImagePicker() {
   return picker;
 }
 
+final class _FakeGal extends GalPlatform {
+  _FakeGal(this._fakes);
+
+  final DeviceFakes _fakes;
+
+  void _refuseIfAsked() {
+    final type = _fakes.galleryRefuses;
+    if (type == null) return;
+    throw GalException.fromPlatformException(
+      PlatformException(code: type.code),
+      StackTrace.current,
+    );
+  }
+
+  @override
+  Future<void> putImageBytes(
+    Uint8List bytes, {
+    String? album,
+    required String name,
+  }) async {
+    _refuseIfAsked();
+    _fakes.gallery.add((
+      method: 'putImageBytes',
+      path: null,
+      bytes: bytes,
+      name: name,
+    ));
+  }
+
+  @override
+  Future<void> putVideo(String path, {String? album}) async {
+    _refuseIfAsked();
+    _fakes.gallery.add((
+      method: 'putVideo',
+      path: path,
+      bytes: null,
+      name: null,
+    ));
+    _fakes.galleryFilesPresent.add(File(path).existsSync());
+  }
+}
+
 class DeviceFakes {
   DeviceFakes._(this.picker);
 
-  final gallery = <MethodCall>[];
+  final gallery =
+      <({String method, String? path, Uint8List? bytes, String? name})>[];
   final galleryFilesPresent = <bool>[];
   final sharePlus = <Map<Object?, Object?>>[];
   final nativeShares = <Map<Object?, Object?>>[];
   final exported = <({String path, String mimeType, Uint8List bytes})>[];
   final FakeFilePicker picker;
-  bool galleryRefuses = false;
+  GalExceptionType? galleryRefuses;
   bool exportAnswer = true;
   PlatformException? nativeShareError;
 
@@ -380,24 +425,11 @@ DeviceFakes installDeviceFakes() {
   final fakes = DeviceFakes._(installFakeFilePicker());
   final messenger =
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-  const gal = MethodChannel('gal');
   const share = MethodChannel('dev.fluttercommunity.plus/share');
   const shareOut = MethodChannel('zuno/share_out');
   const files = MethodChannel('zuno/files');
-  messenger.setMockMethodCallHandler(gal, (call) async {
-    if (call.method == 'hasAccess' || call.method == 'requestAccess') {
-      return true;
-    }
-    if (fakes.galleryRefuses) {
-      throw PlatformException(code: 'NOT_SUPPORTED_FORMAT');
-    }
-    fakes.gallery.add(call);
-    if (call.method == 'putVideo') {
-      final path = (call.arguments as Map)['path'] as String;
-      fakes.galleryFilesPresent.add(File(path).existsSync());
-    }
-    return null;
-  });
+  final originalGal = GalPlatform.instance;
+  GalPlatform.instance = _FakeGal(fakes);
   messenger.setMockMethodCallHandler(share, (call) async {
     fakes.sharePlus.add(call.arguments as Map<Object?, Object?>);
     return 'dev.fluttercommunity.plus/share/success';
@@ -421,7 +453,7 @@ DeviceFakes installDeviceFakes() {
     return fakes.exportAnswer;
   });
   addTearDown(() {
-    messenger.setMockMethodCallHandler(gal, null);
+    GalPlatform.instance = originalGal;
     messenger.setMockMethodCallHandler(share, null);
     messenger.setMockMethodCallHandler(shareOut, null);
     messenger.setMockMethodCallHandler(files, null);

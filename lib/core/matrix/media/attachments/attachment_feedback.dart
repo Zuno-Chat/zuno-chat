@@ -13,8 +13,8 @@ Future<void> saveAttachmentsWithFeedback(
 ) async {
   try {
     if (events.length == 1) {
-      final event = events.single;
-      if (await saveAttachment(event)) messenger.say(savedMessage(l10n, event));
+      final target = await saveAttachment(events.single);
+      if (target != null) messenger.say(savedMessage(l10n, target));
       return;
     }
     final saved = await saveAttachments(events);

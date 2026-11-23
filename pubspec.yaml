@@ -63,7 +63,7 @@ dependencies:
   package_info_plus: ^10.2.2
   http: ^1.6.0
   share_plus: ^13.3.1
-  gal: ^2.3.3
+  gal: ^3.0.1
   # Calls (see docs/features/calls.md): WebRTC media for the
   # CallEngine/Cloudflare Calls adapter, runtime camera/mic permission
   # prompts, the ongoing-call notification, and keeping the screen on

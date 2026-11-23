@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gal/gal.dart';
 import 'package:matrix/matrix.dart';
 import 'package:path/path.dart' as p;
 import 'package:zuno/core/l10n/l10n.dart';
@@ -61,15 +62,15 @@ void main() {
   group('savedMessage', () {
     test('says where a single save went', () {
       expect(
-        savedMessage(englishLocalizations, event(MessageTypes.Image)),
+        savedMessage(englishLocalizations, AttachmentSaveTarget.photos),
         'Saved to Photos',
       );
       expect(
-        savedMessage(englishLocalizations, event(MessageTypes.Video)),
+        savedMessage(englishLocalizations, AttachmentSaveTarget.videos),
         'Saved to Videos',
       );
       expect(
-        savedMessage(englishLocalizations, event(MessageTypes.File)),
+        savedMessage(englishLocalizations, AttachmentSaveTarget.file),
         'Saved',
       );
     });
@@ -188,12 +189,12 @@ void main() {
 
     group('saveAttachment', () {
       test('a photo goes to Photos under its own name', () async {
-        expect(await saveAttachment(photo()), isTrue);
+        expect(await saveAttachment(photo()), AttachmentSaveTarget.photos);
 
-        final call = device.gallery.single;
-        expect(call.method, 'putImageBytes');
-        expect((call.arguments as Map)['name'], 'holiday');
-        expect((call.arguments as Map)['bytes'], server.served);
+        final save = device.gallery.single;
+        expect(save.method, 'putImageBytes');
+        expect(save.name, 'holiday');
+        expect(save.bytes, server.served);
       });
 
       test('a photo saved twice is downloaded once', () async {
@@ -204,9 +205,9 @@ void main() {
       });
 
       test('a video goes to Videos from a named copy, removed after', () async {
-        expect(await saveAttachment(video()), isTrue);
+        expect(await saveAttachment(video()), AttachmentSaveTarget.videos);
 
-        final path = (device.gallery.single.arguments as Map)['path'] as String;
+        final path = device.gallery.single.path!;
         expect(p.basename(path), 'clip.mp4');
         expect(device.galleryFilesPresent, [true]);
         await pumpEventQueue();
@@ -217,7 +218,7 @@ void main() {
         'a file is exported by Zuno from a named copy with its type, '
         'never read whole into the app, and the copy removed after',
         () async {
-          expect(await saveAttachment(document()), isTrue);
+          expect(await saveAttachment(document()), AttachmentSaveTarget.file);
 
           final exported = device.exported.single;
           expect(p.basename(exported.path), 'report.pdf');
@@ -229,10 +230,41 @@ void main() {
         },
       );
 
+      test('a photo the gallery cannot take is exported as a file', () async {
+        device.galleryRefuses = GalExceptionType.notSupportedFormat;
+
+        expect(await saveAttachment(photo()), AttachmentSaveTarget.file);
+
+        final exported = device.exported.single;
+        expect(p.basename(exported.path), 'holiday.png');
+        expect(exported.bytes, server.served);
+        expect(device.gallery, isEmpty);
+      });
+
+      test('a video the gallery cannot take is exported as a file', () async {
+        device.galleryRefuses = GalExceptionType.notSupportedFormat;
+
+        expect(await saveAttachment(video()), AttachmentSaveTarget.file);
+
+        final exported = device.exported.single;
+        expect(p.basename(exported.path), 'clip.mp4');
+        expect(exported.mimeType, 'video/mp4');
+      });
+
+      test('any other gallery refusal is not exported', () async {
+        device.galleryRefuses = GalExceptionType.notEnoughSpace;
+
+        await expectLater(
+          saveAttachment(photo()),
+          throwsA(isA<GalException>()),
+        );
+        expect(device.exported, isEmpty);
+      });
+
       test('a cancelled export saves nothing and leaves no copy', () async {
         device.exportAnswer = false;
 
-        expect(await saveAttachment(document()), isFalse);
+        expect(await saveAttachment(document()), isNull);
         final path = device.exported.single.path;
         await pumpEventQueue();
         expect(File(path).existsSync(), isFalse);
@@ -342,8 +374,7 @@ void main() {
           final shared = '${(device.shared.single['paths']! as List).single}';
 
           await saveAttachment(video());
-          final saved =
-              (device.gallery.single.arguments as Map)['path'] as String;
+          final saved = device.gallery.single.path!;
           await pumpEventQueue();
 
           expect(File(saved).existsSync(), isFalse);
@@ -366,13 +397,7 @@ void main() {
         final cache = '${server.cacheDirectory.path}/attachment_cache';
         final shared = '${(device.shared.single['paths']! as List).single}';
         expect(p.isWithin(cache, shared), isTrue);
-        expect(
-          p.isWithin(
-            cache,
-            (device.gallery.single.arguments as Map)['path'] as String,
-          ),
-          isTrue,
-        );
+        expect(p.isWithin(cache, device.gallery.single.path!), isTrue);
         expect(server.temporaryDirectory.listSync(recursive: true), isEmpty);
       });
 
@@ -422,7 +447,7 @@ void main() {
           ),
         );
 
-        final path = (device.gallery.single.arguments as Map)['path'] as String;
+        final path = device.gallery.single.path!;
         expect(p.basename(path), 'clip.mov');
       });
 
