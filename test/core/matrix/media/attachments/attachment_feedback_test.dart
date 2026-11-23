@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:gal/gal.dart';
 import 'package:http/http.dart' as http;
 import 'package:matrix/matrix.dart';
 
 import 'package:zuno/core/l10n/l10n.dart';
 import 'package:zuno/core/matrix/media/attachments/attachment_feedback.dart';
 
+import '../../../../helpers/caught_reports.dart';
 import '../../../../helpers/fake_attachments.dart';
 
 void main() {
@@ -65,11 +67,37 @@ void main() {
     expect(find.text('Saved to Photos'), findsOneWidget);
   });
 
-  testWidgets('a save that fails says so', (tester) async {
-    device.galleryRefuses = true;
-    await save(tester, [server.attachment()]);
+  testWidgets('a save that fails says so and is reported', (tester) async {
+    device.galleryRefuses = GalExceptionType.unexpected;
+
+    final reports = await reportsDuring(
+      () => save(tester, [server.attachment()]),
+    );
 
     expect(find.text('Could not save. Try again.'), findsOneWidget);
+    expect(reports, ['save attachment']);
+  });
+
+  testWidgets('a photo the gallery cannot take says it was saved', (
+    tester,
+  ) async {
+    device.galleryRefuses = GalExceptionType.notSupportedFormat;
+    await save(tester, [server.attachment()]);
+
+    expect(find.text('Saved'), findsOneWidget);
+  });
+
+  testWidgets('a save refused gallery permission is not reported', (
+    tester,
+  ) async {
+    device.galleryRefuses = GalExceptionType.permissionDenied;
+
+    final reports = await reportsDuring(
+      () => save(tester, [server.attachment()]),
+    );
+
+    expect(find.text('Could not save. Try again.'), findsOneWidget);
+    expect(reports, isEmpty);
   });
 
   testWidgets('a save that fails offline asks to check the connection', (

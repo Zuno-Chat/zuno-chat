@@ -476,7 +476,9 @@ sign-out reach them all.
 - **Saving a file exports its hand-over copy natively on both platforms**
   (`zuno/files`), so no plugin writes a copy of its own, and Android
   streams it into the chosen document instead of holding it in memory.
-  Photos and videos go to the gallery instead.
+  Photos and videos go to the gallery instead, unless the gallery refuses
+  their format (Android's gallery takes only what the phone can decode,
+  so not TIFF); then they are saved as a file.
 - **On Android, sharing out goes through Zuno's own chooser and a
   `FileProvider` that exposes only the hand-over copies**, and Zuno leaves
   itself out of that chooser, since inbound share refuses its own files.

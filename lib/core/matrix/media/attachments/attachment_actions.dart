@@ -107,36 +107,61 @@ Future<T> _fromHandedOverCopy<T>(
   }
 }
 
-Future<bool> saveAttachment(Event event) async {
+Future<AttachmentSaveTarget?> saveAttachment(Event event) async {
   switch (attachmentSaveTarget(event)) {
     case AttachmentSaveTarget.photos:
-      await Gal.putImageBytes(
-        await cachedAttachmentBytes(event),
-        name: p.basenameWithoutExtension(attachmentFileName(event)),
+      return _toGalleryOrAsFile(
+        AttachmentSaveTarget.photos,
+        () async => Gal.putImageBytes(
+          await cachedAttachmentBytes(event),
+          name: p.basenameWithoutExtension(attachmentFileName(event)),
+        ),
+        () => _fromHandedOverCopy(event, (path) => _export(event, path)),
       );
-      return true;
     case AttachmentSaveTarget.videos:
-      await _fromHandedOverCopy(event, Gal.putVideo);
-      return true;
-    case AttachmentSaveTarget.file:
       return _fromHandedOverCopy(
         event,
-        (path) => exportFileAt(
-          path,
-          mimeType: attachmentMimeType(event) ?? 'application/octet-stream',
+        (path) => _toGalleryOrAsFile(
+          AttachmentSaveTarget.videos,
+          () => Gal.putVideo(path),
+          () => _export(event, path),
         ),
       );
+    case AttachmentSaveTarget.file:
+      return _fromHandedOverCopy(event, (path) => _export(event, path));
   }
 }
 
+Future<AttachmentSaveTarget?> _toGalleryOrAsFile(
+  AttachmentSaveTarget gallery,
+  Future<void> Function() put,
+  Future<AttachmentSaveTarget?> Function() asFile,
+) async {
+  try {
+    await put();
+    return gallery;
+  } on GalException catch (e) {
+    if (e.type != GalExceptionType.notSupportedFormat) rethrow;
+    return asFile();
+  }
+}
+
+Future<AttachmentSaveTarget?> _export(Event event, String path) async {
+  final saved = await exportFileAt(
+    path,
+    mimeType: attachmentMimeType(event) ?? 'application/octet-stream',
+  );
+  return saved ? AttachmentSaveTarget.file : null;
+}
+
 bool isGalleryAccessDenied(Object error) =>
-    error is GalException && error.type == GalExceptionType.accessDenied;
+    error is GalException && error.type == GalExceptionType.permissionDenied;
 
 Future<int> saveAttachments(List<Event> events) async {
   var saved = 0;
   for (final event in events) {
     try {
-      if (await saveAttachment(event)) saved++;
+      if (await saveAttachment(event) != null) saved++;
     } catch (e, s) {
       if (!isGalleryAccessDenied(e)) reportCaught('save attachment', e, s);
     }
@@ -144,8 +169,8 @@ Future<int> saveAttachments(List<Event> events) async {
   return saved;
 }
 
-String savedMessage(AppLocalizations l10n, Event event) =>
-    switch (attachmentSaveTarget(event)) {
+String savedMessage(AppLocalizations l10n, AttachmentSaveTarget target) =>
+    switch (target) {
       AttachmentSaveTarget.photos => l10n.matrixSavedToPhotos,
       AttachmentSaveTarget.videos => l10n.matrixSavedToVideos,
       AttachmentSaveTarget.file => l10n.matrixSaved,
