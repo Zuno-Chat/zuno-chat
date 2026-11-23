@@ -152,7 +152,7 @@ dependencies {
     implementation("com.google.android.play:app-update:2.1.0")
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
     implementation("com.google.firebase:firebase-messaging")
-    compileOnly("io.github.webrtc-sdk:android:150.7871.04")
+    compileOnly("io.github.webrtc-sdk:android:150.7871.08")
     // Required by compileOptions.isCoreLibraryDesugaringEnabled above.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
 }
