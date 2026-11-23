@@ -70,7 +70,7 @@ LiveShareState? parseLiveShareState(
 }
 
 LiveShareState? liveShareStateOf(Room room, String userId) {
-  final state = room.states[liveLocationStateType]?[userId];
+  final state = room.getState(liveLocationStateType, userId);
   if (state is! MatrixEvent || state.senderId != userId) return null;
   return parseLiveShareState(state.content, publishedAt: state.originServerTs);
 }

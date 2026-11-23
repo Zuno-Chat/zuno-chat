@@ -53,26 +53,29 @@ void main() {
   Completer<void>? holdJoin;
   Room? opened;
 
+  Event stateEvent(
+    Room room,
+    String type,
+    Map<String, Object?> content, {
+    String stateKey = '',
+  }) => buildTestEvent(
+    room,
+    eventId: '\$$type-${room.id}-$stateKey',
+    senderId: _me,
+    type: type,
+    stateKey: stateKey,
+    content: content,
+    originServerTs: DateTime(2026),
+  );
+
   void putState(
     Room room,
     String type,
     Map<String, Object?> content, {
     String stateKey = '',
-  }) {
-    room.setState(
-      buildTestEvent(
-        room,
-        eventId: '\$$type-${room.id}-$stateKey',
-        senderId: _me,
-        type: type,
-        stateKey: stateKey,
-        content: content,
-        originServerTs: DateTime(2026),
-      ),
-    );
-  }
+  }) => room.setState(stateEvent(room, type, content, stateKey: stateKey));
 
-  Room member(String id, String name) {
+  Room member(String id, String name, {bool namesCommunity = true}) {
     final room = buildTestRoom(client, id: id)..membership = Membership.join;
     putState(room, EventTypes.RoomName, {'name': name});
     encryptRoom(room);
@@ -87,18 +90,48 @@ void main() {
     putState(club, EventTypes.SpaceChild, {
       'via': ['example.org'],
     }, stateKey: id);
-    putState(room, EventTypes.SpaceParent, {
-      'via': ['example.org'],
-    }, stateKey: club.id);
+    if (namesCommunity) {
+      putState(room, EventTypes.SpaceParent, {
+        'via': ['example.org'],
+      }, stateKey: club.id);
+    }
     return room;
   }
 
-  void makeAdmin() => putState(club, EventTypes.RoomPowerLevels, {
+  const adminLevels = {
     'users': {_me: 100},
     'events_default': 100,
     'state_default': 100,
     'events': {EventTypes.SpaceChild: 50},
-  });
+  };
+  const clubTopic = {'topic': 'Bouldering on Saturdays'};
+
+  void makeAdmin() => putState(club, EventTypes.RoomPowerLevels, adminLevels);
+
+  Room buildClub({bool coldStart = false}) {
+    final room = buildTestRoom(client, id: '!club:example.org')
+      ..membership = Membership.join
+      ..partial = coldStart;
+    putState(room, EventTypes.RoomCreate, {'type': 'm.space'});
+    putState(room, EventTypes.RoomName, {'name': 'Climbing club'});
+    if (!coldStart) putState(room, EventTypes.RoomTopic, clubTopic);
+    putState(room, EventTypes.RoomJoinRules, {'join_rule': 'invite'});
+    if (!coldStart) {
+      putState(room, EventTypes.RoomPowerLevels, {
+        'users': {_me: 0},
+        'events_default': 100,
+        'state_default': 100,
+        'invite': 0,
+        'events': {EventTypes.SpaceChild: 50},
+      });
+    }
+    putState(room, EventTypes.SpaceChild, {
+      'via': ['example.org'],
+    }, stateKey: '!beginners:example.org');
+    room.summary.mJoinedMemberCount = 24;
+    client.rooms.add(room);
+    return room;
+  }
 
   SpaceRoomsChunk$2 chunk(
     String id,
@@ -219,24 +252,7 @@ void main() {
     );
     client.baseUri = Uri.parse('https://example.org');
     client.bearerToken = 'test-token';
-    club = buildTestRoom(client, id: '!club:example.org')
-      ..membership = Membership.join;
-    putState(club, EventTypes.RoomCreate, {'type': 'm.space'});
-    putState(club, EventTypes.RoomName, {'name': 'Climbing club'});
-    putState(club, EventTypes.RoomTopic, {'topic': 'Bouldering on Saturdays'});
-    putState(club, EventTypes.RoomJoinRules, {'join_rule': 'invite'});
-    putState(club, EventTypes.RoomPowerLevels, {
-      'users': {_me: 0},
-      'events_default': 100,
-      'state_default': 100,
-      'invite': 0,
-      'events': {EventTypes.SpaceChild: 50},
-    });
-    putState(club, EventTypes.SpaceChild, {
-      'via': ['example.org'],
-    }, stateKey: '!beginners:example.org');
-    club.summary.mJoinedMemberCount = 24;
-    client.rooms.add(club);
+    club = buildClub();
   });
 
   GetSpaceHierarchyResponse page(
@@ -320,13 +336,12 @@ void main() {
 
   testWidgets('after a cold start, the rest of the community is read from '
       'this device', (tester) async {
-    final topic = club.getState(EventTypes.RoomTopic)! as Event;
-    club.states.remove(EventTypes.RoomTopic);
-    makeAdmin();
-    final levels = club.getState(EventTypes.RoomPowerLevels)! as Event;
-    club.states.remove(EventTypes.RoomPowerLevels);
-    club.partial = true;
-    stored.states = [topic, levels];
+    client.rooms.remove(club);
+    club = buildClub(coldStart: true);
+    stored.states = [
+      stateEvent(club, EventTypes.RoomTopic, clubTopic),
+      stateEvent(club, EventTypes.RoomPowerLevels, adminLevels),
+    ];
 
     await pump(tester);
     await tester.pump();
@@ -538,8 +553,7 @@ void main() {
 
   testWidgets('a room the community lists shows under Your rooms even when '
       'it does not name the community back', (tester) async {
-    final lounge = member('!lounge:example.org', 'Lounge');
-    lounge.states[EventTypes.SpaceParent]!.remove(club.id);
+    member('!lounge:example.org', 'Lounge', namesCommunity: false);
     await pump(tester);
 
     expect(find.text('Your rooms'), findsOneWidget);

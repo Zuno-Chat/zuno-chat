@@ -322,8 +322,8 @@ void main() {
     });
 
     clockedTest('a sharer whose membership is not loaded yet is not shown', () {
-      share('@alex:x');
-      room.states[EventTypes.RoomMember]?.remove('@alex:x');
+      setSelfSignedTestDevices(client, '@dan:x', ['PHONE']);
+      share('@dan:x');
 
       expect(viewing.sharesIn(room), isEmpty);
     });

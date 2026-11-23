@@ -1330,12 +1330,10 @@ void main() {
     });
 
     clockedTest('a member whose membership is not loaded is not a peer', () {
-      room.states[EventTypes.RoomMember]?.remove('@alex:x');
-
       expect(
         isLiveLocationPeer(
           room,
-          client.userDeviceKeys['@alex:x']!.deviceKeys['PHONE']!,
+          client.userDeviceKeys['@eve:x']!.deviceKeys['LAPTOP']!,
           ignored: const {},
         ),
         false,
