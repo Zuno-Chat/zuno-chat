@@ -74,8 +74,8 @@ dependencies:
   wakelock_plus: ^1.4.0
   light_compressor: ^2.2.0
   video_player: ^2.14.1
-  image: ^4.12.0
-  flutter_svg: ^2.4.0
+  image: ^4.13.1
+  flutter_svg: ^2.5.0
   unifiedpush_android: ^3.5.0
   unifiedpush_platform_interface: ^4.0.0
   # Verification QR codes (docs/features/security-verification.md). Both are
@@ -99,7 +99,7 @@ dependencies:
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   geolocator: ^14.1.2
-  sentry_flutter: ^10.3.0
+  sentry_flutter: ^10.6.0
   flutter_web_auth_2: ^5.1.0
   protobuf: ^6.1.0
   fixnum: ^1.1.1
