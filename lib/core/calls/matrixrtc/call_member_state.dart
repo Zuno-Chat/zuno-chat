@@ -96,7 +96,7 @@ Map<String, Object?> leavingCallMembership(String callId) => {
 };
 
 bool hasLeftCall(Room room, String userId, String callId) =>
-    room.states[callMemberEventType]?[userId]?.content[_leftCallIdKey] ==
+    room.getState(callMemberEventType, userId)?.content[_leftCallIdKey] ==
     callId;
 
 String? callMembershipEventId(Room room, String callId, {String? excluding}) =>

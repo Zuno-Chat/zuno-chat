@@ -35,7 +35,7 @@ class LiveShareSweep {
     for (final room in _client.rooms) {
       if (room.membership != Membership.join) continue;
       if (_isActive(room.id)) continue;
-      final event = room.states[liveLocationStateType]?[userId];
+      final event = room.getState(liveLocationStateType, userId);
       if (event is! MatrixEvent || event.senderId != userId) continue;
       final state = parseLiveShareState(
         event.content,

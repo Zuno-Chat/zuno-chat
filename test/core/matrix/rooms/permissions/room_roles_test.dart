@@ -508,9 +508,9 @@ void main() {
     });
 
     test('a room without power levels gets a users map', () async {
-      room.states.remove(EventTypes.RoomPowerLevels);
+      final bare = buildTestRoom(room.client, id: '!bare:example.org');
 
-      await setUserRoomRole(room, '@bob:example.org', RoomRole.admin);
+      await setUserRoomRole(bare, '@bob:example.org', RoomRole.admin);
 
       expect(jsonDecode(requests.single.body), {
         'users': {'@bob:example.org': 100},
